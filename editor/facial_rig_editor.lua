@@ -254,6 +254,7 @@ end
 local function localizedWeightAssignmentReason(reason)
     local exact={
         ['binding plan entry is blocked']='fre_weight_reason_plan_blocked',
+        ['this role policy is not enabled in this milestone']='fre_weight_reason_policy_blocked',
         ['only rigid role masks are enabled in this milestone']='fre_weight_reason_rigid_only',
         ['rigid role must resolve to exactly one generated bone']='fre_weight_reason_one_bone',
         ['generated bone is not present in the mesh skeleton']='fre_weight_reason_bone_missing',
@@ -270,7 +271,15 @@ local function localizedWeightAssignmentReason(reason)
         ['source vertex map topology is stale or missing']='fre_weight_reason_stale_source_map',
         ['mask topology is stale:']='fre_weight_reason_stale_mask',
         ['mask contains an invalid vertex:']='fre_weight_reason_invalid_mask',
-        ['some enabled roles remain blocked; only ready rigid roles can be assigned']='fre_weight_reason_partial'
+        ['some enabled roles remain blocked; only ready rigid roles can be assigned']='fre_weight_reason_partial',
+        ['some enabled roles remain blocked; only ready roles can be assigned']='fre_weight_reason_partial',
+        ['mesh geometry API is unavailable: getTotalSubset']='fre_weight_reason_geometry_api',
+        ['mesh geometry API is unavailable: getTotalVertex']='fre_weight_reason_geometry_api',
+        ['mesh geometry API is unavailable: getVertex']='fre_weight_reason_geometry_api',
+        ['mesh vertex positions are unavailable']='fre_weight_reason_geometry_api',
+        ['mesh vertex order does not match the loaded topology']='fre_weight_reason_vertex_order',
+        ['generated facial bones are not present in the mesh skeleton']='fre_weight_reason_bone_missing',
+        ['facial role contains a vertex without a position']='fre_weight_reason_vertex_position'
     }
     if exact[reason] then return tLang.L(exact[reason]) end
     local prefixKeys={
@@ -805,8 +814,9 @@ end
 local function refreshWeightAssignment()
     if state.workspace~='rig' or not state.meshDebug then return end
     if state.bindingPlan.dirty then refreshBindingPlan() end
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
     state.weightAssignment.data=tFacialWeightAssignment.inspect(state.meshDebug,state.project,state.topology,
-        state.bindingPlan.data)
+        state.bindingPlan.data,rig)
     state.weightAssignment.dirty=false
 end
 
@@ -1666,8 +1676,10 @@ local function showRig()
             tImGui.Text(string.format(tLang.L('fre_weight_assignment_summary_fmt'),
                 assignment.readyCount,assignment.blockedCount,assignment.totalVertexCount))
             for _,entry in ipairs(assignment.entries or {}) do
+                local boneLabel=entry.bone or (entry.method=='facial_skeleton' and
+                    tLang.L('fre_weight_assignment_facial_bones') or tLang.L('fre_unassigned'))
                 tImGui.TextWrapped(string.format(tLang.L('fre_weight_assignment_role_fmt'),entry.name,
-                    entry.bone or tLang.L('fre_unassigned'),#(entry.vertices or {}),
+                    boneLabel,#(entry.vertices or {}),
                     entry.status=='ready' and tLang.L('fre_weight_assignment_ready') or
                         tLang.L('fre_weight_assignment_blocked_status')))
                 for _,reason in ipairs(entry.reasons or {}) do

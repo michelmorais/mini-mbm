@@ -329,3 +329,17 @@ the result to a new file.
 
 This slice creates the canonical bone identities required by the next weight-authoring milestone.
 It does not infer facial influences or overwrite existing bone weights.
+
+## Delivered thirteenth slice: facial weight preview and assignment
+
+The Rig workspace now builds a read-only weight preview for the verified `main_face` role. It reads
+the loaded MSH vertex positions once when the review becomes dirty, scores each vertex against the
+generated facial bone segments, keeps up to four nearest influences, and normalizes their weights.
+Rigid roles continue to use their explicit one-bone masks. The **Apply facial weight preview** button
+sends the complete detached edit batch through `setSkeletalVertexWeightsBatch`; no vertex is changed
+until the button is pressed, and **Save modified facial MSH as...** remains the separate persistence
+step.
+
+The first policy is intentionally deterministic and reviewable. It is a binding baseline for the
+Megan asset; later milestones can add region-specific falloffs and artist overrides without changing
+the transaction boundary.

@@ -19,12 +19,22 @@
 
    Explicit facial weight assignment.
 
-   This module only creates a detached edit batch for rigid roles whose vertex masks and
-   canonical bones are already verifiable. The MeshDebug operation is atomic; no inferred
-   object boundaries, heat map, or automatic facial-skeleton weights are created here.
+   This module creates detached edit batches for rigid roles and for the first deterministic
+   facial-skeleton preview. Facial weights use verified role vertices and distance to generated
+   bone segments; no Blender object boundary is inferred and no edit is applied during inspection.
 ]]--
 
 local M={}
+
+local function call(meshDebug,method,...)
+    if not meshDebug or type(meshDebug[method])~='function' then
+        return false,nil,'mesh geometry API is unavailable: ' .. tostring(method)
+    end
+    local arguments={...}
+    local result=table.pack(pcall(function() return meshDebug[method](meshDebug,table.unpack(arguments)) end))
+    if not result[1] then return false,nil,tostring(result[2]) end
+    return true,table.unpack(result,2,result.n)
+end
 
 local function appendUnique(list,seen,value)
     if not seen[value] then
@@ -47,6 +57,87 @@ local function reportBoneSet(meshDebug)
         if type(bone)=='table' and type(bone.name)=='string' and bone.name~='' then result[bone.name]=true end
     end
     return result,report,nil
+end
+
+local function vertexPositions(meshDebug,topology)
+    local positions={}
+    local okSubset,subsetCount,errorMessage=call(meshDebug,'getTotalSubset',1)
+    if not okSubset or not subsetCount then return nil,errorMessage or 'mesh subsets are unavailable' end
+    local offset=0
+    for subset=1,subsetCount do
+        local okCount,count,countError=call(meshDebug,'getTotalVertex',1,subset)
+        if not okCount or not count then return nil,countError or 'mesh vertex count is unavailable' end
+        if count>0 then
+            local okVertices,vertices,verticesError=call(meshDebug,'getVertex',1,subset,1,count)
+            if not okVertices or type(vertices)~='table' then
+                return nil,verticesError or 'mesh vertex positions are unavailable'
+            end
+            for localIndex,point in ipairs(vertices) do
+                positions[offset+localIndex]={x=tonumber(point.x) or 0,y=tonumber(point.y) or 0,
+                    z=tonumber(point.z) or 0}
+            end
+        end
+        offset=offset+count
+    end
+    if topology and topology.vertexCount and offset~=topology.vertexCount then
+        return nil,'mesh vertex order does not match the loaded topology'
+    end
+    return positions,nil
+end
+
+local function distanceToSegmentSquared(point,head,tail)
+    local ax,ay,az=head.x,head.y,head.z
+    local bx,by,bz=tail.x,tail.y,tail.z
+    local dx,dy,dz=bx-ax,by-ay,bz-az
+    local lengthSquared=dx*dx+dy*dy+dz*dz
+    local t=0
+    if lengthSquared>1e-12 then
+        t=((point.x-ax)*dx+(point.y-ay)*dy+(point.z-az)*dz)/lengthSquared
+        t=math.max(0,math.min(1,t))
+    end
+    local qx,qy,qz=ax+dx*t,ay+dy*t,az+dz*t
+    local ex,ey,ez=point.x-qx,point.y-qy,point.z-qz
+    return ex*ex+ey*ey+ez*ez
+end
+
+local function facialEdits(meshDebug,topology,vertices,rig,bones)
+    local positions,errorMessage=vertexPositions(meshDebug,topology)
+    if not positions then return nil,errorMessage end
+    local candidates={}
+    for _,bone in ipairs(rig and rig.bones or {}) do
+        local name=tostring(bone.id or bone.name or '')
+        if bones[name] and bone.head and bone.tail then
+            candidates[#candidates+1]={name=name,head=bone.head,tail=bone.tail}
+        end
+    end
+    if #candidates==0 then return nil,'generated facial bones are not present in the mesh skeleton' end
+    local edits={}
+    for _,vertex in ipairs(vertices) do
+        local point=positions[vertex]
+        if not point then return nil,'facial role contains a vertex without a position' end
+        local scored={}
+        for _,candidate in ipairs(candidates) do
+            scored[#scored+1]={name=candidate.name,
+                distance=distanceToSegmentSquared(point,candidate.head,candidate.tail)}
+        end
+        table.sort(scored,function(a,b) return a.distance<b.distance end)
+        local influenceCount=math.min(4,#scored)
+        local total=0
+        for index=1,influenceCount do total=total+1/(scored[index].distance+1e-8) end
+        local row={[1]=vertex}
+        for slot=1,4 do
+            local candidate=scored[slot]
+            if slot<=influenceCount then
+                row[slot*2]=candidate.name
+                row[slot*2+1]=(1/(candidate.distance+1e-8))/total
+            else
+                row[slot*2]=nil
+                row[slot*2+1]=0
+            end
+        end
+        edits[#edits+1]=row
+    end
+    return edits,nil
 end
 
 local function roleVertices(project,entry,topology)
@@ -76,7 +167,7 @@ local function roleVertices(project,entry,topology)
     return vertices,nil
 end
 
-function M.inspect(meshDebug,project,topology,plan)
+function M.inspect(meshDebug,project,topology,plan,rig)
     local result={version=1,valid=true,entries={},readyCount=0,blockedCount=0,totalVertexCount=0,
         errors={},warnings={}}
     if not plan or type(plan.entries)~='table' then
@@ -104,17 +195,25 @@ function M.inspect(meshDebug,project,topology,plan)
         local item={index=entry.index,name=entry.name,method=entry.method,bone=nil,vertices={},status='blocked',reasons={}}
         if entry.status~='ready' then
             item.reasons[#item.reasons+1]='binding plan entry is blocked'
-        elseif entry.method~='rigid' then
-            item.reasons[#item.reasons+1]='only rigid role masks are enabled in this milestone'
-        elseif #(entry.bones or {})~=1 then
+        elseif entry.method~='rigid' and entry.method~='facial_skeleton' then
+            item.reasons[#item.reasons+1]='this role policy is not enabled in this milestone'
+        elseif entry.method=='rigid' and #(entry.bones or {})~=1 then
             item.reasons[#item.reasons+1]='rigid role must resolve to exactly one generated bone'
         else
-            item.bone=entry.bones[1]
-            if not bones[item.bone] then item.reasons[#item.reasons+1]='generated bone is not present in the mesh skeleton' end
+            if entry.method=='rigid' then
+                item.bone=entry.bones[1]
+                if not bones[item.bone] then item.reasons[#item.reasons+1]='generated bone is not present in the mesh skeleton' end
+            end
             local vertices,errorMessage=roleVertices(project,entry,topology)
             if not vertices then item.reasons[#item.reasons+1]=errorMessage
             elseif #vertices==0 then item.reasons[#item.reasons+1]='role has no explicit vertex mask'
-            else item.vertices=vertices end
+            else
+                item.vertices=vertices
+                if entry.method=='facial_skeleton' then
+                    local edits,facialError=facialEdits(meshDebug,topology,vertices,rig,bones)
+                    if not edits then item.reasons[#item.reasons+1]=facialError else item.edits=edits end
+                end
+            end
         end
         if #item.reasons==0 then
             item.status='ready'
@@ -127,7 +226,7 @@ function M.inspect(meshDebug,project,topology,plan)
     end
     if result.readyCount==0 then result.valid=false end
     if result.readyCount>0 and result.blockedCount>0 then
-        result.warnings[#result.warnings+1]='some enabled roles remain blocked; only ready rigid roles can be assigned'
+        result.warnings[#result.warnings+1]='some enabled roles remain blocked; only ready roles can be assigned'
     end
     return result
 end
@@ -137,10 +236,19 @@ function M.buildEdits(assignment)
     local edits,seen={},{}
     for _,entry in ipairs(assignment.entries or {}) do
         if entry.status=='ready' then
-            for _,vertex in ipairs(entry.vertices or {}) do
-                if seen[vertex] then return nil,'assignment contains overlapping vertices' end
-                seen[vertex]=true
-                edits[#edits+1]={[1]=vertex,[2]=entry.bone,[3]=1.0,[4]=nil,[5]=0.0,[6]=nil,[7]=0.0,[8]=nil,[9]=0.0}
+            if entry.edits then
+                for _,edit in ipairs(entry.edits) do
+                    local vertex=edit[1]
+                    if seen[vertex] then return nil,'assignment contains overlapping vertices' end
+                    seen[vertex]=true
+                    edits[#edits+1]=edit
+                end
+            else
+                for _,vertex in ipairs(entry.vertices or {}) do
+                    if seen[vertex] then return nil,'assignment contains overlapping vertices' end
+                    seen[vertex]=true
+                    edits[#edits+1]={[1]=vertex,[2]=entry.bone,[3]=1.0,[4]=nil,[5]=0.0,[6]=nil,[7]=0.0,[8]=nil,[9]=0.0}
+                end
             end
         end
     end
