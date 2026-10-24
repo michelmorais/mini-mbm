@@ -286,3 +286,16 @@ rigid, bilateral, or manual opt-in), candidate bones, masked vertex counts, and 
 roles remain blocked because a merged MSH does not expose their original Blender vertex boundaries.
 The plan is descriptive and does not mutate the mesh; the next implementation can add an explicit
 confirmation and transactional assignment operation once the source vertices are available.
+
+## Delivered tenth slice: explicit rigid mask assignment
+
+The Rig workspace now validates a safe first assignment operation against the loaded MeshDebug
+asset. It accepts only explicit vertex masks, existing canonical bones, and rigid role policies
+such as eyes and teeth. The operation builds a detached batch and sends it through the atomic
+`setSkeletalVertexWeightsBatch` API; facial-skeleton, bilateral, object-only, missing-bone, stale,
+and unweighted cases remain blocked with a visible reason. Applying changes memory only. A separate
+Save As action writes a new MSH file, leaving the original asset untouched.
+
+This slice intentionally does not infer Blender object boundaries, generate heat-map weights, or
+create the canonical facial bones. Those operations require an explicit source-vertex mapping and
+will be addressed in a later milestone.

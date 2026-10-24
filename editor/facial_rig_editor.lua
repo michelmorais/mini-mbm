@@ -28,6 +28,7 @@ tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
 tFacialBridge = require "facial_rig_blender_bridge"
 tFacialBindingPlan = require "facial_rig_binding_plan"
+tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tBlender = require "blender_cli_wrapper"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
@@ -52,6 +53,7 @@ local state = {
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
     bindingPlan={dirty=true,data=nil},
+    weightAssignment={dirty=true,data=nil,modified=false},
     blenderBridgePath=nil, blenderSourcePath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -243,6 +245,26 @@ local function localizedBindingPlanReason(reason)
     return translated
 end
 
+local function localizedWeightAssignmentReason(reason)
+    local exact={
+        ['binding plan entry is blocked']='fre_weight_reason_plan_blocked',
+        ['only rigid role masks are enabled in this milestone']='fre_weight_reason_rigid_only',
+        ['rigid role must resolve to exactly one generated bone']='fre_weight_reason_one_bone',
+        ['generated bone is not present in the mesh skeleton']='fre_weight_reason_bone_missing',
+        ['role has no explicit vertex mask']='fre_weight_reason_mask_missing',
+        ['mesh skeleton is not canonical']='fre_weight_reason_noncanonical',
+        ['mesh has no canonical vertex weights']='fre_weight_reason_no_weights',
+        ['mesh has no readable canonical skeleton']='fre_weight_reason_no_skeleton',
+        ['mesh skeleton report API is unavailable']='fre_weight_reason_no_report',
+        ['all enabled roles must be ready before assignment']='fre_weight_reason_all_ready',
+        ['assignment contains a blocked role']='fre_weight_reason_plan_blocked',
+        ['assignment contains overlapping vertices']='fre_weight_reason_overlap',
+        ['assignment has no vertices']='fre_weight_reason_no_vertices',
+        ['some enabled roles remain blocked; only ready rigid roles can be assigned']='fre_weight_reason_partial'
+    }
+    return exact[reason] and tLang.L(exact[reason]) or tostring(reason or '')
+end
+
 local function showProjectMessages(report)
     for _,message in ipairs(report.errors or {}) do
         tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedProjectMessage(message))
@@ -294,6 +316,7 @@ local function markModified()
     state.modified=true
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.weightAssignment.dirty=true
 end
 
 local function clearHistory()
@@ -329,6 +352,7 @@ local function restoreHistorySnapshot(snapshot)
     state.faceGuideDirty=true
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.weightAssignment.dirty=true
     return true
 end
 
@@ -716,6 +740,50 @@ local function refreshBindingPlan()
     local review=tFacialProject.bindingReview(state.project,state.topology)
     state.bindingPlan.data=tFacialBindingPlan.build(state.project,state.topology,rig,review)
     state.bindingPlan.dirty=false
+    state.weightAssignment.dirty=true
+end
+
+local function refreshWeightAssignment()
+    if state.workspace~='rig' or not state.meshDebug then return end
+    if state.bindingPlan.dirty then refreshBindingPlan() end
+    state.weightAssignment.data=tFacialWeightAssignment.inspect(state.meshDebug,state.project,state.topology,
+        state.bindingPlan.data)
+    state.weightAssignment.dirty=false
+end
+
+local function applyRigidFacialWeights()
+    if state.weightAssignment.dirty then refreshWeightAssignment() end
+    local assignment=state.weightAssignment.data
+    if not assignment or assignment.valid~=true then
+        local reason=assignment and assignment.errors and assignment.errors[1] or
+            'explicit weight assignment is not ready'
+        setStatus(tLang.L('fre_weight_assignment_blocked') .. ': ' .. tostring(reason),true)
+        return false
+    end
+    local ok,count,errorMessage=tFacialWeightAssignment.apply(state.meshDebug,assignment)
+    if not ok then
+        setStatus(tLang.L('fre_weight_assignment_failed') .. ': ' .. tostring(errorMessage or ''),true)
+        return false
+    end
+    state.weightAssignment.modified=true
+    state.weightAssignment.dirty=true
+    setStatus(string.format(tLang.L('fre_weight_assignment_applied_fmt'),count),false)
+    return true
+end
+
+local function saveAssignedMesh()
+    if not state.meshDebug or not state.weightAssignment.modified then return false end
+    local suggested=replaceExtension(state.project.meshPath or 'facial-rig','-facial-weighted.msh')
+    local path=mbm.saveFile(suggested,'msh')
+    if not path then return false end
+    local callOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,false) end)
+    if not callOk or saved~=true then
+        setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
+        return false
+    end
+    state.weightAssignment.modified=false
+    setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
+    return true
 end
 
 local function inspectMesh(meshDebugObject)
@@ -813,6 +881,7 @@ local function loadMesh(path, preserveProject)
     markFaceGuideDirty()
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.weightAssignment={dirty=true,data=nil,modified=false}
     frameCamera(bounds)
     setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     return true
@@ -834,6 +903,7 @@ local function newProject()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
     state.bindingPlan.dirty=true
+    state.weightAssignment={dirty=true,data=nil,modified=false}
     setStatus(tLang.L('fre_new_project'),false)
 end
 
@@ -1491,6 +1561,39 @@ local function showRig()
             for _,reason in ipairs(plan.errors or {}) do
                 tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedBindingPlanReason(reason))
             end
+        end
+        tImGui.TreePop()
+    end
+    if state.weightAssignment.dirty then refreshWeightAssignment() end
+    if tImGui.TreeNode(tLang.L('fre_weight_assignment_title')) then
+        tImGui.TextWrapped(tLang.L('fre_weight_assignment_help'))
+        local assignment=state.weightAssignment.data
+        if assignment then
+            tImGui.Text(string.format(tLang.L('fre_weight_assignment_summary_fmt'),
+                assignment.readyCount,assignment.blockedCount,assignment.totalVertexCount))
+            for _,entry in ipairs(assignment.entries or {}) do
+                tImGui.TextWrapped(string.format(tLang.L('fre_weight_assignment_role_fmt'),entry.name,
+                    entry.bone or tLang.L('fre_unassigned'),#(entry.vertices or {}),
+                    entry.status=='ready' and tLang.L('fre_weight_assignment_ready') or
+                        tLang.L('fre_weight_assignment_blocked_status')))
+                for _,reason in ipairs(entry.reasons or {}) do
+                    tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedWeightAssignmentReason(reason))
+                end
+            end
+            for _,reason in ipairs(assignment.errors or {}) do
+                tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedWeightAssignmentReason(reason))
+            end
+            for _,reason in ipairs(assignment.warnings or {}) do
+                tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedWeightAssignmentReason(reason))
+            end
+            tImGui.BeginDisabled(assignment.valid~=true)
+            if tImGui.Button(tLang.L('fre_weight_assignment_apply')) then applyRigidFacialWeights() end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
+            tImGui.BeginDisabled(not state.weightAssignment.modified)
+            if tImGui.Button(tLang.L('fre_weight_assignment_save')) then saveAssignedMesh() end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
         end
         tImGui.TreePop()
     end
