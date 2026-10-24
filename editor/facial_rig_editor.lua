@@ -1090,21 +1090,25 @@ local function rebuildFacialComparison(enabled)
         if state.meshBounds then frameCamera(state.meshBounds) end
         return true
     end
-    if not state.mesh or not state.project.meshPath or state.project.meshPath=='' then return false end
+    if not state.mesh or not state.project.meshPath or state.project.meshPath=='' then
+        return false,'fre_preview_gpu_cpu_reason_no_mesh'
+    end
     local primaryPathOk,primaryPath=dpCall(function() return state.mesh:getResolvedSkeletalExecutionPath() end)
-    if not primaryPathOk or primaryPath~='gpu' then return false end
+    if not primaryPathOk or primaryPath~='gpu' then
+        return false,'fre_preview_gpu_cpu_reason_gpu_unavailable'
+    end
     local candidate=mesh:new('3d')
     local cpuOk,cpuReady=dpCall(function() return candidate:setSkeletalExecutionPath('cpu') end)
     local loadOk,loaded=false,false
     if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(state.project.meshPath) end) end
     if not cpuOk or cpuReady==false or not loadOk or loaded==false then
         dpCall(function() candidate:destroy() end)
-        return false
+        return false,'fre_preview_gpu_cpu_reason_cpu_load'
     end
     dpCall(function() return candidate:stopSkeletalAnimation() end)
     comparison.mesh=candidate
     comparison.ready=true
-    local bounds=state.meshBounds
+    local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
     local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
         bounds.maxZ-bounds.minZ) or 1
     local separation=math.max(extent*0.65,0.1)
@@ -2311,16 +2315,18 @@ local function showPreview()
     local expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions=expressions
     if state.preview.skeletalDirty then refreshPreviewSkeletalCatalog() end
-    local compareChanged,compare=tImGui.Checkbox(tLang.L('fre_preview_gpu_cpu_compare'),
+    local compare=tImGui.Checkbox(tLang.L('fre_preview_gpu_cpu_compare'),
         state.facialComparison.enabled==true)
-    if compareChanged then
-        if rebuildFacialComparison(compare) then
+    if compare~=state.facialComparison.enabled then
+        local rebuilt,reason=rebuildFacialComparison(compare)
+        if rebuilt then
             state.facialComparison.enabled=compare
             setStatus(compare and tLang.L('fre_preview_gpu_cpu_enabled') or
                 tLang.L('fre_preview_gpu_cpu_disabled'),false)
         else
             state.facialComparison.enabled=false
-            setStatus(tLang.L('fre_preview_gpu_cpu_failed'),true)
+            local reasonText=reason and tLang.L(reason) or tLang.L('fre_preview_gpu_cpu_reason_unknown')
+            setStatus(tLang.L('fre_preview_gpu_cpu_failed') .. ': ' .. reasonText,true)
         end
     end
     showHelpTooltip(tLang.L('fre_preview_gpu_cpu_tooltip'))
