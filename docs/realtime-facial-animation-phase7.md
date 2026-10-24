@@ -208,6 +208,35 @@ writer uses a temporary file and an atomic rename so an interrupted export does 
 last valid document. Export remains read-only and does not create weights, alter the mesh, or run
 Blender automatically.
 
-The next implementation milestone is a Blender-side importer that consumes this document and
-creates an armature preview without committing weights. Automatic weight generation, full Faceit
-rig parity, live capture, and production-quality facial expressions remain outside this slice.
+Automatic weight generation, full Faceit rig parity, live capture, and production-quality facial
+expressions remain outside this slice.
+
+## Delivered fifth slice: Blender armature preview importer
+
+`editor/facial_rig_blender_import.py` consumes the bridge document without executing Lua. It
+accepts the generated hexadecimal Lua numeric format, resolves the serializer's shared-table
+references, converts the engine's Y-up coordinates to Blender's Z-up convention, and creates a
+`FacialRigPreview` armature. The existing `.blend` scene remains available when Blender is opened
+with `-b existing.blend`; the importer stores topology and binding reports as armature metadata.
+This importer is preview-only and never writes vertex groups or changes mesh geometry.
+
+Example:
+
+```sh
+blender -b megan.blend --python editor/facial_rig_blender_import.py -- \
+  --bridge facial-rig-meg-blender-bridge.lua \
+  --output megan-facial-rig-preview.blend
+```
+
+The importer is also exposed through the Blender UI operator described below.
+
+## Delivered sixth slice: Blender UI operator
+
+`editor/facial_rig_blender_addon.py` registers a `Mini MBM Facial` panel in Blender's 3D View
+sidebar. The panel opens a file picker for the bridge document, imports the preview into the
+currently open `.blend`, reports bone and vertex-count checks, and displays the stored role
+warnings. It uses the same Y-up to Z-up conversion as the headless importer and leaves saving to
+the user. The operator is still preview-only: it does not assign weights or edit mesh geometry.
+
+The next milestone is a mesh-aware review of facial role objects and then an explicit, opt-in
+weight assignment design.
