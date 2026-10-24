@@ -26,6 +26,7 @@ tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
+tFacialBridge = require "facial_rig_blender_bridge"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
 local function dpCall(fn, ...)
@@ -179,6 +180,12 @@ local function localizedRigMessage(message)
         ['chin is optional; the jaw bone is omitted']='fre_warning_rig_chin'
     }
     return exact[lower] and tLang.L(exact[lower]) or text
+end
+
+local function localizedBridgeMessage(message)
+    local text=tostring(message or '')
+    local name=text:lower():match('^role has no source object or mask:?%s*(.+)$')
+    return name and string.format(tLang.L('fre_warning_bridge_unassigned_fmt'),name) or text
 end
 
 local function showProjectMessages(report)
@@ -814,6 +821,33 @@ local function saveProjectAs()
     if path then saveProject(path) end
 end
 
+local function exportBlenderBridge()
+    local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    local binding=tFacialProject.bindingDescription(state.project,state.topology)
+    local payload,errorValue=tFacialBridge.buildPayload(state.project,state.topology,rig,binding)
+    if not payload then
+        local message=type(errorValue)=='table' and errorValue.errors and errorValue.errors[1] or errorValue
+        setStatus(tLang.L('fre_bridge_export_blocked') .. ': ' .. tostring(message or ''),true)
+        return false
+    end
+    if not report.ok then
+        setStatus(tLang.L('fre_bridge_export_blocked') .. ': ' .. localizedProjectMessage(report.errors[1] or ''),true)
+        return false
+    end
+    local suggested=(state.projectPath or state.project.meshPath or 'facial-rig')
+    suggested=suggested:gsub('%.[^%./\\]+$','') .. '-blender-bridge.lua'
+    local path=mbm.saveFile(suggested,'lua')
+    if not path then return false end
+    local saved,errorMessage=tFacialBridge.save(path,payload,tUtil.save)
+    if not saved then
+        setStatus(string.format(tLang.L('fre_bridge_export_failed_fmt'),tostring(errorMessage)),true)
+        return false
+    end
+    setStatus(string.format(tLang.L('fre_bridge_exported_fmt'),shortName(path)),false)
+    return true
+end
+
 local function showStatus()
     if state.status=='' then return end
     if state.statusError then
@@ -1269,6 +1303,7 @@ local function showRig()
     end
     showProjectMessages(report)
     local binding=tFacialProject.bindingDescription(state.project,state.topology)
+    local bridgeReport=tFacialBridge.bindingReport(state.project,rig,binding)
     tImGui.Separator()
     tImGui.Text(string.format(tLang.L('fre_binding_roles_fmt'),#binding.roles))
     tImGui.Text(string.format(tLang.L('fre_binding_masks_fmt'),#binding.masks))
@@ -1284,9 +1319,17 @@ local function showRig()
     end
     tImGui.Text(string.format(tLang.L('fre_rig_bones_fmt'),#(rig.bones or {})))
     tImGui.Text(string.format(tLang.L('fre_rig_role_bindings_fmt'),#(rig.roleBindings or {})))
+    tImGui.Text(string.format(tLang.L('fre_bridge_entries_fmt'),#(bridgeReport.entries or {})))
+    for _,message in ipairs(bridgeReport.warnings or {}) do
+        tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedBridgeMessage(message))
+    end
     if rig.valid then
         tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
+        tImGui.TextWrapped(tLang.L('fre_bridge_help'))
+        tImGui.BeginDisabled(not report.ok or not bridgeReport.valid)
+        if tImGui.Button(tLang.L('fre_export_blender_bridge')) then exportBlenderBridge() end
+        tImGui.EndDisabled()
     else
         tImGui.TextWrapped(tLang.L('fre_rig_preview_pending'))
     end
@@ -1300,6 +1343,13 @@ local function showRig()
         for _,bindingRow in ipairs(rig.roleBindings or {}) do
             local maskCount=#(bindingRow.maskIndices or {})
             tImGui.BulletText(string.format('%s -> %s (%d)',bindingRow.name,bindingRow.binding,maskCount))
+        end
+        tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('fre_bridge_report')) then
+        for _,entry in ipairs(bridgeReport.entries or {}) do
+            local object=entry.object~='' and entry.object or tLang.L('fre_unassigned')
+            tImGui.BulletText(string.format('%s -> %s (%s, %d)',entry.name,object,entry.status,entry.maskCount))
         end
         tImGui.TreePop()
     end

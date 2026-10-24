@@ -2,6 +2,7 @@ package.path='editor/?.lua;' .. package.path
 
 local Landmarks=require 'facial_rig_landmarks'
 local Project=require 'facial_rig_project'
+local Bridge=require 'facial_rig_blender_bridge'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -64,6 +65,10 @@ local rig=Project.rigDescription(project,topology)
 assert(rig.valid and #rig.bones>=3, 'required landmarks must produce a reviewable rig preview')
 assert(#rig.roleBindings==1 and rig.roleBindings[1].binding=='facial_skeleton')
 assert(#rig.warnings>=2, 'missing optional nose and jaw landmarks should be reported as warnings')
+local bridgeReport=Bridge.bindingReport(project,rig,binding)
+assert(bridgeReport.valid and #bridgeReport.entries==1)
+local payload,payloadError=Bridge.buildPayload(project,topology,rig,binding)
+assert(payload and payload.schema=='mini-mbm-facial-rig-bridge-1',payloadError)
 project.landmarks[5].placed=false
 assert(not Project.rigDescription(project,topology).valid,
     'missing eye center must block the canonical rig preview')

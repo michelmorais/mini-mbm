@@ -157,8 +157,8 @@ The first implementation slice now provides:
 - Linux, macOS, and Windows-dev launcher registration plus English and Portuguese labels.
 
 The editor currently loads `.msh` assets for the initial setup workflow. Blender/GLB import remains
-the established Mesh Debug and Blender bridge path until the facial editor's bridge workspace is
-implemented.
+the established Mesh Debug path; the facial editor now exports its canonical rig description to a
+transactionally written Lua document for the Blender bridge.
 
 ## Delivered second slice: landmark viewport and binding data
 
@@ -200,16 +200,14 @@ landmarks keep the rig preview pending.
 The landmark slice remains authoring data only. It does not generate automatic weights or runtime
 expression targets; the following rig-preview slice adds read-only generated bones.
 
-## Next implementation milestone: rig preview and binding data
+## Delivered fourth slice: Blender bridge interchange
 
-The delivered landmark slice moves the next implementation milestone to rig preview and binding:
+The Rig workspace now exports `mini-mbm-facial-rig-bridge-1`, a Lua interchange document containing
+the mesh path, topology identity, canonical bones, role bindings, masks, and a review report. The
+writer uses a temporary file and an atomic rename so an interrupted export does not replace the
+last valid document. Export remains read-only and does not create weights, alter the mesh, or run
+Blender automatically.
 
-1. generate a canonical facial rig description from validated landmarks;
-2. preview generated facial bones and role bindings without committing weights;
-3. validate role masks and landmark groups against the generated rig;
-4. produce reviewable setup reports for the Fuzzy Fury and Megan fixtures.
-
-The next implementation milestone is the Blender bridge/export of this canonical description and
-an explicit binding review report for the Fuzzy Fury and Megan fixtures. It will not yet claim
-automatic weight generation, full Faceit rig parity, live capture, or production-quality facial
-expressions. Those depend on the generated rig description being stable and reviewable first.
+The next implementation milestone is a Blender-side importer that consumes this document and
+creates an armature preview without committing weights. Automatic weight generation, full Faceit
+rig parity, live capture, and production-quality facial expressions remain outside this slice.
