@@ -867,6 +867,80 @@ local function inspectMesh(meshDebugObject)
     return topology.bounds,topology.vertexCount,topology
 end
 
+local function faceRegionVertices()
+    if not state.meshDebug or not state.topology then return nil,'mesh is not loaded' end
+    local points={}
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        if landmark.placed and landmark.position then points[#points+1]=landmark.position end
+    end
+    if #points<3 then return nil,'facial landmarks are not placed' end
+    local minX,maxX,minY,maxY,minZ,maxZ=math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+    for _,point in ipairs(points) do
+        minX=math.min(minX,point.x); maxX=math.max(maxX,point.x)
+        minY=math.min(minY,point.y); maxY=math.max(maxY,point.y)
+        minZ=math.min(minZ,point.z); maxZ=math.max(maxZ,point.z)
+    end
+    local origin=state.project.faceOrigin
+    local scale=math.max(tonumber(origin and origin.scale) or faceGuideScale(state.meshBounds),0.001)
+    local xMargin,yMargin,zMargin=scale*0.18,scale*0.20,scale*0.75
+    minX,maxX=minX-xMargin,maxX+xMargin
+    minY,maxY=minY-yMargin,maxY+yMargin
+    minZ,maxZ=minZ-zMargin,maxZ+zMargin
+    local okSubset,subsetCount=dpCall(function() return state.meshDebug:getTotalSubset(1) end)
+    if not okSubset or not subsetCount then return nil,'mesh subsets are unavailable' end
+    local vertices,offset={},0
+    for subset=1,subsetCount do
+        local okCount,count=dpCall(function() return state.meshDebug:getTotalVertex(1,subset) end)
+        if not okCount or not count then return nil,'mesh vertex count is unavailable' end
+        if count>0 then
+            local okPoints,subsetPoints=dpCall(function()
+                return state.meshDebug:getVertex(1,subset,1,count)
+            end)
+            if not okPoints or type(subsetPoints)~='table' then return nil,'mesh vertex positions are unavailable' end
+            for localIndex,point in ipairs(subsetPoints) do
+                if point.x>=minX and point.x<=maxX and point.y>=minY and point.y<=maxY and
+                        point.z>=minZ and point.z<=maxZ then
+                    vertices[#vertices+1]=offset+localIndex
+                end
+            end
+        end
+        offset=offset+count
+    end
+    if #vertices==0 then return nil,'face landmark bounds selected no mesh vertices' end
+    return vertices,nil
+end
+
+local function generateMainFaceMask()
+    local roleIndex
+    for index,role in ipairs(state.project.roles or {}) do
+        if role.name=='main_face' then roleIndex=index break end
+    end
+    if not roleIndex then return false end
+    local vertices,errorMessage=faceRegionVertices()
+    if not vertices then
+        setStatus(tLang.L('fre_face_mask_generation_failed') .. ': ' .. tostring(errorMessage or ''),true)
+        return false
+    end
+    local selectedMask
+    for index,mask in ipairs(state.project.masks or {}) do
+        if (mask.roleIndex or 1)==roleIndex and mask.enabled~=false then
+            selectedMask=mask; state.selectedMask=index; break
+        end
+    end
+    pushUndoSnapshot()
+    if not selectedMask then
+        tFacialProject.addMask(state.project,'main_face_region',roleIndex)
+        state.selectedMask=#state.project.masks
+        selectedMask=state.project.masks[state.selectedMask]
+    end
+    selectedMask.vertices=vertices
+    selectedMask.topologySignature=state.topology.signature
+    selectedMask.enabled=true
+    markModified()
+    setStatus(string.format(tLang.L('fre_face_mask_generated_fmt'),#vertices),false)
+    return true
+end
+
 local function refreshLandmarkMarkers()
     if not state.topology or not state.mesh then return end
     local bounds=state.meshBounds
@@ -1275,6 +1349,10 @@ local function showMasks()
             markModified()
         end
         showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
+        if selected.name=='main_face' then
+            if tImGui.Button(tLang.L('fre_generate_face_mask')) then generateMainFaceMask() end
+            showHelpTooltip(tLang.L('fre_generate_face_mask_tooltip'))
+        end
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
@@ -1794,8 +1872,8 @@ end
 local function showMainPanel()
     local flags=state.windowMove and 0 or noMoveFlag
     tUtil.setInitialWindowPositionLeft(windows.main,0,24,560)
-    tImGui.SetNextWindowSize({x=560,y=720},tImGui.Flags('ImGuiCond_Always'))
-    tImGui.SetNextWindowSizeConstraints({x=560,y=720},{x=560,y=720})
+    tImGui.SetNextWindowSize({x=560,y=720},firstUseWindowFlag)
+    tImGui.SetNextWindowSizeConstraints({x=560,y=400},{x=1200,y=1400})
     local opened=tImGui.Begin(tLang.L('fre_title')..'##'..windows.main,true,flags)
     local position=tImGui.GetWindowPos()
     local size=tImGui.GetWindowSize()
@@ -1857,6 +1935,7 @@ function onInitScene()
     camera3d=mbm.getCamera('3d')
     camera3d:setFar(9999999)
     noMoveFlag=tImGui.Flags('ImGuiWindowFlags_NoMove')
+    firstUseWindowFlag=tImGui.Flags('ImGuiCond_FirstUseEver')
     tUtil.sMessageOverlay=tLang.L('fre_welcome')
     state.cameraMove={forward=0,right=0,vertical=0}
     mbm.setColor(0.08,0.09,0.12)

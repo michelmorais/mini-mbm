@@ -323,6 +323,11 @@ bones, weights, and facial animation data, but it does not carry the editor's fa
 mask, or role tables. Opening a derived MSH while a project with the same topology is active keeps
 that project state; opening the MSH alone starts without those authoring tables.
 
+When a Blender object sidecar with `vertexMap` is unavailable, the Masks / Regions workspace now
+offers an explicit **Generate main face mask from landmarks** action. It selects the loaded MSH
+vertices inside the placed landmark bounds, records the result as a normal topology-checked mask,
+and leaves review and manual refinement to the user before weight assignment.
+
 ## Delivered twelfth slice: canonical facial skeleton materialization
 
 The Rig workspace now has an explicit **Canonical facial skeleton** operation. It compares the
