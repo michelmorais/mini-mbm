@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 7 facial playback comparison slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Phase 7 Rig actions and facial playback comparison slice complete; runtime, Blender interchange, and capture naming foundations are complete**
 Last reviewed: **2026-10-24**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -239,6 +239,11 @@ backends keep the CPU reference path until an equivalent indexed resource is imp
 Exporting authored clips to Blender Shape Key Actions is optional interoperability. The native MSH
 serialization of authored clips is a separate runtime milestone; Blender is not required to play
 finished assets.
+
+The Rig worktree exposes the two materialization actions before its reports: add missing canonical
+facial bones (or repair the facial root parent) and apply the verified facial weight assignment.
+Saving the derived MSH is enabled only after both operations. Read-only diagnostics are grouped
+separately from the optional Blender bridge/workflow controls.
 
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the

@@ -1056,9 +1056,13 @@ end
 local function syncFacialComparisonWeights()
     local comparison=state.facialComparison and state.facialComparison.mesh
     if not comparison or not state.mesh then return end
-    for _,entry in ipairs(state.expressions.catalog or {}) do
+    for index,entry in ipairs(state.expressions.catalog or {}) do
         local ok,value=dpCall(function() return state.mesh:getFacialWeight(entry.name) end)
-        if ok then dpCall(function() return comparison:setFacialWeightByName(entry.name,tonumber(value) or 0) end) end
+        -- The Lua mesh binding accepts a target name or a 1-based target index
+        -- through setFacialWeight(), but it does not expose the C++ convenience
+        -- method setFacialWeightByName(). Keep the comparison path on the
+        -- public Lua API so project-clip playback cannot abort the editor loop.
+        if ok then dpCall(function() return comparison:setFacialWeight(index,tonumber(value) or 0) end) end
     end
 end
 
@@ -2490,6 +2494,8 @@ local function showRig()
     tImGui.TextWrapped(tLang.L('fre_rig_help'))
     if state.bindingPlan.dirty then refreshBindingPlan() end
     if state.rigReview.dirty then refreshRigReview() end
+    if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
+    if state.weightAssignment.dirty then refreshWeightAssignment() end
     local reviewData=state.rigReview.data or {report={ok=false,errors={},warnings={}},
         rig={valid=false,bones={},roleBindings={}},binding={roles={},masks={},landmarks={},vertexCount=0},
         bridgeReport={entries={},warnings={}},bindingReview={roles={},totalMaskedVertices=0,overlapCount=0}}
@@ -2498,6 +2504,69 @@ local function showRig()
     local binding=reviewData.binding
     local bridgeReport=reviewData.bridgeReport
     local bindingReview=reviewData.bindingReview
+
+    -- Keep the two materialization steps visible at the top of Rig. Reports
+    -- below are read-only diagnostics; these buttons are the actual rigging
+    -- operations on the loaded MeshDebug asset.
+    tImGui.Text(tLang.L('fre_rig_actions_title'))
+    tImGui.TextWrapped(tLang.L('fre_rig_actions_help'))
+    tImGui.Separator()
+    local facialSkeleton=state.facialSkeleton.data
+    tImGui.Text(tLang.L('fre_facial_skeleton_title'))
+    if facialSkeleton then
+        tImGui.Text(string.format(tLang.L('fre_facial_skeleton_summary_fmt'),
+            facialSkeleton.existingCount or 0,facialSkeleton.missingCount or 0))
+        local rootRepair=facialSkeleton.rootParentNeedsRepair==true
+        local canApply=facialSkeleton.valid==true and
+            ((facialSkeleton.missingCount or 0)>0 or rootRepair)
+        tImGui.BeginDisabled(not canApply)
+        local applyLabel=rootRepair and tLang.L('fre_facial_skeleton_repair_root') or
+            tLang.L('fre_facial_skeleton_apply')
+        if tImGui.Button(applyLabel..'##freRigActionSkeleton',{x=300,y=0}) then
+            applyFacialSkeletonBinding()
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_facial_skeleton_apply_tooltip'))
+        if facialSkeleton.valid~=true then
+            tImGui.TextDisabled(tLang.L('fre_facial_skeleton_blocked'))
+        elseif not canApply then
+            tImGui.TextDisabled(tLang.L('fre_rig_action_skeleton_ready'))
+        end
+    else
+        tImGui.TextDisabled(tLang.L('fre_facial_skeleton_blocked'))
+    end
+    tImGui.Separator()
+    local assignment=state.weightAssignment.data
+    tImGui.Text(tLang.L('fre_weight_assignment_title'))
+    tImGui.TextWrapped(tLang.L('fre_rig_action_weights_help'))
+    if assignment then
+        tImGui.Text(string.format(tLang.L('fre_weight_assignment_summary_fmt'),
+            assignment.readyCount or 0,assignment.blockedCount or 0,assignment.totalVertexCount or 0))
+        tImGui.BeginDisabled(assignment.valid~=true)
+        if tImGui.Button(tLang.L('fre_weight_assignment_apply')..'##freRigActionWeights',{x=390,y=0}) then
+            applyRigidFacialWeights()
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
+        local canSave=state.weightAssignment.modified==true and
+            state.weightAssignment.facialWeightsApplied==true
+        tImGui.BeginDisabled(not canSave)
+        if tImGui.Button(tLang.L('fre_weight_assignment_save')..'##freRigActionSave',{x=300,y=0}) then
+            saveAssignedMesh()
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
+        if assignment.valid~=true then
+            tImGui.TextDisabled(tLang.L('fre_weight_assignment_blocked'))
+        elseif not canSave then
+            tImGui.TextDisabled(tLang.L('fre_rig_action_save_help'))
+        end
+    else
+        tImGui.TextDisabled(tLang.L('fre_weight_assignment_blocked'))
+    end
+    tImGui.Separator()
+
+    if tImGui.TreeNode(tLang.L('fre_rig_reports_title')) then
     if report.ok and rig.valid then
         textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_validation_ok'))
     else
@@ -2541,11 +2610,6 @@ local function showRig()
     for _,message in ipairs(bridgeReport.warnings or {}) do
         tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedBridgeMessage(message))
     end
-    tImGui.Separator()
-    tImGui.Text(tLang.L('fre_blender_workflow_title'))
-    tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
-    tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
-    tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
     if state.facialSkeleton.dirty then refreshFacialSkeletonBinding() end
     if tImGui.TreeNode(tLang.L('fre_facial_skeleton_title')) then
         tImGui.TextWrapped(tLang.L('fre_facial_skeleton_help'))
@@ -2570,14 +2634,6 @@ local function showRig()
             for _,reason in ipairs(facialSkeleton.errors or {}) do
                 tImGui.TextWrapped(tLang.L('fre_error_prefix') .. localizedFacialSkeletonReason(reason))
             end
-            local rootRepair=facialSkeleton.rootParentNeedsRepair==true
-            local canApply=facialSkeleton.valid==true and (facialSkeleton.missingCount>0 or rootRepair)
-            tImGui.BeginDisabled(not canApply)
-            local applyLabel=rootRepair and tLang.L('fre_facial_skeleton_repair_root') or
-                tLang.L('fre_facial_skeleton_apply')
-            if tImGui.Button(applyLabel) then applyFacialSkeletonBinding() end
-            tImGui.EndDisabled()
-            showHelpTooltip(tLang.L('fre_facial_skeleton_apply_tooltip'))
         end
         tImGui.TreePop()
     end
@@ -2627,18 +2683,17 @@ local function showRig()
             for _,reason in ipairs(assignment.warnings or {}) do
                 tImGui.TextWrapped(tLang.L('fre_warning_prefix') .. localizedWeightAssignmentReason(reason))
             end
-            tImGui.BeginDisabled(assignment.valid~=true)
-            if tImGui.Button(tLang.L('fre_weight_assignment_apply'),{x=390,y=0}) then applyRigidFacialWeights() end
-            tImGui.EndDisabled()
-            showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
-            tImGui.BeginDisabled(not state.weightAssignment.modified or
-                not state.weightAssignment.facialWeightsApplied)
-            if tImGui.Button(tLang.L('fre_weight_assignment_save')) then saveAssignedMesh() end
-            tImGui.EndDisabled()
-            showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
         end
         tImGui.TreePop()
     end
+    tImGui.TreePop()
+    end
+    tImGui.Separator()
+    if tImGui.TreeNode(tLang.L('fre_rig_blender_title')) then
+    tImGui.Text(tLang.L('fre_blender_workflow_title'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
+    tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
     if rig.valid then
         textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
@@ -2658,6 +2713,16 @@ local function showRig()
     else
         tImGui.TextWrapped(tLang.L('fre_rig_preview_pending'))
     end
+    if tImGui.TreeNode(tLang.L('fre_bridge_report')) then
+        for _,entry in ipairs(bridgeReport.entries or {}) do
+            local object=entry.object~='' and entry.object or tLang.L('fre_unassigned')
+            tImGui.BulletText(string.format('%s -> %s (%s, %d)',entry.name,object,entry.status,entry.maskCount))
+        end
+        tImGui.TreePop()
+    end
+    tImGui.TreePop()
+    end
+    if tImGui.TreeNode(tLang.L('fre_rig_structure_reports_title')) then
     if tImGui.TreeNode(tLang.L('fre_rig_bones')) then
         for _,bone in ipairs(rig.bones or {}) do
             tImGui.BulletText(bone.id .. '  (' .. (bone.parent or tLang.L('fre_rig_root')) .. ')')
@@ -2671,12 +2736,7 @@ local function showRig()
         end
         tImGui.TreePop()
     end
-    if tImGui.TreeNode(tLang.L('fre_bridge_report')) then
-        for _,entry in ipairs(bridgeReport.entries or {}) do
-            local object=entry.object~='' and entry.object or tLang.L('fre_unassigned')
-            tImGui.BulletText(string.format('%s -> %s (%s, %d)',entry.name,object,entry.status,entry.maskCount))
-        end
-        tImGui.TreePop()
+    tImGui.TreePop()
     end
 end
 

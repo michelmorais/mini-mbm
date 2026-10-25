@@ -467,6 +467,21 @@ the GPU skeletal-composite path, while a second CPU execution preview is placed 
 weights and skeletal play/pause/stop commands are mirrored, and both facial execution reports are
 shown so morph and skin paths can be compared without changing the saved project.
 
+## Delivered twenty-first slice: explicit Rig actions and comparison API fix
+
+The Rig worktree now presents the two materialization operations at the top of the panel: adding
+missing canonical facial bones (including repairing the facial root parent when required) and
+applying the verified facial weight assignment. Saving the derived MSH is shown alongside the
+second operation and remains gated until both operations have been completed. Validation, topology,
+binding, skeleton, and weight details are grouped under read-only reports, while Blender bridge
+export and the optional Blender workflow are kept in a separate tree node.
+
+The CPU/GPU comparison preview now mirrors facial weights through the Lua `setFacialWeight` API.
+The binding exposes indexed/name resolution through this method, but does not expose the C++
+convenience method `setFacialWeightByName`; calling the latter from Lua caused authored facial clip
+playback to abort. Comparison synchronization is now event-driven and uses the supported public
+binding.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such
