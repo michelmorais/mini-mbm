@@ -259,6 +259,8 @@ main-face mask preference and a signed normal offset. This is a placement aid, n
 validation step; anatomical pivots such as jaw hinges and eye centers remain manually adjustable.
 An optional anatomical reference mode supplies conservative per-landmark offsets and can be
 disabled whenever an asset needs explicit manual placement.
+Depth solving is axis-aligned in mesh space (default `Z`) and independent of viewport camera
+rotation.
 
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the

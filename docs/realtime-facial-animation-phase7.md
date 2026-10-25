@@ -520,6 +520,11 @@ offset, eye centers use a small inward offset, and jaw hinges use a larger inwar
 The calculated value is shown for the selected landmark and the manual field is disabled while the
 mode is active; disabling it restores unrestricted signed offset editing.
 
+The depth solver is now explicitly axis-aligned. The GUI defaults to mesh-space `Z` and also exposes
+`X` and `Y` for non-front-facing assets. It never derives depth from camera orientation, so rotating
+the viewport cannot change the solved point; only the selected landmark coordinates, mesh topology,
+axis, mask, and offset affect the result.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

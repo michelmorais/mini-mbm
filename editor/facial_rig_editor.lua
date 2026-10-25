@@ -49,7 +49,7 @@ local state = {
     meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
     workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, landmarkEditMode=1, landmarkSurfaceOffset=0,
-    landmarkSurfaceAutoOffset=true,
+    landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     sourceObjectDraft='',
@@ -1935,6 +1935,19 @@ local function landmarkSurfaceReferenceOffset(name, scale)
     return (coefficient[name] or 0)*math.max(tonumber(scale) or 1,0.001)
 end
 
+local function landmarkSurfaceRay(axis, reference, bounds, extent, reverse)
+    local sign=reverse and 1 or -1
+    if axis==1 then
+        return {x=reverse and bounds.minX-extent*2 or bounds.maxX+extent*2,
+            y=reference.y,z=reference.z},{x=sign,y=0,z=0}
+    elseif axis==2 then
+        return {x=reference.x,y=reverse and bounds.minY-extent*2 or bounds.maxY+extent*2,
+            z=reference.z},{x=0,y=sign,z=0}
+    end
+    return {x=reference.x,y=reference.y,
+        z=reverse and bounds.minZ-extent*2 or bounds.maxZ+extent*2},{x=0,y=0,z=sign}
+end
+
 local function snapSelectedLandmarkDepthToSurface()
     local landmark=state.project.landmarks[state.selectedLandmark]
     if not landmark or not state.topology or not state.meshBounds then return false end
@@ -1950,23 +1963,24 @@ local function snapSelectedLandmarkDepthToSurface()
     end
     local bounds=state.meshBounds
     local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ,0.001)
-    local origin={x=reference.x,y=reference.y,z=bounds.maxZ+extent*2}
+    local axis=math.max(1,math.min(3,tonumber(state.landmarkSurfaceAxis) or 3))
+    local origin,direction=landmarkSurfaceRay(axis,reference,bounds,extent,false)
     local allowed=mainFaceSurfaceVertices()
-    local hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=-1},allowed)
+    local hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction,allowed)
     if not hit and allowed then
         -- A manually edited mask can omit one triangle at the requested X/Y.
         -- Retry against the complete topology rather than failing a valid
         -- authoring operation; the masked pass remains the preferred result.
-        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=-1})
+        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction)
     end
     if not hit then
-        -- A back-facing or mirrored asset may have its visible surface toward
-        -- negative Z. Keep the operation deterministic by trying the opposite
-        -- direction only when the front pass found no triangle.
-        origin.z=bounds.minZ-extent*2
-        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=1},allowed)
+        -- A mirrored asset may have its surface toward the opposite side of
+        -- the selected mesh axis. This remains axis-aligned and independent of
+        -- camera rotation.
+        origin,direction=landmarkSurfaceRay(axis,reference,bounds,extent,true)
+        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction,allowed)
         if not hit and allowed then
-            hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=1})
+            hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction)
         end
     end
     if not hit then
@@ -2044,6 +2058,13 @@ local function showLandmarks()
         tImGui.Text(tLang.L('fre_landmark_surface_title'))
         tImGui.TextWrapped(tLang.L('fre_landmark_surface_help'))
         local scale=state.project.faceOrigin and state.project.faceOrigin.scale or faceGuideScale(state.meshBounds)
+        local axisOptions={tLang.L('fre_landmark_surface_axis_x'),tLang.L('fre_landmark_surface_axis_y'),
+            tLang.L('fre_landmark_surface_axis_z')}
+        tImGui.SetNextItemWidth(220)
+        local axisChanged,axisIndex=tImGui.Combo(tLang.L('fre_landmark_surface_axis'),
+            state.landmarkSurfaceAxis,axisOptions)
+        if axisChanged then state.landmarkSurfaceAxis=axisIndex end
+        showHelpTooltip(tLang.L('fre_landmark_surface_axis_tooltip'))
         local referenceOffset=landmarkSurfaceReferenceOffset(selected.name,scale)
         local autoChanged=tImGui.Checkbox(tLang.L('fre_landmark_surface_auto'),
             state.landmarkSurfaceAutoOffset)
