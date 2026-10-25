@@ -515,6 +515,11 @@ allows a point to remain on the skin, move slightly outward, or move inward for 
 Landmarks that are not yet confirmed can use their current wireframe reference position as the X/Y
 input. The operation remains explicit so a reference guide never silently validates a new mesh.
 
+The surface-depth control also offers an anatomical reference mode. Surface landmarks use zero
+offset, eye centers use a small inward offset, and jaw hinges use a larger inward pivot offset.
+The calculated value is shown for the selected landmark and the manual field is disabled while the
+mode is active; disabling it restores unrestricted signed offset editing.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

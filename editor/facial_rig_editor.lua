@@ -49,6 +49,7 @@ local state = {
     meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
     workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, landmarkEditMode=1, landmarkSurfaceOffset=0,
+    landmarkSurfaceAutoOffset=true,
     status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     sourceObjectDraft='',
@@ -1923,6 +1924,17 @@ local function mainFaceSurfaceVertices()
     return count>0 and allowed or nil
 end
 
+local function landmarkSurfaceReferenceOffset(name, scale)
+    -- The values are deliberately conservative authoring hints, not rig
+    -- invariants. Surface landmarks stay on the detected skin; eye centers and
+    -- jaw hinges receive a small inward offset because they represent pivots.
+    local coefficient={
+        left_eye_center=-0.035, right_eye_center=-0.035,
+        jaw_hinge_left=-0.10, jaw_hinge_right=-0.10
+    }
+    return (coefficient[name] or 0)*math.max(tonumber(scale) or 1,0.001)
+end
+
 local function snapSelectedLandmarkDepthToSurface()
     local landmark=state.project.landmarks[state.selectedLandmark]
     if not landmark or not state.topology or not state.meshBounds then return false end
@@ -1962,7 +1974,11 @@ local function snapSelectedLandmarkDepthToSurface()
         return false
     end
     pushUndoSnapshot()
-    local offset=tonumber(state.landmarkSurfaceOffset) or 0
+    local scale=state.project.faceOrigin and state.project.faceOrigin.scale or
+        faceGuideScale(state.meshBounds)
+    local offset=state.landmarkSurfaceAutoOffset and
+        landmarkSurfaceReferenceOffset(landmark.name,scale) or
+        (tonumber(state.landmarkSurfaceOffset) or 0)
     local point={x=hit.point.x+hit.normal.x*offset,
         y=hit.point.y+hit.normal.y*offset,z=hit.point.z+hit.normal.z*offset}
     setLandmarkPosition(landmark,point,nil)
@@ -2028,10 +2044,22 @@ local function showLandmarks()
         tImGui.Text(tLang.L('fre_landmark_surface_title'))
         tImGui.TextWrapped(tLang.L('fre_landmark_surface_help'))
         local scale=state.project.faceOrigin and state.project.faceOrigin.scale or faceGuideScale(state.meshBounds)
+        local referenceOffset=landmarkSurfaceReferenceOffset(selected.name,scale)
+        local autoChanged=tImGui.Checkbox(tLang.L('fre_landmark_surface_auto'),
+            state.landmarkSurfaceAutoOffset)
+        if autoChanged~=state.landmarkSurfaceAutoOffset then
+            state.landmarkSurfaceAutoOffset=autoChanged
+            if autoChanged then state.landmarkSurfaceOffset=referenceOffset end
+        end
+        if state.landmarkSurfaceAutoOffset then state.landmarkSurfaceOffset=referenceOffset end
+        showHelpTooltip(tLang.L('fre_landmark_surface_auto_tooltip'))
+        tImGui.Text(string.format(tLang.L('fre_landmark_surface_reference_fmt'),referenceOffset))
+        tImGui.BeginDisabled(state.landmarkSurfaceAutoOffset)
         local offsetChanged,newOffset=tImGui.DragFloat(tLang.L('fre_landmark_surface_offset'),
             state.landmarkSurfaceOffset,math.max(scale*0.01,0.0001),-math.max(scale,0.001),
             math.max(scale,0.001),'%.4f',0)
         if offsetChanged then state.landmarkSurfaceOffset=newOffset end
+        tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_landmark_surface_offset_tooltip'))
         if tImGui.Button(tLang.L('fre_landmark_surface_snap')) then
             snapSelectedLandmarkDepthToSurface()
