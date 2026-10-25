@@ -29,6 +29,14 @@ local function safe(call, fn)
     return ok and result or nil
 end
 
+local function showHelpTooltip(message)
+    if not message or message=='' or not tImGui.IsItemHovered(0) then return end
+    tImGui.SetNextWindowSizeConstraints({x=280,y=0},{x=440,y=360})
+    tImGui.BeginTooltip()
+    tImGui.TextWrapped(message)
+    tImGui.EndTooltip()
+end
+
 local function refreshState(state, preview, call)
     state.preview = preview
     state.targets = {}
@@ -93,9 +101,11 @@ function M.draw(entry, data, preview, ready, call)
         tImGui.PushItemWidth(250)
         local changed, selected = tImGui.Combo(tLang.L('mesh_debug_facial_target'), state.targetSelected, state.targets)
         if changed then state.targetSelected = selected end
+        showHelpTooltip(tLang.L('mesh_debug_facial_target_tooltip'))
         local current = state.weights[state.targetSelected] or 0
         local weightChanged, weight = tImGui.SliderFloat(
             tLang.L('mesh_debug_facial_weight'), current, 0, 1, '%.3f')
+        showHelpTooltip(tLang.L('mesh_debug_facial_weight_tooltip'))
         if weightChanged and ready then
             if apply(state, function()
                 return preview:setFacialWeight(state.targetSelected, weight)
@@ -109,12 +119,14 @@ function M.draw(entry, data, preview, ready, call)
                 state.weights[state.targetSelected] = 0
             end
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clear_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('mesh_debug_facial_reset')) and ready then
             if apply(state, function() return preview:resetFacialWeights() end, call) then
                 for index = 1, #state.weights do state.weights[index] = 0 end
             end
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_reset_tooltip'))
     end
 
     if #state.clips > 0 then
@@ -123,6 +135,7 @@ function M.draw(entry, data, preview, ready, call)
         tImGui.PushItemWidth(250)
         local changed, selected = tImGui.Combo(tLang.L('mesh_debug_facial_clip'), state.clipSelected, state.clips)
         if changed then state.clipSelected = selected end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clip_tooltip'))
         tImGui.PopItemWidth()
         tImGui.BeginDisabled(not ready)
         if tImGui.Button(tLang.L('ase_play')) then
@@ -130,18 +143,22 @@ function M.draw(entry, data, preview, ready, call)
                 refreshWeights(state, preview, call)
             end
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clip_play_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('ase_pause')) then
             apply(state, function() return preview:pauseFacialAnimation() end, call)
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clip_pause_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('swl_resume')) then
             apply(state, function() return preview:resumeFacialAnimation() end, call)
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clip_resume_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('ase_tl_stop')) then
             apply(state, function() return preview:stopFacialAnimation() end, call)
         end
+        showHelpTooltip(tLang.L('mesh_debug_facial_clip_stop_tooltip'))
         tImGui.EndDisabled()
         local duration = safe(call, function() return preview:getFacialClipDuration(state.clipSelected) end) or 0
         local time = safe(call, function() return preview:getFacialAnimationTime() end)

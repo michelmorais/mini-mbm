@@ -245,6 +245,11 @@ facial bones (or repair the facial root parent) and apply the verified facial we
 Saving the derived MSH is enabled only after both operations. Read-only diagnostics are grouped
 separately from the optional Blender bridge/workflow controls.
 
+Preview controls document the distinction between skeletal clips, project-authored facial clips,
+individual target overrides, saved expressions, and facial clips embedded in the MSH. The face
+origin click remains the non-destructive anchor for the landmark reference guide; individual
+landmarks still require explicit confirmation on a new mesh.
+
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
 rigging workflow.

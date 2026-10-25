@@ -2360,6 +2360,7 @@ local function showPreview()
         local skeletalChanged,skeletalIndex=tImGui.Combo(
             tLang.L('fre_preview_skeletal_clip'),state.preview.selectedSkeletal,skeletalAnimations)
         if skeletalChanged then state.preview.selectedSkeletal=skeletalIndex end
+        showHelpTooltip(tLang.L('fre_preview_skeletal_clip_tooltip'))
         local skeletalName=skeletalAnimations[state.preview.selectedSkeletal]
         if tImGui.Button(tLang.L('fre_preview_skeletal_play') .. '##frePreviewSkeletalPlay',{x=230,y=0}) then
             local ok,played=dpCall(function() return state.mesh:playSkeletalAnimation(skeletalName) end)
@@ -2369,12 +2370,14 @@ local function showPreview()
             if ok and played~=false then setStatus(string.format(tLang.L('fre_preview_skeletal_played_fmt'),skeletalName),false)
             else setStatus(tLang.L('fre_preview_skeletal_failed'),true) end
         end
+        showHelpTooltip(tLang.L('fre_preview_skeletal_play_tooltip'))
         if tImGui.Button(tLang.L('fre_preview_skeletal_pause') .. '##frePreviewSkeletalPause',{x=90,y=0}) then
             dpCall(function() return state.mesh:pauseSkeletalAnimation() end)
             if state.facialComparison.mesh then
                 dpCall(function() return state.facialComparison.mesh:pauseSkeletalAnimation() end)
             end
         end
+        showHelpTooltip(tLang.L('fre_preview_skeletal_pause_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_preview_skeletal_resume') .. '##frePreviewSkeletalResume',{x=100,y=0}) then
             dpCall(function() return state.mesh:resumeSkeletalAnimation() end)
@@ -2382,6 +2385,7 @@ local function showPreview()
                 dpCall(function() return state.facialComparison.mesh:resumeSkeletalAnimation() end)
             end
         end
+        showHelpTooltip(tLang.L('fre_preview_skeletal_resume_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_preview_skeletal_stop') .. '##frePreviewSkeletalStop',{x=90,y=0}) then
             dpCall(function() return state.mesh:stopSkeletalAnimation() end)
@@ -2389,6 +2393,7 @@ local function showPreview()
                 dpCall(function() return state.facialComparison.mesh:stopSkeletalAnimation() end)
             end
         end
+        showHelpTooltip(tLang.L('fre_preview_skeletal_stop_tooltip'))
         local durationOk,duration=dpCall(function()
             return state.mesh:getSkeletalAnimationDuration(state.preview.selectedSkeletal)
         end)
@@ -2408,6 +2413,7 @@ local function showPreview()
         tImGui.SetNextItemWidth(280)
         local changed,index=tImGui.Combo(tLang.L('fre_preview_expression'),state.preview.selectedPose,names)
         if changed then state.preview.selectedPose=index end
+        showHelpTooltip(tLang.L('fre_preview_expression_tooltip'))
         local selectedPose=poses[state.preview.selectedPose]
         if selectedPose then
             if tImGui.Button(tLang.L('fre_preview_apply_expression') .. '##frePreviewApplyExpression',{x=230,y=0}) then
@@ -2447,6 +2453,7 @@ local function showPreview()
             applyFacialWeights(tFacialClips.sample(authoredClips[authoredIndex],0,
                 tFacialExpressions.targetNames(state.project.expressions)))
         end
+        showHelpTooltip(tLang.L('fre_preview_authored_clip_tooltip'))
         local authoredClip=authoredClips[state.preview.authoredClipSelected]
         if authoredClip then
             if not state.preview.authoredClipInitialized then
@@ -2469,6 +2476,7 @@ local function showPreview()
             if tImGui.Button(tLang.L('fre_clip_play')..'##frePreviewAuthoredClipPlay',{x=110,y=0}) then
                 state.preview.authoredClipPlaying=not state.preview.authoredClipPlaying
             end
+            showHelpTooltip(tLang.L('fre_preview_authored_clip_play_tooltip'))
             tImGui.SameLine()
             if tImGui.Button(tLang.L('fre_preview_authored_clip_stop')..'##frePreviewAuthoredClipStop',{x=90,y=0}) then
                 state.preview.authoredClipPlaying=false
@@ -2476,6 +2484,7 @@ local function showPreview()
                 applyFacialWeights(tFacialClips.sample(authoredClip,0,
                     tFacialExpressions.targetNames(state.project.expressions)))
             end
+            showHelpTooltip(tLang.L('fre_preview_authored_clip_stop_tooltip'))
             local authoredReport=tFacialClips.validate(authoredClip)
             if authoredReport.ok then
                 textColoredWrapped({r=0.35,g=1,b=0.45,a=1},string.format(

@@ -482,6 +482,19 @@ convenience method `setFacialWeightByName`; calling the latter from Lua caused a
 playback to abort. Comparison synchronization is now event-driven and uses the supported public
 binding.
 
+## Delivered twenty-second slice: preview control tooltips and landmark reference workflow
+
+Preview controls now explain their source and effect in context. Skeletal clip controls identify
+armature playback and bind-pose reset; project clip controls identify project-side target-weight
+animation that does not require MSH export; target controls identify temporary morph overrides; and
+imported facial clip controls identify runtime animation embedded in the MSH. The tooltips also make
+the distinction between a saved expression pose and a temporal facial clip explicit.
+
+The face-position origin remains independent from landmark placement. Clicking the initial facial
+origin at the nose displays the calibrated landmark reference around that origin; reference points
+are visual guides until the user confirms individual landmarks, so a new mesh is not silently
+validated from unverified positions.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such
