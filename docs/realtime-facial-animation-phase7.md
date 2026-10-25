@@ -526,17 +526,18 @@ The depth solver is now explicitly axis-aligned. The GUI defaults to mesh-space 
 the viewport cannot change the solved point; only the selected landmark coordinates, mesh topology,
 axis, mask, and offset affect the result.
 
-## Delivered twenty-fifth slice: landmark placement reference image
+## Delivered twenty-fifth slice: landmark placement reference guide
 
-The Landmarks worktree now includes a bundled, labeled facial-landmark reference image. The compact
-diagram remains beside the selected landmark for quick orientation; the `Show large reference`
-control opens the complete image in a centered, closable modal viewport window. The image identifies
-all canonical points, including the distinction between face bounds and the `chin` point, and gives
-the user a stable visual guide without changing landmark data or validation state.
+The Landmarks worktree now includes a labeled facial-landmark reference drawn entirely with ImGui
+primitives. The compact diagram remains beside the selected landmark for quick orientation; the
+`Show large reference` control opens the complete vector guide in a centered, closable modal viewport
+window. The guide identifies all canonical points, separates the face bounds from the `chin` point,
+and includes a hair-region silhouette without changing landmark data or validation state.
+The `face_bottom` guide is the lower jaw/chin boundary, while `chin` is the front point of the
+chin; neither is intended to be placed on the throat.
 
-The reference is stored under `editor/assets/` and is loaded lazily only when the large view is
-opened. The existing CMake editor-tree copy rules distribute the PNG and its SVG source with the
-development launcher output, so a development build does not need an extra asset-install step.
+Because the guide is generated from Lua and ImGui draw calls, it has no external image, texture, UV,
+or asset-install dependency.
 
 ### Full-body skeleton compatibility
 

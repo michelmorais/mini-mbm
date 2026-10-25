@@ -586,9 +586,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
             endif()
         endforeach()
 
-        # Copy the complete editor tree (Lua scripts and bundled reference
-        # assets such as facial-landmark-reference.png) next to the executable
-        # so mini-mbm.exe and mini-mbm-dev.exe can find them without setup.
+        # Copy the editor/ Lua scripts next to the executable so that
+        # mini-mbm.exe and mini-mbm-dev.exe can find them without extra setup.
         add_custom_command(TARGET mini-mbm POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/editor"
@@ -1323,8 +1322,7 @@ endif()
         # Editor diagnostics must remain visible, including when launched from Explorer.
         target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,console)
 
-        # Copy runtime DLLs and the complete editor/ tree (including bundled
-        # reference images) next to mini-mbm-dev.exe.
+        # Copy runtime DLLs and editor/ scripts next to mini-mbm-dev.exe.
         # (mini-mbm POST_BUILD already copies them, but mini-mbm-dev may be
         #  built independently so we copy them here too.)
         foreach(_DLL ${_ENGINE_RT_DLLS})
@@ -2068,19 +2066,6 @@ get_filename_component(PATH_LUA_EDITOR
 if(NOT EXISTS "${PATH_LUA_EDITOR}/lang/language.lua")
     message(WARNING "editor/lang/language.lua not found - editor language support will fail")
 endif()
-
-# Linux and macOS development launchers keep Lua sources in the source tree,
-# but copy bundled editor assets beside the binary so a packaged dev output
-# also contains the facial landmark reference image.
-if(USE_LUA AND (ENGINE_TARGET_PLATFORM STREQUAL "Linux" OR ENGINE_TARGET_PLATFORM STREQUAL "MacOs"))
-    add_custom_command(TARGET mini-mbm POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PATH_LUA_EDITOR}/assets"
-            "${PATH_BIN}/editor/assets"
-        COMMENT "Copying bundled editor assets to ${PATH_BIN}/editor/assets/")
-endif()
-
-
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     set(REDIRECT_SHELL                    "'>>'")

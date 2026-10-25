@@ -262,11 +262,10 @@ disabled whenever an asset needs explicit manual placement.
 Depth solving is axis-aligned in mesh space (default `Z`) and independent of viewport camera
 rotation.
 
-The Landmarks worktree also includes a labeled reference image for all canonical points. It is
-available as a compact guide beside the selected landmark and as an optional centered, closable
-large view for close inspection. The reference is a bundled editor asset and does not alter the
-project; CMake distribution rules copy this asset to development launcher output (and the Windows
-editor tree copy includes it alongside the Lua tools).
+The Landmarks worktree also includes a labeled reference guide for all canonical points, drawn with
+Lua and ImGui primitives. It is available as a compact guide beside the selected landmark and as an
+optional centered, closable large view for close inspection. The guide does not alter the project and
+has no external image or texture dependency.
 
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the

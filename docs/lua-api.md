@@ -1825,6 +1825,14 @@ indices. The OpenGL ES backend honors these offsets by rebasing vertex attribute
 desktop OpenGL, DirectX and Metal also support draw-command vertex offsets.
 Custom backends must provide equivalent support for large batches.
 
+For direct draw-list labels, `AddText` accepts an optional font size after the optional end pointer:
+
+```lua
+tImGui.AddText({x=10,y=20}, {r=1,g=1,b=1,a=1}, "label", nil, 18)
+```
+
+When the font size is omitted or zero, the default ImGui font size is used.
+
 ### Utility
 
 ```lua

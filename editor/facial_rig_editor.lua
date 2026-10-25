@@ -50,7 +50,7 @@ local state = {
     workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, landmarkEditMode=1, landmarkSurfaceOffset=0,
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
-    landmarkReferenceLarge=false, landmarkReferenceImage=nil,
+    landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     sourceObjectDraft='',
@@ -89,14 +89,14 @@ local faceGuidePaths={
 }
 
 local landmarkReferencePoints={
-    face_left={0.18,0.50}, face_right={0.82,0.50}, face_top={0.50,0.10}, face_bottom={0.50,0.90},
-    left_eye_center={0.39,0.36}, right_eye_center={0.61,0.36},
-    left_eye_corner={0.31,0.36}, right_eye_corner={0.69,0.36},
-    nose_bridge={0.50,0.40}, nose_tip={0.50,0.54},
-    mouth_left={0.38,0.68}, mouth_right={0.62,0.68},
-    upper_lip={0.50,0.64}, lower_lip={0.50,0.72}, chin={0.50,0.82},
-    jaw_hinge_left={0.25,0.66}, jaw_hinge_right={0.75,0.66},
-    brow_left={0.37,0.27}, brow_right={0.63,0.27}
+    face_left={0.271,0.527}, face_right={0.729,0.527}, face_top={0.500,0.170}, face_bottom={0.500,0.920},
+    left_eye_center={0.393,0.527}, right_eye_center={0.607,0.527},
+    left_eye_corner={0.354,0.527}, right_eye_corner={0.646,0.527},
+    nose_bridge={0.500,0.473}, nose_tip={0.500,0.589},
+    mouth_left={0.404,0.705}, mouth_right={0.596,0.705},
+    upper_lip={0.500,0.679}, lower_lip={0.500,0.732}, chin={0.500,0.804},
+    jaw_hinge_left={0.329,0.679}, jaw_hinge_right={0.671,0.679},
+    brow_left={0.396,0.375}, brow_right={0.604,0.375}
 }
 
 local function shortName(path)
@@ -118,6 +118,7 @@ local function getEditorDir()
 end
 
 local setStatus
+local showHelpTooltip
 
 local function replaceExtension(path,extension)
     if not path or path=='' then return '' end
@@ -336,26 +337,119 @@ local function localizedLandmarkDescription(name)
     return translated==key and localizedLandmarkName(name) or translated
 end
 
-local function loadLandmarkReferenceImage()
-    if state.landmarkReferenceImage then return state.landmarkReferenceImage end
-    local path=getEditorDir() .. '/assets/facial-landmark-reference.png'
-    if not pathExists(path) then
-        setStatus(tLang.L('fre_landmark_reference_large_missing'),true)
-        return nil
+local function localizedLandmarkGuideName(name)
+    local key='fre_landmark_guide_' .. tostring(name or '')
+    local translated=tLang.L(key)
+    return translated==key and localizedLandmarkName(name) or translated
+end
+
+local function drawLandmarkReferenceGuide(origin,width,height,selectedName)
+    local function point(name)
+        local normalized=landmarkReferencePoints[name] or {0.5,0.5}
+        return {x=origin.x+normalized[1]*width,y=origin.y+normalized[2]*height}
     end
-    local ok,image=dpCall(function() return mbm.loadTexture(path) end)
-    if ok and image then
-        state.landmarkReferenceImage=image
-        return image
+    local lineColor={r=0.14,g=0.78,b=0.96,a=1}
+    local pointColor={r=0.14,g=0.78,b=0.96,a=1}
+    local outlineColor={r=0.39,g=0.85,b=1,a=1}
+    local featureColor={r=0.56,g=0.65,b=0.82,a=1}
+    local hairColor={r=0.08,g=0.07,b=0.07,a=1}
+    local hairAccent={r=0.32,g=0.24,b=0.20,a=1}
+    local textColor={r=0.92,g=0.96,b=1,a=1}
+    local labelSize=math.max(15,math.min(24,width/55))
+    local center={x=origin.x+width*0.5,y=origin.y+height*0.53}
+    local radiusX=width*0.257
+    local radiusY=height*0.393
+    local k=0.5522848
+    local function curve(p1,p2,p3,p4,color,thickness)
+        tImGui.AddBezierCubic(p1,p2,p3,p4,color,thickness,20)
     end
-    setStatus(tLang.L('fre_landmark_reference_large_missing'),true)
-    return nil
+    curve({x=center.x,y=center.y-radiusY},{x=center.x+k*radiusX,y=center.y-radiusY},
+        {x=center.x+radiusX,y=center.y-k*radiusY},{x=center.x+radiusX,y=center.y},outlineColor,2.5)
+    curve({x=center.x+radiusX,y=center.y},{x=center.x+radiusX,y=center.y+k*radiusY},
+        {x=center.x+k*radiusX,y=center.y+radiusY},{x=center.x,y=center.y+radiusY},outlineColor,2.5)
+    curve({x=center.x,y=center.y+radiusY},{x=center.x-k*radiusX,y=center.y+radiusY},
+        {x=center.x-radiusX,y=center.y+k*radiusY},{x=center.x-radiusX,y=center.y},outlineColor,2.5)
+    curve({x=center.x-radiusX,y=center.y},{x=center.x-radiusX,y=center.y-k*radiusY},
+        {x=center.x-k*radiusX,y=center.y-radiusY},{x=center.x,y=center.y-radiusY},outlineColor,2.5)
+    tImGui.AddLine({x=center.x,y=origin.y+height*0.17},{x=center.x,y=origin.y+height*0.94},
+        {r=0.84,g=0.72,b=0.35,a=0.9},1.5)
+    local leftBrow,rightBrow=point('brow_left'),point('brow_right')
+    curve({x=leftBrow.x-width*0.075,y=leftBrow.y+height*0.01},
+        {x=leftBrow.x-width*0.045,y=leftBrow.y-height*0.04},
+        {x=leftBrow.x-width*0.015,y=leftBrow.y-height*0.02},leftBrow,featureColor,4)
+    curve(leftBrow,{x=leftBrow.x+width*0.015,y=leftBrow.y-height*0.02},
+        {x=leftBrow.x+width*0.045,y=leftBrow.y-height*0.04},
+        {x=leftBrow.x+width*0.075,y=leftBrow.y+height*0.01},featureColor,4)
+    curve({x=rightBrow.x-width*0.075,y=rightBrow.y+height*0.01},
+        {x=rightBrow.x-width*0.045,y=rightBrow.y-height*0.04},
+        {x=rightBrow.x-width*0.015,y=rightBrow.y-height*0.02},rightBrow,featureColor,4)
+    curve(rightBrow,{x=rightBrow.x+width*0.015,y=rightBrow.y-height*0.02},
+        {x=rightBrow.x+width*0.045,y=rightBrow.y-height*0.04},
+        {x=rightBrow.x+width*0.075,y=rightBrow.y+height*0.01},featureColor,4)
+    local leftEye,rightEye=point('left_eye_center'),point('right_eye_center')
+    curve({x=leftEye.x-width*0.06,y=leftEye.y},{x=leftEye.x-width*0.025,y=leftEye.y-height*0.04},
+        {x=leftEye.x+width*0.025,y=leftEye.y-height*0.04},{x=leftEye.x+width*0.06,y=leftEye.y},featureColor,3)
+    curve({x=rightEye.x-width*0.06,y=rightEye.y},{x=rightEye.x-width*0.025,y=rightEye.y-height*0.04},
+        {x=rightEye.x+width*0.025,y=rightEye.y-height*0.04},{x=rightEye.x+width*0.06,y=rightEye.y},featureColor,3)
+    curve({x=leftEye.x-width*0.06,y=leftEye.y},{x=leftEye.x-width*0.025,y=leftEye.y+height*0.04},
+        {x=leftEye.x+width*0.025,y=leftEye.y+height*0.04},{x=leftEye.x+width*0.06,y=leftEye.y},featureColor,2)
+    curve({x=rightEye.x-width*0.06,y=rightEye.y},{x=rightEye.x-width*0.025,y=rightEye.y+height*0.04},
+        {x=rightEye.x+width*0.025,y=rightEye.y+height*0.04},{x=rightEye.x+width*0.06,y=rightEye.y},featureColor,2)
+    tImGui.AddCircle(leftEye,width*0.022,featureColor,16,2)
+    tImGui.AddCircle(rightEye,width*0.022,featureColor,16,2)
+    tImGui.AddCircleFilled(leftEye,width*0.010,{r=0.08,g=0.08,b=0.10,a=1},12)
+    tImGui.AddCircleFilled(rightEye,width*0.010,{r=0.08,g=0.08,b=0.10,a=1},12)
+    tImGui.AddLine({x=center.x-width*0.025,y=center.y-height*0.02},
+        {x=center.x-width*0.025,y=center.y+height*0.10},featureColor,3)
+    tImGui.AddLine({x=center.x-width*0.025,y=center.y+height*0.10},
+        {x=center.x+width*0.025,y=center.y+height*0.10},featureColor,3)
+    curve({x=origin.x+width*0.40,y=origin.y+height*0.69},{x=origin.x+width*0.45,y=origin.y+height*0.65},
+        {x=origin.x+width*0.55,y=origin.y+height*0.65},{x=origin.x+width*0.60,y=origin.y+height*0.69},{r=0.96,g=0.55,b=0.65,a=1},4)
+    curve({x=origin.x+width*0.40,y=origin.y+height*0.73},{x=origin.x+width*0.45,y=origin.y+height*0.77},
+        {x=origin.x+width*0.55,y=origin.y+height*0.77},{x=origin.x+width*0.60,y=origin.y+height*0.73},{r=0.96,g=0.55,b=0.65,a=1},4)
+    curve({x=origin.x+width*0.36,y=origin.y+height*0.30},{x=origin.x+width*0.42,y=origin.y+height*0.10},
+        {x=origin.x+width*0.58,y=origin.y+height*0.10},{x=origin.x+width*0.64,y=origin.y+height*0.30},hairColor,9)
+    curve({x=origin.x+width*0.36,y=origin.y+height*0.30},{x=origin.x+width*0.42,y=origin.y+height*0.10},
+        {x=origin.x+width*0.58,y=origin.y+height*0.10},{x=origin.x+width*0.64,y=origin.y+height*0.30},hairAccent,2)
+    local labels={
+        {'face_left',0.02,0.53,0.20,0.53},{'face_right',0.80,0.53,0.98,0.53},
+        {'face_top',0.44,0.04,0.50,0.08},{'face_bottom',0.40,0.96,0.50,0.97},
+        {'brow_left',0.02,0.27,0.25,0.34},{'brow_right',0.76,0.27,0.75,0.34},
+        {'left_eye_corner',0.02,0.43,0.28,0.46},{'right_eye_corner',0.73,0.43,0.72,0.46},
+        {'left_eye_center',0.02,0.61,0.29,0.61},{'right_eye_center',0.72,0.61,0.71,0.61},
+        {'jaw_hinge_left',0.02,0.68,0.25,0.68},{'jaw_hinge_right',0.76,0.68,0.75,0.68},
+        {'mouth_left',0.02,0.80,0.27,0.80},{'mouth_right',0.78,0.80,0.73,0.80},
+        {'nose_bridge',0.54,0.45,0.53,0.45},{'nose_tip',0.54,0.57,0.53,0.57},
+        {'upper_lip',0.54,0.67,0.53,0.67},{'lower_lip',0.54,0.74,0.53,0.74},
+        {'chin',0.54,0.81,0.53,0.81}
+    }
+    for _,label in ipairs(labels) do
+        local name,x,y,pointX,pointY=table.unpack(label)
+        tImGui.AddLine(point(name),{x=origin.x+pointX*width,y=origin.y+pointY*height},lineColor,2)
+        tImGui.AddText({x=origin.x+x*width,y=origin.y+y*height},textColor,
+            localizedLandmarkGuideName(name),nil,labelSize)
+    end
+    local hairAnchor={x=origin.x+width*0.70,y=origin.y+height*0.14}
+    tImGui.AddLine({x=origin.x+width*0.65,y=origin.y+height*0.22},hairAnchor,lineColor,1.2)
+    tImGui.AddText(hairAnchor,textColor,tLang.L('fre_landmark_reference_hair'),nil,labelSize)
+    for name in pairs(landmarkReferencePoints) do
+        local landmarkPoint=point(name)
+        local selected=name==selectedName
+        tImGui.AddCircleFilled(landmarkPoint,selected and 5 or 3,
+            selected and {r=1,g=0.75,b=0.15,a=1} or pointColor,12)
+        if selected then tImGui.AddCircle(landmarkPoint,9,{r=1,g=0.85,b=0.3,a=1},16,1.5) end
+    end
 end
 
 local function showLandmarkReferenceModal()
     if not state.landmarkReferenceLarge then return end
-    if state.landmarkReferenceImage==nil then loadLandmarkReferenceImage() end
-
+    if state.landmarkReferenceOpenRequested then
+        -- OpenPopup must run at the same (root) ID stack as BeginPopupModal.
+        -- The checkbox lives below the landmarks TreeNode, so defer the call
+        -- until this root-level modal function.
+        tImGui.OpenPopup('fre_landmark_reference_modal')
+        state.landmarkReferenceOpenRequested=false
+    end
     local screenWidth,screenHeight=mbm.getRealSizeScreen()
     local maxWidth=math.max(520,screenWidth-48)
     local maxHeight=math.max(360,screenHeight-56)
@@ -371,15 +465,13 @@ local function showLandmarkReferenceModal()
     tImGui.TextWrapped(tLang.L('fre_landmark_reference_large_help'))
     tImGui.Separator()
     local available=tImGui.GetContentRegionAvail()
-    local imageWidth,imageHeight=1400,1120
-    local scale=math.min(available.x/imageWidth,math.max(40,available.y-48)/imageHeight)
-    scale=math.max(0.1,math.min(1,scale))
-    local image=state.landmarkReferenceImage
-    if image then
-        tImGui.Image(image,{x=imageWidth*scale,y=imageHeight*scale})
-    else
-        tImGui.TextWrapped(tLang.L('fre_landmark_reference_large_missing'))
-    end
+    local canvasWidth=math.min(math.max(420,available.x),1000)
+    local canvasHeight=math.min(math.max(330,available.y-48),canvasWidth*0.80)
+    if available.x>canvasWidth then tImGui.SetCursorPosX(tImGui.GetCursorPosX()+(available.x-canvasWidth)*0.5) end
+    local origin=tImGui.GetCursorScreenPos()
+    tImGui.Dummy({x=canvasWidth,y=canvasHeight})
+    local selected=state.project.landmarks[state.selectedLandmark]
+    drawLandmarkReferenceGuide(origin,canvasWidth,canvasHeight,selected and selected.name or nil)
     tImGui.Separator()
     if tImGui.Button(tLang.L('fre_landmark_reference_large_close')) then
         state.landmarkReferenceLarge=false
@@ -393,13 +485,14 @@ local function showLandmarkReference(selected)
     tImGui.Text(tLang.L('fre_landmark_reference_title'))
     tImGui.TextWrapped(localizedLandmarkDescription(selected.name))
     tImGui.TextWrapped(tLang.L('fre_landmark_reference_help'))
-    local largeChanged,largeVisible=tImGui.Checkbox(
+    local largeVisible=tImGui.Checkbox(
         tLang.L('fre_landmark_reference_large'),state.landmarkReferenceLarge)
-    if largeChanged then
+    if largeVisible~=state.landmarkReferenceLarge then
         state.landmarkReferenceLarge=largeVisible
         if largeVisible then
-            loadLandmarkReferenceImage()
-            tImGui.OpenPopup('fre_landmark_reference_modal')
+            state.landmarkReferenceOpenRequested=true
+        else
+            state.landmarkReferenceOpenRequested=false
         end
     end
     showHelpTooltip(tLang.L('fre_landmark_reference_large_tooltip'))
@@ -1505,7 +1598,7 @@ local function textColoredWrapped(color,message)
     tImGui.PopStyleColor(1)
 end
 
-local function showHelpTooltip(message)
+showHelpTooltip=function(message)
     if not message or message=='' or not tImGui.IsItemHovered(0) then return end
     tImGui.SetNextWindowSizeConstraints({x=280,y=0},{x=440,y=360})
     tImGui.BeginTooltip()
