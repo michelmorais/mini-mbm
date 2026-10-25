@@ -53,7 +53,8 @@ local state = {
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
     selectedMask=1, maskEditMode='add',
-    maskVisualization={dirty=true,visible=true,faces=nil,markers=nil,hoverMarker=nil,
+    maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
+        buildSelected=nil,buildFaceCoords=nil,visible=true,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0},
     maskSelectionMode=1,
     sourceObjectDraft='',
@@ -77,6 +78,36 @@ local state = {
 }
 
 local refreshMaskVisualization
+local startMaskVisualizationBuild
+local stepMaskVisualizationBuild
+
+local function markMaskVisualizationDirty()
+    local visualization=state.maskVisualization
+    if visualization.building then
+        visualization.building=false
+        visualization.buildSelected=nil
+        visualization.buildSelectedSet=nil
+        visualization.buildFaceCoords=nil
+    end
+    visualization.dirty=true
+    visualization.needsBuild=true
+    if visualization.faces then visualization.faces.visible=false end
+    if visualization.markers then visualization.markers.visible=false end
+    if visualization.hoverFace then visualization.hoverFace.visible=false end
+    if visualization.hoverMarker then visualization.hoverMarker.visible=false end
+end
+
+local function setMaskVisualizationViewportVisible(visible)
+    local visualization=state.maskVisualization
+    local show=visible and visualization.visible and not visualization.needsBuild and
+        not visualization.building and state.workspace=='masks'
+    if visualization.faces then visualization.faces.visible=show end
+    if visualization.markers then visualization.markers.visible=show end
+    if not show then
+        if visualization.hoverFace then visualization.hoverFace.visible=false end
+        if visualization.hoverMarker then visualization.hoverMarker.visible=false end
+    end
+end
 
 local windows = {
     main='facial_rig_main', camera='facial_rig_camera', report='facial_rig_report',
@@ -580,7 +611,7 @@ local function restoreHistorySnapshot(snapshot)
     state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
-    state.maskVisualization.dirty=true
+    markMaskVisualizationDirty()
     state.rigPreview.dirty=true
     state.rigReview.dirty=true
     state.bindingPlan.dirty=true
@@ -634,7 +665,8 @@ local function destroyMaskVisualization()
     if visualization.markers then dpCall(function() visualization.markers:destroy() end) end
     if visualization.hoverMarker then dpCall(function() visualization.hoverMarker:destroy() end) end
     if visualization.hoverFace then dpCall(function() visualization.hoverFace:destroy() end) end
-    state.maskVisualization={dirty=true,visible=true,faces=nil,markers=nil,hoverMarker=nil,
+    state.maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
+        buildSelected=nil,buildFaceCoords=nil,visible=true,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0}
 end
 
@@ -1172,7 +1204,7 @@ local function generateMainFaceMask()
     selectedMask.vertices=vertices
     selectedMask.topologySignature=state.topology.signature
     selectedMask.enabled=true
-    state.maskVisualization.dirty=true
+    markMaskVisualizationDirty()
     markModified()
     setStatus(string.format(tLang.L('fre_face_mask_generated_fmt'),#vertices),false)
     return true
@@ -1743,6 +1775,13 @@ end
 
 local function selectWorkspace(workspace)
     state.workspace=state.workspace==workspace and nil or workspace
+    if state.workspace~='masks' and state.maskVisualization.building then
+        state.maskVisualization.building=false
+        state.maskVisualization.buildSelected=nil
+        state.maskVisualization.buildSelectedSet=nil
+        state.maskVisualization.buildFaceCoords=nil
+        state.maskVisualization.needsBuild=true
+    end
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.maskVisualization.dirty=true
@@ -1783,7 +1822,7 @@ local function deleteSelectedMask()
     end
     state.project.selectedMask=state.selectedMask
     state.maskDeletePending=nil
-    state.maskVisualization.dirty=true
+    markMaskVisualizationDirty()
     markModified()
     setStatus(tLang.L('fre_mask_deleted'),false)
     return true
@@ -1896,7 +1935,7 @@ local function showMasks()
             if tImGui.Selectable(maskLabel,index==state.selectedMask) then
                 state.selectedMask=index
                 state.maskDeletePending=nil
-                state.maskVisualization.dirty=true
+                markMaskVisualizationDirty()
             end
             tImGui.TableSetColumnIndex(1)
             local role=state.project.roles[mask.roleIndex or 1]
@@ -1908,6 +1947,28 @@ local function showMasks()
     end
     local selectedMask=state.project.masks[state.selectedMask]
     if selectedMask then
+        local visualizationReady=not state.maskVisualization.needsBuild and
+            not state.maskVisualization.building
+        if state.maskVisualization.building then
+            local total=math.max(state.maskVisualization.buildTotal,1)
+            local progress=math.max(0,math.min(1,(state.maskVisualization.buildCursor-1)/total))
+            tImGui.Text(tLang.L('fre_mask_visualization_building'))
+            tImGui.ProgressBar(progress,{x=-1,y=0},string.format('%.0f%%',progress*100))
+        else
+            local buildLabel=state.maskVisualization.needsBuild and
+                tLang.L('fre_mask_visualization_generate') or
+                tLang.L('fre_mask_visualization_refresh')
+            if tImGui.Button(buildLabel .. '##freMaskVisualizationBuild') then
+                startMaskVisualizationBuild()
+                visualizationReady=false
+            end
+            showHelpTooltip(tLang.L('fre_mask_visualization_generate_tooltip'))
+            if state.maskVisualization.needsBuild then
+                tImGui.TextWrapped(tLang.L('fre_mask_visualization_pending'))
+            end
+        end
+        tImGui.Separator()
+        tImGui.BeginDisabled(not visualizationReady)
         tImGui.PushItemWidth(320)
         local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
         if changed and name~='' then
@@ -1939,7 +2000,7 @@ local function showMasks()
         if maskEnabled ~= (selectedMask.enabled~=false) then
             pushUndoSnapshot()
             selectedMask.enabled=maskEnabled
-            state.maskVisualization.dirty=true
+            markMaskVisualizationDirty()
             markModified()
         end
         tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
@@ -1964,11 +2025,15 @@ local function showMasks()
         state.maskSelectionMode=tImGui.RadioButton(tLang.L('fre_mask_selection_vertices'),
             state.maskSelectionMode, 2)
         showHelpTooltip(tLang.L('fre_mask_selection_mode_tooltip'))
-        local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
-        showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
-        if showMask~=state.maskVisualization.visible then
-            state.maskVisualization.visible=showMask
-            state.maskVisualization.dirty=true
+        if visualizationReady then
+            local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
+            showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
+            if showMask~=state.maskVisualization.visible then
+                state.maskVisualization.visible=showMask
+                state.maskVisualization.dirty=true
+            end
+        else
+            tImGui.TextDisabled(tLang.L('fre_mask_visualization_unavailable'))
         end
         tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
             state.maskVisualization.vertexCount,state.maskVisualization.faceCount,
@@ -1981,7 +2046,7 @@ local function showMasks()
         if tImGui.Button(tLang.L('fre_mask_clear')) then
             pushUndoSnapshot()
             selectedMask.vertices={}
-            state.maskVisualization.dirty=true
+            markMaskVisualizationDirty()
             markModified()
         end
         showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
@@ -2003,6 +2068,7 @@ local function showMasks()
         if state.maskDeletePending==state.selectedMask then
             tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
         end
+        tImGui.EndDisabled()
     end
 end
 
@@ -3307,7 +3373,11 @@ function onLoop(delta)
     showFacialClipTimelineWindow()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
-    if state.maskVisualization.dirty then refreshMaskVisualization() end
+    if state.maskVisualization.building then
+        stepMaskVisualizationBuild()
+    elseif state.maskVisualization.dirty then
+        refreshMaskVisualization()
+    end
     if state.rigPreview.dirty then refreshRigPreview() end
     tUtil.showOverlayMessage()
 end
@@ -3328,6 +3398,26 @@ local function viewportPickRadius(fraction)
     local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
         (bounds.maxZ-bounds.minZ)^2)
     return math.max(extent*(fraction or 0.02),0.001)
+end
+
+local function rayIntersectsBounds(origin,direction,bounds)
+    if not origin or not direction or not bounds then return true end
+    local near,far=0,math.huge
+    for _,axis in ipairs({'x','y','z'}) do
+        local value=origin[axis]
+        local delta=direction[axis]
+        local minimum=bounds['min'..axis:upper()]
+        local maximum=bounds['max'..axis:upper()]
+        if math.abs(delta)<1e-12 then
+            if value<minimum or value>maximum then return false end
+        else
+            local a,b=(minimum-value)/delta,(maximum-value)/delta
+            if a>b then a,b=b,a end
+            near,far=math.max(near,a),math.min(far,b)
+            if near>far then return false end
+        end
+    end
+    return far>=0
 end
 
 local function rayPointDistance(ox,oy,oz,dx,dy,dz,point,maxDistance)
@@ -3467,90 +3557,31 @@ local function nearestTriangleVertex(topology,triangle,point)
     return bestIndex
 end
 
-refreshMaskVisualization=function()
+
+local function finishMaskVisualizationBuild()
     local visualization=state.maskVisualization
-    if not state.mesh or not state.topology or state.workspace~='masks' or not visualization.visible then
-        if visualization.faces then visualization.faces.visible=false end
-        if visualization.markers then visualization.markers.visible=false end
-        if visualization.hoverMarker then visualization.hoverMarker.visible=false end
-        if visualization.hoverFace then visualization.hoverFace.visible=false end
-        visualization.hoverIndex=nil
-        visualization.hoverTriangleKey=nil
-        visualization.dirty=false
-        return
-    end
-    local mask=state.project.masks and state.project.masks[state.selectedMask]
-    if not mask or mask.enabled==false then
-        if visualization.faces then visualization.faces.visible=false end
-        if visualization.markers then visualization.markers.visible=false end
-        if visualization.hoverMarker then visualization.hoverMarker.visible=false end
-        if visualization.hoverFace then visualization.hoverFace.visible=false end
-        visualization.hoverIndex=nil
-        visualization.hoverTriangleKey=nil
-        visualization.vertexCount=0
-        visualization.faceCount=0
-        visualization.markerCount=0
-        visualization.dirty=false
-        return
-    end
     if visualization.faces then dpCall(function() visualization.faces:destroy() end) end
     if visualization.markers then dpCall(function() visualization.markers:destroy() end) end
     visualization.faces=nil
     visualization.markers=nil
-    local selected={}
-    local selectedIndices={}
-    for _,rawIndex in ipairs(mask.vertices or {}) do
-        local index=tonumber(rawIndex)
-        if index and state.topology.vertices[index] and not selected[index] then
-            selected[index]=true
-            selectedIndices[#selectedIndices+1]=index
-        end
-    end
-    table.sort(selectedIndices)
-    visualization.vertexCount=#selectedIndices
-    local bounds=state.meshBounds
-    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
-        bounds.maxZ-bounds.minZ) or 1
-    local offset=math.max(extent*0.0008,0.0001)
-    local faceCoords={}
-    local faceCount=0
-    for _,triangle in ipairs(state.topology.triangles or {}) do
-        local ia,ib,ic=triangle[1],triangle[2],triangle[3]
-        if selected[ia] and selected[ib] and selected[ic] then
-            local a,b,c=state.topology.vertices[ia],state.topology.vertices[ib],state.topology.vertices[ic]
-            if a and b and c then
-                local abx,aby,abz=b.x-a.x,b.y-a.y,b.z-a.z
-                local acx,acy,acz=c.x-a.x,c.y-a.y,c.z-a.z
-                local nx,ny,nz=aby*acz-abz*acy,abz*acx-abx*acz,abx*acy-aby*acx
-                local length=math.sqrt(nx*nx+ny*ny+nz*nz)
-                if length>1e-8 then
-                    nx,ny,nz=nx/length,ny/length,nz/length
-                    local normal={x=nx,y=ny,z=nz}
-                    appendMaskPoint(faceCoords,a,normal,offset)
-                    appendMaskPoint(faceCoords,b,normal,offset)
-                    appendMaskPoint(faceCoords,c,normal,offset)
-                    appendMaskPoint(faceCoords,a,normal,-offset)
-                    appendMaskPoint(faceCoords,c,normal,-offset)
-                    appendMaskPoint(faceCoords,b,normal,-offset)
-                    faceCount=faceCount+1
-                end
-            end
-        end
-    end
-    visualization.faceCount=faceCount
     maskVisualizationGeneration=maskVisualizationGeneration+1
+    local faceCoords=visualization.buildFaceCoords or {}
     if #faceCoords>0 then
         local faces=shape:new('3d',0,0,0)
         if faces:create(faceCoords,nil,'facial_mask_faces_'..maskVisualizationGeneration) then
             faces:setColor(0.1,0.75,1,0.28)
             faces.alwaysOnTop=true
             faces.alwaysOnTopPriority=0
-            faces.visible=true
+            faces.visible=false
             visualization.faces=faces
         else
             dpCall(function() faces:destroy() end)
         end
     end
+    local selectedIndices=visualization.buildSelected or {}
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
     local markerCoords={}
     local maxMarkers=1200
     local step=math.max(1,math.ceil(#selectedIndices/maxMarkers))
@@ -3577,25 +3608,104 @@ refreshMaskVisualization=function()
             markers:setColor(0.15,0.85,1,0.9)
             markers.alwaysOnTop=true
             markers.alwaysOnTopPriority=1
-            markers.visible=true
+            markers.visible=false
             visualization.markers=markers
         else
             dpCall(function() markers:destroy() end)
         end
     end
-    if visualization.hoverMarker and visualization.hoverIndex then
-        visualization.hoverMarker:setColor(selected[visualization.hoverIndex] and 1 or 1,
-            selected[visualization.hoverIndex] and 0.8 or 0.25,
-            selected[visualization.hoverIndex] and 0.1 or 0.1,1)
-        visualization.hoverMarker.visible=true
+    visualization.buildSelected=nil
+    visualization.buildFaceCoords=nil
+    visualization.building=false
+    visualization.needsBuild=false
+    visualization.dirty=false
+    setMaskVisualizationViewportVisible(true)
+end
+
+startMaskVisualizationBuild=function()
+    local visualization=state.maskVisualization
+    if visualization.building or not state.mesh or not state.topology then return false end
+    local mask=state.project.masks and state.project.masks[state.selectedMask]
+    if not mask or mask.enabled==false then return false end
+    if visualization.faces then dpCall(function() visualization.faces:destroy() end) end
+    if visualization.markers then dpCall(function() visualization.markers:destroy() end) end
+    visualization.faces=nil
+    visualization.markers=nil
+    visualization.buildSelected={}
+    local selected=visualization.buildSelected
+    for _,rawIndex in ipairs(mask.vertices or {}) do
+        local index=tonumber(rawIndex)
+        if index and state.topology.vertices[index] then selected[#selected+1]=index end
     end
-    if visualization.hoverFace then visualization.hoverFace.visible=visualization.hoverIndex~=nil end
+    table.sort(selected)
+    local selectedSet={}
+    for _,index in ipairs(selected) do selectedSet[index]=true end
+    visualization.buildSelectedSet=selectedSet
+    visualization.buildFaceCoords={}
+    visualization.buildCursor=1
+    visualization.buildTotal=#(state.topology.triangles or {})
+    visualization.vertexCount=#selected
+    visualization.faceCount=0
+    visualization.markerCount=0
+    visualization.building=true
+    visualization.needsBuild=true
+    visualization.dirty=false
+    if visualization.hoverMarker then visualization.hoverMarker.visible=false end
+    if visualization.hoverFace then visualization.hoverFace.visible=false end
+    return true
+end
+
+stepMaskVisualizationBuild=function()
+    local visualization=state.maskVisualization
+    if not visualization.building then return end
+    local triangles=state.topology and state.topology.triangles or {}
+    local selected=visualization.buildSelectedSet or {}
+    local cursor=visualization.buildCursor
+    local finish=math.min(#triangles,cursor+249)
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local offset=math.max(extent*0.0008,0.0001)
+    local coords=visualization.buildFaceCoords
+    for triangleIndex=cursor,finish do
+        local triangle=triangles[triangleIndex]
+        local ia,ib,ic=triangle[1],triangle[2],triangle[3]
+        if selected[ia] and selected[ib] and selected[ic] then
+            local a,b,c=state.topology.vertices[ia],state.topology.vertices[ib],state.topology.vertices[ic]
+            if a and b and c then
+                local abx,aby,abz=b.x-a.x,b.y-a.y,b.z-a.z
+                local acx,acy,acz=c.x-a.x,c.y-a.y,c.z-a.z
+                local nx,ny,nz=aby*acz-abz*acy,abz*acx-abx*acz,abx*acy-aby*acx
+                local length=math.sqrt(nx*nx+ny*ny+nz*nz)
+                if length>1e-8 then
+                    local normal={x=nx/length,y=ny/length,z=nz/length}
+                    appendMaskPoint(coords,a,normal,offset)
+                    appendMaskPoint(coords,b,normal,offset)
+                    appendMaskPoint(coords,c,normal,offset)
+                    appendMaskPoint(coords,a,normal,-offset)
+                    appendMaskPoint(coords,c,normal,-offset)
+                    appendMaskPoint(coords,b,normal,-offset)
+                    visualization.faceCount=visualization.faceCount+1
+                end
+            end
+        end
+    end
+    visualization.buildCursor=finish+1
+    if visualization.buildCursor>visualization.buildTotal then finishMaskVisualizationBuild() end
+end
+
+refreshMaskVisualization=function()
+    local visualization=state.maskVisualization
+    if visualization.building then return end
+    if not visualization.dirty then return end
+    setMaskVisualizationViewportVisible(true)
     visualization.dirty=false
 end
 
 local function updateMaskHover(x,y)
     local visualization=state.maskVisualization
-    if state.workspace~='masks' or not state.mesh or not state.topology or not visualization.visible then
+    if state.workspace~='masks' or not state.mesh or not state.topology or not visualization.visible or
+            visualization.building or visualization.needsBuild then
         if visualization.hoverMarker then visualization.hoverMarker.visible=false end
         if visualization.hoverFace then visualization.hoverFace.visible=false end
         visualization.hoverIndex=nil
@@ -3606,6 +3716,13 @@ local function updateMaskHover(x,y)
         if visualization.hoverMarker then visualization.hoverMarker.visible=false end
         if visualization.hoverFace then visualization.hoverFace.visible=false end
         visualization.hoverIndex=nil
+        return
+    end
+    if not rayIntersectsBounds(origin,direction,state.meshBounds) then
+        if visualization.hoverMarker then visualization.hoverMarker.visible=false end
+        if visualization.hoverFace then visualization.hoverFace.visible=false end
+        visualization.hoverIndex=nil
+        visualization.hoverTriangleKey=nil
         return
     end
     local hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction)
@@ -3690,7 +3807,7 @@ local function toggleMaskVertex(index)
             if state.maskEditMode=='remove' then
                 pushUndoSnapshot()
                 table.remove(mask.vertices,position)
-                state.maskVisualization.dirty=true
+                markMaskVisualizationDirty()
                 markModified()
             end
             return true
@@ -3699,7 +3816,7 @@ local function toggleMaskVertex(index)
     if state.maskEditMode=='add' then
         pushUndoSnapshot()
         mask.vertices[#mask.vertices+1]=index
-        state.maskVisualization.dirty=true
+        markMaskVisualizationDirty()
         markModified()
     end
     return true
@@ -3742,7 +3859,7 @@ local function toggleMaskFace(triangle)
     end
     table.sort(mask.vertices)
     mask.topologySignature=state.topology.signature
-    state.maskVisualization.dirty=true
+    markMaskVisualizationDirty()
     markModified()
     return true
 end
@@ -3800,6 +3917,7 @@ local function handleViewportAuthoringClick(x,y)
             end
         end
     elseif state.workspace=='masks' then
+        if not rayIntersectsBounds(origin,direction,state.meshBounds) then return false end
         local surfaceHit=tFacialLandmarks.intersectRaySurface(state.topology,origin,direction)
         local vertexIndex=surfaceHit and nearestTriangleVertex(state.topology,surfaceHit.triangle,
             surfaceHit.point) or nil
@@ -3810,7 +3928,7 @@ local function handleViewportAuthoringClick(x,y)
             else
                 changed=toggleMaskVertex(vertexIndex)
             end
-            state.maskVisualization.dirty=true
+            markMaskVisualizationDirty()
             updateMaskHover(x,y)
             return changed
         end
@@ -3851,12 +3969,13 @@ function onTouchDown(key,x,y)
             end
         end
     end
-    if key==0 and state.workspace=='masks' then updateMaskHover(x,y) end
     if key==0 and handleViewportAuthoringClick(x,y) then return end
     if key==0 then
         state.cameraDrag={x=x,y=y}
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
     elseif key==1 then
         state.cameraPan={x=x,y=y}
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
     end
 end
 
@@ -3874,6 +3993,7 @@ function onTouchMove(key,x,y)
         return
     end
     if state.cameraPan then
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
         local c=state.camera
         local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
         local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
@@ -3895,6 +4015,7 @@ function onTouchMove(key,x,y)
         return
     end
     if not state.cameraDrag then return end
+    if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
     state.camera.azimuth=state.camera.azimuth+(x-state.cameraDrag.x)*0.008
     state.camera.elevation=math.max(-1.45,math.min(1.45,
         state.camera.elevation+(y-state.cameraDrag.y)*0.008))
@@ -3903,8 +4024,13 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
-    if key==0 then state.cameraDrag=nil; state.faceGizmoDrag=nil
-    elseif key==1 then state.cameraPan=nil end
+    if key==0 then
+        state.cameraDrag=nil; state.faceGizmoDrag=nil
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
+    elseif key==1 then
+        state.cameraPan=nil
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
+    end
 end
 
 function onTouchZoom(zoom)
