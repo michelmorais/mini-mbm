@@ -45,7 +45,7 @@ local function pointDistanceSquared(a, b)
 end
 
 function M.inspect(meshDebugObject)
-    local result={vertices={},refs={},bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
+    local result={vertices={},refs={},triangles={},bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
         maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge},signature='',vertexCount=0}
     local hash=2166136261
     local subsetCount=meshDebugObject:getTotalSubset(1)
@@ -54,6 +54,7 @@ function M.inspect(meshDebugObject)
         local count=meshDebugObject:getTotalVertex(1,subset)
         hash=hashCount(hash,count)
         local indices=meshDebugObject:getIndex(1,subset)
+        local globalOffset=#result.vertices
         if type(indices)=='table' then
             hash=hashCount(hash,#indices)
             for _,index in ipairs(indices) do hash=hashCount(hash,index) end
@@ -75,11 +76,97 @@ function M.inspect(meshDebugObject)
                 hash=hashNumber(hash,copy.x); hash=hashNumber(hash,copy.y); hash=hashNumber(hash,copy.z)
             end
         end
+        if type(indices)=='table' and #indices>=3 then
+            for index=1,#indices-2,3 do
+                local a,b,c=tonumber(indices[index]),tonumber(indices[index+1]),tonumber(indices[index+2])
+                if a and b and c and a>=1 and b>=1 and c>=1 and
+                        a<=count and b<=count and c<=count then
+                    result.triangles[#result.triangles+1]={globalOffset+a,globalOffset+b,globalOffset+c}
+                end
+            end
+        elseif count>=3 then
+            for vertex=1,count-2,3 do
+                result.triangles[#result.triangles+1]={globalOffset+vertex,globalOffset+vertex+1,globalOffset+vertex+2}
+            end
+        end
     end
     result.vertexCount=#result.vertices
     if result.vertexCount==0 then result.bounds=nil end
     result.signature=string.format('%08x:%d',hash,result.vertexCount)
     return result
+end
+
+local function dot(a,b)
+    return a.x*b.x+a.y*b.y+a.z*b.z
+end
+
+local function cross(a,b)
+    return {x=a.y*b.z-a.z*b.y,y=a.z*b.x-a.x*b.z,z=a.x*b.y-a.y*b.x}
+end
+
+local function subtract(a,b)
+    return {x=a.x-b.x,y=a.y-b.y,z=a.z-b.z}
+end
+
+local function addScaled(a,b,scale)
+    return {x=a.x+b.x*scale,y=a.y+b.y*scale,z=a.z+b.z*scale}
+end
+
+-- Intersect a viewport/world ray against the inspected topology. This is an
+-- explicit authoring operation, so a linear triangle scan is preferable to a
+-- continuously maintained spatial index: it avoids idle CPU work and keeps
+-- the result deterministic for a single snap click.
+function M.intersectRaySurface(topology, origin, direction, allowedVertices)
+    if not topology or not topology.vertices or not topology.triangles or
+            not origin or not direction then return nil end
+    local directionLength=math.sqrt(direction.x*direction.x+direction.y*direction.y+direction.z*direction.z)
+    if directionLength<=1e-8 then return nil end
+    local ray={x=direction.x/directionLength,y=direction.y/directionLength,z=direction.z/directionLength}
+    local epsilon=1e-7
+    local bestDistance=math.huge
+    local best=nil
+    for _,triangle in ipairs(topology.triangles) do
+        local ia,ib,ic=triangle[1],triangle[2],triangle[3]
+        if (not allowedVertices) or
+                (allowedVertices[ia] and allowedVertices[ib] and allowedVertices[ic]) then
+            local a,b,c=topology.vertices[ia],topology.vertices[ib],topology.vertices[ic]
+            if a and b and c then
+                local edge1,edge2=subtract(b,a),subtract(c,a)
+                local pvec=cross(ray,edge2)
+                local determinant=dot(edge1,pvec)
+                if math.abs(determinant)>epsilon then
+                    local inverse=1/determinant
+                    local tvec=subtract(origin,a)
+                    local u=dot(tvec,pvec)*inverse
+                    if u>=-epsilon and u<=1+epsilon then
+                        local qvec=cross(tvec,edge1)
+                        local v=dot(ray,qvec)*inverse
+                        if v>=-epsilon and u+v<=1+epsilon then
+                            local distance=dot(edge2,qvec)*inverse
+                            if distance>=0 and distance<bestDistance then
+                                local normal=cross(edge1,edge2)
+                                local normalLength=math.sqrt(dot(normal,normal))
+                                if normalLength>epsilon then
+                                    normal={x=normal.x/normalLength,y=normal.y/normalLength,z=normal.z/normalLength}
+                                    -- Orient the normal toward the ray origin so
+                                    -- positive offsets move outward from the surface.
+                                    if dot(normal,ray)>0 then
+                                        normal={x=-normal.x,y=-normal.y,z=-normal.z}
+                                    end
+                                else
+                                    normal={x=0,y=0,z=0}
+                                end
+                                bestDistance=distance
+                                best={point=addScaled(origin,ray,distance),normal=normal,
+                                    distance=distance,triangle=triangle}
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
 end
 
 function M.nearestVertex(topology, origin, direction, maxDistance)

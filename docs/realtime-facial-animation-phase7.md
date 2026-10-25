@@ -504,6 +504,17 @@ facial worktree. When CPU/GPU comparison is enabled, the temporary CPU mesh rece
 override; when comparison is disabled or destroyed, that temporary override is cleared and the
 primary mesh remains the sole always-rendered editor asset.
 
+## Delivered twenty-fourth slice: landmark surface-depth snapping
+
+The Landmarks worktree now offers an explicit surface-depth operation. It keeps the selected
+landmark X/Y, casts a deterministic ray along the face Z axis, intersects the inspected triangle
+topology, and writes the resulting depth as an undoable landmark edit. Enabled `main_face` vertex
+masks are preferred to avoid hair and accessory geometry; if a manually edited mask omits the
+requested triangle, the complete topology is used as a fallback. A signed surface-normal offset
+allows a point to remain on the skin, move slightly outward, or move inward for anatomical pivots.
+Landmarks that are not yet confirmed can use their current wireframe reference position as the X/Y
+input. The operation remains explicit so a reference guide never silently validates a new mesh.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

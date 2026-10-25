@@ -22,6 +22,10 @@ assert(topology.bounds.minX==-1 and topology.bounds.maxY==2)
 assert(topology.signature~='')
 local hit=Landmarks.nearestVertex(topology,{x=-1,y=0,z=-5},{x=0,y=0,z=1},0.1)
 assert(hit and hit.index==1)
+local surface={vertices={{x=0,y=0,z=0},{x=1,y=0,z=0},{x=0,y=1,z=0}},triangles={{1,2,3}}}
+local surfaceHit=Landmarks.intersectRaySurface(surface,{x=0.2,y=0.2,z=2},{x=0,y=0,z=-1})
+assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
+    'surface snapping must intersect the selected triangle')
 local project=Project.new()
 assert(project.schemaVersion==8 and project.landmarkEditMode==1)
 project.landmarkEditMode=2

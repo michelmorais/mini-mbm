@@ -254,6 +254,10 @@ The facial editor keeps its loaded mesh on the engine `alwaysRender` path so clo
 not lost to frustum culling. The optional CPU comparison mesh uses the same temporary override and
 clears it when the comparison is removed.
 
+Landmark authoring also provides an explicit surface-depth snap along the face Z axis, with
+main-face mask preference and a signed normal offset. This is a placement aid, not an automatic
+validation step; anatomical pivots such as jaw hinges and eye centers remain manually adjustable.
+
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
 rigging workflow.

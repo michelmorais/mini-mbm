@@ -48,7 +48,8 @@ local state = {
     project=tFacialProject.new(), projectPath=nil, mesh=nil, meshDebug=nil,
     meshBounds=nil, meshVertexCount=0, topology=nil, landmarkMarkers={}, landmarkMarkersDirty=true,
     workspace='setup', modified=false,
-    selectedRole=1, selectedLandmark=1, landmarkEditMode=1, status='', statusError=false,
+    selectedRole=1, selectedLandmark=1, landmarkEditMode=1, landmarkSurfaceOffset=0,
+    status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
@@ -1903,6 +1904,76 @@ local function setLandmarkPosition(landmark,position,vertexIndex)
     mirrorLandmark(landmark)
 end
 
+local function mainFaceSurfaceVertices()
+    local mainFaceRole
+    for index,role in ipairs(state.project.roles or {}) do
+        if role.name=='main_face' then mainFaceRole=index break end
+    end
+    if not mainFaceRole then return nil end
+    local allowed={}
+    local count=0
+    for _,mask in ipairs(state.project.masks or {}) do
+        if mask.enabled~=false and mask.roleIndex==mainFaceRole then
+            for _,vertex in ipairs(mask.vertices or {}) do
+                local index=tonumber(vertex)
+                if index and not allowed[index] then allowed[index]=true; count=count+1 end
+            end
+        end
+    end
+    return count>0 and allowed or nil
+end
+
+local function snapSelectedLandmarkDepthToSurface()
+    local landmark=state.project.landmarks[state.selectedLandmark]
+    if not landmark or not state.topology or not state.meshBounds then return false end
+    local reference=(landmark.placed and landmark.position) or state.faceGuide.worldPoints[landmark.name]
+    if not reference and state.project.faceOrigin and state.project.faceOrigin.placed then
+        local origin=state.project.faceOrigin
+        reference=addPoint(origin.position,faceGuideRelative(landmark.name,
+            math.max(tonumber(origin.scale) or faceGuideScale(state.meshBounds),0.001)))
+    end
+    if not reference then
+        setStatus(tLang.L('fre_landmark_surface_snap_failed'),true)
+        return false
+    end
+    local bounds=state.meshBounds
+    local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ,0.001)
+    local origin={x=reference.x,y=reference.y,z=bounds.maxZ+extent*2}
+    local allowed=mainFaceSurfaceVertices()
+    local hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=-1},allowed)
+    if not hit and allowed then
+        -- A manually edited mask can omit one triangle at the requested X/Y.
+        -- Retry against the complete topology rather than failing a valid
+        -- authoring operation; the masked pass remains the preferred result.
+        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=-1})
+    end
+    if not hit then
+        -- A back-facing or mirrored asset may have its visible surface toward
+        -- negative Z. Keep the operation deterministic by trying the opposite
+        -- direction only when the front pass found no triangle.
+        origin.z=bounds.minZ-extent*2
+        hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=1},allowed)
+        if not hit and allowed then
+            hit=tFacialLandmarks.intersectRaySurface(state.topology,origin,{x=0,y=0,z=1})
+        end
+    end
+    if not hit then
+        setStatus(tLang.L('fre_landmark_surface_snap_failed'),true)
+        return false
+    end
+    pushUndoSnapshot()
+    local offset=tonumber(state.landmarkSurfaceOffset) or 0
+    local point={x=hit.point.x+hit.normal.x*offset,
+        y=hit.point.y+hit.normal.y*offset,z=hit.point.z+hit.normal.z*offset}
+    setLandmarkPosition(landmark,point,nil)
+    state.project.selectedLandmark=state.selectedLandmark
+    markModified()
+    markLandmarkMarkersDirty()
+    markFaceGuideDirty()
+    setStatus(tLang.L('fre_landmark_surface_snapped'),false)
+    return true
+end
+
 local function showLandmarks()
     tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
     if not state.mesh then
@@ -1953,6 +2024,19 @@ local function showLandmarks()
         if xChanged then setLandmarkPosition(selected,{x=x,y=selected.position.y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
         if yChanged then setLandmarkPosition(selected,{x=selected.position.x,y=y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
         if zChanged then setLandmarkPosition(selected,{x=selected.position.x,y=selected.position.y,z=z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+        tImGui.Separator()
+        tImGui.Text(tLang.L('fre_landmark_surface_title'))
+        tImGui.TextWrapped(tLang.L('fre_landmark_surface_help'))
+        local scale=state.project.faceOrigin and state.project.faceOrigin.scale or faceGuideScale(state.meshBounds)
+        local offsetChanged,newOffset=tImGui.DragFloat(tLang.L('fre_landmark_surface_offset'),
+            state.landmarkSurfaceOffset,math.max(scale*0.01,0.0001),-math.max(scale,0.001),
+            math.max(scale,0.001),'%.4f',0)
+        if offsetChanged then state.landmarkSurfaceOffset=newOffset end
+        showHelpTooltip(tLang.L('fre_landmark_surface_offset_tooltip'))
+        if tImGui.Button(tLang.L('fre_landmark_surface_snap')) then
+            snapSelectedLandmarkDepthToSurface()
+        end
+        showHelpTooltip(tLang.L('fre_landmark_surface_snap_tooltip'))
         local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
         if placed~=selected.placed then
             pushUndoSnapshot()
