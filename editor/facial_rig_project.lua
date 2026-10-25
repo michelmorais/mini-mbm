@@ -264,7 +264,23 @@ function M.setFaceOrigin(project, point, scale, vertexIndex)
 end
 
 function M.addMask(project, name, roleIndex)
-    local mask = {name=name or ('region_' .. (#project.masks + 1)), roleIndex=roleIndex or 1,
+    local baseName=type(name)=='string' and name:match('^%s*(.-)%s*$') or ''
+    if baseName=='' then baseName='region_' .. (#project.masks + 1) end
+    local uniqueName=baseName
+    local suffix=2
+    local nameTaken=true
+    while nameTaken do
+        nameTaken=false
+        for _,existing in ipairs(project.masks or {}) do
+            if existing.name==uniqueName then
+                nameTaken=true
+                uniqueName=baseName .. '_' .. suffix
+                suffix=suffix+1
+                break
+            end
+        end
+    end
+    local mask = {name=uniqueName, roleIndex=roleIndex or 1,
         vertices={}, topologySignature=project.meshTopologySignature or '', enabled=true}
     project.masks[#project.masks + 1] = mask
     return mask

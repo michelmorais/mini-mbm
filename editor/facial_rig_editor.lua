@@ -1751,6 +1751,24 @@ local function showSetup()
     tImGui.Text(string.format(tLang.L('fre_role_summary_fmt'),#state.project.roles,#state.project.masks))
 end
 
+local function deleteSelectedMask()
+    local masks=state.project.masks or {}
+    local index=state.selectedMask
+    if not masks[index] then return false end
+    pushUndoSnapshot()
+    table.remove(masks,index)
+    if #masks==0 then
+        state.selectedMask=1
+    else
+        state.selectedMask=math.min(index,#masks)
+    end
+    state.project.selectedMask=state.selectedMask
+    state.maskDeletePending=nil
+    markModified()
+    setStatus(tLang.L('fre_mask_deleted'),false)
+    return true
+end
+
 local function showMasks()
     tImGui.TextWrapped(tLang.L('fre_masks_help'))
     if not state.mesh then
@@ -1758,6 +1776,7 @@ local function showMasks()
         return
     end
     tImGui.TextWrapped(tLang.L('fre_masks_object_mode_help'))
+    tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
     local roles=state.project.roles
     local selected=roles[state.selectedRole] or roles[1]
     if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
@@ -1836,7 +1855,11 @@ local function showMasks()
         for index,mask in ipairs(state.project.masks) do
             tImGui.TableNextRow()
             tImGui.TableSetColumnIndex(0)
-            if tImGui.Selectable(mask.name,index==state.selectedMask) then state.selectedMask=index end
+            local maskLabel=(mask.name or tLang.L('fre_unassigned')) .. '##freMaskRow' .. index
+            if tImGui.Selectable(maskLabel,index==state.selectedMask) then
+                state.selectedMask=index
+                state.maskDeletePending=nil
+            end
             tImGui.TableSetColumnIndex(1)
             local role=state.project.roles[mask.roleIndex or 1]
             tImGui.Text(role and role.name or tLang.L('fre_unassigned'))
@@ -1850,9 +1873,17 @@ local function showMasks()
         tImGui.PushItemWidth(320)
         local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
         if changed and name~='' then
-            pushUndoSnapshot()
-            selectedMask.name=name
-            markModified()
+            local duplicate=false
+            for index,mask in ipairs(state.project.masks or {}) do
+                if index~=state.selectedMask and mask.name==name then duplicate=true break end
+            end
+            if duplicate then
+                setStatus(tLang.L('fre_mask_name_duplicate'),true)
+            else
+                pushUndoSnapshot()
+                selectedMask.name=name
+                markModified()
+            end
         end
         tImGui.PopItemWidth()
         local roleNames=tFacialProject.roleNames()
@@ -1862,6 +1893,14 @@ local function showMasks()
         if roleChanged then
             pushUndoSnapshot()
             selectedMask.roleIndex=roleIndex
+            markModified()
+        end
+        local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
+            selectedMask.enabled~=false)
+        showHelpTooltip(tLang.L('fre_mask_enabled_tooltip'))
+        if maskEnabled ~= (selectedMask.enabled~=false) then
+            pushUndoSnapshot()
+            selectedMask.enabled=maskEnabled
             markModified()
         end
         tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
@@ -1880,6 +1919,24 @@ local function showMasks()
             markModified()
         end
         showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
+        tImGui.SameLine()
+        if state.maskDeletePending==state.selectedMask then
+            if tImGui.Button(tLang.L('fre_mask_delete_confirm') .. '##freMaskDeleteConfirm') then
+                deleteSelectedMask()
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('fre_mask_delete_cancel') .. '##freMaskDeleteCancel') then
+                state.maskDeletePending=nil
+            end
+        else
+            if tImGui.Button(tLang.L('fre_mask_delete') .. '##freMaskDelete') then
+                state.maskDeletePending=state.selectedMask
+            end
+            showHelpTooltip(tLang.L('fre_mask_delete_tooltip'))
+        end
+        if state.maskDeletePending==state.selectedMask then
+            tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
+        end
     end
 end
 
