@@ -1775,7 +1775,24 @@ local function showMasks()
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
-    tImGui.TextWrapped(tLang.L('fre_masks_object_mode_help'))
+    if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
+        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
+        tImGui.TableHeadersRow()
+        local guideRows={
+            {'fre_masks_guide_single_object','fre_masks_guide_single_object_action'},
+            {'fre_masks_guide_separate_objects','fre_masks_guide_separate_objects_action'},
+            {'fre_masks_guide_same_object_regions','fre_masks_guide_same_object_regions_action'}
+        }
+        for _,row in ipairs(guideRows) do
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0)
+            tImGui.TextWrapped(tLang.L(row[1]))
+            tImGui.TableSetColumnIndex(1)
+            tImGui.TextWrapped(tLang.L(row[2]))
+        end
+        tImGui.EndTable()
+    end
     tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
     local roles=state.project.roles
     local selected=roles[state.selectedRole] or roles[1]
@@ -1911,7 +1928,12 @@ local function showMasks()
         showHelpTooltip(tLang.L('fre_mask_remove_vertices_tooltip'))
         if addPressed then state.maskEditMode='add' end
         if removePressed then state.maskEditMode='remove' end
-        tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. state.maskEditMode)
+        local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
+            tLang.L('fre_mask_mode_add')
+        tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
+        local modeHelp=state.maskEditMode=='remove' and tLang.L('fre_mask_remove_mode_help') or
+            tLang.L('fre_mask_add_mode_help')
+        tImGui.TextWrapped(modeHelp)
         tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help'))
         if tImGui.Button(tLang.L('fre_mask_clear')) then
             pushUndoSnapshot()
