@@ -50,6 +50,7 @@ local state = {
     workspace='setup', modified=false,
     selectedRole=1, selectedLandmark=1, landmarkEditMode=1, landmarkSurfaceOffset=0,
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
+    landmarkReferenceLarge=false, landmarkReferenceImage=nil,
     status='', statusError=false,
     selectedMask=1, maskEditMode='add',
     sourceObjectDraft='',
@@ -115,6 +116,8 @@ local function getEditorDir()
     if source:sub(1,1)=='@' then source=source:sub(2) end
     return source:match('^(.*)[/\\]') or '.'
 end
+
+local setStatus
 
 local function replaceExtension(path,extension)
     if not path or path=='' then return '' end
@@ -333,11 +336,73 @@ local function localizedLandmarkDescription(name)
     return translated==key and localizedLandmarkName(name) or translated
 end
 
+local function loadLandmarkReferenceImage()
+    if state.landmarkReferenceImage then return state.landmarkReferenceImage end
+    local path=getEditorDir() .. '/assets/facial-landmark-reference.png'
+    if not pathExists(path) then
+        setStatus(tLang.L('fre_landmark_reference_large_missing'),true)
+        return nil
+    end
+    local ok,image=dpCall(function() return mbm.loadTexture(path) end)
+    if ok and image then
+        state.landmarkReferenceImage=image
+        return image
+    end
+    setStatus(tLang.L('fre_landmark_reference_large_missing'),true)
+    return nil
+end
+
+local function showLandmarkReferenceModal()
+    if not state.landmarkReferenceLarge then return end
+    if state.landmarkReferenceImage==nil then loadLandmarkReferenceImage() end
+
+    local screenWidth,screenHeight=mbm.getRealSizeScreen()
+    local maxWidth=math.max(520,screenWidth-48)
+    local maxHeight=math.max(360,screenHeight-56)
+    local initialWidth=math.min(1120,maxWidth)
+    local initialHeight=math.min(860,maxHeight)
+    tImGui.SetNextWindowSizeConstraints({x=520,y=360},{x=maxWidth,y=maxHeight})
+    tImGui.SetNextWindowSize({x=initialWidth,y=initialHeight},tImGui.Flags('ImGuiCond_Appearing'))
+    local opened,closed=tImGui.BeginPopupModal(
+        tLang.L('fre_landmark_reference_large_title') .. '###fre_landmark_reference_modal',true,0)
+    if closed then state.landmarkReferenceLarge=false end
+    if not opened then return end
+
+    tImGui.TextWrapped(tLang.L('fre_landmark_reference_large_help'))
+    tImGui.Separator()
+    local available=tImGui.GetContentRegionAvail()
+    local imageWidth,imageHeight=1400,1120
+    local scale=math.min(available.x/imageWidth,math.max(40,available.y-48)/imageHeight)
+    scale=math.max(0.1,math.min(1,scale))
+    local image=state.landmarkReferenceImage
+    if image then
+        tImGui.Image(image,{x=imageWidth*scale,y=imageHeight*scale})
+    else
+        tImGui.TextWrapped(tLang.L('fre_landmark_reference_large_missing'))
+    end
+    tImGui.Separator()
+    if tImGui.Button(tLang.L('fre_landmark_reference_large_close')) then
+        state.landmarkReferenceLarge=false
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
+end
+
 local function showLandmarkReference(selected)
     if not selected then return end
     tImGui.Text(tLang.L('fre_landmark_reference_title'))
     tImGui.TextWrapped(localizedLandmarkDescription(selected.name))
     tImGui.TextWrapped(tLang.L('fre_landmark_reference_help'))
+    local largeChanged,largeVisible=tImGui.Checkbox(
+        tLang.L('fre_landmark_reference_large'),state.landmarkReferenceLarge)
+    if largeChanged then
+        state.landmarkReferenceLarge=largeVisible
+        if largeVisible then
+            loadLandmarkReferenceImage()
+            tImGui.OpenPopup('fre_landmark_reference_modal')
+        end
+    end
+    showHelpTooltip(tLang.L('fre_landmark_reference_large_tooltip'))
 
     local origin=tImGui.GetCursorScreenPos()
     local width,height=250,180
@@ -359,7 +424,7 @@ local function showLandmarkReference(selected)
     end
 end
 
-local function setStatus(message, isError)
+setStatus=function(message, isError)
     state.status=tostring(message or '')
     state.statusError=isError == true
     tUtil.showMessage(state.status, state.statusError and 5 or 3)
@@ -1993,8 +2058,17 @@ local function snapSelectedLandmarkDepthToSurface()
     local offset=state.landmarkSurfaceAutoOffset and
         landmarkSurfaceReferenceOffset(landmark.name,scale) or
         (tonumber(state.landmarkSurfaceOffset) or 0)
-    local point={x=hit.point.x+hit.normal.x*offset,
-        y=hit.point.y+hit.normal.y*offset,z=hit.point.z+hit.normal.z*offset}
+    -- Preserve the two coordinates that define the user's selected line and
+    -- solve only the requested depth axis. Applying the full triangle normal
+    -- here would move X/Y for an oblique jaw surface even when Z is selected.
+    local point={x=reference.x,y=reference.y,z=reference.z}
+    if axis==1 then
+        point.x=hit.point.x+offset
+    elseif axis==2 then
+        point.y=hit.point.y+offset
+    else
+        point.z=hit.point.z+offset
+    end
     setLandmarkPosition(landmark,point,nil)
     state.project.selectedLandmark=state.selectedLandmark
     markModified()
@@ -2037,6 +2111,7 @@ local function showLandmarks()
     local names={}
     for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
     local option=math.max(1,math.min(#names,state.selectedLandmark))
+    tImGui.SetNextItemWidth(300)
     local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),option,names)
     if changed then
         state.selectedLandmark=index
@@ -3011,6 +3086,7 @@ function onLoop(delta)
     showMenu()
     showExportWindow()
     showMainPanel()
+    showLandmarkReferenceModal()
     showCameraPanel()
     showFacialClipTimelineWindow()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end

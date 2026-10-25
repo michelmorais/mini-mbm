@@ -510,8 +510,9 @@ The Landmarks worktree now offers an explicit surface-depth operation. It keeps 
 landmark X/Y, casts a deterministic ray along the face Z axis, intersects the inspected triangle
 topology, and writes the resulting depth as an undoable landmark edit. Enabled `main_face` vertex
 masks are preferred to avoid hair and accessory geometry; if a manually edited mask omits the
-requested triangle, the complete topology is used as a fallback. A signed surface-normal offset
-allows a point to remain on the skin, move slightly outward, or move inward for anatomical pivots.
+requested triangle, the complete topology is used as a fallback. A signed offset along the
+selected mesh axis allows a point to remain on the skin or move inward/outward without changing
+the other two coordinates.
 Landmarks that are not yet confirmed can use their current wireframe reference position as the X/Y
 input. The operation remains explicit so a reference guide never silently validates a new mesh.
 
@@ -524,6 +525,18 @@ The depth solver is now explicitly axis-aligned. The GUI defaults to mesh-space 
 `X` and `Y` for non-front-facing assets. It never derives depth from camera orientation, so rotating
 the viewport cannot change the solved point; only the selected landmark coordinates, mesh topology,
 axis, mask, and offset affect the result.
+
+## Delivered twenty-fifth slice: landmark placement reference image
+
+The Landmarks worktree now includes a bundled, labeled facial-landmark reference image. The compact
+diagram remains beside the selected landmark for quick orientation; the `Show large reference`
+control opens the complete image in a centered, closable modal viewport window. The image identifies
+all canonical points, including the distinction between face bounds and the `chin` point, and gives
+the user a stable visual guide without changing landmark data or validation state.
+
+The reference is stored under `editor/assets/` and is loaded lazily only when the large view is
+opened. The existing CMake editor-tree copy rules distribute the PNG and its SVG source with the
+development launcher output, so a development build does not need an extra asset-install step.
 
 ### Full-body skeleton compatibility
 
