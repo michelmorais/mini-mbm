@@ -56,11 +56,13 @@ local state = {
     maskBrush=nil,
     maskBrushRadius=0.045,
     maskBrushReference={key=nil,extent=nil},
+    maskBrushSpatial={key=nil,cellSize=nil,cells=nil},
     maskBrushHover={cursor=nil,lastX=nil,lastY=nil,lastTime=0,lastHit=nil},
     maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
         buildSelected=nil,buildSurfaceCoords=nil,buildSurfaceUvs=nil,buildSurfaceIndices=nil,
         visible=true,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
+        surfaceUvDirty=false,surfaceUvCallbackArmed=false,surfaceUvChanges={},
         meshHidden=false,meshWasVisible=true,keepSurfaceWhileDirty=false},
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
@@ -113,6 +115,12 @@ local function markMaskVisualizationDirty(keepSurface)
     end
     if state.maskBrushHover then state.maskBrushHover.lastHit=nil end
     state.maskBrushReference={key=nil,extent=nil}
+    state.maskBrushSpatial={key=nil,cellSize=nil,cells=nil}
+    if not visualization.keepSurfaceWhileDirty then
+        visualization.surfaceUvDirty=false
+        visualization.surfaceUvCallbackArmed=false
+        visualization.surfaceUvChanges={}
+    end
 end
 
 local function setMaskVisualizationViewportVisible(visible)
@@ -1291,6 +1299,7 @@ end
 
 local function markLandmarkMarkersDirty()
     state.landmarkMarkersDirty=true
+    state.maskBrushReference={key=nil,extent=nil}
 end
 
 local function markFaceGuideDirty()
@@ -3633,6 +3642,40 @@ local function ensureMaskOverlayShader()
     return ok and result~=false
 end
 
+-- Dynamic indexed shapes let a brush stroke recolor only the vertices it
+-- touched.  The callback is armed for one render and then unregisters itself;
+-- this keeps the shader responsive without copying the complete UV buffer on
+-- every frame while the editor is idle.
+local function updateMaskSurfaceOnRender(_,_,uv)
+    local visualization=state.maskVisualization
+    if not visualization.surfaceUvDirty then
+        visualization.surfaceUvCallbackArmed=false
+        return
+    end
+    for index,value in pairs(visualization.surfaceUvChanges or {}) do
+        local entry=uv[tonumber(index)]
+        if entry then entry.u=value end
+    end
+    uv.name='uv'
+    visualization.surfaceUvDirty=false
+    visualization.surfaceUvChanges={}
+    return uv
+end
+
+local function queueMaskSurfaceUv(index,selected)
+    local visualization=state.maskVisualization
+    if not visualization.surface then return end
+    visualization.surfaceUvChanges[index]=selected and 1 or 0
+    visualization.surfaceUvDirty=true
+    if not visualization.surfaceUvCallbackArmed then
+        visualization.surfaceUvCallbackArmed=true
+        local ok=pcall(function()
+            visualization.surface:onRender(updateMaskSurfaceOnRender)
+        end)
+        if not ok then visualization.surfaceUvCallbackArmed=false end
+    end
+end
+
 local function finishMaskVisualizationBuild()
     local visualization=state.maskVisualization
     if visualization.surface then dpCall(function() visualization.surface:destroy() end) end
@@ -3647,7 +3690,8 @@ local function finishMaskVisualizationBuild()
     local surfaceIndices=visualization.buildSurfaceIndices or {}
     if #surfaceCoords>0 and #surfaceIndices>0 then
         local surface=shape:new('3d',0,0,0)
-        local created=surface:createIndexed(surfaceCoords,surfaceIndices,surfaceUvs)
+        local created=surface:createDynamicIndexed(surfaceCoords,surfaceIndices,surfaceUvs,
+            'facial_mask_surface_'..tostring(maskVisualizationGeneration))
         if created then
             local okShader,shader=pcall(function() return surface:getShader() end)
             local loaded=false
@@ -3658,6 +3702,9 @@ local function finishMaskVisualizationBuild()
             if not loaded then surface:setColor(0.16,0.72,0.92,0.75) end
             surface.visible=false
             visualization.surface=surface
+            visualization.surfaceUvDirty=false
+            visualization.surfaceUvCallbackArmed=false
+            visualization.surfaceUvChanges={}
         else
             dpCall(function() surface:destroy() end)
         end
@@ -3762,13 +3809,35 @@ end
 local function maskBrushWorldRadius()
     local mask=state.project.masks and state.project.masks[state.selectedMask]
     local vertices=mask and mask.vertices or {}
+    local landmarkKeyParts={}
+    for _,landmark in ipairs(state.project.landmarks or {}) do
+        local point=landmark.placed and landmark.position
+        if point then
+            landmarkKeyParts[#landmarkKeyParts+1]=tostring(landmark.name or '')..':'..
+                string.format('%.5f,%.5f,%.5f',point.x,point.y,point.z)
+        end
+    end
     local key=tostring(state.selectedMask)..':'..tostring(#vertices)..':'..
-        tostring(mask and mask.topologySignature or '')
+        tostring(mask and mask.topologySignature or '')..':'..table.concat(landmarkKeyParts,';')
     local cache=state.maskBrushReference
     if cache.key~=key or not cache.extent then
         local minX,minY,minZ=math.huge,math.huge,math.huge
         local maxX,maxY,maxZ=-math.huge,-math.huge,-math.huge
         local valid=0
+        local landmarkCount=0
+        for _,landmark in ipairs(state.project.landmarks or {}) do
+            local point=landmark.placed and landmark.position
+            if point then
+                landmarkCount=landmarkCount+1
+                minX,minY,minZ=math.min(minX,point.x),math.min(minY,point.y),math.min(minZ,point.z)
+                maxX,maxY,maxZ=math.max(maxX,point.x),math.max(maxY,point.y),math.max(maxZ,point.z)
+            end
+        end
+        if landmarkCount>=3 then
+            cache.extent=math.max(maxX-minX,maxY-minY,maxZ-minZ)
+        end
+        minX,minY,minZ=math.huge,math.huge,math.huge
+        maxX,maxY,maxZ=-math.huge,-math.huge,-math.huge
         for _,rawIndex in ipairs(vertices) do
             local point=state.topology and state.topology.vertices[tonumber(rawIndex)]
             if point then
@@ -3777,18 +3846,8 @@ local function maskBrushWorldRadius()
                 maxX,maxY,maxZ=math.max(maxX,point.x),math.max(maxY,point.y),math.max(maxZ,point.z)
             end
         end
-        if valid>0 then
+        if (not cache.extent or cache.extent<=1e-8) and valid>0 then
             cache.extent=math.max(maxX-minX,maxY-minY,maxZ-minZ)
-        else
-            for _,landmark in ipairs(state.project.landmarks or {}) do
-                local point=landmark.placed and landmark.position
-                if point then
-                    valid=valid+1
-                    minX,minY,minZ=math.min(minX,point.x),math.min(minY,point.y),math.min(minZ,point.z)
-                    maxX,maxY,maxZ=math.max(maxX,point.x),math.max(maxY,point.y),math.max(maxZ,point.z)
-                end
-            end
-            if valid>0 then cache.extent=math.max(maxX-minX,maxY-minY,maxZ-minZ) end
         end
         if not cache.extent or cache.extent<=1e-8 then
             local bounds=state.meshBounds
@@ -3804,6 +3863,42 @@ local function maskBrushSurfaceHit(x,y)
     local origin,direction=viewportPickRay(x,y)
     if not origin or not rayIntersectsBounds(origin,direction,state.meshBounds) then return nil end
     return tFacialLandmarks.intersectRaySurface(state.topology,origin,direction)
+end
+
+local function maskBrushSurfaceHitForBrush(x,y,brush)
+    local previous=brush and brush.lastHit
+    local sampleCount=brush and brush.sampleCount or 0
+    -- Reuse the last tangent plane for nearby samples.  An exact triangle
+    -- intersection is still performed periodically and whenever the cursor
+    -- leaves that local patch, so curvature and occlusion remain correct.
+    if previous and sampleCount%8~=0 then
+        local origin,direction=viewportPickRay(x,y)
+        if origin and direction then
+            local normal=previous.normal
+            local denominator=direction.x*normal.x+direction.y*normal.y+direction.z*normal.z
+            if math.abs(denominator)>1e-7 then
+                local px,py,pz=previous.point.x-origin.x,previous.point.y-origin.y,
+                    previous.point.z-origin.z
+                local distance=(px*normal.x+py*normal.y+pz*normal.z)/denominator
+                if distance>=0 then
+                    local candidate={x=origin.x+direction.x*distance,
+                        y=origin.y+direction.y*distance,z=origin.z+direction.z*distance}
+                    local dx,dy,dz=candidate.x-previous.point.x,candidate.y-previous.point.y,
+                        candidate.z-previous.point.z
+                    local radius=maskBrushWorldRadius()
+                    local bounds=state.meshBounds
+                    local inside=not bounds or
+                        (candidate.x>=bounds.minX and candidate.x<=bounds.maxX and
+                         candidate.y>=bounds.minY and candidate.y<=bounds.maxY and
+                         candidate.z>=bounds.minZ and candidate.z<=bounds.maxZ)
+                    if inside and dx*dx+dy*dy+dz*dz<=radius*radius*36 then
+                        return {point=candidate,normal=normal}
+                    end
+                end
+            end
+        end
+    end
+    return maskBrushSurfaceHit(x,y)
 end
 
 local function maskBrushHoverPlaneHit(x,y)
@@ -3917,6 +4012,27 @@ local function updateMaskBrushHover(x,y)
     hover.cursor=cursor
 end
 
+local function buildMaskBrushSpatialIndex(radius)
+    local topology=state.topology
+    if not topology or not topology.vertices then return nil end
+    local cellSize=math.max(tonumber(radius) or 0,1e-5)
+    local key=tostring(topology.signature or '')..':'..string.format('%.6f',cellSize)
+    local cache=state.maskBrushSpatial
+    if cache and cache.key==key and cache.cells then return cache end
+    local cells={}
+    local function cellCoordinate(value) return math.floor(value/cellSize) end
+    for index,vertex in ipairs(topology.vertices) do
+        local cx,cy,cz=cellCoordinate(vertex.x),cellCoordinate(vertex.y),cellCoordinate(vertex.z)
+        local cellKey=cx..':'..cy..':'..cz
+        local cell=cells[cellKey]
+        if not cell then cell={}; cells[cellKey]=cell end
+        cell[#cell+1]=index
+    end
+    cache={key=key,cellSize=cellSize,cells=cells}
+    state.maskBrushSpatial=cache
+    return cache
+end
+
 local function collectMaskBrushVertices(point,normal,radius)
     local result={}
     if not point or not normal then return result end
@@ -3925,14 +4041,43 @@ local function collectMaskBrushVertices(point,normal,radius)
     local nx,ny,nz=normal.x/normalLength,normal.y/normalLength,normal.z/normalLength
     local radiusSquared=radius*radius
     local normalLimit=radius*0.45
-    for index,vertex in ipairs(state.topology.vertices or {}) do
-        local dx,dy,dz=vertex.x-point.x,vertex.y-point.y,vertex.z-point.z
-        local distanceSquared=dx*dx+dy*dy+dz*dz
-        if distanceSquared<=radiusSquared then
-            local normalDistance=dx*nx+dy*ny+dz*nz
-            local tangentSquared=distanceSquared-normalDistance*normalDistance
-            if math.abs(normalDistance)<=normalLimit and tangentSquared<=radiusSquared then
-                result[#result+1]=index
+    local spatial=buildMaskBrushSpatialIndex(radius)
+    local candidateIndices={}
+    local seen={}
+    if spatial then
+        local cellSize=spatial.cellSize
+        local minX,maxX=math.floor((point.x-radius)/cellSize),math.floor((point.x+radius)/cellSize)
+        local minY,maxY=math.floor((point.y-radius)/cellSize),math.floor((point.y+radius)/cellSize)
+        local minZ,maxZ=math.floor((point.z-radius)/cellSize),math.floor((point.z+radius)/cellSize)
+        for cx=minX,maxX do
+            for cy=minY,maxY do
+                for cz=minZ,maxZ do
+                    local cell=spatial.cells[cx..':'..cy..':'..cz]
+                    if cell then
+                        for _,index in ipairs(cell) do
+                            if not seen[index] then
+                                seen[index]=true
+                                candidateIndices[#candidateIndices+1]=index
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    else
+        for index in ipairs(state.topology.vertices or {}) do candidateIndices[#candidateIndices+1]=index end
+    end
+    for _,index in ipairs(candidateIndices) do
+        local vertex=state.topology.vertices[index]
+        if vertex then
+            local dx,dy,dz=vertex.x-point.x,vertex.y-point.y,vertex.z-point.z
+            local distanceSquared=dx*dx+dy*dy+dz*dz
+            if distanceSquared<=radiusSquared then
+                local normalDistance=dx*nx+dy*ny+dz*nz
+                local tangentSquared=distanceSquared-normalDistance*normalDistance
+                if math.abs(normalDistance)<=normalLimit and tangentSquared<=radiusSquared then
+                    result[#result+1]=index
+                end
             end
         end
     end
@@ -3940,7 +4085,8 @@ local function collectMaskBrushVertices(point,normal,radius)
 end
 
 local function stampMaskBrush(x,y,brush)
-    local hit=maskBrushSurfaceHit(x,y)
+    brush.sampleCount=(brush.sampleCount or 0)+1
+    local hit=maskBrushSurfaceHitForBrush(x,y,brush)
     if not hit then return false end
     local candidates=collectMaskBrushVertices(hit.point,hit.normal,maskBrushWorldRadius())
     if #candidates==0 then return false end
@@ -3953,6 +4099,7 @@ local function stampMaskBrush(x,y,brush)
         for _,index in ipairs(candidates) do
             if brush.present[index] then
                 brush.present[index]=nil
+                queueMaskSurfaceUv(index,false)
                 changed=true
             end
         end
@@ -3960,6 +4107,7 @@ local function stampMaskBrush(x,y,brush)
         for _,index in ipairs(candidates) do
             if not brush.present[index] then
                 brush.present[index]=true
+                queueMaskSurfaceUv(index,true)
                 changed=true
             end
         end
@@ -3980,7 +4128,7 @@ local function beginMaskBrush(x,y)
         if index then present[index]=true end
     end
     local brush={startX=x,startY=y,lastStampX=x,lastStampY=y,present=present,
-        snapshotPushed=false,changed=false,lastHit=nil}
+        snapshotPushed=false,changed=false,lastHit=nil,sampleCount=0}
     state.maskBrush=brush
     stampMaskBrush(x,y,brush)
     return true
@@ -4113,9 +4261,7 @@ function onTouchDown(key,x,y)
         return
     end
     if key==1 and state.workspace=='masks' then
-        if beginMaskBrush(x,y) then
-            setMaskVisualizationViewportVisible(false)
-        end
+        beginMaskBrush(x,y)
         return
     end
     if key==0 and handleViewportAuthoringClick(x,y) then return end
