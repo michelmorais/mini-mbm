@@ -250,6 +250,10 @@ individual target overrides, saved expressions, and facial clips embedded in the
 origin click remains the non-destructive anchor for the landmark reference guide; individual
 landmarks still require explicit confirmation on a new mesh.
 
+The facial editor keeps its loaded mesh on the engine `alwaysRender` path so close-up authoring is
+not lost to frustum culling. The optional CPU comparison mesh uses the same temporary override and
+clears it when the comparison is removed.
+
 Capture remains downstream of this editor. The file-backed replay and named-weight contract are
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
 rigging workflow.

@@ -495,6 +495,15 @@ origin at the nose displays the calibrated landmark reference around that origin
 are visual guides until the user confirms individual landmarks, so a new mesh is not silently
 validated from unverified positions.
 
+## Delivered twenty-third slice: editor mesh frustum stability
+
+The facial editor now enables the engine `alwaysRender` flag on its primary mesh immediately after
+loading. This prevents the mesh from disappearing when the author zooms very close to the face and
+the animated or bind-pose bounds no longer intersect the camera frustum. The flag applies to every
+facial worktree. When CPU/GPU comparison is enabled, the temporary CPU mesh receives the same
+override; when comparison is disabled or destroyed, that temporary override is cleared and the
+primary mesh remains the sole always-rendered editor asset.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

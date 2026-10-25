@@ -465,6 +465,9 @@ end
 local function destroyPreview()
     destroyRigPreview()
     if state.facialComparison and state.facialComparison.mesh then
+        -- This comparison instance is temporary. Clear the editor-only
+        -- no-frustum-culling override before destroying it.
+        state.facialComparison.mesh.alwaysRender=false
         dpCall(function() state.facialComparison.mesh:destroy() end)
     end
     state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
@@ -1084,13 +1087,19 @@ end
 
 local function rebuildFacialComparison(enabled)
     local comparison=state.facialComparison
-    if comparison.mesh then dpCall(function() comparison.mesh:destroy() end) end
+    if comparison.mesh then
+        comparison.mesh.alwaysRender=false
+        dpCall(function() comparison.mesh:destroy() end)
+    end
     comparison.mesh=nil
     comparison.enabled=enabled==true
     comparison.ready=false
     comparison.layoutActive=false
     if not comparison.enabled then
-        if state.mesh then dpCall(function() state.mesh:setPos(0,0,0) end) end
+        if state.mesh then
+            state.mesh.alwaysRender=true
+            dpCall(function() state.mesh:setPos(0,0,0) end)
+        end
         if state.meshBounds then frameCamera(state.meshBounds) end
         return true
     end
@@ -1106,9 +1115,11 @@ local function rebuildFacialComparison(enabled)
     local loadOk,loaded=false,false
     if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(state.project.meshPath) end) end
     if not cpuOk or cpuReady==false or not loadOk or loaded==false then
+        candidate.alwaysRender=false
         dpCall(function() candidate:destroy() end)
         return false,'fre_preview_gpu_cpu_reason_cpu_load'
     end
+    candidate.alwaysRender=true
     dpCall(function() return candidate:stopSkeletalAnimation() end)
     comparison.mesh=candidate
     comparison.ready=true
@@ -1209,6 +1220,10 @@ local function loadMesh(path, preserveProject)
     state.meshVertexCount=count
     state.topology=topology
     state.mesh.visible=true
+    -- Keep the authoring mesh available while the user zooms into the face.
+    -- `alwaysRender` is the engine's no-frustum-culling flag; `alwaysOnTop`
+    -- would change depth ordering and is therefore not appropriate here.
+    state.mesh.alwaysRender=true
     if not preserveProject then state.project=tFacialProject.new() end
     loadSourceObjectCatalog(path)
     state.project.meshPath=path
