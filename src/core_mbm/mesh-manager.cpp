@@ -12431,16 +12431,23 @@ namespace mbm
         const auto &asset = impl->facialAsset;
         if (!asset.meshId) return true;
         state.morphCapability = facial::getMeasuredGpuMorphCapability();
-        if (!state.morphCapability.measured)
-            state.morphStatus = "gpu-morph-capability-unmeasured";
-        else if (!state.morphCapability.supportsIndexedDeltas)
-            state.morphStatus = "gpu-morph-resource-unavailable";
+#if defined(__linux__) && defined(USE_OPENGL_ES)
+        constexpr bool gpuMorphPathAvailable = true;
+#else
+        constexpr bool gpuMorphPathAvailable = false;
+#endif
+        if (gpuMorphPathAvailable)
+        {
+            if (!state.morphCapability.measured)
+                state.morphStatus = "gpu-morph-capability-unmeasured";
+            else if (!state.morphCapability.supportsIndexedDeltas)
+                state.morphStatus = "gpu-morph-resource-unavailable";
+        }
+        else
+            state.morphStatus = "cpu-reference";
         state.targetCount = static_cast<uint32_t>(asset.targets.size());
         state.clipCount = static_cast<uint32_t>(asset.clips.size());
         const auto fail = [&state](const char *reason) { state.status = reason; state.ready = false; return false; };
-#if !defined(__linux__) || !defined(USE_OPENGL_ES)
-        return fail("facial-backend-unsupported");
-#endif
         if (impl->info_mode.mode_draw != util::MODE_DRAW_TRIANGLES) return fail("facial-triangle-mode-required");
         if (!impl->normalMapMaterials.empty() || (impl->normalMapFrames && !impl->normalMapFrames->empty()))
             return fail("facial-normal-mapping-unsupported");
@@ -12451,7 +12458,7 @@ namespace mbm
         }
         state.morphLayout = {};
         state.gpuMorph = false;
-        if (state.morphCapability.supportsIndexedDeltas)
+        if (gpuMorphPathAvailable && state.morphCapability.supportsIndexedDeltas)
         {
             std::string layoutError;
             if (facial::buildGpuMorphLayout(asset, state.morphCapability, impl->skeletalBindHasNormals,
@@ -12736,6 +12743,7 @@ namespace mbm
             if (!ok)
             {
                 state.buffer.release();
+                state.status = "facial-buffer-initialization-failed";
                 return false;
             }
             for (uint32_t subsetIndex = 0; subsetIndex < source.totalSubset; ++subsetIndex)

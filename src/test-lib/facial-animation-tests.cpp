@@ -140,6 +140,11 @@ namespace
                 !mesh.updateSkeletalKey(0,0,index,1,VEC3(100,0,0),0,0,0,1,VEC3(1,1,1),0,0,0,1,1,error,sizeof(error)))
             { std::fprintf(stderr,"fixture skeleton: %s\n",error); return false; }
         }
+        if (mesh.addAnimation("default", 0, 0, 0.0f, TYPE_ANIMATION_PAUSED, error, sizeof(error)) <= 0)
+        {
+            std::fprintf(stderr,"fixture animation: %s\n",error);
+            return false;
+        }
         const auto a=assetFor(mesh);
         if (!save(mesh,"base.msh")) return false;
         FILE_DATA data;
@@ -499,6 +504,7 @@ int stepFacialRuntimeTests()
             a.playing && a.clipName && std::strcmp(a.clipName,"expression")==0,
             "runtime drew both instances and reports facial clip");
         baseline=a;
+        expect(first->pauseFacialAnimation(),"pause facial clip for idle checks");
     }
     if (tick==20)
     {

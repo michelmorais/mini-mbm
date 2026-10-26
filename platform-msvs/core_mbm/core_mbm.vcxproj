@@ -209,6 +209,8 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-animation-foundation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gles-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\facial-gpu-upload.h" />
+    <ClInclude Include="..\..\src\core_mbm\private\facial-render-capability.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-metal-shader-source.h" />
     <ClInclude Include="..\..\src\core_mbm\private\specific-directx11-context.h" />
@@ -338,6 +340,8 @@
     <ClCompile Include="..\..\src\core_mbm\private\facial-animation.cpp" />
     <ClInclude Include="..\..\src\core_mbm\private\facial-animation.h" />
     <ClInclude Include="..\..\src\core_mbm\private\facial-render-state.h" />
+    <ClCompile Include="..\..\src\core_mbm\private\facial-render-capability.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp" />

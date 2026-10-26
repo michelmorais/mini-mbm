@@ -772,9 +772,10 @@ namespace mbm
     {
         if (!mesh || !facialState || !facialState->ready || target >= facialState->weights.size() || !std::isfinite(weight)) return false;
         const float clamped = std::max(0.0f, std::min(1.0f, weight));
+        if (facialState->weights[target] != clamped)
+            facialState->dirty = true;
         facialState->weights[target] = clamped;
         facialState->manualOverrides[target] = 1;
-        facialState->dirty = true;
         return mesh->refreshFacialWeights(*facialState);
     }
 

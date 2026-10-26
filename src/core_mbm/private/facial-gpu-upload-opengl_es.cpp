@@ -124,4 +124,17 @@ namespace mbm::facial
     }
 }
 
+#else
+
+#include "facial-gpu-upload.h"
+
+namespace mbm::facial
+{
+    bool uploadGpuMorphStream(BUFFER_GL *, const ASSET &,
+                              const GPU_MORPH_LAYOUT &) noexcept
+    {
+        return false;
+    }
+}
+
 #endif

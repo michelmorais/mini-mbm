@@ -56,6 +56,7 @@ list(APPEND SOURCES
   "${CMAKE_SOURCE_DIR}/src/core_mbm/mesh-v11-io.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-animation-foundation.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-animation.cpp"
+  "${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-render-capability.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-gpu-lbs.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-render-capability.cpp")
 

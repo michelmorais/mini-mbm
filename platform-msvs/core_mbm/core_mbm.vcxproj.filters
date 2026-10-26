@@ -19,6 +19,18 @@
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-gpu-upload.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\facial-gpu-upload.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\facial-render-capability.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\facial-animation.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\core_mbm\private\facial-render-state.h">
+      <Filter>Header Files\core_mbm\private</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\core_mbm\private\skeletal-directx9-shader-source.h">
       <Filter>Header Files\core_mbm\private</Filter>
     </ClInclude>
@@ -504,6 +516,15 @@
       <Filter>Source Files\core_mbm\private</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-animation-foundation.cpp">
+      <Filter>Source Files\core_mbm\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\facial-animation.cpp">
+      <Filter>Source Files\core_mbm\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\facial-render-capability.cpp">
+      <Filter>Source Files\core_mbm\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-opengl_es.cpp">
       <Filter>Source Files\core_mbm\private</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp">
