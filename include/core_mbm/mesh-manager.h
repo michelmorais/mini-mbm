@@ -445,6 +445,13 @@ namespace mbm
                                         uint8_t *interpolation, uint32_t *keyCount) const noexcept;
         API_IMPL bool getFacialClipKey(const uint32_t clipIndex, const uint32_t keyIndex,
                                        float *time, float *weights, const uint32_t weightCapacity) const noexcept;
+        // Appends a validated project-authored clip using target-order weights. The input arrays
+        // are caller-owned and contain keyCount times followed by keyCount * targetCount weights.
+        API_IMPL bool addFacialClip(const char *name, const float duration, const bool loop,
+                                    const uint8_t interpolation, const float *times,
+                                    const float *weights, const uint32_t keyCount,
+                                    uint32_t *newIndexOut, char *errorOut, const int errorOutLen);
+        API_IMPL bool removeFacialClip(const uint32_t clipIndex, char *errorOut, const int errorOutLen);
         // Read-only views of the canonical skeleton compiled and validated during load.
         API_IMPL bool getSkeletonBindSummary(SKELETON_BIND_SUMMARY &out) const noexcept;
         API_IMPL bool getSkeletonBindBone(const uint32_t index, SKELETON_BIND_BONE_INFO &out,

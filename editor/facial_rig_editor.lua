@@ -78,7 +78,7 @@ local state = {
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
-    exportWindow={open=false,target=1},
+    exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
@@ -1182,9 +1182,79 @@ local function applyRigidFacialWeights()
     return true
 end
 
+local function materializeProjectFacialClips()
+    if not state.meshDebug or state.exportWindow.includeProjectFacialClips==false then return true end
+    local clips=state.project.clips or {}
+    if #clips==0 then return true end
+    if state.expressions.catalogDirty then refreshExpressionCatalog() end
+    local targetNames={}
+    for _,entry in ipairs(state.expressions.catalog or {}) do targetNames[#targetNames+1]=entry.name end
+    if #targetNames==0 then
+        setStatus(tLang.L('fre_export_clips_blocked_no_targets'),true)
+        return false
+    end
+    local function findEmbeddedClipIndex(clipName)
+        local ok,total=dpCall(function() return state.meshDebug:getTotalFacialClips() end)
+        if not ok then return nil end
+        for index=1,tonumber(total) or 0 do
+            local nameOk,name=dpCall(function() return state.meshDebug:getFacialClipName(index) end)
+            if nameOk and name==clipName then return index end
+        end
+        return nil
+    end
+    for _,clip in ipairs(clips) do
+        local validation=tFacialClips.validate(clip)
+        if validation.ok~=true then
+            setStatus(string.format(tLang.L('fre_export_clips_blocked_invalid_fmt'),clip.name or ''),true)
+            return false
+        end
+        -- Query the current list for every replacement. Removing an earlier clip
+        -- shifts subsequent 1-based indices, so a cached name->index map is unsafe.
+        local oldIndex=findEmbeddedClipIndex(clip.name)
+        if oldIndex then
+            local removed,removedOk=dpCall(function() return state.meshDebug:removeFacialClip(oldIndex) end)
+            if not removed or removedOk==false then
+                setStatus(string.format(tLang.L('fre_export_clips_failed_fmt'),clip.name or ''),true)
+                return false
+            end
+        end
+        local keys={}
+        for _,key in ipairs(clip.keys or {}) do
+            local weights={}
+            for _,targetName in ipairs(targetNames) do
+                weights[#weights+1]=tonumber(key.weights and key.weights[targetName] or 0) or 0
+            end
+            keys[#keys+1]={time=key.time,weights=weights}
+        end
+        local added,clipIndex=dpCall(function()
+            return state.meshDebug:addFacialClip(clip.name,clip.duration,clip.loop==true,
+                clip.interpolation==0 and 0 or 1,keys)
+        end)
+        if not added or not clipIndex then
+            setStatus(string.format(tLang.L('fre_export_clips_failed_fmt'),clip.name or ''),true)
+            return false
+        end
+    end
+    return true
+end
+
+local function canExportRuntimeMsh()
+    if not state.meshDebug then return false end
+    if state.weightAssignment.modified==true and state.weightAssignment.facialWeightsApplied==true then
+        return true
+    end
+    -- Once a weighted/target-bearing MSH is already loaded, a newly authored project
+    -- clip can be exported without reapplying unchanged weights.
+    if state.exportWindow.includeProjectFacialClips==false or #(state.project.clips or {})==0 then
+        return false
+    end
+    local ok,targetCount=dpCall(function() return state.meshDebug:getTotalFacialTargets() end)
+    return ok and (tonumber(targetCount) or 0)>0
+end
+
 local function saveAssignedMesh()
-    if not state.meshDebug or not state.weightAssignment.modified or
-            not state.weightAssignment.facialWeightsApplied then return false end
+    if not canExportRuntimeMsh() then return false end
+    if not materializeProjectFacialClips() then return false end
     local suggested=replaceExtension(state.project.meshPath or 'facial-rig','-facial-weighted.msh')
     local path=mbm.saveFile(suggested,'msh')
     if not path then return false end
@@ -1193,9 +1263,9 @@ local function saveAssignedMesh()
         setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
         return false
     end
-    -- Keep the authoring project attached to the derived MSH in memory. The facial
-    -- metadata lives in the project Lua, not in the binary MSH; saving the project
-    -- afterward persists this new asset path together with its landmarks and masks.
+    -- Keep the authoring project attached to the derived MSH in memory. Facial
+    -- targets, clips, skeleton and weights are now serialized in the binary MSH;
+    -- saving the project afterward persists this new asset path as well.
     state.project.meshPath=path
     state.modified=true
     state.weightAssignment.modified=false
@@ -2073,6 +2143,11 @@ local function showExportWindow()
             showHelpTooltip(tLang.L('fre_export_project_tooltip'))
         elseif state.exportWindow.target==2 then
             tImGui.TextWrapped(tLang.L('fre_export_msh_help'))
+            local includeClipsChanged,includeClips=tImGui.Checkbox(
+                tLang.L('fre_export_msh_include_project_clips'),
+                state.exportWindow.includeProjectFacialClips~=false)
+            if includeClipsChanged then state.exportWindow.includeProjectFacialClips=includeClips end
+            showHelpTooltip(tLang.L('fre_export_msh_include_project_clips_tooltip'))
             if not state.meshDebug then
                 tImGui.TextDisabled(tLang.L('fre_no_mesh'))
             else
@@ -2115,8 +2190,7 @@ local function showExportWindow()
                     end
                 end
             end
-            local canExport=state.weightAssignment.modified==true and
-                state.weightAssignment.facialWeightsApplied==true and state.meshDebug~=nil
+            local canExport=canExportRuntimeMsh()
             tImGui.BeginDisabled(not canExport)
             if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then saveAssignedMesh() end
             tImGui.EndDisabled()
@@ -3453,8 +3527,12 @@ local function showRig()
         end
         tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_weight_assignment_apply_tooltip'))
-        local canSave=state.weightAssignment.modified==true and
-            state.weightAssignment.facialWeightsApplied==true
+        local canSave=canExportRuntimeMsh()
+        local includeClipsChanged,includeClips=tImGui.Checkbox(
+            tLang.L('fre_export_msh_include_project_clips')..'##freRigIncludeProjectClips',
+            state.exportWindow.includeProjectFacialClips~=false)
+        if includeClipsChanged then state.exportWindow.includeProjectFacialClips=includeClips end
+        showHelpTooltip(tLang.L('fre_export_msh_include_project_clips_tooltip'))
         tImGui.BeginDisabled(not canSave)
         if tImGui.Button(tLang.L('fre_weight_assignment_save')..'##freRigActionSave',{x=300,y=0}) then
             saveAssignedMesh()

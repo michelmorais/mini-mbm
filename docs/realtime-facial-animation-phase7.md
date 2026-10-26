@@ -439,18 +439,21 @@ The Preview worktree now lists clips authored in the facial project separately f
 already embedded in the loaded MSH. Project clips can be selected, scrubbed, played, stopped, and
 validated directly against the visible mesh; selecting one starts at time zero. This preview uses
 the saved project target weights and does not require exporting a new MSH. MSH export remains gated
-by the Rig weight-assignment flow because it materializes mesh skeleton and weight changes, while
-project clip authoring remains safe metadata until a native MSH or Blender Shape Key export is
-explicitly requested.
+by the Rig weight-assignment flow because it materializes mesh skeleton and weight changes. When
+that export is requested, project clips are included by default and can be excluded with the
+export option.
 
 ## Delivered nineteenth slice: explicit facial export destinations
 
 The File menu now opens an export panel that distinguishes the three supported destinations:
 the facial project Lua (which preserves expressions and authored clips without materializing weights),
 the optional Blender bridge Lua (which carries authoring and topology interchange data), and a
-runtime MSH (which requires the facial skeleton and weight assignment to have been applied in Rig).
-The runtime MSH option remains disabled until that materialization is complete, and the panel states
-that authored project clips are not embedded in MSH by the current native writer.
+runtime MSH. Pending facial skeleton/weight changes still require the Rig materialization steps,
+while a mesh that already has facial targets can export newly authored project clips without
+reapplying unchanged weights. The panel states that authored project clips are embedded by default
+when the corresponding option is enabled.
+The option replaces an existing runtime clip with the same name and preserves unrelated imported
+clips such as Blender-generated clips.
 
 The runtime MSH page also exposes the prerequisite operations directly: it inspects the canonical
 facial skeleton, adds missing facial bones, rebuilds the weight-assignment plan, applies the facial
@@ -484,7 +487,17 @@ convenience method `setFacialWeightByName`; calling the latter from Lua caused a
 playback to abort. Comparison synchronization is now event-driven and uses the supported public
 binding.
 
-## Delivered twenty-second slice: preview control tooltips and landmark reference workflow
+## Delivered twenty-second slice: native project facial clip export
+
+The runtime MSH export now includes an enabled-by-default option to materialize clips authored in
+the facial project. It maps each key's target-name weights to the loaded MSH target order, replaces
+same-named runtime clips; every native addition and removal is validated before it is committed,
+and unrelated embedded clips and skeletal sections remain intact.
+The option can be disabled for a targets-and-rig-only export. MeshDebug already loads the resulting
+section 46 clips, so a project clip such as `sorrir` becomes available in its facial playback list
+after the exported MSH is reopened.
+
+## Delivered twenty-third slice: preview control tooltips and landmark reference workflow
 
 Preview controls now explain their source and effect in context. Skeletal clip controls identify
 armature playback and bind-pose reset; project clip controls identify project-side target-weight

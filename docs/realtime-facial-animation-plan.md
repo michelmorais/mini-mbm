@@ -242,9 +242,10 @@ while GPU morph parity for
 DirectX and Metal remains a separate backend milestone; those
 backends keep the CPU reference path until an equivalent indexed resource is implemented.
 
-Exporting authored clips to Blender Shape Key Actions is optional interoperability. The native MSH
-serialization of authored clips is a separate runtime milestone; Blender is not required to play
-finished assets.
+Exporting authored clips to Blender Shape Key Actions is optional interoperability. Runtime MSH
+export also offers an enabled-by-default option to serialize the project-authored clips directly;
+the option can be disabled when only targets and rig data are desired. Blender is not required to
+play finished assets.
 
 The Rig worktree exposes the two materialization actions before its reports: add missing canonical
 facial bones (or repair the facial root parent) and apply the verified facial weight assignment.

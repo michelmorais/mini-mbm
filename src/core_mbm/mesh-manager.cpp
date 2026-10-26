@@ -6791,6 +6791,82 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::addFacialClip(const char *name, const float duration, const bool loop,
+                                        const uint8_t interpolation, const float *times,
+                                        const float *weights, const uint32_t keyCount,
+                                        uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (!impl->facialAsset.meshId || impl->facialAsset.targets.empty())
+            return fail("mesh has no facial targets");
+        if (!name || !name[0]) return fail("facial clip name must not be empty");
+        if (!std::isfinite(duration) || duration <= 0.0f)
+            return fail("facial clip duration must be finite and positive");
+        if (interpolation > 1) return fail("facial clip interpolation must be 0 or 1");
+        if (!times || !weights || keyCount < 2)
+            return fail("facial clip requires at least two keys");
+
+        facial::ASSET candidate = impl->facialAsset;
+        if (candidate.clips.size() >= facial::MAX_CLIPS) return fail("facial clip limit reached");
+        for (const facial::CLIP &existing : candidate.clips)
+            if (existing.name == name) return fail("facial clip name must be unique");
+
+        uint64_t nextId = 1;
+        while (std::any_of(candidate.clips.begin(), candidate.clips.end(),
+                           [nextId](const facial::CLIP &clip) { return clip.id == nextId; }))
+        {
+            if (nextId == std::numeric_limits<uint64_t>::max())
+                return fail("facial clip ID space is exhausted");
+            ++nextId;
+        }
+        facial::CLIP clip;
+        clip.id = nextId;
+        clip.name = name;
+        clip.duration = duration;
+        clip.loop = loop;
+        clip.interpolation = interpolation;
+        clip.keys.resize(keyCount);
+        const uint32_t targetCount = static_cast<uint32_t>(candidate.targets.size());
+        for (uint32_t keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+        {
+            facial::KEY &key = clip.keys[keyIndex];
+            key.time = times[keyIndex];
+            key.weights.assign(weights + static_cast<size_t>(keyIndex) * targetCount,
+                               weights + static_cast<size_t>(keyIndex + 1) * targetCount);
+        }
+        candidate.clips.push_back(std::move(clip));
+        std::string validationError;
+        if (!facial::validate(candidate, validationError))
+            return fail(validationError.c_str());
+        impl->facialAsset = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->facialAsset.clips.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeFacialClip(const uint32_t clipIndex, char *errorOut, const int errorOutLen)
+    {
+        if (clipIndex >= impl->facialAsset.clips.size())
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s",
+                                                       "facial clip index is out of range");
+            return false;
+        }
+        facial::ASSET candidate = impl->facialAsset;
+        candidate.clips.erase(candidate.clips.begin() + clipIndex);
+        std::string validationError;
+        if (!facial::validate(candidate, validationError))
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", validationError.c_str());
+            return false;
+        }
+        impl->facialAsset = std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM::getSkeletalSharingCompatibility(
         const MESH_MBM &other, SKELETAL_SHARING_COMPATIBILITY &out) const noexcept
     {

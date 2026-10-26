@@ -704,7 +704,7 @@ playing/paused state.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:getTotalFacialTargets` | `()` | int | Number of facial targets |
+| `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |
 | `obj:getFacialTargetName` | `(index: int)` | string or nil | Name of the 1-based target |
 | `obj:getFacialTargetInfo` | `(index: int)` | table or nil | `{id, name, convention, defaultWeight}`; `id` is a hexadecimal string |
 | `obj:setFacialWeight` | `(target: int\|string, weight)` | bool | Set a per-instance manual override, clamped to `[0,1]` |
@@ -714,6 +714,8 @@ playing/paused state.
 | `obj:getTotalFacialClips` | `()` | int | Number of authored facial clips |
 | `obj:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip |
 | `obj:getFacialClipDuration` | `(index: int)` | number or nil | Duration in seconds |
+| `obj:addFacialClip` | `(name, duration, loop, interpolation, keys)` | int or nil | Append a validated clip to the loaded debug mesh and return its 1-based index; each key is `{time, weights}` and `weights` follows the mesh target order |
+| `obj:removeFacialClip` | `(index: int)` | bool | Remove a 1-based facial clip from the loaded debug mesh |
 | `obj:playFacialAnimation` | `(name)` | bool | Start or restart a facial clip at time zero |
 | `obj:pauseFacialAnimation` | `()` | bool | Pause the active facial clip |
 | `obj:resumeFacialAnimation` | `()` | bool | Resume the active facial clip |
@@ -738,7 +740,20 @@ local report = face:getFacialAnimationReport()
 print(report.clipName, report.clipTime, report.status)
 face:clearFacialWeight("jawOpen")
 face:stopFacialAnimation()
+
+-- Authoring/export bridge (mesh-debug objects only):
+local clipIndex = face:addFacialClip("sorrir", 1.0, false, 1, {
+    {time = 0.0, weights = {0, 0, 0, 0, 0, 0}},
+    {time = 1.0, weights = {0, 0.8, 0, 0, 0, 0}},
+})
+assert(clipIndex)
+assert(face:removeFacialClip(clipIndex))
 ```
+
+`addFacialClip` validates the complete candidate asset before committing it. It requires at
+least two keys, a first key at time `0`, a final key at `duration`, and one finite weight per
+facial target. The call is intended for the facial editor's MSH export path; the editor maps its
+named project weights to this target order and replaces an embedded clip with the same name.
 
 ```lua
 local character = mesh:new("3d")

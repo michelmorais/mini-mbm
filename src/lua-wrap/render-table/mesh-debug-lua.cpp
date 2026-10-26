@@ -3234,6 +3234,76 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalFacialTargetsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalFacialTargets()));
+        return 1;
+    }
+
+    int onAddFacialClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const float duration = static_cast<float>(luaL_checknumber(lua, 3));
+        const bool loop = lua_toboolean(lua, 4) != 0;
+        const lua_Integer interpolation = luaL_checkinteger(lua, 5);
+        if (interpolation < 0 || interpolation > 1)
+            return luaL_error(lua, "facial clip interpolation must be 0 or 1");
+        luaL_checktype(lua, 6, LUA_TTABLE);
+        const lua_Integer keyCountLua = static_cast<lua_Integer>(lua_rawlen(lua, 6));
+        if (keyCountLua < 0 || static_cast<uint64_t>(keyCountLua) > UINT32_MAX)
+            return luaL_error(lua, "too many facial clip keys");
+        const uint32_t keyCount = static_cast<uint32_t>(keyCountLua);
+        const uint32_t targetCount = meshDebug->mesh.getTotalFacialTargets();
+        if (targetCount == 0) return luaL_error(lua, "mesh has no facial targets");
+        std::vector<float> times;
+        std::vector<float> weights;
+        times.reserve(keyCount);
+        weights.resize(static_cast<size_t>(keyCount) * targetCount);
+        for (uint32_t keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+        {
+            lua_rawgeti(lua, 6, static_cast<lua_Integer>(keyIndex + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            lua_getfield(lua, -1, "time");
+            times.push_back(static_cast<float>(luaL_checknumber(lua, -1)));
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "weights");
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            if (lua_rawlen(lua, -1) != targetCount)
+                return luaL_error(lua, "facial clip key weight count does not match facial targets");
+            for (uint32_t targetIndex = 0; targetIndex < targetCount; ++targetIndex)
+            {
+                lua_rawgeti(lua, -1, static_cast<lua_Integer>(targetIndex + 1));
+                weights[static_cast<size_t>(keyIndex) * targetCount + targetIndex] =
+                    static_cast<float>(luaL_checknumber(lua, -1));
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 2); // weights table and key table
+        }
+        char errorOut[255] = "";
+        uint32_t index = 0;
+        if (!meshDebug->mesh.addFacialClip(name, duration, loop, static_cast<uint8_t>(interpolation),
+                                           times.data(), weights.data(), keyCount, &index,
+                                           errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(index + 1));
+        return 1;
+    }
+
+    int onRemoveFacialClipDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "facial clip index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeFacialClip(static_cast<uint32_t>(index - 1), errorOut,
+                                              static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, true);
+        return 1;
+    }
+
     int onAddSkeletalClipDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3876,6 +3946,9 @@ namespace mbm
                                           {"getAnim", onGetDetailAnimationDebugLua},
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"getFacialExportData", onGetFacialExportDataDebugLua},
+                                          {"getTotalFacialTargets", onGetTotalFacialTargetsDebugLua},
+                                          {"addFacialClip", onAddFacialClipDebugLua},
+                                          {"removeFacialClip", onRemoveFacialClipDebugLua},
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
                                           {"reparentSkeletalBone", onReparentSkeletalBoneDebugLua},
                                           {"setSkeletalBoneBind", onSetSkeletalBoneBindDebugLua},

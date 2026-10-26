@@ -274,6 +274,24 @@ namespace
                     "skeletal payload preserved alongside facial payload");
             }
         }
+        const float authoredTimes[2]={0.0f,2.0f};
+        const float authoredWeights[4]={0.0f,0.0f,0.8f,0.25f};
+        char authoredError[512]={};
+        uint32_t authoredIndex=0;
+        expect(mesh.addFacialClip("sorrir",2.0f,false,1,authoredTimes,authoredWeights,2,
+                                  &authoredIndex,authoredError,sizeof(authoredError)) &&
+            authoredIndex==1 && mesh.getTotalFacialClips()==2 &&
+            std::strcmp(mesh.getFacialClipName(authoredIndex),"sorrir")==0,
+            "append authored facial clip");
+        expect(save(mesh,"authored-clips.msh"),"save authored facial clip");
+        MESH_MBM_DEBUG authoredReload;
+        expect(authoredReload.loadV11((directory/"authored-clips.msh").string().c_str()) &&
+            authoredReload.getTotalFacialClips()==2 &&
+            std::strcmp(authoredReload.getFacialClipName(1),"sorrir")==0,
+            "reload authored facial clip");
+        expect(mesh.removeFacialClip(authoredIndex,authoredError,sizeof(authoredError)) &&
+            mesh.getTotalFacialClips()==1,
+            "remove authored facial clip");
         const auto reject=[&](FILE_DATA bad,const char *what) {
             expect(write(directory/"bad.msh",bad),"write invalid fixture with valid CRC");
             expect(!mesh.loadV11((directory/"bad.msh").string().c_str()),what);
