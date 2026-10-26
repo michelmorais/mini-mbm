@@ -86,7 +86,7 @@ local state = {
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false},
     blenderBridgePath=nil, blenderSourcePath=nil, blenderGeneratedBlendPath=nil,
     automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
-        exportLogPath=nil,logPath=nil,job=nil,
+        exportLogPath=nil,logPath=nil,importLogPath=nil,generationFinishedAt=nil,job=nil,
         startedAt=0,phase='',detail='',progress=0},
     undoStack={}, redoStack={}, historyLimit=50
 }
@@ -1617,7 +1617,7 @@ local function newProject()
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
     state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
-        exportLogPath=nil,logPath=nil,job=nil,
+        exportLogPath=nil,logPath=nil,importLogPath=nil,generationFinishedAt=nil,job=nil,
         startedAt=0,phase='',detail='',progress=0}
     state.modified=false
     state.selectedRole=1
@@ -1659,7 +1659,7 @@ local function openProject()
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
     state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
-        exportLogPath=nil,logPath=nil,job=nil,
+        exportLogPath=nil,logPath=nil,importLogPath=nil,generationFinishedAt=nil,job=nil,
         startedAt=0,phase='',detail='',progress=0}
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
@@ -1828,11 +1828,16 @@ end
 
 local function startAutomatedFacialTargetImport()
     local task=state.automatedTargetJob
+    local importLogPath=task.importLogPath or replaceExtension(task.mshPath,'-automated-import.log')
+    task.importLogPath=importLogPath
     local importerJob,errorMessage=tMeshImporter.start({
         wrapper=tBlender,
         input=task.blendPath,
         output=task.mshPath,
-        log=task.logPath,
+        -- Keep the import log separate from the generation log. On Windows the
+        -- first Blender process can still own its redirected log briefly after
+        -- saving the generated blend.
+        log=importLogPath,
         timeout=600,
         expectedFrames=1,
         options={
@@ -1949,11 +1954,13 @@ local function startAutomatedFacialTargetGeneration()
     local jsonPath=replaceExtension(outputMsh,'-source.json')
     local exportLog=replaceExtension(outputMsh,'-source-blender.log')
     local targetLog=replaceExtension(outputMsh,'-automated-blender.log')
+    local importLog=replaceExtension(outputMsh,'-automated-import.log')
     if pathExists(sourceBlend) then sourceBlend=replaceExtension(outputMsh,'-source-' .. tostring(os.time()) .. '.blend') end
     if pathExists(generatedBlend) then generatedBlend=replaceExtension(outputMsh,'-generated-' .. tostring(os.time()) .. '.blend') end
     os.remove(jsonPath)
     os.remove(exportLog)
     os.remove(targetLog)
+    os.remove(importLog)
     if not ensureAutomatedFacialBridge(bridgePath) then return false end
     tBlender.resetDetection()
     local blender=tBlender.detectBlender()
@@ -1989,6 +1996,8 @@ local function startAutomatedFacialTargetGeneration()
     task.mshPath=outputMsh
     task.exportLogPath=exportLog
     task.logPath=targetLog
+    task.importLogPath=importLog
+    task.generationFinishedAt=nil
     task.job=nil
     state.blenderSourcePath=sourceBlend
     state.blenderGeneratedBlendPath=generatedBlend
@@ -2021,10 +2030,7 @@ local function updateAutomatedFacialTargetGeneration()
         return
     end
     if task.status=='generating' then
-        if tBlender.fileExists(task.blendPath) then
-            startAutomatedFacialTargetImport()
-            return
-        end
+        local generationFinished=false
         if task.logPath and tBlender.fileExists(task.logPath) then
             local file=io.open(task.logPath,'rb')
             local content=file and file:read('*a') or ''
@@ -2034,6 +2040,19 @@ local function updateAutomatedFacialTargetGeneration()
                 failAutomatedFacialTargetGeneration(blenderError)
                 return
             end
+            -- The generated .blend appears before Blender releases the
+            -- redirected log and exits. Wait for its final marker before
+            -- starting the importer, especially on Windows.
+            generationFinished=content:find('Blender quit',1,true)~=nil
+        end
+        if tBlender.fileExists(task.blendPath) and generationFinished then
+            task.generationFinishedAt=task.generationFinishedAt or os.time()
+            if os.time()-task.generationFinishedAt>=2 then
+                startAutomatedFacialTargetImport()
+                return
+            end
+        elseif not generationFinished then
+            task.generationFinishedAt=nil
         end
         if os.time()-(task.startedAt or os.time()) >= 600 then
             failAutomatedFacialTargetGeneration(tLang.L('fre_blender_auto_generation_timeout'))
@@ -4121,7 +4140,9 @@ local function finishMaskVisualizationBuild()
     local surfaceUvs=visualization.buildSurfaceUvs or {}
     local surfaceIndices=visualization.buildSurfaceIndices or {}
     if #surfaceCoords>0 and #surfaceIndices>0 then
-        local surface=shape:new('3d',0,0,0)
+        -- The vertices are absolute mesh coordinates. Keep the object off exact z=0
+        -- so DEVICE does not replace its position with the automatic 3D z-order.
+        local surface=shape:new('3d',0,0,0.0001)
         local created=surface:createDynamicIndexed(surfaceCoords,surfaceIndices,surfaceUvs,
             'facial_mask_surface_'..tostring(maskVisualizationGeneration))
         if created then

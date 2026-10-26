@@ -54,6 +54,7 @@ local wrapper = {
     setDebugEnabled = function() end,
     launchCmdAsync = function(command, logPath)
         launched = {command = command, log = logPath}
+        return true
     end,
 }
 

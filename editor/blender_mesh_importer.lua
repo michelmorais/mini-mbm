@@ -220,7 +220,10 @@ function M.start(config)
     local command = wrapper.buildBakeCmd(source, output, exporter, importOptions)
     if not command then return nil, 'Could not build the Blender conversion command.' end
     wrapper.setDebugEnabled(options.debugSteps == true)
-    wrapper.launchCmdAsync(command, log)
+    local launched=wrapper.launchCmdAsync(command, log)
+    if launched==nil or launched==false then
+        return nil, 'Could not launch Blender conversion.'
+    end
     local job = setmetatable({
         status = 'running', input = source, output = output, log = log,
         cancelFile = cancelFile, progress = 0, phase = 'starting', detail = 'Starting Blender', errorCode = '',

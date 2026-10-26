@@ -542,15 +542,15 @@ function M.launchCmdAsync(cmd, logPath)
     end
     if M.getOS() == 'windows' then
         if logPath and logPath ~= '' then
-            os.execute('cmd /c start /b "" ' .. cmd .. ' > ' .. shellQuote(logPath) .. ' 2>&1')
+            return os.execute('cmd /c start /b "" ' .. cmd .. ' > ' .. shellQuote(logPath) .. ' 2>&1')
         else
-            os.execute('cmd /c start /b "" ' .. cmd)
+            return os.execute('cmd /c start /b "" ' .. cmd)
         end
     else
         if logPath and logPath ~= '' then
-            os.execute(cmd .. ' >' .. shellQuote(logPath) .. ' 2>&1 &')
+            return os.execute(cmd .. ' >' .. shellQuote(logPath) .. ' 2>&1 &')
         else
-            os.execute(cmd .. ' >/dev/null 2>&1 &')
+            return os.execute(cmd .. ' >/dev/null 2>&1 &')
         end
     end
 end
