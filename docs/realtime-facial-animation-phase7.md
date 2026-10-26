@@ -563,6 +563,9 @@ feeds the derived `.blend` through the existing MeshDebug-compatible facial impo
 (including `X=-90` and V inversion). The generated MSH is reloaded into the open editor without
 overwriting the source asset. The operation is asynchronous and exposes progress while all three
 stages run; project state is preserved only when the generated topology matches the current project.
+The final import also bakes the Blender scene frame range, so skeletal actions present in the
+source MSH remain available alongside the generated facial targets instead of being reduced to
+the bind pose at frame 1.
 Intermediate files are derived beside the selected output MSH rather than using a hard-coded
 `/tmp`, and Blender command quoting is centralized in the cross-platform CLI wrapper. This keeps
 the round trip valid on Linux, macOS, and Windows.

@@ -1770,6 +1770,13 @@ local function startAutomatedFacialTargetImport()
             includeFacial=true,
             facialNormalDeltas=true,
             facialConvention='ARKit',
+            -- The generated Blender scene contains the source armature action and
+            -- its frame range.  Bake that range back into the MSH so the
+            -- automated target round-trip does not collapse the skeletal clip
+            -- to the bind pose (the exporter defaults to frame 1 otherwise).
+            bakeAnimation=true,
+            useSceneFrameRange=true,
+            sampleStep=1,
             normalizeTextures=true,
             includeTextureDiffuse=true,
             includeTextureNormal=true,

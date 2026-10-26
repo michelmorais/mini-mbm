@@ -1556,6 +1556,32 @@ def activate_animation_source(scene: Any, clip: dict[str, Any]) -> None:
     obj.animation_data.action = action
 
 
+def ensure_active_canonical_action(skeleton: dict[str, Any], debug: bool = False) -> None:
+    """Activate a detached pose action before an implicit scene-range bake.
+
+    The facial round-trip's Blender skeleton exporter deliberately leaves the
+    armature in the bind pose while retaining the generated Action datablock.
+    When no explicit ``--animation-source`` is supplied, Blender therefore
+    evaluates every sampled frame as the bind pose.  Select the first Action
+    that animates a canonical pose bone so ``--bake-animation`` preserves real
+    skeletal motion.  Explicit animation sources still override this choice
+    in ``activate_animation_source``.
+    """
+    armature_obj = skeleton["armatureObject"]
+    animation_data = getattr(armature_obj, "animation_data", None)
+    if animation_data is not None and getattr(animation_data, "action", None) is not None:
+        return
+    bone_names = set(skeleton.get("orderedNames") or [])
+    candidates = [action for action in bpy.data.actions
+                  if action_animates_pose_bones(action, bone_names)]
+    if not candidates:
+        return
+    candidates.sort(key=lambda action: str(getattr(action, "name", "")))
+    armature_obj.animation_data_create()
+    armature_obj.animation_data.action = candidates[0]
+    debug_print(debug, f"activated canonical skeletal action: {candidates[0].name}")
+
+
 def clip_frame_numbers(clip: dict[str, Any]) -> list[int]:
     frame_start, frame_end = normalize_frame_range(int(clip.get("frameStart", 1)), int(clip.get("frameEnd", 1)))
     step = max(1, int(clip.get("sampleStep", 1)))
@@ -2990,6 +3016,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 "Facial clips require a canonical skeletal asset or a static frame; "
                 "disable baked mesh animation or enable a valid armature export."
             )
+        if canonical_skeleton and clips:
+            ensure_active_canonical_action(canonical_skeleton, args.debug_steps)
         canonical_clips = (extract_canonical_animations(scene, clips, fps, canonical_skeleton)
                            if canonical_skeleton and clips else [])
         apply_uniform_scale_to_canonical_data(canonical_skeleton, canonical_clips, uniform_scale)

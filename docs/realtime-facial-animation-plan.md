@@ -316,6 +316,9 @@ importer with targets, normal deltas, skeletal data, coordinate conversion, and 
 and reloads the generated MSH in the open facial editor while preserving the project when topology
 remains compatible. The source MSH is never overwritten; the generated MSH path is selected
 explicitly by the user.
+The final Blender import bakes the scene frame range and activates a detached canonical armature
+action when necessary, preserving skeletal motion in the generated MSH instead of exporting only
+the bind pose.
 
 The automated round trip does not use a hard-coded `/tmp` path. Its intermediate JSON, Blender
 projects, bridge, logs, and cancel state are derived beside the user-selected output MSH, so the
