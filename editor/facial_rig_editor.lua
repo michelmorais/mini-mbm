@@ -34,6 +34,8 @@ tFacialExpressions = require "facial_rig_expressions"
 tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
+tMeshImporter = require "blender_mesh_importer"
+tFacialMeshExport = require "facial_rig_blender_mesh_export"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
 local function dpCall(fn, ...)
@@ -83,6 +85,9 @@ local state = {
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false},
     blenderBridgePath=nil, blenderSourcePath=nil, blenderGeneratedBlendPath=nil,
+    automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
+        exportLogPath=nil,logPath=nil,job=nil,
+        startedAt=0,phase='',detail='',progress=0},
     undoStack={}, redoStack={}, historyLimit=50
 }
 
@@ -1541,6 +1546,9 @@ local function newProject()
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
+    state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
+        exportLogPath=nil,logPath=nil,job=nil,
+        startedAt=0,phase='',detail='',progress=0}
     state.modified=false
     state.selectedRole=1
     state.selectedLandmark=1
@@ -1580,6 +1588,9 @@ local function openProject()
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
+    state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
+        exportLogPath=nil,logPath=nil,job=nil,
+        startedAt=0,phase='',detail='',progress=0}
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
     state.landmarkEditMode=project.landmarkEditMode or 1
@@ -1682,7 +1693,7 @@ local function launchBlenderFacialRig()
     end
     local addonPath=getEditorDir() .. '/facial_rig_blender_addon.py'
     if not pathExists(addonPath) then
-        setStatus(tLang.L('fre_blender_addon_missing'),true)
+        failAutomatedFacialTargetGeneration(tLang.L('fre_blender_addon_missing'))
         return false
     end
     tBlender.resetDetection()
@@ -1693,7 +1704,7 @@ local function launchBlenderFacialRig()
     end
     local command=tBlender.buildFacialRigPreviewCmd(sourcePath,addonPath,state.blenderBridgePath)
     if not command then
-        setStatus(tLang.L('fre_blender_command_failed'),true)
+        failAutomatedFacialTargetGeneration(tLang.L('fre_blender_command_failed'))
         return false
     end
     tBlender.launchCmdAsync(command)
@@ -1734,6 +1745,243 @@ local function launchBlenderFacialTargetGeneration()
     state.blenderGeneratedBlendPath=outputPath
     setStatus(string.format(tLang.L('fre_blender_targets_generation_started_fmt'),shortName(outputPath)),false)
     return true
+end
+
+local function failAutomatedFacialTargetGeneration(message)
+    local task=state.automatedTargetJob
+    task.status='failed'
+    task.job=nil
+    task.detail=tostring(message or '')
+    task.progress=0
+    setStatus(task.detail,true)
+end
+
+local function startAutomatedFacialTargetImport()
+    local task=state.automatedTargetJob
+    local importerJob,errorMessage=tMeshImporter.start({
+        wrapper=tBlender,
+        input=task.blendPath,
+        output=task.mshPath,
+        log=task.logPath,
+        timeout=600,
+        expectedFrames=1,
+        options={
+            includeBones=true,
+            includeFacial=true,
+            facialNormalDeltas=true,
+            facialConvention='ARKit',
+            normalizeTextures=true,
+            includeTextureDiffuse=true,
+            includeTextureNormal=true,
+            includeTextureSpecular=true,
+            includeTextureEmissive=true,
+            includeTextureMask=false,
+            largeMeshMode='fail',
+            unweightedMeshMode='fail',
+            importPostProcess=true,
+            importInvertU=false,
+            importInvertV=true,
+            importAngleX=-90,
+            importAngleY=0,
+            importAngleZ=0,
+            debugSteps=true,
+        },
+    })
+    if not importerJob then
+        failAutomatedFacialTargetGeneration(errorMessage or tLang.L('fre_blender_auto_import_failed'))
+        return false
+    end
+    task.job=importerJob
+    task.status='importing'
+    task.phase='importing'
+    task.detail=tLang.L('fre_blender_auto_importing')
+    task.progress=0.35
+    return true
+end
+
+local function startAutomatedFacialTargetGenerationFromBlend()
+    local task=state.automatedTargetJob
+    local sourcePath=task.sourceBlendPath
+    local generatedBlend=task.blendPath
+    local addonPath=getEditorDir() .. '/facial_rig_blender_addon.py'
+    if not pathExists(addonPath) then
+        failAutomatedFacialTargetGeneration(tLang.L('fre_blender_addon_missing'))
+        return false
+    end
+    local command=tBlender.buildFacialTargetGenerationHeadlessCmd(sourcePath,addonPath,
+        state.blenderBridgePath,generatedBlend)
+    if not command then
+        failAutomatedFacialTargetGeneration(tLang.L('fre_blender_command_failed'))
+        return false
+    end
+    tBlender.launchCmdAsync(command,task.logPath)
+    task.status='generating'
+    task.phase='generating'
+    task.detail=tLang.L('fre_blender_auto_generating')
+    task.progress=0.15
+    task.startedAt=os.time()
+    task.job=nil
+    setStatus(string.format(tLang.L('fre_blender_auto_started_fmt'),shortName(task.mshPath)),false)
+    return true
+end
+
+local function ensureAutomatedFacialBridge(path)
+    if pathExists(state.blenderBridgePath) then return true end
+    local report=tFacialProject.validate(state.project,state.mesh~=nil,state.topology)
+    if not report.ok then
+        local reason=localizedProjectMessage(report.errors and report.errors[1] or '')
+        setStatus(tLang.L('fre_blender_auto_bridge_failed') .. ': ' .. tostring(reason or ''),true)
+        return false
+    end
+    local rig=tFacialProject.rigDescription(state.project,state.topology)
+    local binding=tFacialProject.bindingDescription(state.project,state.topology)
+    local payload,errorValue=tFacialBridge.buildPayload(state.project,state.topology,rig,binding)
+    if not payload then
+        local reason=type(errorValue)=='table' and errorValue.errors and errorValue.errors[1] or errorValue
+        setStatus(tLang.L('fre_blender_auto_bridge_failed') .. ': ' .. tostring(reason or ''),true)
+        return false
+    end
+    local saved,errorMessage=tFacialBridge.save(path,payload,tUtil.save)
+    if not saved then
+        setStatus(tLang.L('fre_blender_auto_bridge_failed') .. ': ' .. tostring(errorMessage or ''),true)
+        return false
+    end
+    state.blenderBridgePath=path
+    return true
+end
+
+local function startAutomatedFacialTargetGeneration()
+    local task=state.automatedTargetJob
+    if task.status=='exporting' or task.status=='generating' or task.status=='importing' then return false end
+    if not state.meshDebug or not state.project.meshPath or state.project.meshPath=='' then
+        setStatus(tLang.L('fre_blender_auto_mesh_missing'),true)
+        return false
+    end
+    local suggested=replaceExtension(state.project.meshPath,'-facial-targets-auto.msh')
+    local outputMsh=mbm.saveFile(suggested,'msh')
+    if not outputMsh or outputMsh=='' then return false end
+    outputMsh=replaceExtension(outputMsh,'.msh')
+    if pathExists(outputMsh) then
+        setStatus(tLang.L('fre_blender_auto_output_exists'),true)
+        return false
+    end
+    local sourceBlend=replaceExtension(outputMsh,'-source.blend')
+    local generatedBlend=replaceExtension(outputMsh,'-generated.blend')
+    local bridgePath=pathExists(state.blenderBridgePath) and state.blenderBridgePath or
+        replaceExtension(outputMsh,'-bridge.lua')
+    local jsonPath=replaceExtension(outputMsh,'-source.json')
+    local exportLog=replaceExtension(outputMsh,'-source-blender.log')
+    local targetLog=replaceExtension(outputMsh,'-automated-blender.log')
+    if pathExists(sourceBlend) then sourceBlend=replaceExtension(outputMsh,'-source-' .. tostring(os.time()) .. '.blend') end
+    if pathExists(generatedBlend) then generatedBlend=replaceExtension(outputMsh,'-generated-' .. tostring(os.time()) .. '.blend') end
+    os.remove(jsonPath)
+    os.remove(exportLog)
+    os.remove(targetLog)
+    if not ensureAutomatedFacialBridge(bridgePath) then return false end
+    tBlender.resetDetection()
+    local blender=tBlender.detectBlender()
+    if not blender or not blender.found then
+        setStatus(tLang.L('fre_blender_not_found'),true)
+        return false
+    end
+    local callOk,okJson,errorJson=dpCall(function()
+        return tFacialMeshExport.write(state.meshDebug,jsonPath)
+    end)
+    if not callOk or not okJson then
+        setStatus(tLang.L('fre_blender_auto_mesh_export_failed') .. ': ' .. tostring(errorJson or ''),true)
+        return false
+    end
+    local exporterPath=getEditorDir() .. '/blender_mesh_skeleton_export.py'
+    local command=tBlender.buildMeshSkeletonExportCmd(jsonPath,sourceBlend,exporterPath,{
+        exportAngleX=90,exportAngleY=0,exportAngleZ=0,exportInvertU=false,exportInvertV=true,
+        debugSteps=true,
+    })
+    if not command then
+        setStatus(tLang.L('fre_blender_command_failed'),true)
+        return false
+    end
+    tBlender.launchCmdAsync(command,exportLog)
+    task.status='exporting'
+    task.phase='exporting'
+    task.detail=tLang.L('fre_blender_auto_exporting_mesh')
+    task.progress=0.05
+    task.startedAt=os.time()
+    task.jsonPath=jsonPath
+    task.sourceBlendPath=sourceBlend
+    task.blendPath=generatedBlend
+    task.mshPath=outputMsh
+    task.exportLogPath=exportLog
+    task.logPath=targetLog
+    task.job=nil
+    state.blenderSourcePath=sourceBlend
+    state.blenderGeneratedBlendPath=generatedBlend
+    setStatus(string.format(tLang.L('fre_blender_auto_started_fmt'),shortName(outputMsh)),false)
+    return true
+end
+
+local function updateAutomatedFacialTargetGeneration()
+    local task=state.automatedTargetJob
+    if task.status=='exporting' then
+        if tBlender.fileExists(task.sourceBlendPath) then
+            task.progress=0.30
+            startAutomatedFacialTargetGenerationFromBlend()
+            return
+        end
+        if task.exportLogPath and tBlender.fileExists(task.exportLogPath) then
+            local file=io.open(task.exportLogPath,'rb')
+            local content=file and file:read('*a') or ''
+            if file then file:close() end
+            local exportError=content:match('%[mesh_skeleton_export%]%s+ERROR:%s*([^\r\n]+)') or
+                content:match('Exporter failed:%s*([^\r\n]+)')
+            if exportError and exportError~='' then
+                failAutomatedFacialTargetGeneration(exportError)
+                return
+            end
+        end
+        if os.time()-(task.startedAt or os.time()) >= 600 then
+            failAutomatedFacialTargetGeneration(tLang.L('fre_blender_auto_generation_timeout'))
+        end
+        return
+    end
+    if task.status=='generating' then
+        if tBlender.fileExists(task.blendPath) then
+            startAutomatedFacialTargetImport()
+            return
+        end
+        if task.logPath and tBlender.fileExists(task.logPath) then
+            local file=io.open(task.logPath,'rb')
+            local content=file and file:read('*a') or ''
+            if file then file:close() end
+            local blenderError=content:match('%[mini_mbm_facial%]%s+ERROR:%s*([^\r\n]+)')
+            if blenderError and blenderError~='' then
+                failAutomatedFacialTargetGeneration(blenderError)
+                return
+            end
+        end
+        if os.time()-(task.startedAt or os.time()) >= 600 then
+            failAutomatedFacialTargetGeneration(tLang.L('fre_blender_auto_generation_timeout'))
+        end
+        return
+    end
+    if task.status~='importing' or not task.job then return end
+    local status=task.job:update()
+    task.progress=0.35 + (tonumber(task.job.progress) or 0) * 0.65
+    task.detail=task.job.detail or task.detail
+    if status=='completed' then
+        local loaded=loadMesh(task.mshPath,true)
+        if not loaded then
+            failAutomatedFacialTargetGeneration(tLang.L('fre_blender_auto_reload_failed'))
+            return
+        end
+        task.status='completed'
+        task.phase='completed'
+        task.progress=1
+        task.detail=tLang.L('fre_blender_auto_completed')
+        task.job=nil
+        setStatus(string.format(tLang.L('fre_blender_auto_completed_fmt'),shortName(task.mshPath)),false)
+    elseif status=='failed' or status=='canceled' then
+        failAutomatedFacialTargetGeneration(task.job.message or tLang.L('fre_blender_auto_import_failed'))
+    end
 end
 
 local function showStatus()
@@ -2576,15 +2824,32 @@ local function showExpressions()
         tImGui.TextWrapped(tLang.L('fre_expression_blender_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_targets_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_clips_help'))
-        local canGenerateTargets=pathExists(state.blenderBridgePath) and #catalog==0
+        local automatedTask=state.automatedTargetJob
+        local automatedRunning=automatedTask.status=='generating' or automatedTask.status=='importing'
+        local canGenerateTargets=pathExists(state.blenderBridgePath) and #catalog==0 and not automatedRunning
         tImGui.BeginDisabled(not canGenerateTargets)
         if tImGui.Button(tLang.L('fre_expression_generate_targets')..'##freExpressionGenerateTargets',{x=360,y=0}) then
             launchBlenderFacialTargetGeneration()
         end
         tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_expression_generate_targets_tooltip'))
-        if #catalog==0 and not canGenerateTargets then
+        local canGenerateAutomated=state.meshDebug~=nil and #catalog==0 and not automatedRunning
+        tImGui.BeginDisabled(not canGenerateAutomated)
+        if tImGui.Button(tLang.L('fre_expression_generate_targets_automated')..'##freExpressionGenerateTargetsAutomated',{x=360,y=0}) then
+            startAutomatedFacialTargetGeneration()
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_expression_generate_targets_automated_tooltip'))
+        if #catalog==0 and not canGenerateTargets and not canGenerateAutomated then
             tImGui.TextDisabled(tLang.L('fre_expression_generate_targets_bridge_help'))
+        end
+        if automatedRunning then
+            tImGui.TextWrapped(automatedTask.detail or '')
+            tImGui.ProgressBar(automatedTask.progress or 0,{x=360,y=0})
+        elseif automatedTask.status=='completed' then
+            tImGui.TextColored({r=0.35,g=1,b=0.45,a=1},automatedTask.detail or '')
+        elseif automatedTask.status=='failed' and automatedTask.detail~='' then
+            tImGui.TextWrapped(automatedTask.detail)
         end
         if pathExists(state.blenderGeneratedBlendPath) then
             tImGui.TextWrapped(string.format(tLang.L('fre_expression_generated_blend_help'),
@@ -3491,6 +3756,7 @@ function onInitScene()
 end
 
 function onLoop(delta)
+    updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
     updateMaskBrushHover()
     updateFacialClipPlayback(delta)

@@ -519,6 +519,21 @@ function M.buildFacialTargetGenerationCmd(sourcePath, addonScriptPath, bridgePat
     return table.concat(args, ' ')
 end
 
+-- Builds the non-interactive variant used by the facial editor's one-click workflow. The addon
+-- performs the same bridge import and target generation, then exits after saving the derived
+-- .blend; the caller can feed that file through the normal MeshDebug importer.
+function M.buildFacialTargetGenerationHeadlessCmd(sourcePath, addonScriptPath, bridgePath, outputPath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' or
+            not bridgePath or bridgePath == '' or not outputPath or outputPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), '-b', shellQuote(sourcePath), '--python', shellQuote(addonScriptPath), '--',
+        '--bridge', shellQuote(bridgePath), '--generate-targets', '--output', shellQuote(outputPath)}
+    return table.concat(args, ' ')
+end
+
 function M.launchCmdAsync(cmd, logPath)
     local osName = M.getOS()
     debugPrint('launch async (%s): %s', osName, cmd)

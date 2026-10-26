@@ -308,6 +308,22 @@ creates six conservative Basis-relative starter keys (`jawOpen`, `mouthSmile`, `
 The derived `.blend` remains an explicit review artifact; MeshDebug import with facial targets
 enabled is still required before the MSH is reopened in the editor.
 
+An automated variant is now available for the same optional workflow. It prepares a temporary rig
+bridge from the current project when one has not already been exported, then first exports the current
+MSH to an intermediate `.blend` using the existing MeshDebug-compatible mesh exporter and its
+standard coordinate/UV conversion, then runs Blender in background mode, invokes the facial MSH
+importer with targets, normal deltas, skeletal data, coordinate conversion, and texture settings,
+and reloads the generated MSH in the open facial editor while preserving the project when topology
+remains compatible. The source MSH is never overwritten; the generated MSH path is selected
+explicitly by the user.
+
+The automated round trip does not use a hard-coded `/tmp` path. Its intermediate JSON, Blender
+projects, bridge, logs, and cancel state are derived beside the user-selected output MSH, so the
+same workflow works on Linux, macOS, and Windows paths. Blender process quoting and asynchronous
+launching remain centralized in `blender_cli_wrapper.lua`; if a future stage needs OS temporary
+storage, it must use the platform environment (`TMPDIR`, `TEMP`, or `TMP`) rather than assuming a
+Unix directory.
+
 ### Future optional milestone: native facial target authoring
 
 The current delivery intentionally consumes facial targets already stored in the MSH. The facial

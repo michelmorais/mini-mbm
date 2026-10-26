@@ -553,6 +553,20 @@ artifact; the user still imports it through MeshDebug with facial-target import 
 new MSH before returning to Expressions. This does not replace future native target sculpting or
 the Rig bridge workflow.
 
+## Delivered twenty-seventh slice: automated facial target round trip
+
+The same worktree also offers an automated variant. It prepares the bridge from the current project
+when needed, then first exports the current MSH to an
+intermediate Blender project using the existing MeshDebug mesh-export path (including the standard
+Y/Z, `X=90`, and V conversion), runs Blender in background mode to create the starter targets, then
+feeds the derived `.blend` through the existing MeshDebug-compatible facial importer settings
+(including `X=-90` and V inversion). The generated MSH is reloaded into the open editor without
+overwriting the source asset. The operation is asynchronous and exposes progress while all three
+stages run; project state is preserved only when the generated topology matches the current project.
+Intermediate files are derived beside the selected output MSH rather than using a hard-coded
+`/tmp`, and Blender command quoting is centralized in the cross-platform CLI wrapper. This keeps
+the round trip valid on Linux, macOS, and Windows.
+
 ### Full-body skeleton compatibility
 
 When an existing full-body skeleton exposes a body bone named `Head` (including common names such

@@ -510,9 +510,14 @@ def register():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
     if command_line_bridge():
-        # Blender may still be creating the initial view layer while --python runs.
-        # A one-shot timer gives the normal UI context time to become available.
-        bpy.app.timers.register(auto_import_bridge, first_interval=0.25)
+        # Background Blender has no interactive viewport to wait for. Run immediately so the
+        # automated editor workflow can continue to the MeshDebug-compatible MSH export. The UI
+        # launcher still uses a one-shot timer because Blender may still be creating its initial
+        # view layer when --python runs there.
+        if bpy.app.background:
+            auto_import_bridge()
+        else:
+            bpy.app.timers.register(auto_import_bridge, first_interval=0.25)
 
 
 def unregister():
