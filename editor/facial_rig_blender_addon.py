@@ -187,6 +187,12 @@ class MBM_PT_facial_rig_bridge(Panel):
             box.label(text=f"Scene mesh total: {total}")
             box.label(text="Use viewport alignment for merged assets.")
         box.label(text="Preview only: no weights assigned.", icon="INFO")
+        notice = box.box()
+        notice.label(text="Rig preview only", icon="INFO")
+        notice.label(text="Does not create Shape Keys")
+        notice.label(text="or facial expressions.")
+        notice.label(text="Use MeshDebug Blender import")
+        notice.label(text="with Import facial targets enabled.")
         report = read_json_property(armature, "mini_mbm_role_report")
         box.label(text=f"Role entries: {len(report.get('entries') or [])}")
         for warning in report.get("warnings") or []:

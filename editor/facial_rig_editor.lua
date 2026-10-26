@@ -3276,6 +3276,17 @@ local function showRig()
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_limits_help'))
+    local targetCount=0
+    if state.mesh then
+        local ok,count=dpCall(function() return state.mesh:getTotalFacialTargets() end)
+        if ok then targetCount=math.max(0,tonumber(count) or 0) end
+    end
+    if targetCount>0 then
+        textColoredWrapped({r=0.35,g=1,b=0.45,a=1},
+            string.format(tLang.L('fre_blender_targets_ready_fmt'),targetCount))
+    else
+        textColoredWrapped({r=1,g=0.65,b=0.25,a=1},tLang.L('fre_blender_targets_missing_help'))
+    end
     if rig.valid then
         textColoredWrapped({r=0.35,g=1,b=0.45,a=1},tLang.L('fre_rig_preview_ready'))
         tImGui.TextWrapped(tLang.L('fre_rig_preview_help'))
