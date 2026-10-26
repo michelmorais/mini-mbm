@@ -498,22 +498,33 @@ int stepFacialRuntimeTests()
     ++tick;
     FACIAL_ANIMATION_REPORT a,b;
     first->getFacialAnimationReport(a); second->getFacialAnimationReport(b);
+    const bool gpuMorph = a.morphExecutionPath &&
+        std::strcmp(a.morphExecutionPath,"gpu-indexed-deltas")==0;
     if (tick==10)
     {
-        expect(a.ready && b.ready && a.targetCount==2 && a.clipCount==1 && a.uploadCount>0 &&
-            a.playing && a.clipName && std::strcmp(a.clipName,"expression")==0,
+        expect(a.ready && b.ready && a.targetCount==2 && a.clipCount==1 &&
+            a.playing && a.clipName && std::strcmp(a.clipName,"expression")==0 &&
+            (gpuMorph || a.uploadCount>0),
             "runtime drew both instances and reports facial clip");
+        if (gpuMorph)
+            expect(a.morphStatus && std::strcmp(a.morphStatus,"gpu-morph-ready")==0,
+                "runtime selects indexed GPU facial morph");
         baseline=a;
         expect(first->pauseFacialAnimation(),"pause facial clip for idle checks");
     }
     if (tick==20)
     {
-        expect(a.deformationCount==baseline.deformationCount && a.uploadCount==baseline.uploadCount,"idle pose does not deform/upload");
+        expect(a.deformationCount==baseline.deformationCount && a.uploadCount==baseline.uploadCount,
+            "idle pose does not deform/upload");
         expect(first->setFacialWeightByName("jawOpen",.5f) && first->setFacialWeight(1,.25f),"set named and indexed weights");
     }
     if (tick==30)
     {
-        expect(a.ready && a.deformationCount==baseline.deformationCount+1 && a.uploadCount==baseline.uploadCount+1,"weight change evaluates/uploads once");
+        expect(a.ready && (gpuMorph ?
+            (a.deformationCount==baseline.deformationCount && a.uploadCount==baseline.uploadCount) :
+            (a.deformationCount==baseline.deformationCount+1 && a.uploadCount==baseline.uploadCount+1)),
+            gpuMorph ? "GPU weight change updates shader inputs without CPU upload" :
+            "weight change evaluates/uploads once");
         float weight=-1; expect(second->getFacialWeight(0,&weight) && weight==0,"shared asset does not leak weights");
         changed=a;
         expect(first->setFacialWeight(0,.5f),"assign same weight");
@@ -526,14 +537,20 @@ int stepFacialRuntimeTests()
     }
     if (tick==50)
     {
-        expect(a.ready && a.deformationCount==changed.deformationCount+1,"pose change recomposes after morphing");
+        expect(a.ready && (gpuMorph ? a.deformationCount==changed.deformationCount :
+                           a.deformationCount==changed.deformationCount+1),
+            gpuMorph ? "GPU pose change keeps facial composition on GPU" :
+            "pose change recomposes after morphing");
         changed=a;
         first->setPosition(VEC3(100000,0,0));
         first->setFacialWeight(0,.8f);
     }
     if (tick==60)
     {
-        expect(a.deformationCount==changed.deformationCount+1,"culled mesh still prepares current deformed bounds");
+        expect(gpuMorph ? a.deformationCount==changed.deformationCount :
+            a.deformationCount==changed.deformationCount+1,
+            gpuMorph ? "culled GPU facial mesh keeps GPU state ready" :
+            "culled mesh still prepares current deformed bounds");
         first->setPosition(VEC3(-120,0,0));
     }
     if (tick==70)
@@ -548,9 +565,12 @@ int stepFacialRuntimeTests()
     if (tick>=90 && asyncDone)
     {
         FACIAL_ANIMATION_REPORT asyncReport; asyncMesh->getFacialAnimationReport(asyncReport);
-        expect(asyncOk && asyncReport.ready && asyncReport.uploadCount>0,"async VB-only facial load renders");
-        std::printf("FACIAL RUNTIME %s status=%s targets=%u clips=%u evaluations=%llu uploads=%llu\n",
-            failures?"FAIL":"PASS",a.status,a.targetCount,a.clipCount,
+        const bool asyncGpuMorph = asyncReport.morphExecutionPath &&
+            std::strcmp(asyncReport.morphExecutionPath,"gpu-indexed-deltas")==0;
+        expect(asyncOk && asyncReport.ready && (asyncGpuMorph || asyncReport.uploadCount>0),
+            "async VB-only facial load renders");
+        std::printf("FACIAL RUNTIME %s status=%s morph=%s morph_status=%s targets=%u clips=%u evaluations=%llu uploads=%llu\n",
+            failures?"FAIL":"PASS",a.status,a.morphExecutionPath,a.morphStatus,a.targetCount,a.clipCount,
             static_cast<unsigned long long>(a.deformationCount),static_cast<unsigned long long>(a.uploadCount));
         return failures?-1:1;
     }

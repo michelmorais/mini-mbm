@@ -12431,7 +12431,7 @@ namespace mbm
         const auto &asset = impl->facialAsset;
         if (!asset.meshId) return true;
         state.morphCapability = facial::getMeasuredGpuMorphCapability();
-#if defined(__linux__) && defined(USE_OPENGL_ES)
+#if defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
         constexpr bool gpuMorphPathAvailable = true;
 #else
         constexpr bool gpuMorphPathAvailable = false;

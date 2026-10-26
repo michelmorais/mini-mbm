@@ -342,6 +342,8 @@
     <ClInclude Include="..\..\src\core_mbm\private\facial-render-state.h" />
     <ClCompile Include="..\..\src\core_mbm\private\facial-render-capability.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs-opengl_es.cpp" />

@@ -527,6 +527,12 @@
     <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-opengl_es.cpp">
       <Filter>Source Files\core_mbm\private</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-directx9.cpp">
+      <Filter>Source Files\core_mbm\private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\private\facial-gpu-upload-directx11.cpp">
+      <Filter>Source Files\core_mbm\private</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\private\skeletal-gpu-lbs.cpp">
       <Filter>Source Files\core_mbm\private</Filter>
     </ClCompile>

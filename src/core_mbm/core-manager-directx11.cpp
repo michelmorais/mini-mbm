@@ -22,6 +22,7 @@
 #include "specific-directx11-context.h"
 #include "skeletal-render-capability.h"
 #include "specific-directx11-render-target.h"
+#include "private/facial-render-capability.h"
 #include <core-manager.h>
 #include <device.h>
 #include <scene.h>
@@ -192,10 +193,17 @@ namespace mbm
         constexpr uint32_t maxConstantBufferVectors = D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT;
         constexpr uint32_t maxInputAttributes = D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT;
         skeletal::setMeasuredSkinningCapability(maxConstantBufferVectors, maxInputAttributes);
+        facial::setMeasuredGpuMorphCapability(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                                               maxTextureDimension, true);
         const skeletal::SKINNING_CAPABILITY skinning = skeletal::getMeasuredSkinningCapability();
+        const facial::GPU_MORPH_CAPABILITY morph = facial::getMeasuredGpuMorphCapability();
         INFO_LOG("DirectX11 skeletal capability: constantBufferVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
                  skinning.maxVertexShaderVectors, skinning.maxVertexAttributes,
                  skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
+        INFO_LOG("DirectX11 facial morph capability: textureSlots=%u textureSize=%u floatTexture=%s indexedDeltas=%s",
+                 morph.maxVertexTextureUnits, morph.maxTextureSize,
+                 morph.hasFloatTexture ? "yes" : "no",
+                 morph.supportsIndexedDeltas ? "ready" : "unavailable");
         engineDevice->setBackBufferWidth(static_cast<float>(width));
         engineDevice->setBackBufferHeight(static_cast<float>(height));
         context->window.disableRender(windowHandle);

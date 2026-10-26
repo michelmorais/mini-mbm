@@ -22,13 +22,14 @@ facial geometry.
 
 | Platform | Required runtime path | Facial morph path for this milestone | GPU facial morph parity |
 |---|---|---|---|
-| Windows | Existing DirectX 9/11 paths selected by the build | CPU reference | Deferred |
+| Windows | Existing DirectX 9/11 paths selected by the build | GPU indexed deltas when capability checks pass, otherwise CPU fallback | Implemented |
 | macOS | Existing Metal path | CPU reference | Deferred |
 | Linux | Existing GLES2 path remains the regression reference | GPU indexed deltas when capability checks pass, otherwise CPU fallback | Already covered by the existing slice |
 
 The Windows and macOS pass must not depend on GLES2 texture capabilities. The existing skeletal
-backend for each platform remains responsible for skinning; this milestone only requires the
-backend-neutral CPU facial path to compose with it.
+backend for each platform remains responsible for skinning; Windows DirectX 9/11 and ANGLE/OpenGLES
+may use the indexed GPU facial path when their measured resources permit it, with the backend-neutral
+CPU path as fallback.
 
 ## Acceptance checklist
 
@@ -60,5 +61,6 @@ the automated Blender target bootstrap, but a finished MSH does not require Blen
 ## Handoff
 
 Phase 8 is complete when the same authored asset passes the checklist on Windows and macOS and the
-platform reports show the documented CPU facial fallback. DirectX/Metal GPU morph optimization,
-live capture, and native target authoring remain independent milestones.
+platform reports show either `gpu-indexed-deltas` or the documented CPU fallback. DirectX/Metal GPU
+morph optimization is complete for the Windows DirectX 9/11 paths; live capture and native target
+authoring remain independent milestones.

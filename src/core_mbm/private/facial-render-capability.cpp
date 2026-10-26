@@ -36,8 +36,7 @@ namespace mbm::facial
         result.hasFloatTexture = hasFloatTexture;
         result.measured = maxVertexTextureUnits > 0 && maxTextureSize > 0;
         // The resource prerequisites are measured separately from implementation support.
-        // The GLES2 shader path still reports this as deferred until indexed delta sampling
-        // is implemented and parity-tested.
+        // Each backend that consumes this shared contract reports its own measured limits.
         // Texture unit 6 is reserved for the morph stream; stages 0-5 remain
         // available for the material and animation textures.
         result.supportsIndexedDeltas = result.measured && hasFloatTexture && maxVertexTextureUnits >= 7u;

@@ -40,7 +40,7 @@ namespace mbm::facial
         float clipTime = 0.0f, clipSpeed = 1.0f;
         uint64_t evaluations = 0, uploads = 0;
         const char *morphExecutionPath = "cpu-reference";
-        const char *morphStatus = "gpu-morph-deferred-gles2";
+        const char *morphStatus = "gpu-morph-capability-unmeasured";
         GPU_MORPH_CAPABILITY morphCapability;
         GPU_MORPH_LAYOUT morphLayout;
         bool ready = false, dirty = true, uploadDirty = true, initialized = false;

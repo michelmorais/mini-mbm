@@ -135,9 +135,11 @@ timings and dense delta memory. For 20,000 vertices, 52 targets, and 8 active ta
 reference measured approximately 8.992 ms dense versus 2.454 ms sparse. Targets decoded from MSH files now carry
 indices for vertices with non-zero position or normal deltas; manually constructed fixtures retain
 the dense compatibility path. This is evidence for a later decision, not a hardware-independent
-budget. GPU morph evaluation is enabled for the measured OpenGL ES 2 backend after the representative
-Megan/Fuzzy Fury profiles established the texture capacity and layout contract. Other backends keep
-the CPU reference until they provide an equivalent indexed resource.
+budget. GPU morph evaluation is enabled for measured OpenGL ES 2, DirectX 11, and DirectX 9
+backends after the representative Megan/Fuzzy Fury profiles established the texture capacity and
+layout contract. DirectX 9 additionally requires vertex-shader 3.0 and a supported floating-point
+vertex texture format. Any backend that fails its capability, layout, upload, or shader checks keeps
+the CPU reference path.
 
 A local Fuzzy Fury fixture now provides that representative geometry: approximately 57.7k exported
 vertices, six facial targets, and one clip. It is currently a procedural facial test fixture without
@@ -191,19 +193,19 @@ must produce the same validated packet table in its separate capture PR.
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. The first GPU composition slice reuses the existing GPU LBS shader
 for the skeletal stage, avoiding a second CPU deformation pass while preserving the morph-then-skin
-contract. The GLES2 morph slice now uploads indexed position/normal deltas to a float texture and
-samples them in the vertex shader with per-frame weights. It is selected only after capability and
-layout validation; failed uploads or shader specialization fall back to CPU. Establish limits for
-active targets, vertex counts, buffer memory, and shader resources; do not assume one backend's
-capacity applies to all others.
+contract. The OpenGL ES, DirectX 11, and DirectX 9 morph slices now upload indexed position/normal
+deltas to a float texture and sample them in the vertex shader with per-frame weights. They are
+selected only after backend-specific capability and layout validation; failed uploads or shader
+specialization fall back to CPU. Establish limits for active targets, vertex counts, buffer memory,
+and shader resources; do not assume one backend's capacity applies to all others.
 
-The current GLES2 runtime exposes both stages in `getFacialAnimationReport`: the skeletal stage may
-be `gpu-skeletal-composite`, while the morph stage reports `gpu-indexed-deltas` and
-`gpu-morph-ready` when the texture/shader path is active. Fallback statuses are explicit, so a
-partial or failed GPU path is not reported as complete facial GPU evaluation.
-At graphics initialization, GLES2 now measures vertex texture units, maximum texture size, and
-floating-point texture support. These prerequisites are recorded independently from implementation
-readiness so a future indexed-delta shader can be enabled only after parity tests pass.
+The current runtime exposes both stages in `getFacialAnimationReport`: the skeletal stage may be
+`gpu-skeletal-composite`, while the morph stage reports `gpu-indexed-deltas` and `gpu-morph-ready`
+when the backend texture/shader path is active. Fallback statuses are explicit, so a partial or
+failed GPU path is not reported as complete facial GPU evaluation. At graphics initialization,
+OpenGL ES, DirectX 11, and DirectX 9 measure their vertex texture units, maximum texture size, and
+floating-point texture support as applicable. These prerequisites are recorded independently from
+implementation readiness.
 
 ### Phase 7: Dedicated facial rig authoring editor
 
@@ -242,9 +244,8 @@ The Expressions worktree now authors named target-weight poses from existing MSH
 including bounded preview sliders, capture/apply, side mirroring, rename, persistence, and validation.
 The Clips worktree now authors temporal facial clips from expression poses and target-weight keys.
 The Preview worktree reviews saved poses, imported facial clips, authored project clips, and skeletal clips together,
-while GPU morph parity for
-DirectX and Metal remains a separate backend milestone; those
-backends keep the CPU reference path until an equivalent indexed resource is implemented.
+while GPU morph parity for the Windows DirectX 9/11 paths is covered by the indexed resource;
+Metal remains on the CPU reference path until an equivalent resource is implemented.
 
 Exporting authored clips to Blender Shape Key Actions is optional interoperability. Runtime MSH
 export also offers an enabled-by-default option to serialize the project-authored clips directly;
@@ -298,8 +299,9 @@ priority desktop platforms.
 
 The minimum backend contract is:
 
-- Windows builds use the existing DirectX 9/11 runtime paths and the CPU facial morph reference
-  path. GPU facial morph parity is not required for this milestone.
+- Windows builds use the existing DirectX 9/11 runtime paths. When the measured device supports the
+  indexed facial resource, the morph stage runs as `gpu-indexed-deltas`; otherwise it uses the CPU
+  reference path. DirectX 9 and DirectX 11 both preserve the morph-then-skin composition order.
 - macOS builds use the existing Metal runtime path and the CPU facial morph reference path. The
   OpenGL compatibility path is not a separate acceptance target.
 - Skeletal animation continues to use the backend's existing skinning path; facial deformation is

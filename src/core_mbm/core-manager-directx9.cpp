@@ -35,6 +35,8 @@
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
 #include <scene.h>
+#include "private/facial-render-capability.h"
+#include <algorithm>
 
 
 namespace mbm
@@ -222,11 +224,24 @@ namespace mbm
         context->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
         setShaderVersionsFromCaps(cap);
         skeletal::setMeasuredSkinningCapability(cap.MaxVertexShaderConst, 16u);
+        const bool hasVertexFloatTexture = cap.VertexShaderVersion >= D3DVS_VERSION(3, 0) &&
+            SUCCEEDED(context->pD3D->CheckDeviceFormat(D3DADAPTER_DEFAULT, _typeDevice,
+                                                        d3dParams.BackBufferFormat,
+                                                        D3DUSAGE_QUERY_VERTEXTEXTURE, D3DRTYPE_TEXTURE,
+                                                        D3DFMT_A32B32G32R32F));
+        facial::setMeasuredGpuMorphCapability(cap.MaxSimultaneousTextures,
+                                               std::min(cap.MaxTextureWidth, cap.MaxTextureHeight),
+                                               hasVertexFloatTexture);
         const skeletal::SKINNING_CAPABILITY skinning =
             skeletal::getMeasuredSkinningCapability();
+        const facial::GPU_MORPH_CAPABILITY morph = facial::getMeasuredGpuMorphCapability();
         INFO_LOG("DirectX9 skeletal capability: vertexConstants=%u LBS=%u DQS=%u",
                  cap.MaxVertexShaderConst, skinning.lbsMatrixPaletteBones,
                  skinning.dqsRigidPaletteBones);
+        INFO_LOG("DirectX9 facial morph capability: textureSlots=%u textureSize=%u floatTexture=%s indexedDeltas=%s",
+                 morph.maxVertexTextureUnits, morph.maxTextureSize,
+                 morph.hasFloatTexture ? "yes" : "no",
+                 morph.supportsIndexedDeltas ? "ready" : "unavailable");
         int Hardware_Software_Vertex_Process = 0;
         const bool forceSoftwareProcess = false;
         if (forceSoftwareProcess)
