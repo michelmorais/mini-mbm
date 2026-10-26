@@ -55,5 +55,6 @@ precedence, clamping, non-finite rejection, sparse updates, clearing missing val
 discovery. No capture device or network service is required.
 
 This milestone deliberately does not claim a live capture producer. The deterministic file-backed
-producer and replay lifecycle are defined in Phase 6; a future OSC or webcam adapter can produce
+producer and replay lifecycle are defined in Phase 6. OSC, webcam, and vendor SDK adapters are
+outside the current minimum-functional engine PR and will be delivered separately while producing
 the same packet table without changing this mapping contract.

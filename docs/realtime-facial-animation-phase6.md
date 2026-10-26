@@ -47,7 +47,8 @@ the current step. reset, stop, and status support editor lifecycle controls.
 
 The replay source does not own a mesh or mapping index, so the same source can drive isolated
 facial preview or a mesh that also has skeletal animation. Sparse packets keep previous weights
-unless the mapping call opts into clearMissing.
+unless the mapping call opts into clearMissing. This replay adapter remains the deterministic
+regression source while live OSC/webcam capture is developed in a separate PR.
 
 ## Validation
 
@@ -58,5 +59,5 @@ bin/debug/linux_x86/lua-5.4.1.exe src/test-lib/facial_capture_stream_test.lua
 ~~~
 
 The test covers strict packet decoding, duplicate and malformed fields, timestamp/sequence
-ordering, sparse mapping application, end-of-stream reset, looping, and file replay. The next
-transport can produce the same validated table without changing the mapping or mesh runtime.
+ordering, sparse mapping application, end-of-stream reset, looping, and file replay. A later
+capture PR can produce the same validated table without changing the mapping or mesh runtime.

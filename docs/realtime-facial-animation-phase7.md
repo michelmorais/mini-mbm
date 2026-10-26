@@ -592,3 +592,15 @@ the animated character body. Head-only assets without a suitable body anchor con
 standalone facial root.
 When the body anchor is required but not yet repaired, the weight-assignment action remains
 blocked so a full-body mesh cannot be saved with a detached facial head.
+
+## Current handoff: minimum functional desktop runtime
+
+The offline authoring workflow is now complete through MSH export: setup, face placement, landmarks,
+masks, facial rigging, target bootstrap, expressions, facial clips, skeletal/facial preview, and
+reloadable runtime clips are available. The next milestone is a minimum-functional runtime pass on
+Windows and macOS. Windows uses the existing DirectX 9/11 paths and macOS uses Metal; both use the
+backend-neutral CPU facial morph path for this pass, while GPU morph parity remains later work.
+
+OSC, webcam, Faceit runtime streaming, and vendor SDK capture are intentionally excluded from this
+handoff and will be implemented in a separate PR using the mapping and deterministic replay
+contracts from Phases 5 and 6.

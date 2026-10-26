@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Phase 7 Rig actions and facial playback comparison slice complete; runtime, Blender interchange, and capture naming foundations are complete**
+Status: **Offline facial authoring and runtime workflow complete; next milestone is the minimum functional Windows/macOS runtime**
 Last reviewed: **2026-10-26**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -17,6 +17,10 @@ The first Phase 4 performance profile is in [CPU performance profile](realtime-f
 The Phase 5 producer contract is in [Live capture naming contract](realtime-facial-animation-phase5.md).
 The Phase 6 producer contract is in [Deterministic capture replay](realtime-facial-animation-phase6.md).
 The Phase 7 editor design is in [Facial rig authoring editor](realtime-facial-animation-phase7.md).
+
+Current PR scope is deliberately limited to the minimum functional engine path on Windows and
+macOS. Live OSC, webcam, and vendor SDK capture are excluded from this PR and will be delivered in
+a separate capture PR using the Phase 5 naming contract and Phase 6 replay adapter.
 
 ## 1. Purpose
 
@@ -168,7 +172,7 @@ epsilon, so a later capture loop does not upload unchanged weights every frame.
 The module has no camera, network, or vendor SDK dependency. A future OSC, webcam, or native
 capture adapter can feed a name-to-weight table into the same contract without changing the .msh
 format or the core renderer. Phase 6 supplies a deterministic file-backed producer; a live transport
-remains a separate integration milestone.
+is intentionally deferred to a separate PR.
 
 ### Phase 6: Deterministic capture replay adapter
 
@@ -181,8 +185,8 @@ The adapter calls the Phase 5 mapping contract and remains independent of camera
 vendor SDKs.
 
 This gives the editor and runtime a reproducible capture source for regression tests and manual
-facial-plus-skeletal review. The next transport milestone can implement OSC or webcam input by
-producing the same validated packet table.
+facial-plus-skeletal review. OSC or webcam input is outside the current minimum-functional PR and
+must produce the same validated packet table in its separate capture PR.
 
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. The first GPU composition slice reuses the existing GPU LBS shader
@@ -203,7 +207,7 @@ readiness so a future indexed-delta shader can be enabled only after parity test
 
 ### Phase 7: Dedicated facial rig authoring editor
 
-**The first shell/setup slice is implemented; the remaining rig and expression work is staged below.**
+**Offline authoring slices and MSH export are complete; cross-platform runtime acceptance is next.**
 
 The project will provide a standalone facial rig editor whose application shell follows the
 existing skeletal animation editor. It will reuse shared viewport, serialization, mesh inspection,
@@ -278,12 +282,38 @@ Capture remains downstream of this editor. The file-backed replay and named-weig
 producer tests; OSC, webcam, and SDK adapters must drive a prepared rig rather than define the
 rigging workflow.
 
-After offline import and runtime controls are stable, evaluate ARKit-compatible live capture and
-audio-driven generation such as Audio2Face as producers of named weights. Keep capture transport and
-third-party runtime dependencies optional and outside the core asset contract.
+Live capture is not part of this PR. A future capture PR may evaluate ARKit-compatible live capture
+and audio-driven generation such as Audio2Face as producers of named weights. Capture transport and
+third-party runtime dependencies remain optional and outside the core asset contract.
 
 Deliverable: backend parity evidence for enabled paths and a separately scoped capture integration
 proposal if a concrete game workflow needs one.
+
+### Phase 8: Minimum functional Windows/macOS runtime
+
+The next milestone is a cross-platform acceptance pass for the already implemented offline workflow.
+It does not add new authoring concepts. It proves that a finished MSH containing facial targets,
+facial clips, facial weights, and an existing skeletal clip loads and plays correctly on the two
+priority desktop platforms.
+
+The minimum backend contract is:
+
+- Windows builds use the existing DirectX 9/11 runtime paths and the CPU facial morph reference
+  path. GPU facial morph parity is not required for this milestone.
+- macOS builds use the existing Metal runtime path and the CPU facial morph reference path. The
+  OpenGL compatibility path is not a separate acceptance target.
+- Skeletal animation continues to use the backend's existing skinning path; facial deformation is
+  composed with it in the documented morph-then-skin order.
+- Blender remains optional at runtime. It is only needed when an author chooses the assisted target
+  generation or Blender interchange workflow.
+
+Acceptance covers build, load, skeletal-plus-facial playback, MSH save/reload, MeshDebug clip
+listing, target/clip diagnostics, and safe CPU fallback. Platform-specific paths must not assume
+Linux `/tmp`, X11, or a Unix shell. Live OSC/webcam/SDK capture is explicitly not an acceptance
+item for this milestone and is tracked by a separate PR.
+
+See [Phase 8 minimum cross-platform runtime](realtime-facial-animation-phase8.md) for the test
+matrix and handoff checklist.
 
 ### Optional milestone: assisted facial target bootstrap
 
