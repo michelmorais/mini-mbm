@@ -45,6 +45,14 @@ STARTER_TARGET_NAMES = (
 )
 
 
+def existing_starter_target_names(mesh_obj):
+    shape_keys = mesh_obj.data.shape_keys
+    if shape_keys is None:
+        return []
+    names = {key.name for key in shape_keys.key_blocks}
+    return [name for name in STARTER_TARGET_NAMES if name in names]
+
+
 def _normalize(vector, fallback):
     from mathutils import Vector
     result = Vector(vector)
@@ -361,6 +369,12 @@ class MBM_OT_generate_facial_targets(Operator):
         try:
             data = parse_bridge(bridge_path)
             mesh_obj = find_facial_mesh(context.scene, data)
+            existing = existing_starter_target_names(mesh_obj)
+            if existing and not self.replace_existing:
+                message = "Starter facial targets already exist on " + mesh_obj.name + ": " + ", ".join(existing)
+                context.scene["mini_mbm_facial_target_status"] = message + ". No changes made."
+                self.report({"INFO"}, context.scene["mini_mbm_facial_target_status"])
+                return {"FINISHED"}
             names = _create_starter_targets(
                 data, mesh_obj, (90.0, 0.0, 0.0), self.replace_existing)
             context.view_layer.objects.active = mesh_obj
@@ -417,11 +431,26 @@ class MBM_PT_facial_rig_bridge(Panel):
         box.label(text="Preview only: no weights assigned.", icon="INFO")
         notice = box.box()
         notice.label(text="Rig preview only", icon="INFO")
-        notice.label(text="Does not create Shape Keys")
-        notice.label(text="or facial expressions.")
+        notice.label(text="This preview does not assign weights.")
+        notice.label(text="Use Expressions for starter Shape Keys.")
         notice.label(text="Use MeshDebug Blender import")
         notice.label(text="with Import facial targets enabled.")
-        layout.operator(MBM_OT_generate_facial_targets.bl_idname, icon="SHAPEKEY_DATA")
+        existing = []
+        bridge_path = context.scene.get("mini_mbm_facial_bridge_path", "")
+        if bridge_path:
+            try:
+                bridge_data = parse_bridge(bridge_path)
+                target_mesh = find_facial_mesh(context.scene, bridge_data)
+                existing = existing_starter_target_names(target_mesh)
+            except Exception:
+                existing = []
+        button_row = layout.row()
+        button_row.enabled = not bool(existing)
+        button_row.operator(MBM_OT_generate_facial_targets.bl_idname, icon="SHAPEKEY_DATA")
+        if existing:
+            completed = layout.box()
+            completed.label(text="Starter Shape Keys already exist", icon="CHECKMARK")
+            completed.label(text=", ".join(existing))
         target_status = context.scene.get("mini_mbm_facial_target_status", "")
         if target_status:
             status_box = layout.box()
