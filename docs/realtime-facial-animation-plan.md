@@ -1,7 +1,7 @@
 # Real-Time Facial Animation - Implementation Plan
 
 Status: **Phase 7 Rig actions and facial playback comparison slice complete; runtime, Blender interchange, and capture naming foundations are complete**
-Last reviewed: **2026-10-24**
+Last reviewed: **2026-10-26**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
 [Blender interchange and initial design](realtime-facial-animation-phase0.md). Phase 1 evidence,
@@ -228,6 +228,12 @@ facial sections, target weights, and clips stored in `.msh`; it does not require
 or Blender to load or play a finished asset. While native binding is still being implemented, the
 bridge remains the handoff used for Blender-side armature and weight work.
 
+The optional Blender integration shown in the Rig worktree is intentionally limited to the rig
+handoff: landmarks, masks, semantic roles, generated facial bones, and geometry binding. It is not
+the place for facial target or clip authoring. Shape Key and facial Action interoperability belongs
+to the Expressions/Clips workflow when that optional UI is added. The current Rig bridge therefore
+remains in Rig even though Blender itself is not required by the runtime.
+
 The Expressions worktree now authors named target-weight poses from existing MSH facial targets,
 including bounded preview sliders, capture/apply, side mirroring, rename, persistence, and validation.
 The Clips worktree now authors temporal facial clips from expression poses and target-weight keys.
@@ -277,6 +283,29 @@ third-party runtime dependencies optional and outside the core asset contract.
 
 Deliverable: backend parity evidence for enabled paths and a separately scoped capture integration
 proposal if a concrete game workflow needs one.
+
+### Future optional milestone: native facial target authoring
+
+The current delivery intentionally consumes facial targets already stored in the MSH. The facial
+editor creates expressions and clips from those targets; it does not yet create or sculpt dense
+per-vertex target deltas. Native target authoring is a future optional milestone and must not block
+the Blender/MSH integration workflow described above.
+
+When implemented, this milestone may provide a Blender-free path for:
+
+- creating, naming, duplicating, mirroring, and deleting targets;
+- sculpting position deltas in the facial viewport with the existing picking, BVH, brush, and
+  shader-preview infrastructure;
+- previewing target combinations with skeletal animation;
+- computing or validating normal deltas and topology identity;
+- saving target data in the project and exporting a valid MSH facial section;
+- reusing the resulting targets in the existing Expressions and Clips worktrees.
+
+The implementation will require mutable facial-target APIs in the runtime/Lua bridge, a compact
+authoring representation with Undo/Redo, transactional MSH export, and CPU/GPU preview parity.
+Blender Shape Keys remain an optional interoperability route rather than a prerequisite. Faceit and
+ARKit naming conventions may be offered as presets, but no vendor add-on is required for native
+authoring.
 
 ## 4. Validation and Acceptance
 

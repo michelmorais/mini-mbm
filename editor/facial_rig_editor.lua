@@ -2535,8 +2535,14 @@ local function showExpressions()
     local modeChanged=previousEditMode~=state.expressions.editMode
     state.expressions.lastEditMode=state.expressions.editMode
     tImGui.TextWrapped(tLang.L('fre_expressions_help'))
+    if tImGui.TreeNode(tLang.L('fre_expression_blender_title')) then
+        tImGui.TextWrapped(tLang.L('fre_expression_blender_help'))
+        tImGui.TextWrapped(tLang.L('fre_expression_blender_targets_help'))
+        tImGui.TextWrapped(tLang.L('fre_expression_blender_clips_help'))
+        tImGui.TreePop()
+    end
     if #catalog==0 then
-        tImGui.TextDisabled(tLang.L('fre_expressions_no_targets'))
+        tImGui.TextWrapped(tLang.L('fre_expressions_no_targets'))
         return
     end
     local targetNames={}
@@ -3106,7 +3112,7 @@ local function showRig()
         if facialSkeleton.valid~=true then
             tImGui.TextDisabled(tLang.L('fre_facial_skeleton_blocked'))
         elseif not canApply then
-            tImGui.TextDisabled(tLang.L('fre_rig_action_skeleton_ready'))
+            tImGui.TextWrapped(tLang.L('fre_rig_action_skeleton_ready'))
         end
     else
         tImGui.TextDisabled(tLang.L('fre_facial_skeleton_blocked'))
