@@ -50,6 +50,7 @@ namespace mbm
         ID3D11Texture2D *facialMorphTexture;
         ID3D11ShaderResourceView *facialMorphTextureView;
         ID3D11Buffer *facialMorphVertexIdBuffer;
+        std::vector<ID3D11Buffer *> facialMorphVertexIdBufferVB;
         UINT vertexStride;
         bool dynamicVertexBuffer;
         uint32_t facialMorphTextureWidth;

@@ -25,8 +25,8 @@ namespace mbm::skeletal
     {
         if (!targetCount || !textureWidth || !textureHeight || !rowsPerTarget)
             return;
-        source += "Texture2D facialMorphTexture:register(t6); cbuffer FacialMorph:register(b3){float facialMorphWeights[";
-        source += std::to_string(targetCount);
+        source += "Texture2D facialMorphTexture:register(t6); cbuffer FacialMorph:register(b3){float4 facialMorphWeights[";
+        source += std::to_string((targetCount + 3u) / 4u);
         source += "];}; float4 sampleFacialDelta(float vertexId,float target,float normalOffset){uint vertex=(uint)(vertexId+0.5);"
             "uint block=vertex/";
         source += std::to_string(textureWidth);
@@ -40,7 +40,7 @@ namespace mbm::skeletal
             source += ",inout float3 facialNormal";
         source += ",float facialVertexId){[unroll]for(int facialTarget=0;facialTarget<";
         source += std::to_string(targetCount);
-        source += ";++facialTarget){float facialWeight=facialMorphWeights[facialTarget];if(abs(facialWeight)>0.000001){"
+        source += ";++facialTarget){float facialWeight=facialMorphWeights[facialTarget/4][facialTarget%4];if(abs(facialWeight)>0.000001){"
             "facialPosition+=sampleFacialDelta(facialVertexId,(float)facialTarget,0.0)*facialWeight;";
         if (includeNormals)
         {

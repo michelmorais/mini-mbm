@@ -25,7 +25,10 @@ namespace mbm::facial
         if (!backend || !device || !device->getSpecificContextDevice() ||
             buffer->sizeOfArrayVertex != asset.vertexCount)
             return false;
-        if (backend->facialMorphTexture && backend->facialMorphTextureView && backend->facialMorphVertexIdBuffer &&
+        const bool facialIdsReady = buffer->isIndexBuffer() ?
+            backend->facialMorphVertexIdBuffer != nullptr :
+            backend->facialMorphVertexIdBufferVB.size() == buffer->totalSubset;
+        if (backend->facialMorphTexture && backend->facialMorphTextureView && facialIdsReady &&
             backend->facialMorphTextureWidth == layout.textureWidth &&
             backend->facialMorphTextureHeight == layout.textureHeight &&
             backend->facialMorphRowsPerTarget == layout.rowsPerTarget &&
@@ -94,18 +97,44 @@ namespace mbm::facial
             return false;
         }
 
-        std::vector<float> ids(asset.vertexCount);
-        for (uint32_t index = 0; index < asset.vertexCount; ++index)
-            ids[index] = static_cast<float>(index);
-        D3D11_BUFFER_DESC idDescription = {};
-        idDescription.ByteWidth = static_cast<UINT>(ids.size() * sizeof(float));
-        idDescription.Usage = D3D11_USAGE_DEFAULT;
-        idDescription.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-        D3D11_SUBRESOURCE_DATA idData = {};
-        idData.pSysMem = ids.data();
-        ID3D11Buffer *newIdBuffer = nullptr;
-        if (FAILED(d3d->CreateBuffer(&idDescription, &idData, &newIdBuffer)))
+        ID3D11Buffer *newIndexedIdBuffer = nullptr;
+        std::vector<ID3D11Buffer *> newSubsetIdBuffers(buffer->totalSubset, nullptr);
+        const auto createIdBuffer = [d3d](uint32_t first, uint32_t count, ID3D11Buffer **out) {
+            if (!count || !out || count > (std::numeric_limits<UINT>::max() / sizeof(float)))
+                return false;
+            std::vector<float> ids(count);
+            for (uint32_t index = 0; index < count; ++index)
+                ids[index] = static_cast<float>(first + index);
+            D3D11_BUFFER_DESC description = {};
+            description.ByteWidth = static_cast<UINT>(ids.size() * sizeof(float));
+            description.Usage = D3D11_USAGE_DEFAULT;
+            description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            D3D11_SUBRESOURCE_DATA data = {};
+            data.pSysMem = ids.data();
+            return SUCCEEDED(d3d->CreateBuffer(&description, &data, out));
+        };
+        bool idsReady = false;
+        if (buffer->isIndexBuffer())
+            idsReady = createIdBuffer(0, asset.vertexCount, &newIndexedIdBuffer);
+        else
         {
+            idsReady = true;
+            for (uint32_t subset = 0; subset < buffer->totalSubset; ++subset)
+            {
+                const uint32_t first = static_cast<uint32_t>(buffer->vertexStartVB[subset]);
+                const uint32_t count = static_cast<uint32_t>(buffer->vertexCountVB[subset]);
+                if (!createIdBuffer(first, count, &newSubsetIdBuffers[subset]))
+                {
+                    idsReady = false;
+                    break;
+                }
+            }
+        }
+        if (!idsReady)
+        {
+            if (newIndexedIdBuffer) newIndexedIdBuffer->Release();
+            for (ID3D11Buffer *ids : newSubsetIdBuffers)
+                if (ids) ids->Release();
             newView->Release();
             newTexture->Release();
             return false;
@@ -114,7 +143,8 @@ namespace mbm::facial
         backend->releaseFacialMorph();
         backend->facialMorphTexture = newTexture;
         backend->facialMorphTextureView = newView;
-        backend->facialMorphVertexIdBuffer = newIdBuffer;
+        backend->facialMorphVertexIdBuffer = newIndexedIdBuffer;
+        backend->facialMorphVertexIdBufferVB.swap(newSubsetIdBuffers);
         backend->facialMorphTextureWidth = layout.textureWidth;
         backend->facialMorphTextureHeight = layout.textureHeight;
         backend->facialMorphRowsPerTarget = layout.rowsPerTarget;

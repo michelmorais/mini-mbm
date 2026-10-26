@@ -281,9 +281,14 @@ namespace mbm
         facial::setMeasuredGpuMorphCapability(static_cast<uint32_t>(maxVertexTextureUnits),
             static_cast<uint32_t>(maxTextureSize), extensions && std::strstr(extensions, "GL_OES_texture_float"));
         const skeletal::SKINNING_CAPABILITY skinning = skeletal::getMeasuredSkinningCapability();
+        const facial::GPU_MORPH_CAPABILITY morph = facial::getMeasuredGpuMorphCapability();
         INFO_LOG("GLES2 skeletal capability: vertexUniformVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
                  skinning.maxVertexShaderVectors, skinning.maxVertexAttributes,
                  skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
+        INFO_LOG("GLES2 facial morph capability: vertexTextureUnits=%u textureSize=%u floatTexture=%s indexedDeltas=%s",
+                 morph.maxVertexTextureUnits, morph.maxTextureSize,
+                 morph.hasFloatTexture ? "yes" : "no",
+                 morph.supportsIndexedDeltas ? "ready" : "unavailable");
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;
         const GLint MaxTextureHeight = MaxTextureWidth;

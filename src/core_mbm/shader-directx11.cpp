@@ -560,6 +560,9 @@ namespace mbm
     void BUFFER_SPECIFIC::releaseFacialMorph() noexcept
     {
         if (facialMorphVertexIdBuffer) facialMorphVertexIdBuffer->Release();
+        for (ID3D11Buffer *buffer : facialMorphVertexIdBufferVB)
+            if (buffer) buffer->Release();
+        facialMorphVertexIdBufferVB.clear();
         if (facialMorphTextureView) facialMorphTextureView->Release();
         if (facialMorphTexture) facialMorphTexture->Release();
         facialMorphVertexIdBuffer = nullptr;
@@ -1293,6 +1296,8 @@ namespace mbm
         const bool createdPaletteBuffer = !usesSkeletal ||
             createBuffer(d3dDevice, nullptr, skeletalPaletteSize * floatsPerBone * sizeof(float),
                          D3D11_BIND_CONSTANT_BUFFER, true, &shaderData->skeletalPaletteBuffer);
+        // The HLSL facial weight array is packed as float4 registers. Keep the
+        // upload layout contiguous: four target weights per constant-buffer row.
         const UINT facialWeightBytes = ((facialMorphTargetCount + 3u) / 4u) * 16u;
         const bool createdFacialMorphBuffer = !usesFacialMorph ||
             createBuffer(d3dDevice, nullptr, facialWeightBytes, D3D11_BIND_CONSTANT_BUFFER, true,
@@ -1404,15 +1409,7 @@ namespace mbm
             context->immediateContext->VSSetConstantBuffers(3, 1, &shaderData->facialMorphWeightsBuffer);
             context->immediateContext->VSSetShaderResources(6, 1, &buffer->facialMorphTextureView);
         }
-        if (usesSkeletal && usesFacialMorph)
-        {
-            ID3D11Buffer *vertexBuffers[3] = { buffer->vertexBuffer, buffer->skinVertexBuffer,
-                                                buffer->facialMorphVertexIdBuffer };
-            const UINT strides[3] = { buffer->vertexStride, sizeof(skeletal::GPU_LBS_VERTEX), sizeof(float) };
-            const UINT offsets[3] = { 0, 0, 0 };
-            context->immediateContext->IASetVertexBuffers(0, 3, vertexBuffers, strides, offsets);
-        }
-        else if (usesSkeletal)
+        if (usesSkeletal)
         {
             if (!buffer->skinVertexBuffer || !shaderData->skeletalPaletteBuffer)
                 return false;
@@ -1445,17 +1442,21 @@ namespace mbm
             context->immediateContext->Unmap(shaderData->skeletalPaletteBuffer, 0);
         }
         const UINT offset = 0;
+        const UINT facialIdStride = sizeof(float);
         if (usesSkeletal)
         {
-            ID3D11Buffer *vertexBuffers[2] = { buffer->vertexBuffer, buffer->skinVertexBuffer };
-            const UINT strides[2] = { buffer->vertexStride, sizeof(skeletal::GPU_LBS_VERTEX) };
-            const UINT offsets[2] = { 0, 0 };
-            context->immediateContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
+            ID3D11Buffer *vertexBuffers[3] = { buffer->vertexBuffer, buffer->skinVertexBuffer,
+                                                usesFacialMorph ? buffer->facialMorphVertexIdBuffer : nullptr };
+            const UINT strides[3] = { buffer->vertexStride, sizeof(skeletal::GPU_LBS_VERTEX),
+                                      facialIdStride };
+            const UINT offsets[3] = { 0, 0, 0 };
+            context->immediateContext->IASetVertexBuffers(0, usesFacialMorph ? 3u : 2u,
+                                                           vertexBuffers, strides, offsets);
         }
         else if (usesFacialMorph)
         {
             ID3D11Buffer *vertexBuffers[2] = { buffer->vertexBuffer, buffer->facialMorphVertexIdBuffer };
-            const UINT strides[2] = { buffer->vertexStride, sizeof(float) };
+            const UINT strides[2] = { buffer->vertexStride, facialIdStride };
             const UINT offsets[2] = { 0, 0 };
             context->immediateContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
         }
@@ -1495,11 +1496,19 @@ namespace mbm
             return false;
 #if USE_NORMAL_MAPPING_3D
         bool usingNormalMapBuffers = false;
-        if (shaderData->zeroTangentBuffer)
+        if (shaderData->zeroTangentBuffer && !usesFacialMorph)
             context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
 #endif
         for (uint32_t subset = firstSubset; subset < lastSubset; ++subset)
         {
+            if (usesFacialMorph && !pBufferId->isIndexBuffer())
+            {
+                if (subset >= buffer->facialMorphVertexIdBufferVB.size() ||
+                    !buffer->facialMorphVertexIdBufferVB[subset])
+                    return false;
+                context->immediateContext->IASetVertexBuffers(2, 1,
+                    &buffer->facialMorphVertexIdBufferVB[subset], &facialIdStride, &offset);
+            }
             if (shaderData->usesReservedLight &&
                 !uploadReservedLightConstantsD3D11(context->immediateContext, shaderData, pBufferId, subset))
                 return false;
