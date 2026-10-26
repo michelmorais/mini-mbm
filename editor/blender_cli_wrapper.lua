@@ -504,6 +504,21 @@ function M.buildFacialRigPreviewCmd(sourcePath, addonScriptPath, bridgePath)
     return table.concat(args, ' ')
 end
 
+-- Builds the optional assisted target workflow. Blender opens the source file, imports the
+-- read-only rig bridge, creates starter Shape Keys, and saves a derived .blend path. The source
+-- file is never overwritten by this command.
+function M.buildFacialTargetGenerationCmd(sourcePath, addonScriptPath, bridgePath, outputPath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' or
+            not bridgePath or bridgePath == '' or not outputPath or outputPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), shellQuote(sourcePath), '--python', shellQuote(addonScriptPath), '--',
+        '--bridge', shellQuote(bridgePath), '--generate-targets', '--output', shellQuote(outputPath)}
+    return table.concat(args, ' ')
+end
+
 function M.launchCmdAsync(cmd, logPath)
     local osName = M.getOS()
     debugPrint('launch async (%s): %s', osName, cmd)

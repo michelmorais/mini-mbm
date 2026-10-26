@@ -82,7 +82,7 @@ local state = {
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false},
-    blenderBridgePath=nil, blenderSourcePath=nil,
+    blenderBridgePath=nil, blenderSourcePath=nil, blenderGeneratedBlendPath=nil,
     undoStack={}, redoStack={}, historyLimit=50
 }
 
@@ -1540,6 +1540,7 @@ local function newProject()
     state.projectPath=nil
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
+    state.blenderGeneratedBlendPath=nil
     state.modified=false
     state.selectedRole=1
     state.selectedLandmark=1
@@ -1578,6 +1579,7 @@ local function openProject()
     state.projectPath=path
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
+    state.blenderGeneratedBlendPath=nil
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
     state.landmarkEditMode=project.landmarkEditMode or 1
@@ -1696,6 +1698,41 @@ local function launchBlenderFacialRig()
     end
     tBlender.launchCmdAsync(command)
     setStatus(string.format(tLang.L('fre_blender_opened_fmt'),shortName(sourcePath)),false)
+    return true
+end
+
+local function launchBlenderFacialTargetGeneration()
+    if not pathExists(state.blenderBridgePath) then
+        setStatus(tLang.L('fre_blender_bridge_export_required'),true)
+        return false
+    end
+    local sourcePath=chooseBlenderSource()
+    if not sourcePath then
+        setStatus(tLang.L('fre_blender_source_missing'),true)
+        return false
+    end
+    local addonPath=getEditorDir() .. '/facial_rig_blender_addon.py'
+    if not pathExists(addonPath) then
+        setStatus(tLang.L('fre_blender_addon_missing'),true)
+        return false
+    end
+    local suggested=replaceExtension(sourcePath,'-facial-targets.blend')
+    local outputPath=mbm.saveFile(suggested,'blend')
+    if not outputPath or outputPath=='' then return false end
+    tBlender.resetDetection()
+    local blender=tBlender.detectBlender()
+    if not blender or not blender.found then
+        setStatus(tLang.L('fre_blender_not_found'),true)
+        return false
+    end
+    local command=tBlender.buildFacialTargetGenerationCmd(sourcePath,addonPath,state.blenderBridgePath,outputPath)
+    if not command then
+        setStatus(tLang.L('fre_blender_command_failed'),true)
+        return false
+    end
+    tBlender.launchCmdAsync(command)
+    state.blenderGeneratedBlendPath=outputPath
+    setStatus(string.format(tLang.L('fre_blender_targets_generation_started_fmt'),shortName(outputPath)),false)
     return true
 end
 
@@ -2539,6 +2576,20 @@ local function showExpressions()
         tImGui.TextWrapped(tLang.L('fre_expression_blender_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_targets_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_clips_help'))
+        local canGenerateTargets=pathExists(state.blenderBridgePath) and #catalog==0
+        tImGui.BeginDisabled(not canGenerateTargets)
+        if tImGui.Button(tLang.L('fre_expression_generate_targets')..'##freExpressionGenerateTargets',{x=360,y=0}) then
+            launchBlenderFacialTargetGeneration()
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_expression_generate_targets_tooltip'))
+        if #catalog==0 and not canGenerateTargets then
+            tImGui.TextDisabled(tLang.L('fre_expression_generate_targets_bridge_help'))
+        end
+        if pathExists(state.blenderGeneratedBlendPath) then
+            tImGui.TextWrapped(string.format(tLang.L('fre_expression_generated_blend_help'),
+                shortName(state.blenderGeneratedBlendPath)))
+        end
         tImGui.TreePop()
     end
     if #catalog==0 then

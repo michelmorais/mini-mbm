@@ -284,6 +284,30 @@ third-party runtime dependencies optional and outside the core asset contract.
 Deliverable: backend parity evidence for enabled paths and a separately scoped capture integration
 proposal if a concrete game workflow needs one.
 
+### Optional milestone: assisted facial target bootstrap
+
+The current Blender bridge imports a facial rig preview only; it does not create Shape Keys. The
+Megan test asset previously used six procedural targets created by a preparation fixture, which is
+why that asset appeared to author expressions automatically. That preparation step was not part of
+the bridge workflow and must not be assumed to exist for a newly imported mesh.
+
+To keep the engine usable by developers who do not work in Blender, the Expressions worktree will
+own an optional assisted workflow that may invoke Blender with a mini-mbm script receiving the
+project landmarks, masks, and topology,
+creates a Basis plus a conservative starter set of named Shape Keys, and saves a derived `.blend`.
+The editor can then import that derived file through MeshDebug with facial targets enabled. The
+generated shapes are starter templates for review, not an assertion of production-quality anatomy;
+the workflow must report which landmarks/masks were used and allow the user to reject the result.
+Blender remains optional because a later native target authoring milestone can provide the same
+contract without launching Blender.
+
+The first assisted slice is now implemented: the Expressions worktree can launch the Blender addon
+with the exported rig bridge and a derived output path, while the addon locates the facial mesh and
+creates six conservative Basis-relative starter keys (`jawOpen`, `mouthSmile`, `mouthPucker`,
+`eyeBlinkLeft`, `eyeBlinkRight`, and `browUp`). Existing generated keys are not replaced by default.
+The derived `.blend` remains an explicit review artifact; MeshDebug import with facial targets
+enabled is still required before the MSH is reopened in the editor.
+
 ### Future optional milestone: native facial target authoring
 
 The current delivery intentionally consumes facial targets already stored in the MSH. The facial

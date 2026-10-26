@@ -249,7 +249,9 @@ edit mesh geometry.
 
 The panel also checks each bridge role against the names currently present in Blender. A missing
 object is reported explicitly, rather than being guessed from similar names; this is needed for
-assets such as Megan where the Blender objects and the merged MSH source use different names.
+assets such as Megan where the Blender objects and the merged MSH source use different names. The
+bridge import operation remains preview-only; the separate assisted target operation is described
+below.
 
 The next milestone is a mesh-aware review of facial role objects and the loaded `.msh` topology.
 After that review, an explicit, opt-in weight assignment design can be implemented. This order keeps
@@ -272,9 +274,9 @@ result and any error in the `Mini MBM` panel. The file-picker button remains ava
 imports, and the user saves the resulting `.blend` manually. The button tooltip still documents the
 manual eight-step procedure, including the `X rotation = 90` conversion setting.
 
-This launcher does not assign weights. The Blender panel remains a preview-only armature import;
-weights or facial targets visible after a Mesh Debug round trip come from the source skeletal asset
-or the existing Mesh Debug import path, not from this launcher.
+This launcher does not assign weights. Rig launch remains a preview-only armature import. Assisted
+target generation is exposed from the Expressions worktree and is opt-in; it creates starter Shape
+Keys in a derived `.blend`, which must still be reviewed and imported through MeshDebug.
 
 ## Delivered eighth slice: mesh-aware binding review
 
@@ -538,6 +540,18 @@ chin; neither is intended to be placed on the throat.
 
 Because the guide is generated from Lua and ImGui draw calls, it has no external image, texture, UV,
 or asset-install dependency.
+
+## Delivered twenty-sixth slice: assisted facial target bootstrap
+
+The Expressions worktree now exposes an optional **Generate starter facial targets in Blender**
+action when a rig bridge has been exported and the loaded MSH has no targets. It launches the
+Blender addon with a non-destructive derived output path. The addon locates the facial mesh by the
+bridge role or vertex count, creates a `Basis` key and six conservative Basis-relative starter
+keys (`jawOpen`, `mouthSmile`, `mouthPucker`, `eyeBlinkLeft`, `eyeBlinkRight`, and `browUp`), and
+leaves existing generated keys untouched by default. The generated `.blend` is an explicit review
+artifact; the user still imports it through MeshDebug with facial-target import enabled and saves a
+new MSH before returning to Expressions. This does not replace future native target sculpting or
+the Rig bridge workflow.
 
 ### Full-body skeleton compatibility
 
