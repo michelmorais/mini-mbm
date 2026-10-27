@@ -2956,6 +2956,11 @@ local function rebuildPreview(sourcePath)
         if not preview:setSkeletalExecutionPath(execution) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
+        -- Facial indexed morphs can update the runtime AABB after the mesh is loaded.
+        -- Keep this editor preview visible while the authoring camera is framed from
+        -- the source mesh; otherwise frustum culling can discard the whole preview
+        -- even though the skeletal/facial shader path is ready.
+        preview.alwaysRender=true
         preview:setPos(x,0,0)
         preview.visible=state.meshVisible
         return preview
