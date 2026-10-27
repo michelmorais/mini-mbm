@@ -207,6 +207,17 @@ OpenGL ES, DirectX 11, and DirectX 9 measure their vertex texture units, maximum
 floating-point texture support as applicable. These prerequisites are recorded independently from
 implementation readiness.
 
+#### TODO: compose facial morphs with DQS
+
+The current facial-plus-skeletal composite is LBS-only. A mesh containing facial targets
+must use LBS for its skeletal stage; an explicit or automatically resolved DQS path is
+rejected for facial preparation instead of being silently substituted. DQS remains
+available for meshes without facial targets.
+
+Future work must implement facial morph plus rigid-DQS composition in the CPU reference
+path and GPU paths, including capability reporting, editor comparisons, and backend parity
+tests. Until then, facial-target meshes must remain on LBS in runtime and editor previews.
+
 ### Phase 7: Dedicated facial rig authoring editor
 
 **Offline authoring slices and MSH export are complete; cross-platform runtime acceptance is next.**
