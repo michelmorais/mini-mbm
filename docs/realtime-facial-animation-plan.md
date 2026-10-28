@@ -1,7 +1,7 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Offline facial authoring and runtime workflow complete; next milestone is the minimum functional Windows/macOS runtime**
-Last reviewed: **2026-10-26**
+Status: **Offline facial authoring and runtime workflow complete; Windows acceptance complete; macOS acceptance remains for the minimum functional cross-platform runtime**
+Last reviewed: **2026-10-28**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
 [Blender interchange and initial design](realtime-facial-animation-phase0.md). Phase 1 evidence,
@@ -303,10 +303,10 @@ proposal if a concrete game workflow needs one.
 
 ### Phase 8: Minimum functional Windows/macOS runtime
 
-The next milestone is a cross-platform acceptance pass for the already implemented offline workflow.
-It does not add new authoring concepts. It proves that a finished MSH containing facial targets,
-facial clips, facial weights, and an existing skeletal clip loads and plays correctly on the two
-priority desktop platforms.
+The Windows acceptance pass for the already implemented offline workflow is complete. The remaining
+cross-platform acceptance is the macOS pass. This phase does not add new authoring concepts; it
+proves that a finished MSH containing facial targets, facial clips, facial weights, and an existing
+skeletal clip loads and plays correctly on the two priority desktop platforms.
 
 The minimum backend contract is:
 

@@ -31,6 +31,28 @@ backend for each platform remains responsible for skinning; Windows DirectX 9/11
 may use the indexed GPU facial path when their measured resources permit it, with the backend-neutral
 CPU path as fallback.
 
+## Windows acceptance result
+
+**Windows manual runtime acceptance completed on 2026-10-26.** The Megan facial-plus-skeletal MSH was
+loaded and reviewed in MeshDebug and the facial rig editor on the Windows paths used by the build:
+
+| Windows path | Skeletal stage | Facial stage | Result |
+|---|---|---|---|
+| DirectX 11 | `gpu-skeletal-composite` | `gpu-indexed-deltas` | Pass |
+| OpenGL ES through ANGLE | `gpu-skeletal-composite` | `gpu-indexed-deltas` | Pass |
+| DirectX 9 | `gpu-skeletal-composite` | `cpu-reference` | Pass; GPU indexed morph is unavailable on the tested device because `floatTexture=no` |
+
+The DirectX 9 CPU result is the documented capability fallback, not a facial animation failure.
+The combined facial-plus-skeletal path is currently LBS-only: facial-target meshes remain on LBS,
+while DQS continues to be available for meshes without facial targets. Facial morph plus rigid-DQS
+composition is tracked as future work in the [implementation plan](realtime-facial-animation-plan.md#todo-compose-facial-morphs-with-dqs).
+
+The Windows Release `libTest --facial-foundation-tests` also passed with zero failures, covering
+facial validation, MSH round trips, authored clip persistence, and CPU deformation. The graphical
+`--facial-runtime-test` still needs to be run on a session with an initialized graphics device to
+automate seek, idle, reload, and replay checks; the non-interactive DirectX 9 session used for this
+review could not create its hardware device.
+
 ## Acceptance checklist
 
 1. Configure and build the required Windows and macOS targets with the normal Lua, Mesh, and ImGui
@@ -60,7 +82,7 @@ the automated Blender target bootstrap, but a finished MSH does not require Blen
 
 ## Handoff
 
-Phase 8 is complete when the same authored asset passes the checklist on Windows and macOS and the
-platform reports show either `gpu-indexed-deltas` or the documented CPU fallback. DirectX/Metal GPU
-morph optimization is complete for the Windows DirectX 9/11 paths; live capture and native target
-authoring remain independent milestones.
+The Windows portion is complete. Phase 8 as a whole is complete when the same authored asset passes
+the checklist on macOS as well and each platform report shows either `gpu-indexed-deltas` or the
+documented CPU fallback. DirectX GPU morph optimization is complete for the tested Windows paths;
+live capture and native target authoring remain independent milestones.
