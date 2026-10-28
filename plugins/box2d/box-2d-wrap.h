@@ -132,8 +132,8 @@ struct VEC3;
         bool undoDestroyFluid(INFO_FLUID* info);
 #endif
         void setActive(SHAPE_INFO* info,const bool enable);
-        void removeObject(RENDERIZABLE* ptr);
-        void removeObjectByIdSceneScene(const int _idScene);
+        void removeObject(RENDERIZABLE* ptr) override;
+        void removeObjectByIdSceneScene(const int _idScene) override;
         INFO_JOINT* getInfoJoint(SHAPE_INFO* info,const unsigned int index);
         const b2Vec2 getReactionForce(SHAPE_INFO* info,const float delta);
         void queryAABB(const b2AABB &b2aabb,b2QueryCallback* pB2QueryCallback);
@@ -212,7 +212,7 @@ struct VEC3;
         void setSleepingAllowed(SHAPE_INFO* info, bool value);
     
     protected:
-        void update(const float fps,const float delta);
+        void update(const float fps,const float delta) override;
 #if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
         void update_fluid(INFO_FLUID* info);
         bool emitFluid(INFO_FLUID* info, const float delta);
@@ -250,10 +250,10 @@ struct VEC3;
         using b2ContactFilter::ShouldCollide;
         bool ShouldCollide(b2Fixture* fixture, b2ParticleSystem* particleSystem, int32 particleIndex) override;
 #endif
-        void BeginContact(b2Contact* contact);
-        void EndContact(b2Contact* contact);
-        void PreSolve(b2Contact* contact,const b2Manifold* oldManifold);
-        void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
+        void BeginContact(b2Contact* contact) override;
+        void EndContact(b2Contact* contact) override;
+        void PreSolve(b2Contact* contact,const b2Manifold* oldManifold) override;
+        void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse) override;
         void safeDestroyBody(SHAPE_INFO* infoBox2d);
         void safeRemoveJoint(SHAPE_INFO* infoBox2d);
 #if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES

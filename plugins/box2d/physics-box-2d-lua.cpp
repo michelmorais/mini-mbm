@@ -1280,7 +1280,7 @@ namespace mbm
         {
         }
 
-        virtual bool ReportFixture(b2Fixture* fixture)
+        bool ReportFixture(b2Fixture* fixture) override
         {
             auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
             if(info)
@@ -1306,15 +1306,17 @@ namespace mbm
             }
             return false;
         }
-        virtual float ReportParticle(const b2ParticleSystem* ,int32 , const b2Vec2& ,const b2Vec2& , float )
-        {
-            return 0;
-        }
-
-        virtual bool ShouldQueryParticleSystem(const b2ParticleSystem*)
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
+        bool ReportParticle(const b2ParticleSystem*, int32) override
         {
             return false;
         }
+
+        bool ShouldQueryParticleSystem(const b2ParticleSystem*) override
+        {
+            return false;
+        }
+#endif
     };
 
     int onQueryAABBBox2d(lua_State *lua)
@@ -1899,7 +1901,9 @@ namespace mbm
     }
 
     int onNewBox2dLua(lua_State *lua) { return newBox2dLua(lua, false); }
+#if defined(MBM_BOX2D_PARTICLES) && MBM_BOX2D_PARTICLES
     static int onNewLegacyBox2dLua(lua_State *lua) { return newBox2dLua(lua, true); }
+#endif
 
     void registerClassBox2d(lua_State *lua)
     {
