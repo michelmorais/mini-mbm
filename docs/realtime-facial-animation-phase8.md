@@ -1,7 +1,9 @@
 # Real-Time Facial Animation - Phase 8 minimum cross-platform runtime
 
-Phase 8 is the minimum-functional engine milestone after the offline facial authoring workflow.
-The goal is to validate the existing MSH runtime and editor workflow on Windows and macOS without
+Status: **Complete on Windows and macOS as of 2026-10-28**
+
+Phase 8 is the completed minimum-functional engine milestone after the offline facial authoring
+workflow. It validates the existing MSH runtime and editor workflow on Windows and macOS without
 adding live capture or new authoring concepts.
 
 ## Scope
@@ -82,10 +84,13 @@ An indicative synthetic timing sample at 34,164 vertices measured CPU morph mean
 1.161 ms and 2.464 ms. These are different workloads: the GPU test also applies LBS and includes
 submission/wait overhead. They are diagnostics, not evidence of a GPU speedup or a frame-time budget.
 
-The full manual authored-asset acceptance checklist below remains open. Automated numerical tests
-and editor loading do not establish anatomical quality or complete the Blender authoring workflow.
+The full authored-asset acceptance checklist is complete for the local Meg verification bundle.
+The automated numerical tests and editor review establish runtime and interchange acceptance; they
+do not claim anatomical quality or make Blender a runtime dependency.
 
 ## Acceptance checklist
+
+The following checklist is complete for the Windows and macOS paths covered by this phase:
 
 1. Configure and build the required Windows and macOS targets with the normal Lua, Mesh, and ImGui
    editor features enabled.
@@ -112,9 +117,35 @@ deterministic replay adapter from [Phase 6](realtime-facial-animation-phase6.md)
 Native Blender-free target sculpting is also optional future work. The current minimum path may use
 the automated Blender target bootstrap, but a finished MSH does not require Blender at runtime.
 
+## Verification bundle
+
+The macOS review used the following files from `~/Downloads`; they are verification artifacts and
+are intentionally not required repository fixtures:
+
+- `Meg-facial-rig.lua` - facial rig editor project used for face placement and landmarks.
+- `Meg-facial-targets-auto-source.json` and `Meg-facial-targets-auto-source.blend` - source mesh,
+  armature, stored weights, and skeletal animation prepared for Blender.
+- `Meg-facial-targets-auto-bridge.lua` and `Meg-facial-targets-auto_mbm_objects.lua` - rig/object
+  interchange data produced by the editor and MeshDebug workflow.
+- `Meg-facial-targets-auto-generated.blend` - Blender result containing the six generated starter
+  Shape Keys.
+- `Meg-facial-targets-auto.msh` - automated facial target import result.
+- `Meg-facial-targets-auto-facial-weighted.msh` - derived runtime mesh with facial weights applied,
+  facial targets/clips retained, and skeletal data retained.
+- `Meg-facial-targets-auto-automated-blender.log`,
+  `Meg-facial-targets-auto-automated-import.log`, and
+  `Meg-facial-targets-auto-source-blender.log` - reproducibility logs.
+
+The source Blender log records 34,164 vertices, 54,961 faces, 73 bones, 135 skeletal samples at
+30 FPS, and stored weight overrides for all 34,164 vertices. The automated Blender step generated
+six starter Shape Keys. The automated MSH import recorded six facial targets, one facial clip, one
+canonical skeletal clip, and 73 extracted bones. The resulting mesh was loaded and reviewed in
+MeshDebug and in the skeletal animation editor with facial and skeletal animation together.
+
 ## Handoff
 
-The Windows portion is complete. Phase 8 as a whole is complete when the same authored asset passes
-the checklist on macOS as well and each platform report shows either `gpu-indexed-deltas` or the
-documented CPU fallback. DirectX GPU morph optimization is complete for the tested Windows paths;
-live capture and native target authoring remain independent milestones.
+Phase 8 is complete. The Windows and macOS paths each report either `gpu-indexed-deltas` or the
+documented CPU fallback, preserve the morph-then-skin order, and retain facial and skeletal data
+through the reviewed import/export path. DirectX and Metal GPU morph optimization is complete for
+the tested paths; live capture, native target sculpting, and facial morph plus rigid-DQS composition
+remain independent milestones.

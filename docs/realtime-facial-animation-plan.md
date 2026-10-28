@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Implementation Plan
 
-Status: **Offline facial authoring and runtime workflow complete; Windows acceptance complete; macOS acceptance remains for the minimum functional cross-platform runtime**
+Status: **Offline facial authoring and runtime workflow complete; Windows and macOS acceptance complete; delivery planning resumed for the next scoped milestones**
 Last reviewed: **2026-10-28**
 
 Phase 0 results, reproduction commands and the bounded first-runtime design are in
@@ -18,9 +18,9 @@ The Phase 5 producer contract is in [Live capture naming contract](realtime-faci
 The Phase 6 producer contract is in [Deterministic capture replay](realtime-facial-animation-phase6.md).
 The Phase 7 editor design is in [Facial rig authoring editor](realtime-facial-animation-phase7.md).
 
-Current PR scope is deliberately limited to the minimum functional engine path on Windows and
-macOS. Live OSC, webcam, and vendor SDK capture are excluded from this PR and will be delivered in
-a separate capture PR using the Phase 5 naming contract and Phase 6 replay adapter.
+The minimum functional engine path is accepted on Windows and macOS. Live OSC, webcam, and vendor
+SDK capture remain excluded from this delivery and are candidates for a separate capture PR using
+the Phase 5 naming contract and Phase 6 replay adapter.
 
 ## 1. Purpose
 
@@ -203,9 +203,9 @@ The current runtime exposes both stages in `getFacialAnimationReport`: the skele
 `gpu-skeletal-composite`, while the morph stage reports `gpu-indexed-deltas` and `gpu-morph-ready`
 when the backend texture/shader path is active. Fallback statuses are explicit, so a partial or
 failed GPU path is not reported as complete facial GPU evaluation. At graphics initialization,
-OpenGL ES, DirectX 11, and DirectX 9 measure their vertex texture units, maximum texture size, and
-floating-point texture support as applicable. These prerequisites are recorded independently from
-implementation readiness.
+OpenGL ES, DirectX 11, DirectX 9, and Metal measure or probe their texture limits and floating-point
+resource support as applicable. These prerequisites are recorded independently from implementation
+readiness.
 
 #### TODO: compose facial morphs with DQS
 
@@ -220,7 +220,7 @@ tests. Until then, facial-target meshes must remain on LBS in runtime and editor
 
 ### Phase 7: Dedicated facial rig authoring editor
 
-**Offline authoring slices and MSH export are complete; cross-platform runtime acceptance is next.**
+**Offline authoring slices, MSH export, and the macOS runtime acceptance are complete.**
 
 The project will provide a standalone facial rig editor whose application shell follows the
 existing skeletal animation editor. It will reuse shared viewport, serialization, mesh inspection,
@@ -256,7 +256,8 @@ including bounded preview sliders, capture/apply, side mirroring, rename, persis
 The Clips worktree now authors temporal facial clips from expression poses and target-weight keys.
 The Preview worktree reviews saved poses, imported facial clips, authored project clips, and skeletal clips together,
 while GPU morph parity for the Windows DirectX 9/11 paths is covered by the indexed resource;
-macOS Metal now uses the equivalent indexed RGBA32Float resource, with CPU fallback.
+macOS Metal uses the equivalent indexed RGBA32Float resource, with CPU fallback when capability,
+layout, upload, or shader checks fail.
 
 Exporting authored clips to Blender Shape Key Actions is optional interoperability. Runtime MSH
 export also offers an enabled-by-default option to serialize the project-authored clips directly;
@@ -307,10 +308,9 @@ proposal if a concrete game workflow needs one.
 
 ### Phase 8: Minimum functional Windows/macOS runtime
 
-The Windows acceptance pass for the already implemented offline workflow is complete. The remaining
-cross-platform acceptance is the macOS pass. This phase does not add new authoring concepts; it
-proves that a finished MSH containing facial targets, facial clips, facial weights, and an existing
-skeletal clip loads and plays correctly on the two priority desktop platforms.
+**Completed on 2026-10-28.** This phase proves that a finished MSH containing facial targets, facial
+clips, facial weights, and an existing skeletal clip loads and plays correctly on the two priority
+desktop platforms. It does not add new authoring concepts.
 
 The minimum backend contract is:
 
@@ -332,7 +332,32 @@ Linux `/tmp`, X11, or a Unix shell. Live OSC/webcam/SDK capture is explicitly no
 item for this milestone and is tracked by a separate PR.
 
 See [Phase 8 minimum cross-platform runtime](realtime-facial-animation-phase8.md) for the test
-matrix and handoff checklist.
+matrix, macOS evidence, and handoff checklist.
+
+The macOS acceptance used the local verification bundle in `~/Downloads` (not a repository fixture):
+`Meg-facial-rig.lua`, `Meg-facial-targets-auto.msh`,
+`Meg-facial-targets-auto-facial-weighted.msh`,
+`Meg-facial-targets-auto-generated.blend`, `Meg-facial-targets-auto-source.blend`,
+`Meg-facial-targets-auto-source.json`, `Meg-facial-targets-auto_mbm_objects.lua`,
+`Meg-facial-targets-auto-bridge.lua`, and the automated Blender/import/source log files. The
+generated asset was reviewed in MeshDebug and in the skeletal animation editor with facial and
+skeletal animation present together.
+
+### Delivery planning after Phase 8
+
+The minimum desktop delivery is now closed. The next work should be planned as separate, reviewable
+milestones so it does not destabilize the accepted runtime and interchange path:
+
+- A capture integration PR may add OSC, webcam, or vendor SDK producers that feed the validated
+  Phase 5 name-to-weight contract and Phase 6 replay adapter.
+- A native target-authoring PR may add Blender-free sculpting, target delta editing, undo/redo, and
+  transactional MSH export while retaining the existing CPU/GPU parity oracle.
+- A facial-DQS PR may define and implement morph plus rigid-DQS composition across the CPU and GPU
+  paths, with new capability reports and parity tests.
+- A later platform pass may evaluate iOS Metal and other supported targets using the same backend
+  capability and fallback contract.
+
+These are planning candidates, not unfinished acceptance items for Phase 8.
 
 ### Optional milestone: assisted facial target bootstrap
 
@@ -416,6 +441,10 @@ authoring.
   supported.
 - Editor work is dirty/event-driven; idle preview does not continuously rebuild or upload the
   deformed mesh.
+
+The Windows and macOS minimum-functional acceptance items are complete. Remaining delivery planning
+starts from the explicit exclusions and future milestones below; it does not reopen the accepted
+MSH, Lua, Blender interchange, or morph-then-skin contracts.
 
 ## 5. Risks and Decisions to Resolve in Phase 0
 

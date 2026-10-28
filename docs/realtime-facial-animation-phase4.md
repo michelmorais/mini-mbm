@@ -58,7 +58,7 @@ allowing high-poly meshes whose deduplicated vertex count remains below 65,535.
 ## Decision
 
 The sparse CPU reference remains the parity oracle for morph evaluation. The GPU composition slice
-is implemented for the existing OpenGL ES, DirectX 11, and DirectX 9 skeletal backends. Each GPU
+is implemented for the existing OpenGL ES, DirectX 11, DirectX 9, and macOS Metal skeletal backends. Each GPU
 morph variant samples indexed position/normal deltas and its GPU LBS variant applies the skeletal
 palette in the same vertex stage, preserving morph-then-skin without a second draw. The CPU path
 remains available for parity checks and safe fallback when a resource or shader prerequisite is
@@ -70,7 +70,9 @@ The GPU composition report remains exposed as `gpu-skeletal-composite` for the s
 indexed path moves dense position and normal deltas into a measured floating-point texture, indexes
 them with a canonical vertex-ID stream, and sends current target weights to the vertex shader. The
 morph report is `gpu-indexed-deltas` with `gpu-morph-ready` while this path is active on GLES2,
-DirectX 11, or DirectX 9.
+DirectX 11, DirectX 9, or macOS Metal. Metal stores indexed deltas in a private `RGBA32Float`
+texture and keeps per-instance weights in the vertex stage; capability, layout, upload, and shader
+failures use the CPU reference path.
 Custom vertex shaders, normal-map facial materials, and DQS facial composition remain unsupported.
 If texture creation or shader specialization fails, the renderer switches back to the CPU reference
 path and reports the reason instead of dropping the mesh.
@@ -78,8 +80,8 @@ path and reports the reason instead of dropping the mesh.
 The runtime reports the skeletal and morph stages separately. `morphExecutionPath` is
 `gpu-indexed-deltas` when the backend texture/shader path is active and `cpu-reference` after a safe
 fallback. `morphStatus` distinguishes `gpu-morph-ready`, capability/layout failures, upload
-failures, and shader failures. If initialization cannot measure vertex texture units or
-floating-point texture support, the report still says `gpu-morph-capability-unmeasured` or
+failures, and shader failures. If initialization cannot measure the backend's texture limits or
+floating-point resource support, the report still says `gpu-morph-capability-unmeasured` or
 `gpu-morph-resource-unavailable`. MeshDebug and the Lua report show this explicitly. DirectX 9
 reports CPU fallback on devices without vertex-shader 3.0 or floating-point vertex textures.
 
@@ -87,8 +89,8 @@ The GPU morph layout planner is covered independently from rendering. It tiles a
 deltas across the measured texture width, reserves a second row block for normal deltas, and rejects
 layouts whose total height exceeds the device limit. The Megan fixture (34,164 vertices, six targets,
 position and normal deltas) produces a 4,096 x 108 layout on the representative test capability.
-The GLES2, DirectX 11, and DirectX 9 upload and shader paths consume this layout without changing
-mesh topology or creating a second draw.
+The GLES2, DirectX 11, DirectX 9, and Metal upload and shader paths consume this layout without
+changing mesh topology or creating a second draw.
 
 The Fuzzy Fury fixture provides that representative high-poly measurement: its 57,746-vertex,
 six-target deformation measured approximately 20.7 ms dense and 5.9 ms sparse per evaluation in

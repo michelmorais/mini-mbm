@@ -595,11 +595,13 @@ blocked so a full-body mesh cannot be saved with a detached facial head.
 
 ## Current handoff: minimum functional desktop runtime
 
-The offline authoring workflow is now complete through MSH export: setup, face placement, landmarks,
+The offline authoring workflow is complete through MSH export: setup, face placement, landmarks,
 masks, facial rigging, target bootstrap, expressions, facial clips, skeletal/facial preview, and
-reloadable runtime clips are available. The next milestone is a minimum-functional runtime pass on
-Windows and macOS. Windows uses the existing DirectX 9/11 paths and macOS uses Metal; both use the
-backend-neutral CPU facial morph path for this pass, while GPU morph parity remains later work.
+reloadable runtime clips are available. The minimum-functional Windows/macOS runtime pass is also
+complete. The macOS acceptance used a generated asset containing facial targets, facial clips,
+facial weights, and skeletal data. Windows uses the existing DirectX 9/11 paths and macOS uses
+Metal; both use indexed GPU morphing when backend checks pass and the documented CPU fallback
+otherwise, while preserving morph-then-skin composition.
 
 OSC, webcam, Faceit runtime streaming, and vendor SDK capture are intentionally excluded from this
 handoff and will be implemented in a separate PR using the mapping and deterministic replay
