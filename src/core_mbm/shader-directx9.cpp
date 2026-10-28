@@ -460,7 +460,14 @@ namespace mbm
         sizeStructVertexInBytes(0),
         pVertexBuffer(nullptr),
         pSkinVertexBuffer(nullptr),
-        pIndexBuffer(nullptr)
+        pIndexBuffer(nullptr),
+        facialMorphTexture(nullptr),
+        facialMorphVertexIdBufferIB(nullptr),
+        facialMorphTextureWidth(0),
+        facialMorphTextureHeight(0),
+        facialMorphRowsPerTarget(0),
+        facialMorphTargetCount(0),
+        facialMorphHasNormals(false)
     {
 
     }
@@ -468,6 +475,22 @@ namespace mbm
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
     {
         this->release();
+    }
+
+    void BUFFER_SPECIFIC::releaseFacialMorph() noexcept
+    {
+        if (facialMorphTexture) facialMorphTexture->Release();
+        if (facialMorphVertexIdBufferIB) facialMorphVertexIdBufferIB->Release();
+        for (IDirect3DVertexBuffer9 *buffer : facialMorphVertexIdBufferVB)
+            if (buffer) buffer->Release();
+        facialMorphVertexIdBufferVB.clear();
+        facialMorphTexture = nullptr;
+        facialMorphVertexIdBufferIB = nullptr;
+        facialMorphTextureWidth = 0;
+        facialMorphTextureHeight = 0;
+        facialMorphRowsPerTarget = 0;
+        facialMorphTargetCount = 0;
+        facialMorphHasNormals = false;
     }
 
 #if USE_NORMAL_MAPPING_3D
@@ -488,6 +511,7 @@ namespace mbm
 #if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
 #endif
+        releaseFacialMorph();
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
@@ -1089,6 +1113,9 @@ namespace mbm
         mvpMatrixHandle(nullptr),
         mvMatrixHandle(nullptr),
         bonePaletteHandle(nullptr),
+        facialMorphWeightsHandle(nullptr),
+        facialMorphTargetCount(0),
+        facialMorphActive(false),
         skeletalPaletteSize(0),
         skeletalMethod(SKELETAL_SHADER_METHOD::NONE),
         samplerHandle0(nullptr),
@@ -1135,6 +1162,9 @@ namespace mbm
         mvpMatrixHandle = nullptr;
         mvMatrixHandle  = nullptr;
         bonePaletteHandle = nullptr;
+        facialMorphWeightsHandle = nullptr;
+        facialMorphTargetCount = 0;
+        facialMorphActive = false;
         skeletalPaletteSize = 0;
         skeletalMethod = SKELETAL_SHADER_METHOD::NONE;
         samplerHandle0  = nullptr;
@@ -1221,7 +1251,10 @@ namespace mbm
 #endif
     bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
-                               const SKELETAL_SHADER_METHOD skeletalMethod)
+                               const SKELETAL_SHADER_METHOD skeletalMethod,
+                               const uint32_t facialMorphTargetCount, const uint32_t facialMorphTextureWidth,
+                               const uint32_t facialMorphTextureHeight, const uint32_t facialMorphRowsPerTarget,
+                               const bool facialMorphHasNormals)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
@@ -1234,6 +1267,14 @@ namespace mbm
         }
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool usesFacialMorph = facialMorphTargetCount > 0 && facialMorphTextureWidth > 0 &&
+            facialMorphTextureHeight > 0 && facialMorphRowsPerTarget > 0;
+        const bool usesFacialMorphNormals = usesFacialMorph && facialMorphHasNormals && hasNormal;
+        if (usesFacialMorph && ptrVshader != nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "canonical DirectX9 facial morph does not support a custom vertex shader");
+            return false;
+        }
         const bool useReservedLightScaffolding = this->shouldCompileReservedLightDefault() ||
             (ptrPshader && ptrPshader->fileName == "lit textured.ps");
         auto *context = DEVICE::getInstance()->getSpecificContextDevice();
@@ -1265,7 +1306,7 @@ namespace mbm
         // useReservedLightScaffolding) combination -- every placement of the same mesh type after
         // the first hits this branch, skipping HLSL source generation and the real
         // D3DXCompileShader/CreatePixelShader/CreateVertexShader calls entirely.
-        if (this->usesPureDefaultShaderPair())
+        if (!usesFacialMorph && this->usesPureDefaultShaderPair())
         {
             const uint64_t key = makeDefaultProgramCacheKeyD3D9(
                 fvf, useReservedLightScaffolding, skeletalPaletteSize, d3dPsVs->skeletalMethod, usesNormalMapping);
@@ -1522,10 +1563,15 @@ namespace mbm
         if ((hasNormal && useReservedLightScaffolding) || (hasUV && useReservedLightScaffolding)) defaultCodeVs += "float4x4 mvMatrix;";
         if (skeletalPaletteSize > 0)
             skeletal::appendDirectX9SkeletalFunctions(defaultCodeVs, skeletalPaletteSize, skeletalMethod);
+        if (usesFacialMorph)
+            skeletal::appendDirectXFacialMorphFunctions(defaultCodeVs, facialMorphTargetCount,
+                                                         facialMorphTextureWidth, facialMorphTextureHeight,
+                                                         facialMorphRowsPerTarget, usesFacialMorphNormals);
         defaultCodeVs +=
             "struct VS_INPUT { float4 position : POSITION;";
         if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
         if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        if (usesFacialMorph) defaultCodeVs += " float facialVertexId : TEXCOORD1;";
         if (usesNormalMapping) defaultCodeVs += " float4 tangent : TANGENT0;";
         if (skeletalPaletteSize > 0)
             defaultCodeVs += " float4 boneIndices : BLENDINDICES0; float4 boneWeights : BLENDWEIGHT0;";
@@ -1539,17 +1585,31 @@ namespace mbm
         defaultCodeVs += " };"
             "VS_OUTPUT main(VS_INPUT input)"
             "{ VS_OUTPUT output;";
+        if (usesFacialMorph)
+        {
+            defaultCodeVs += "float4 facialPosition=input.position;";
+            if (hasNormal)
+                defaultCodeVs += "float3 facialNormal=input.normal;";
+            defaultCodeVs += "applyFacialMorph(facialPosition";
+            if (usesFacialMorphNormals)
+                defaultCodeVs += ",facialNormal";
+            defaultCodeVs += ",input.facialVertexId);";
+        }
         if (skeletalPaletteSize > 0)
             skeletal::appendDirectX9SkeletalDeformation(defaultCodeVs, skeletalMethod,
-                                                         hasNormal && useReservedLightScaffolding);
+                                                         hasNormal && useReservedLightScaffolding,
+                                                         usesFacialMorph ? "facialPosition" : "input.position",
+                                                         usesFacialMorph ? "facialNormal" : "input.normal");
         else
-            defaultCodeVs += " float4 skinnedPosition=input.position;";
+            defaultCodeVs += usesFacialMorph ? " float4 skinnedPosition=facialPosition;" :
+                " float4 skinnedPosition=input.position;";
         defaultCodeVs += " output.position = mul(skinnedPosition, mvpMatrix);";
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
         if (hasNormal && useReservedLightScaffolding)
             defaultCodeVs += skeletalPaletteSize > 0
                 ? " output.normalView = mul(float4(skinnedNormal,0),mvMatrix).xyz;"
-                : " output.normalView = mul(float4(input.normal,0),mvMatrix).xyz;";
+                : (usesFacialMorph ? " output.normalView = mul(float4(facialNormal,0),mvMatrix).xyz;" :
+                   " output.normalView = mul(float4(input.normal,0),mvMatrix).xyz;");
         if (hasUV && useReservedLightScaffolding) defaultCodeVs += " output.positionView = mul(skinnedPosition, mvMatrix).xyz;";
         if (usesNormalMapping)
             defaultCodeVs += R"HLSL(
@@ -1694,6 +1754,8 @@ namespace mbm
             d3dPsVs->mvpMatrixHandle = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
             d3dPsVs->mvMatrixHandle  = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
             d3dPsVs->bonePaletteHandle = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "bonePalette");
+            d3dPsVs->facialMorphWeightsHandle = d3dPsVs->constantTableVS->GetConstantByName(
+                nullptr, "facialMorphWeights");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
@@ -1711,7 +1773,10 @@ namespace mbm
             //}
         }
 
-        if (this->usesPureDefaultShaderPair())
+        d3dPsVs->facialMorphTargetCount = usesFacialMorph ? facialMorphTargetCount : 0u;
+        d3dPsVs->facialMorphActive = usesFacialMorph && d3dPsVs->facialMorphWeightsHandle != nullptr;
+
+        if (!usesFacialMorph && this->usesPureDefaultShaderPair())
         {
             DefaultProgramCacheEntryD3D9 entry;
             entry.pd3dPixelShader  = d3dPsVs->pd3dPixelShader;
@@ -1801,7 +1866,8 @@ namespace mbm
 
     bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
-                        const uint32_t skeletalPaletteFloatCount) const
+                        const uint32_t skeletalPaletteFloatCount,
+                        const float *facialMorphWeights, const uint32_t facialMorphWeightCount) const
     {
         const ScopedRenderizableContextD3D scopedRenderizableContext(renderizableOwner);
         BUFFER_SPECIFIC *backendBuffer = pBufferId ? pBufferId->getBackendBuffer() : nullptr;
@@ -1823,6 +1889,10 @@ namespace mbm
 
         void *backendShaderSpecific = getBackendShaderSpecific();
         D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(backendShaderSpecific);
+        const bool facialMorph = d3dPsVs->facialMorphActive;
+        if (facialMorph && (!backendBuffer->facialMorphTexture || !facialMorphWeights ||
+                            facialMorphWeightCount != d3dPsVs->facialMorphTargetCount))
+            return false;
 #if USE_NORMAL_MAPPING_3D
         bool usingNormalMapBuffers = false;
         if (d3dPsVs->normalMapDeclaration &&
@@ -1868,6 +1938,11 @@ namespace mbm
                         palette, d3dPsVs->skeletalPaletteSize * floatsPerBone)))
                     return false;
             }
+            if (facialMorph && (!d3dPsVs->facialMorphWeightsHandle ||
+                                FAILED(d3dPsVs->constantTableVS->SetFloatArray(pd3dDevice,
+                                    d3dPsVs->facialMorphWeightsHandle, facialMorphWeights,
+                                    facialMorphWeightCount))))
+                return false;
         }
         else
         {
@@ -1928,7 +2003,7 @@ namespace mbm
             declaration = d3dPsVs->normalMapDeclaration;
 #endif
             if (!declaration)
-                declaration = device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal);
+                declaration = device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal, facialMorph);
             if (FAILED(pd3dDevice->SetVertexDeclaration(declaration)))
             {
                 ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
@@ -1938,6 +2013,21 @@ namespace mbm
                 FAILED(pd3dDevice->SetStreamSource(1, backendBuffer->pSkinVertexBuffer, 0,
                                                    sizeof(skeletal::GPU_LBS_VERTEX)))))
                 return false;
+
+            if (facialMorph)
+            {
+                pd3dDevice->SetTexture(6, backendBuffer->facialMorphTexture);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+            }
+            if (facialMorph)
+            {
+                if (!backendBuffer->facialMorphVertexIdBufferIB ||
+                    FAILED(pd3dDevice->SetStreamSource(2, backendBuffer->facialMorphVertexIdBufferIB, 0,
+                                                        sizeof(float))))
+                    return false;
+            }
 
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
                 backendBuffer->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
@@ -1952,6 +2042,15 @@ namespace mbm
             {
                 ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
                 return false;
+            }
+            if (facialMorph)
+            {
+                pd3dDevice->SetTexture(6, backendBuffer->facialMorphTexture);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
             }
 
             // TextureAnimationEffect stays shared across subsets by design.
@@ -2055,7 +2154,7 @@ namespace mbm
 #if USE_NORMAL_MAPPING_3D
                 d3dPsVs->normalMapDeclaration ? d3dPsVs->normalMapDeclaration :
 #endif
-                device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal));
+                device->getSpecificContextDevice()->getFVF(backendBuffer->FVF, skeletal, facialMorph));
             if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
                 backendBuffer->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
                 0,		//Posicao Em Bytes Do inicio  Do Stream Atual
@@ -2065,6 +2164,15 @@ namespace mbm
                 FAILED(pd3dDevice->SetStreamSource(1, backendBuffer->pSkinVertexBuffer, 0,
                                                    sizeof(skeletal::GPU_LBS_VERTEX)))))
                 return false;
+            if (facialMorph)
+            {
+                pd3dDevice->SetTexture(6, backendBuffer->facialMorphTexture);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+                pd3dDevice->SetSamplerState(6, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+            }
 
             // TextureAnimationEffect stays shared across subsets by design.
             bindTextureRoleD3D(pd3dDevice, pBufferId, 0, TEXTURE_ROLE_ANIMATION_EFFECT);
@@ -2075,6 +2183,14 @@ namespace mbm
                 return false;
             for (uint32_t i = firstSubset; i < lastSubset; ++i)
             {
+                if (facialMorph)
+                {
+                    if (i >= backendBuffer->facialMorphVertexIdBufferVB.size() ||
+                        !backendBuffer->facialMorphVertexIdBufferVB[i] ||
+                        FAILED(pd3dDevice->SetStreamSource(2, backendBuffer->facialMorphVertexIdBufferVB[i], 0,
+                                                           sizeof(float))))
+                        return false;
+                }
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_DIFFUSE);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_NORMAL);
                 bindTextureRoleD3D(pd3dDevice, pBufferId, i, TEXTURE_ROLE_SPECULAR);

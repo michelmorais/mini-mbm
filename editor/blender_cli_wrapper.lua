@@ -264,6 +264,19 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, '--direct-msh-output')
     end
 
+    if options.includeFacial then
+        table.insert(args, '--include-facial')
+    end
+
+    if options.facialConvention and options.facialConvention ~= '' then
+        table.insert(args, '--facial-convention')
+        table.insert(args, shellQuote(options.facialConvention))
+    end
+
+    if options.facialNormalDeltas then
+        table.insert(args, '--facial-normal-deltas')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
     end
@@ -473,6 +486,54 @@ function M.buildScanCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     return cmd
 end
 
+-- Builds the interactive command used by the facial rig editor. The addon is
+-- loaded into an existing .blend and receives the bridge path so it can import
+-- the preview once Blender's normal UI is ready.
+function M.buildFacialRigPreviewCmd(sourcePath, addonScriptPath, bridgePath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), shellQuote(sourcePath), '--python', shellQuote(addonScriptPath)}
+    if bridgePath and bridgePath ~= '' then
+        table.insert(args, '--')
+        table.insert(args, '--bridge')
+        table.insert(args, shellQuote(bridgePath))
+    end
+    return table.concat(args, ' ')
+end
+
+-- Builds the optional assisted target workflow. Blender opens the source file, imports the
+-- read-only rig bridge, creates starter Shape Keys, and saves a derived .blend path. The source
+-- file is never overwritten by this command.
+function M.buildFacialTargetGenerationCmd(sourcePath, addonScriptPath, bridgePath, outputPath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' or
+            not bridgePath or bridgePath == '' or not outputPath or outputPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), shellQuote(sourcePath), '--python', shellQuote(addonScriptPath), '--',
+        '--bridge', shellQuote(bridgePath), '--generate-targets', '--output', shellQuote(outputPath)}
+    return table.concat(args, ' ')
+end
+
+-- Builds the non-interactive variant used by the facial editor's one-click workflow. The addon
+-- performs the same bridge import and target generation, then exits after saving the derived
+-- .blend; the caller can feed that file through the normal MeshDebug importer.
+function M.buildFacialTargetGenerationHeadlessCmd(sourcePath, addonScriptPath, bridgePath, outputPath)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+    if not sourcePath or sourcePath == '' or not addonScriptPath or addonScriptPath == '' or
+            not bridgePath or bridgePath == '' or not outputPath or outputPath == '' then
+        return nil
+    end
+    local args = {shellQuote(b.path), '-b', shellQuote(sourcePath), '--python', shellQuote(addonScriptPath), '--',
+        '--bridge', shellQuote(bridgePath), '--generate-targets', '--output', shellQuote(outputPath)}
+    return table.concat(args, ' ')
+end
+
 function M.launchCmdAsync(cmd, logPath)
     local osName = M.getOS()
     debugPrint('launch async (%s): %s', osName, cmd)
@@ -481,15 +542,15 @@ function M.launchCmdAsync(cmd, logPath)
     end
     if M.getOS() == 'windows' then
         if logPath and logPath ~= '' then
-            os.execute('cmd /c start /b "" ' .. cmd .. ' > ' .. shellQuote(logPath) .. ' 2>&1')
+            return os.execute('cmd /c start /b "" ' .. cmd .. ' > ' .. shellQuote(logPath) .. ' 2>&1')
         else
-            os.execute('cmd /c start /b "" ' .. cmd)
+            return os.execute('cmd /c start /b "" ' .. cmd)
         end
     else
         if logPath and logPath ~= '' then
-            os.execute(cmd .. ' >' .. shellQuote(logPath) .. ' 2>&1 &')
+            return os.execute(cmd .. ' >' .. shellQuote(logPath) .. ' 2>&1 &')
         else
-            os.execute(cmd .. ' >/dev/null 2>&1 &')
+            return os.execute(cmd .. ' >/dev/null 2>&1 &')
         end
     end
 end

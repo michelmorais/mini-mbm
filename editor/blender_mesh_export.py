@@ -6,6 +6,9 @@ Writes a Lua intermediate file with baked mesh frames:
     - frames[i].subsets[j].vertices: [{x,y,z,u,v,nx,ny,nz}, ...]
     - frames[i].subsets[j].indices:  [1-based triangle indices]
   - frames[i].subsets[j].texture:  optional image filepath
+  - sourceObjects: visible Blender mesh-object names used by the export
+  - vertexMap: flattened MSH vertex indices grouped by source object
+  - topologySignature: the frame-0 topology identity used by the facial editor
   - animations: optional baked clip metadata
 """
 
@@ -13,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import math
 import os
 import re
@@ -38,6 +42,8 @@ SECTION_EXTRA_PATHS = 30
 SECTION_SKELETAL_SKELETON = 41
 SECTION_SKELETAL_WEIGHTS = 42
 SECTION_SKELETAL_ANIMATION = 43
+SECTION_FACIAL_TARGETS = 45
+SECTION_FACIAL_CLIPS = 46
 
 TEXTURE_ROLE_NORMAL = 2
 TEXTURE_ROLE_SPECULAR = 3
@@ -81,6 +87,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
     parser.add_argument("--decimate-ratio", type=float, default=None)
     parser.add_argument("--include-bones", action="store_true")
+    parser.add_argument("--include-facial", action="store_true")
+    parser.add_argument("--facial-convention", default="")
+    parser.add_argument("--facial-normal-deltas", action="store_true")
     parser.add_argument("--unweighted-mesh-mode", choices=("fail", "skip", "bake"), default="fail")
     parser.add_argument("--uniform-scale", type=float, default=1.0)
     parser.add_argument("--normalize-textures", action="store_true")
@@ -94,6 +103,92 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def debug_print(enabled: bool, message: str) -> None:
     if enabled:
         print(f"[blender_export] {message}", flush=True)
+
+
+def source_object_names(scene: Any) -> list[str]:
+    """Return the visible Blender mesh-object names exported into the current mesh."""
+    names: list[str] = []
+    seen: set[str] = set()
+    for obj in getattr(scene, "objects", []):
+        if getattr(obj, "type", "") != "MESH":
+            continue
+        visible_get = getattr(obj, "visible_get", None)
+        if callable(visible_get) and not visible_get():
+            continue
+        name = str(getattr(obj, "name", "") or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    names.sort()
+    return names
+
+
+def source_object_catalog_path(mesh_path: str) -> str:
+    """Return the sidecar path that preserves Blender source-object names for an MSH."""
+    stem, _ = os.path.splitext(mesh_path)
+    return f"{stem}_mbm_objects.lua"
+
+
+def msh_topology_signature(subsets: list[dict[str, Any]]) -> str:
+    """Mirror facial_rig_landmarks.inspect()'s topology signature for sidecar validation."""
+    hash_value = 2166136261
+
+    def hash_byte(value: int) -> None:
+        nonlocal hash_value
+        # facial_rig_landmarks.lua runs in the bundled 32-bit-integer Lua build. Its
+        # math.tointeger() conversion of an out-of-range positive modulo result saturates to
+        # -2147483648, so preserve that historical signature exactly for sidecar validation.
+        mixed = ((int(hash_value) & 0xFFFFFFFF) ^ (value & 0xFF)) & 0xFFFFFFFF
+        if mixed & 0x80000000:
+            mixed -= 0x100000000
+        modulo = (mixed * 16777619) % 4294967296
+        hash_value = -2147483648 if modulo > 2147483647 else int(modulo)
+
+    def hash_number(value: float) -> None:
+        # The MSH frame stores positions as f32 before MeshDebug reconstructs the signature.
+        packed = struct.pack("<f", float(value or 0.0))
+        stored = struct.unpack("<f", packed)[0]
+        quantized = math.floor(stored * 100000.0 + 0.5)
+        for shift in (0, 8, 16, 24):
+            hash_byte((quantized >> shift) & 0xFF)
+
+    def hash_count(value: int) -> None:
+        value = max(0, int(value))
+        for shift in (0, 8, 16, 24):
+            hash_byte((value >> shift) & 0xFF)
+
+    hash_count(len(subsets or []))
+    vertex_count = 0
+    for subset in subsets or []:
+        vertices = subset.get("vertices") or []
+        indices = subset.get("indices") or []
+        hash_count(len(vertices))
+        hash_count(len(indices))
+        for index in indices:
+            hash_count(int(index))
+        for vertex in vertices:
+            hash_number(vertex.get("x", 0.0))
+            hash_number(vertex.get("y", 0.0))
+            hash_number(vertex.get("z", 0.0))
+        vertex_count += len(vertices)
+    return f"{hash_value & 0xFFFFFFFF:08x}:{vertex_count}"
+
+
+def source_vertex_map(subsets: list[dict[str, Any]]) -> dict[str, list[int]]:
+    """Return flattened 1-based MSH vertex indices grouped by Blender source object.
+
+    The direct MSH writer concatenates subset vertices in this order. The sidecar therefore keeps
+    the source boundary without depending on material names or on a runtime subset-name API.
+    """
+    result: dict[str, list[int]] = {}
+    mesh_index = 0
+    for subset in subsets or []:
+        for vertex in subset.get("vertices") or []:
+            mesh_index += 1
+            object_name = str(vertex.get("sourceObject") or "").strip()
+            if object_name:
+                result.setdefault(object_name, []).append(mesh_index)
+    return result
 
 
 def check_cancel_requested(cancel_file: str) -> None:
@@ -1109,7 +1204,8 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                           output_dir: str | None = None, capture_weights: bool = False,
                           canonical_coordinates: bool = False, uniform_scale: float = 1.0,
                           normalize_textures: bool = False, output_stem: str = "mesh",
-                          excluded_texture_roles: set[str] | None = None) -> list[dict[str, Any]]:
+                          excluded_texture_roles: set[str] | None = None,
+                          capture_source_vertices: bool = False) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
     scene_frame = int(scene.frame_current)
@@ -1201,7 +1297,10 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                         v = 0.0
 
                     # Use a topology-safe key. Avoid float rounding welds because they can
-                    # collapse distinct vertices and produce broken triangles.
+                    # collapse distinct vertices and produce broken triangles. Facial source
+                    # associations are stored on each new vertex below; the loop index is not part
+                    # of this key because making every triangle corner unique can exceed the MSH
+                    # 16-bit index limit on otherwise valid high-poly facial meshes.
                     key = (
                         int(loop.vertex_index),
                         float(u),
@@ -1210,7 +1309,6 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                         no_y,
                         no_z,
                     )
-
                     idx = vmap.get(key)
                     if idx is None:
                         idx = len(bucket["vertices"]) + 1
@@ -1225,6 +1323,10 @@ def export_frame_subsets(scene: Any, rotation_deg: tuple[float, float, float] | 
                             "ny": no_y,
                             "nz": no_z,
                         }
+                        if capture_source_vertices:
+                            vertex_dict["sourceObject"] = obj.name
+                            vertex_dict["sourceVertex"] = int(loop.vertex_index)
+                            vertex_dict["sourceLoop"] = int(loop_index)
                         if capture_weights and obj.vertex_groups:
                             # Already capped to <=4 influences summing to ~1.0 by the
                             # vertex_group_limit_total/vertex_group_normalize_all ops applied
@@ -1454,10 +1556,313 @@ def activate_animation_source(scene: Any, clip: dict[str, Any]) -> None:
     obj.animation_data.action = action
 
 
+def ensure_active_canonical_action(skeleton: dict[str, Any], debug: bool = False) -> None:
+    """Activate a detached pose action before an implicit scene-range bake.
+
+    The facial round-trip's Blender skeleton exporter deliberately leaves the
+    armature in the bind pose while retaining the generated Action datablock.
+    When no explicit ``--animation-source`` is supplied, Blender therefore
+    evaluates every sampled frame as the bind pose.  Select the first Action
+    that animates a canonical pose bone so ``--bake-animation`` preserves real
+    skeletal motion.  Explicit animation sources still override this choice
+    in ``activate_animation_source``.
+    """
+    armature_obj = skeleton["armatureObject"]
+    animation_data = getattr(armature_obj, "animation_data", None)
+    if animation_data is not None and getattr(animation_data, "action", None) is not None:
+        return
+    bone_names = set(skeleton.get("orderedNames") or [])
+    candidates = [action for action in bpy.data.actions
+                  if action_animates_pose_bones(action, bone_names)]
+    if not candidates:
+        return
+    candidates.sort(key=lambda action: str(getattr(action, "name", "")))
+    armature_obj.animation_data_create()
+    armature_obj.animation_data.action = candidates[0]
+    debug_print(debug, f"activated canonical skeletal action: {candidates[0].name}")
+
+
 def clip_frame_numbers(clip: dict[str, Any]) -> list[int]:
     frame_start, frame_end = normalize_frame_range(int(clip.get("frameStart", 1)), int(clip.get("frameEnd", 1)))
     step = max(1, int(clip.get("sampleStep", 1)))
     return list(range(frame_start, frame_end + 1, step))
+
+
+def facial_clip_frame_numbers(clip: dict[str, Any]) -> list[int]:
+    frames = clip_frame_numbers(clip)
+    frame_end = normalize_frame_range(int(clip.get("frameStart", 1)), int(clip.get("frameEnd", 1)))[1]
+    if not frames or frames[-1] != frame_end:
+        frames.append(frame_end)
+    return frames
+
+
+def discover_facial_source(scene: Any, args: argparse.Namespace) -> dict[str, Any] | None:
+    if not getattr(args, "include_facial", False):
+        return None
+    sources = [obj for obj in scene.objects if obj.type == "MESH" and obj.visible_get() and
+               getattr(obj.data, "shape_keys", None) is not None]
+    sources = [obj for obj in sources if len(obj.data.shape_keys.key_blocks) >= 2]
+    if not sources:
+        debug_print(args.debug_steps, "facial import requested but no visible shape-key mesh was found")
+        return None
+    if len(sources) != 1:
+        names = ", ".join(str(obj.name) for obj in sources)
+        raise RuntimeError(f"Facial import currently requires one visible shape-key mesh; found: {names}")
+    obj = sources[0]
+    keys = obj.data.shape_keys
+    if not keys.use_relative:
+        raise RuntimeError(f"{obj.name}: absolute shape keys are unsupported; use relative keys")
+    if obj.show_only_shape_key:
+        raise RuntimeError(f"{obj.name}: disable Show Only Shape Key before facial import")
+    if len(keys.key_blocks) > 257:
+        raise RuntimeError(f"{obj.name}: facial target count exceeds the 256-target limit")
+    basis = keys.reference_key
+    for key in keys.key_blocks[1:]:
+        if key.relative_key != basis or key.vertex_group or key.mute:
+            raise RuntimeError(f"{obj.name}/{key.name}: facial targets must be unmasked Basis-relative keys")
+        if len(key.data) != len(obj.data.vertices):
+            raise RuntimeError(f"{obj.name}/{key.name}: shape-key topology mismatch")
+        for point in key.data:
+            if not all(math.isfinite(float(value)) for value in point.co):
+                raise RuntimeError(f"{obj.name}/{key.name}: non-finite shape-key coordinate")
+    if getattr(args, "facial_normal_deltas", False):
+        if getattr(obj.data, "has_custom_normals", False) or any(not poly.use_smooth for poly in obj.data.polygons):
+            raise RuntimeError(f"{obj.name}: normal deltas require smooth geometry without custom normals")
+    for modifier in obj.modifiers:
+        if modifier.type != "ARMATURE":
+            raise RuntimeError(f"{obj.name}: unsupported facial modifier {modifier.type}")
+    action = keys.animation_data.action if keys.animation_data and keys.animation_data.action else None
+    def metadata_list(property_name: str) -> list[Any]:
+        raw = obj.data.get(property_name)
+        if not raw:
+            return []
+        try:
+            value = json.loads(str(raw))
+        except (TypeError, ValueError):
+            return []
+        return value if isinstance(value, list) else []
+    # Blender's FBX importer may preserve the shape keys and mesh custom properties while dropping
+    # the shape-key Actions. MeshDebug-owned FBX exports use this payload as a curve fallback.
+    raw_clip_payload = obj.data.get("mini_mbm_facial_clips")
+    try:
+        clip_payload = json.loads(str(raw_clip_payload)) if raw_clip_payload else []
+    except (TypeError, ValueError):
+        clip_payload = []
+    if not isinstance(clip_payload, list):
+        clip_payload = []
+    return {
+        "object": obj,
+        "keys": keys,
+        "action": action,
+        "meshId": obj.data.get("mini_mbm_facial_mesh_id"),
+        "targetIds": metadata_list("mini_mbm_facial_target_ids"),
+        "targetConventions": metadata_list("mini_mbm_facial_target_conventions"),
+        "targetDefaults": metadata_list("mini_mbm_facial_target_defaults"),
+        "clipPayload": clip_payload,
+    }
+
+
+def facial_clip_specs(source: dict[str, Any], clips: list[dict[str, Any]], scene: Any) -> list[dict[str, Any]]:
+    action = source.get("action")
+    if clips:
+        return [dict(clip) for clip in clips]
+    if action is None:
+        return [dict(clip) for clip in source.get("clipPayload", [])
+                if isinstance(clip, dict) and isinstance(clip.get("keys"), list)]
+    start, end = action_frame_range(action)
+    return [{"name": str(action.name or "Face"), "id": action.get("mini_mbm_clip_id"),
+             "interpolation": action.get("mini_mbm_interpolation", "linear"),
+             "loop": bool(action.get("mini_mbm_loop", True)),
+             "frameStart": start, "frameEnd": end, "sampleStep": 1}]
+
+
+def facial_metadata_id(value: Any, fallback: int) -> int:
+    """Reads numeric ids and hexadecimal strings stored by the reverse Blender exporter."""
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, int):
+        return value or fallback
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        parsed = int(value)
+        return parsed or fallback
+    try:
+        text = str(value)
+        parsed = int(text, 16) if all(character in "0123456789abcdefABCDEF" for character in text) else int(text)
+        return parsed or fallback
+    except (TypeError, ValueError):
+        return fallback
+
+
+def sample_facial_clips(scene: Any, source: dict[str, Any], clips: list[dict[str, Any]], fps: float,
+                       args: argparse.Namespace) -> list[dict[str, Any]]:
+    if not clips:
+        return []
+    obj = source["object"]
+    keys = source["keys"].key_blocks
+    result: list[dict[str, Any]] = []
+    for clip in clips:
+        stored_keys = clip.get("keys")
+        if isinstance(stored_keys, list):
+            weights_out: list[dict[str, Any]] = []
+            previous_time = -math.inf
+            for key_index, key in enumerate(stored_keys):
+                if not isinstance(key, dict):
+                    raise RuntimeError(f"{obj.name}: facial clip key {key_index} is invalid")
+                time = float(key.get("time", 0.0))
+                weights = [float(weight) for weight in (key.get("weights") or [])]
+                if not math.isfinite(time) or time < previous_time:
+                    raise RuntimeError(f"{obj.name}: facial clip key times must be finite and ordered")
+                if len(weights) != len(keys) - 1 or any(
+                        not math.isfinite(weight) or weight < 0.0 or weight > 1.0 for weight in weights):
+                    raise RuntimeError(f"{obj.name}: facial clip weights must match targets and stay within [0, 1]")
+                weights_out.append({"time": time, "weights": weights})
+                previous_time = time
+            duration = float(clip.get("duration", weights_out[-1]["time"] if weights_out else 0.0))
+            if not math.isfinite(duration) or duration < 0.0:
+                raise RuntimeError(f"{obj.name}: facial clip duration is invalid")
+            result.append({
+                "id": facial_metadata_id(clip.get("id"),
+                                         stable_id("mini-mbm.facial.clip/", f"{obj.name}/{clip.get('name') or 'Face'}")),
+                "name": str(clip.get("name") or "Face"),
+                "duration": duration,
+                "loop": bool(clip.get("loop", True)),
+                "interpolation": str(clip.get("interpolation") or "linear"),
+                "keys": weights_out,
+            })
+            continue
+        frames = facial_clip_frame_numbers(clip)
+        keys_out: list[dict[str, Any]] = []
+        for frame in frames:
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            weights = [float(key.value) for key in keys[1:]]
+            if any(not math.isfinite(weight) or weight < 0.0 or weight > 1.0 for weight in weights):
+                raise RuntimeError(f"{obj.name}: facial weights must stay within [0, 1]")
+            keys_out.append({"time": float(frame - frames[0]) / fps, "weights": weights})
+        duration = float(frames[-1] - frames[0]) / fps
+        result.append({
+            "id": facial_metadata_id(clip.get("id"),
+                                     stable_id("mini-mbm.facial.clip/", f"{obj.name}/{clip.get('name') or 'Face'}")),
+            "name": str(clip.get("name") or "Face"),
+            "duration": duration,
+            "loop": bool(clip.get("loop", True)),
+            "interpolation": str(clip.get("interpolation") or "linear"),
+            "keys": keys_out,
+        })
+    return result
+
+
+def save_facial_source_state(source: dict[str, Any]) -> dict[str, Any]:
+    obj = source["object"]
+    keys = source["keys"]
+    animation_data = keys.animation_data
+    return {
+        "action": animation_data.action if animation_data else None,
+        "action_slot": getattr(animation_data, "action_slot", None) if animation_data else None,
+        "values": [float(key.value) for key in keys.key_blocks],
+    }
+
+
+def disable_facial_source(source: dict[str, Any]) -> None:
+    keys = source["keys"]
+    if keys.animation_data:
+        keys.animation_data.action = None
+    for key in keys.key_blocks:
+        key.value = 0.0
+    bpy.context.view_layer.update()
+
+
+def restore_facial_source(source: dict[str, Any], state: dict[str, Any]) -> None:
+    keys = source["keys"]
+    if keys.animation_data:
+        keys.animation_data.action = state.get("action")
+        if state.get("action_slot") is not None:
+            keys.animation_data.action_slot = state["action_slot"]
+    for key, value in zip(keys.key_blocks, state.get("values") or []):
+        key.value = value
+    bpy.context.view_layer.update()
+
+
+def align_facial_vertices(base_vertices: list[dict[str, Any]], evaluated_vertices: list[dict[str, Any]],
+                          object_name: str, target_name: str) -> list[dict[str, Any]]:
+    """Restore base emitted-vertex order after a shape key changes normal-based deduplication."""
+    by_association: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
+    for vertex in evaluated_vertices:
+        association = (vertex.get("sourceObject"), vertex.get("sourceVertex"), vertex.get("sourceLoop"))
+        if any(value is None for value in association):
+            raise RuntimeError(f"{object_name}/{target_name}: evaluated vertex is missing source association")
+        if association in by_association:
+            raise RuntimeError(f"{object_name}/{target_name}: duplicate evaluated vertex association")
+        by_association[association] = vertex
+    aligned: list[dict[str, Any]] = []
+    for vertex in base_vertices:
+        association = (vertex.get("sourceObject"), vertex.get("sourceVertex"), vertex.get("sourceLoop"))
+        target = by_association.get(association)
+        if target is None:
+            raise RuntimeError(f"{object_name}/{target_name}: evaluated vertex association changed")
+        aligned.append(target)
+    return aligned
+
+
+def build_facial_asset(scene: Any, source: dict[str, Any], base_subsets: list[dict[str, Any]],
+                       facial_clips: list[dict[str, Any]], args: argparse.Namespace,
+                       rotation_deg: tuple[float, float, float] | None, canonical_coordinates: bool,
+                       uniform_scale: float, output_dir: str, output_stem: str,
+                       excluded_texture_roles: set[str]) -> dict[str, Any]:
+    if args.large_mesh_mode == "vb_only":
+        raise RuntimeError("Facial import is incompatible with vertex-buffer-only mode")
+    signature, vertex_count = facial_geometry_signature(base_subsets)
+    obj = source["object"]
+    base_vertices = [vertex for subset in base_subsets for vertex in (subset.get("vertices") or [])]
+    targets: list[dict[str, Any]] = []
+    for key in source["keys"].key_blocks[1:]:
+        key.value = 1.0
+        bpy.context.view_layer.update()
+        evaluated_subsets = export_frame_subsets(
+            scene, rotation_deg, output_dir, False, canonical_coordinates, uniform_scale,
+            args.normalize_textures, output_stem, excluded_texture_roles, True)
+        raw_evaluated_vertices = [vertex for subset in evaluated_subsets
+                                  for vertex in (subset.get("vertices") or [])]
+        if len(raw_evaluated_vertices) != len(base_vertices):
+            raise RuntimeError(f"{obj.name}/{key.name}: evaluated topology changed while extracting target")
+        evaluated_vertices = align_facial_vertices(
+            base_vertices, raw_evaluated_vertices, obj.name, key.name)
+        position_deltas = [
+            (float(evaluated["x"]) - float(base["x"]), float(evaluated["y"]) - float(base["y"]),
+             float(evaluated["z"]) - float(base["z"]))
+            for base, evaluated in zip(base_vertices, evaluated_vertices)
+        ]
+        target_index = len(targets)
+        target: dict[str, Any] = {
+            "id": facial_metadata_id((source.get("targetIds") or [])[target_index]
+                                     if target_index < len(source.get("targetIds") or []) else None,
+                                     stable_id("mini-mbm.facial.target/", f"{obj.name}/{key.name}")),
+            "name": str(key.name),
+            "convention": str((source.get("targetConventions") or [])[target_index]
+                               if target_index < len(source.get("targetConventions") or []) and
+                               (source.get("targetConventions") or [])[target_index] else
+                               args.facial_convention or ""),
+            "defaultWeight": float((source.get("targetDefaults") or [])[target_index]
+                                   if target_index < len(source.get("targetDefaults") or []) else 0.0),
+            "positionDeltas": position_deltas,
+        }
+        if args.facial_normal_deltas:
+            target["normalDeltas"] = [
+                (float(evaluated["nx"]) - float(base["nx"]), float(evaluated["ny"]) - float(base["ny"]),
+                 float(evaluated["nz"]) - float(base["nz"]))
+                for base, evaluated in zip(base_vertices, evaluated_vertices)
+            ]
+        targets.append(target)
+        key.value = 0.0
+    return {
+        "meshId": facial_metadata_id(source.get("meshId"), stable_id("mini-mbm.facial.mesh/", str(obj.name))),
+        "geometrySignature": signature,
+        "vertexCount": vertex_count,
+        "targets": targets,
+        "clips": facial_clips,
+    }
 
 
 def append_animation_header_for_clip(animations: list[dict[str, Any]],
@@ -1483,6 +1888,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     import_source(source_path)
     scene = bpy.context.scene
     prepare_static_decimation(scene, args)
+    exported_source_objects = source_object_names(scene)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1491,7 +1897,6 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     source_file = source_path
     output_dir = os.path.dirname(os.path.abspath(args.output))
     clips = parse_animation_clips(args, scene)
-
     frames_out: list[dict[str, Any]] = []
     animations: list[dict[str, Any]] = []
     fps = get_scene_fps(scene)
@@ -1529,6 +1934,7 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
         "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_out,
         "animations": animations,
+        "sourceObjects": exported_source_objects,
     }
 
 
@@ -1549,6 +1955,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
     import_source(source_path)
     scene = bpy.context.scene
     prepare_static_decimation(scene, args)
+    exported_source_objects = source_object_names(scene)
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
@@ -1604,6 +2011,7 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_manifest,
         "animations": animations,
+        "sourceObjects": exported_source_objects,
     }
 
 
@@ -1699,7 +2107,25 @@ def write_section_v11(fp: Any, section_type: int, section_version: int, payload:
     fp.write(compressed)
 
 
-def build_material_transform_payload_v11(angles: tuple[float, float, float]) -> bytes:
+def scene_uses_backface_culling(scene: Any) -> bool:
+    """Return whether the imported materials request back-face culling.
+
+    glTF/GLB stores this as ``doubleSided`` and Blender exposes the imported value through
+    ``use_backface_culling``.  A number of character assets intentionally contain mixed winding
+    on fur, tongues, and inner-mouth surfaces; preserving that material setting is necessary for
+    those surfaces to remain visible in mini-mbm.
+    """
+    for obj in scene.objects:
+        if obj.type != "MESH" or not obj.visible_get():
+            continue
+        for material in obj.data.materials:
+            if material is not None and not bool(getattr(material, "use_backface_culling", True)):
+                return False
+    return True
+
+
+def build_material_transform_payload_v11(angles: tuple[float, float, float],
+                                         cull_face: int = 0x0405) -> bytes:
     buf = io.BytesIO()
     write_material_default(buf)
     write_f32(buf, angles[0])
@@ -1709,7 +2135,7 @@ def build_material_transform_payload_v11(angles: tuple[float, float, float]) -> 
     write_f32(buf, 0.0)  # posY
     write_f32(buf, 0.0)  # posZ
     write_u32(buf, 4)       # mode_draw = MODE_DRAW_TRIANGLES
-    write_u32(buf, 0x0405)  # mode_cull_face = CULL_BACK
+    write_u32(buf, cull_face)  # mode_cull_face = CULL_BACK or CULL_FRONT_AND_BACK (no culling)
     write_u32(buf, 0x0900)  # mode_front_face_direction = CW
     return buf.getvalue()
 
@@ -1923,6 +2349,85 @@ def stable_id(domain: str, value: str) -> int:
         result ^= byte
         result = (result * 1099511628211) & 0xFFFFFFFFFFFFFFFF
     return result or 1
+
+
+def facial_geometry_signature(subsets: list[dict[str, Any]]) -> tuple[int, int]:
+    """Mirror facial::geometrySignature for the frame-0 direct-MSH vertex order."""
+    vertices = [vertex for subset in subsets for vertex in (subset.get("vertices") or [])]
+    indices: list[int] = []
+    vertex_start = 0
+    for subset in subsets:
+        for raw_index in (subset.get("indices") or []):
+            index = int(raw_index) - 1
+            if index < 0 or index >= len(subset.get("vertices") or []):
+                raise RuntimeError("facial geometry signature saw an out-of-range frame-0 index")
+            indices.append(vertex_start + index)
+        vertex_start += len(subset.get("vertices") or [])
+    has_normals = all(all(key in vertex for key in ("nx", "ny", "nz")) for vertex in vertices)
+    value = 14695981039346656037
+
+    def word(number: int) -> None:
+        nonlocal value
+        for shift in range(0, 32, 8):
+            value ^= (int(number) >> shift) & 0xFF
+            value = (value * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+
+    def float_word(number: float) -> None:
+        bits = struct.unpack("<I", struct.pack("<f", float(number)))[0]
+        if float(number) == 0.0:
+            bits = 0
+        word(bits)
+
+    word(len(vertices))
+    word(len(indices))
+    word(1 if has_normals else 0)
+    for vertex in vertices:
+        for key in ("x", "y", "z"):
+            float_word(vertex.get(key, 0.0))
+        if has_normals:
+            for key in ("nx", "ny", "nz"):
+                float_word(vertex.get(key, 0.0))
+    for index in indices:
+        word(index)
+    return value, len(vertices)
+
+
+def build_facial_targets_payload_v11(asset: dict[str, Any]) -> bytes:
+    buf = io.BytesIO()
+    write_u64(buf, int(asset["meshId"]))
+    write_u64(buf, int(asset["geometrySignature"]))
+    write_u32(buf, int(asset["vertexCount"]))
+    write_u32(buf, len(asset["targets"]))
+    for target in asset["targets"]:
+        write_u64(buf, int(target["id"]))
+        write_string_v11(buf, str(target["name"]))
+        write_string_v11(buf, str(target.get("convention") or ""))
+        write_f32(buf, float(target.get("defaultWeight", 0.0)))
+        normals = target.get("normalDeltas") or []
+        write_u32(buf, 1 if normals else 0)
+        for delta in target["positionDeltas"]:
+            write_vec3(buf, delta)
+        for delta in normals:
+            write_vec3(buf, delta)
+    return buf.getvalue()
+
+
+def build_facial_clips_payload_v11(asset: dict[str, Any]) -> bytes:
+    buf = io.BytesIO()
+    write_u64(buf, int(asset["meshId"]))
+    write_u32(buf, len(asset.get("clips") or []))
+    for clip in asset.get("clips") or []:
+        write_u64(buf, int(clip["id"]))
+        write_string_v11(buf, str(clip["name"]))
+        write_f32(buf, float(clip["duration"]))
+        write_u32(buf, 1 if clip.get("loop", True) else 0)
+        write_u32(buf, 1 if clip.get("interpolation", "linear") == "linear" else 0)
+        write_u32(buf, len(clip["keys"]))
+        for key in clip["keys"]:
+            write_f32(buf, float(key["time"]))
+            for weight in key["weights"]:
+                write_f32(buf, float(weight))
+    return buf.getvalue()
 
 
 def geometric_mean_scale(scale: Any) -> float:
@@ -2436,18 +2941,45 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
     write_direct_frame_chunk_indexed(path, subsets, args)
 
 
+def effective_excluded_texture_roles(args: argparse.Namespace, facial_active: bool | None = None) -> set[str]:
+    """Return texture roles that are safe for the selected direct-export path.
+
+    The current facial renderer rejects meshes with prepared 3D normal-map state.  With
+    ``USE_NORMAL_MAPPING_3D`` enabled, merely retaining a normal texture slot causes the
+    runtime loader to prepare that state automatically, even when the MSH has no explicit
+    tangent section.  Exclude the slot for facial exports so the resulting asset can reach
+    ``MESH::finishLoad``; static exports preserve the author's normal texture as before.
+    """
+    excluded = set(args.exclude_texture_role or [])
+    if facial_active is None:
+        facial_active = bool(args.include_facial)
+    if facial_active:
+        excluded.add("normal")
+    return excluded
+
+
 def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     source_path = os.path.abspath(args.input)
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    cull_face = 0x0405 if scene_uses_backface_culling(scene) else 0x0408
+    exported_source_objects = source_object_names(scene)
+    debug_print(args.debug_steps, "material culling: " + ("back" if cull_face == 0x0405 else "disabled"))
     prepare_static_decimation(scene, args)
+    facial_source = discover_facial_source(scene, args)
+    facial_state = save_facial_source_state(facial_source) if facial_source else None
     mesh_cache_issues = get_mesh_cache_issues(scene)
     if args.bake_animation and mesh_cache_issues:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
         raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
     clips = parse_animation_clips(args, scene)
+    facial_clips = []
+    if facial_source:
+        facial_specs = facial_clip_specs(facial_source, clips, scene)
+        facial_clips = sample_facial_clips(scene, facial_source, facial_specs, get_scene_fps(scene), args)
+        disable_facial_source(facial_source)
     temp_root = tempfile.mkdtemp(prefix="mbm_direct_msh_")
     frame_paths: list[str] = []
     animations: list[dict[str, Any]] = []
@@ -2479,6 +3011,13 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                 args.debug_steps,
                 f"canonical skeletal export unavailable: {skeletal_capability.get('reason', '')}; using baked/static path",
             )
+        if facial_source and clips and not canonical_skeleton:
+            raise RuntimeError(
+                "Facial clips require a canonical skeletal asset or a static frame; "
+                "disable baked mesh animation or enable a valid armature export."
+            )
+        if canonical_skeleton and clips:
+            ensure_active_canonical_action(canonical_skeleton, args.debug_steps)
         canonical_clips = (extract_canonical_animations(scene, clips, fps, canonical_skeleton)
                            if canonical_skeleton and clips else [])
         apply_uniform_scale_to_canonical_data(canonical_skeleton, canonical_clips, uniform_scale)
@@ -2490,7 +3029,13 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # had the file and is otherwise meaningless on this one.
         output_dir = os.path.dirname(os.path.abspath(out_path))
         output_stem = os.path.splitext(os.path.basename(out_path))[0]
-        excluded_texture_roles = set(args.exclude_texture_role or [])
+        excluded_texture_roles = effective_excluded_texture_roles(args, facial_source is not None)
+        if facial_source is not None and "normal" not in (args.exclude_texture_role or []):
+            debug_print(
+                args.debug_steps,
+                "facial export: excluding normal textures because the current facial render path "
+                "does not support normal mapping",
+            )
         # Real per-vertex weights only make sense alongside a real skeleton (--include-bones), and
         # only for the default indexed write path -- see build_canonical_weights_payload_v11's
         # own docstring for why vb_only mode is excluded.
@@ -2498,6 +3043,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         # Canonical type-42 weights are a bind-pose property tied to frame 1's topology, so only
         # the very first exported frame's subsets are retained for the canonical payload below.
         first_frame_subsets: list[dict[str, Any]] | None = None
+        facial_asset: dict[str, Any] | None = None
 
         def export_frame_to_chunk(frame: int) -> None:
             nonlocal first_frame_subsets
@@ -2511,7 +3057,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
                                            uniform_scale=uniform_scale,
                                            normalize_textures=bool(args.normalize_textures),
                                            output_stem=output_stem,
-                                           excluded_texture_roles=excluded_texture_roles)
+                                           excluded_texture_roles=excluded_texture_roles,
+                                           capture_source_vertices=True)
             if not subsets:
                 raise RuntimeError(
                     "The Blender scene has no visible triangle faces to export. "
@@ -2584,6 +3131,21 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         angles = (0.0, 0.0, 0.0)
         texture_path_list = sorted(texture_paths)
 
+        if facial_source and first_frame_subsets:
+            facial_armature = canonical_skeleton["armatureObject"] if canonical_skeleton else None
+            previous_facial_pose = facial_armature.data.pose_position if facial_armature else None
+            if facial_armature:
+                facial_armature.data.pose_position = "REST"
+            try:
+                facial_asset = build_facial_asset(
+                    scene, facial_source, first_frame_subsets, facial_clips, args, import_rotation_deg,
+                    bool(canonical_skeleton), uniform_scale, output_dir, output_stem, excluded_texture_roles)
+            finally:
+                if facial_armature:
+                    facial_armature.data.pose_position = previous_facial_pose
+            debug_print(args.debug_steps, f"captured facial data: {len(facial_asset['targets'])} target(s), "
+                        f"{len(facial_asset['clips'])} clip(s)")
+
         if canonical_skeleton:
             debug_print(args.debug_steps, f"extracted canonical armature: {len(canonical_skeleton['bones'])} bone(s)")
 
@@ -2609,6 +3171,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             section_count += 1  # SECTION_SKELETAL_WEIGHTS
         if canonical_animations_payload is not None:
             section_count += 1  # SECTION_SKELETAL_ANIMATION
+        if facial_asset is not None:
+            section_count += 1  # SECTION_FACIAL_TARGETS
+            if facial_asset["clips"]:
+                section_count += 1  # SECTION_FACIAL_CLIPS
 
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
@@ -2616,7 +3182,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         with open(tmp_out, "wb") as fp:
             write_file_header_v11(fp, TYPE_MESH_3D, 0, 0, section_count)
 
-            write_section_v11(fp, SECTION_MATERIAL_TRANSFORM, 1, build_material_transform_payload_v11(angles), False)
+            write_section_v11(fp, SECTION_MATERIAL_TRANSFORM, 1,
+                              build_material_transform_payload_v11(angles, cull_face), False)
 
             if texture_path_list:
                 write_section_v11(fp, SECTION_EXTRA_PATHS, 1, build_extra_paths_payload_v11(texture_path_list), False)
@@ -2642,12 +3209,32 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             if canonical_animations_payload is not None:
                 write_section_v11(fp, SECTION_SKELETAL_ANIMATION, 1, canonical_animations_payload, False)
 
+            if facial_asset is not None:
+                write_section_v11(fp, SECTION_FACIAL_TARGETS, 1,
+                                  build_facial_targets_payload_v11(facial_asset), True)
+                if facial_asset["clips"]:
+                    write_section_v11(fp, SECTION_FACIAL_CLIPS, 1,
+                                      build_facial_clips_payload_v11(facial_asset), False)
+
             fp.flush()
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
         os.replace(tmp_out, out_path)
+        object_catalog = {
+            "version": 1,
+            "source": source_path,
+            "objects": exported_source_objects,
+        }
+        if first_frame_subsets:
+            object_catalog["vertexMap"] = source_vertex_map(first_frame_subsets)
+            object_catalog["vertexCount"] = sum(len(subset.get("vertices") or [])
+                                                 for subset in first_frame_subsets)
+            object_catalog["topologySignature"] = msh_topology_signature(first_frame_subsets)
+        write_lua_atomic(source_object_catalog_path(out_path), object_catalog)
         return len(frame_paths)
     finally:
+        if facial_source and facial_state:
+            restore_facial_source(facial_source, facial_state)
         shutil.rmtree(temp_root, ignore_errors=True)
 
 

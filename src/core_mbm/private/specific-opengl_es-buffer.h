@@ -55,6 +55,19 @@ namespace mbm
         uint32_t *vboBoneIndicesVB;
         uint32_t *vboBoneWeightsVB;
         uint32_t skinSubsetCount;
+        // Facial morph resources. The float texture stores position rows followed
+        // by optional normal rows for each target; the ID streams address its
+        // canonical vertex order without changing the mesh index topology.
+        uint32_t facialMorphTexture;
+        uint32_t vboFacialVertexIdIB;
+        uint32_t *vboFacialVertexIdVB;
+        uint32_t facialMorphSubsetCount;
+        uint32_t facialMorphTextureWidth;
+        uint32_t facialMorphTextureHeight;
+        uint32_t facialMorphRowsPerTarget;
+        uint32_t facialMorphTargetCount;
+        bool facialMorphHasNormals;
+        void releaseFacialMorph();
 #if USE_NORMAL_MAPPING_3D
         std::vector<NORMAL_MAP_GPU_SUBSET> normalMapSubsets;
         void releaseNormalMap();

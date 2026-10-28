@@ -37,7 +37,9 @@ file(GLOB SOURCES "*.cpp")
 
 if(USE_METAL)
   set_source_files_properties(normal-map-native-resource-tests.cpp PROPERTIES LANGUAGE OBJCXX COMPILE_FLAGS "-fobjc-arc")
-  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm")
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-skeletal-parity-tests.mm"
+      "${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-gpu-upload-metal.mm")
+  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-gpu-upload-metal.mm" PROPERTIES COMPILE_FLAGS "-fobjc-arc")
   if(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/macos-window-tests.mm")
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metal-normal-map-benchmark.mm")
@@ -55,6 +57,8 @@ list(APPEND SOURCES
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/normal-map-asset.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/mesh-v11-io.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-animation-foundation.cpp"
+  "${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-animation.cpp"
+  "${CMAKE_SOURCE_DIR}/src/core_mbm/private/facial-render-capability.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-gpu-lbs.cpp"
   "${CMAKE_SOURCE_DIR}/src/core_mbm/private/skeletal-render-capability.cpp")
 

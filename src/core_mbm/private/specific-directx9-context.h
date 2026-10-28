@@ -56,7 +56,8 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        IDirect3DVertexDeclaration9 *getFVF(const FVF_PROVIDE_BY_ENGINE FVF, bool skeletal = false);
+        IDirect3DVertexDeclaration9 *getFVF(const FVF_PROVIDE_BY_ENGINE FVF, bool skeletal = false,
+                                             bool facialMorph = false);
         void release() noexcept;
         void initializeWi32Callbacks(CORE_MANAGER *core_manager_ptr);
         DWORD DWORD_D3DSAMP_MINFILTER[2];
@@ -69,6 +70,8 @@ namespace mbm
         IDirect3DVertexDeclaration9 *vertex_declaration_pos_uv;
         IDirect3DVertexDeclaration9 *vertex_declaration_pos_norm_uv;
         IDirect3DVertexDeclaration9 *vertex_declaration_skeletal[4];
+        IDirect3DVertexDeclaration9 *vertex_declaration_facial[4];
+        IDirect3DVertexDeclaration9 *vertex_declaration_skeletal_facial[4];
     };
 }
 

@@ -349,7 +349,8 @@ namespace mbm
                 getArrayFloatFromTable(lua, 4, ls_uv.data(), sTableUV);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
-            for (unsigned short int i = 0; i < sizeArray; ++i)
+            // sizeArray counts coordinate scalars; only sizeIndex entries are indices.
+            for (unsigned int i = 0; i < sizeIndex; ++i)
             {
                 if (ls_index[i] == 0 || ls_index[i] > maxVertex)
                 {

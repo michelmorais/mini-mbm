@@ -47,10 +47,20 @@ namespace mbm
         ID3D11Buffer *vertexBuffer;
         ID3D11Buffer *skinVertexBuffer;
         ID3D11Buffer *indexBuffer;
+        ID3D11Texture2D *facialMorphTexture;
+        ID3D11ShaderResourceView *facialMorphTextureView;
+        ID3D11Buffer *facialMorphVertexIdBuffer;
+        std::vector<ID3D11Buffer *> facialMorphVertexIdBufferVB;
         UINT vertexStride;
         bool dynamicVertexBuffer;
+        uint32_t facialMorphTextureWidth;
+        uint32_t facialMorphTextureHeight;
+        uint32_t facialMorphRowsPerTarget;
+        uint32_t facialMorphTargetCount;
+        bool facialMorphHasNormals;
         BUFFER_SPECIFIC() noexcept;
         ~BUFFER_SPECIFIC();
+        void releaseFacialMorph() noexcept;
         void release();
     };
 }

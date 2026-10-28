@@ -151,6 +151,16 @@ The base plus optional layer is composed in local TRS, after which the hierarchy
 LBS/DQS palette are rebuilt. Layer state and layer masks are per-instance runtime state and are not
 serialized into the mesh.
 
+### Facial composition on the same mesh
+
+A mesh may carry both canonical skeletal data and facial targets/clips. Facial morph deltas are
+applied to bind geometry before the skeletal stage, so the evaluated face follows the same LBS pose
+as the body. Facial-target meshes require LBS; DQS remains available for meshes without facial
+targets until facial morph plus rigid-DQS composition is implemented. On Metal, DirectX 9/11, and
+OpenGL ES, the indexed GPU morph path is selected only after backend capability, layout, upload, and
+shader checks; otherwise the per-instance CPU reference path is used. Facial weights and clip time
+remain instance state, while target deltas and clips remain immutable mesh-asset data.
+
 Mesh V11 can also name one autoplay clip in optional `SECTION_AUTOPLAY_ANIMATION` (44). A newly
 loaded `MESH` starts the selected skeletal clip after its animation data is ready. Frame and
 articulated clips use the same selection section and can be selected from Mesh Debug; autoplay
@@ -238,6 +248,11 @@ The complete user workflow is documented in the
 | Windows/DirectX 11 | LBS and rigid DQS use a secondary influence vertex stream plus a per-draw constant-buffer palette, both capped operationally at 1,024 bones. The native encoded/readback parity harness passes synthetic and Lorekeeper LBS/DQS positions and normals against the shared CPU references |
 | Windows/OpenGL ES/ANGLE | The same 88-bone reference reports LBS and DQS `88/1024`; GPU and CPU execution were visually accepted. Native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases on OpenGL ES 3.0 through ANGLE's Direct3D 11 backend |
 | macOS/Metal | Apple M4 production-path LBS/DQS validation passed with the committed Lorekeeper; an 88-bone, 13,111-vertex real mesh also ran Auto-resolved GPU LBS at `88/1024` with a 4,224-byte palette; native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases with Metal API validation enabled |
+
+The macOS facial acceptance additionally loaded a generated 34,164-vertex Meg mesh with 73 bones,
+facial targets, facial clips, and canonical skeletal animation in both MeshDebug and the skeletal
+animation editor. The combined asset preserved morph-then-LBS composition; indexed Metal morph
+parity was checked against the CPU reference, with the documented CPU fallback also exercised.
 
 Deterministic foundation tests cover canonical validation, sampling, easing, hierarchy evaluation,
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,

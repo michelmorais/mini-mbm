@@ -22,8 +22,8 @@
 
 -- Unit-space tests keep nonuniform Size consistent with the displayed volume.
 local M = {}
--- Keep back-face culling enabled and provide the opposite winding explicitly.
--- FRONT_AND_BACK has different meanings across the engine's render backends.
+-- Keep back-face culling enabled and provide the opposite winding explicitly. This helper is used
+-- for editor overlays whose two-sided appearance should not depend on the mesh culling mode.
 function M.doubleSided(vertices)
     local count = #vertices
     for i = 1, count, 9 do

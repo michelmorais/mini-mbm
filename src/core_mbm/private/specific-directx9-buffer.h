@@ -52,6 +52,15 @@ namespace mbm
         IDirect3DVertexBuffer9 *pVertexBuffer;
         IDirect3DVertexBuffer9 *pSkinVertexBuffer;
         IDirect3DIndexBuffer9 *pIndexBuffer;
+        IDirect3DTexture9 *facialMorphTexture;
+        IDirect3DVertexBuffer9 *facialMorphVertexIdBufferIB;
+        std::vector<IDirect3DVertexBuffer9 *> facialMorphVertexIdBufferVB;
+        uint32_t facialMorphTextureWidth;
+        uint32_t facialMorphTextureHeight;
+        uint32_t facialMorphRowsPerTarget;
+        uint32_t facialMorphTargetCount;
+        bool facialMorphHasNormals;
+        void releaseFacialMorph() noexcept;
         void release();
     };
 }

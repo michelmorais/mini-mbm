@@ -30,6 +30,8 @@
 #include <device.h>
 #include <scene.h>
 #include <skeletal-render-capability.h>
+#include "private/facial-render-capability.h"
+#include <cstring>
 
 namespace mbm
 {
@@ -269,15 +271,24 @@ namespace mbm
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         GLint maxTextureSize = 0;
         GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
-        GLint maxVertexUniformVectors = 0, maxVertexAttributes = 0;
+        GLint maxVertexUniformVectors = 0, maxVertexAttributes = 0, maxVertexTextureUnits = 0;
         GLGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniformVectors);
         GLGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttributes);
+        GLGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &maxVertexTextureUnits);
         skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(maxVertexUniformVectors),
                                                       static_cast<uint32_t>(maxVertexAttributes));
+        const char *extensions = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+        facial::setMeasuredGpuMorphCapability(static_cast<uint32_t>(maxVertexTextureUnits),
+            static_cast<uint32_t>(maxTextureSize), extensions && std::strstr(extensions, "GL_OES_texture_float"));
         const skeletal::SKINNING_CAPABILITY skinning = skeletal::getMeasuredSkinningCapability();
+        const facial::GPU_MORPH_CAPABILITY morph = facial::getMeasuredGpuMorphCapability();
         INFO_LOG("GLES2 skeletal capability: vertexUniformVectors=%u vertexAttributes=%u LBS=%u DQS=%u",
                  skinning.maxVertexShaderVectors, skinning.maxVertexAttributes,
                  skinning.lbsMatrixPaletteBones, skinning.dqsRigidPaletteBones);
+        INFO_LOG("GLES2 facial morph capability: vertexTextureUnits=%u textureSize=%u floatTexture=%s indexedDeltas=%s",
+                 morph.maxVertexTextureUnits, morph.maxTextureSize,
+                 morph.hasFloatTexture ? "yes" : "no",
+                 morph.supportsIndexedDeltas ? "ready" : "unavailable");
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;
         const GLint MaxTextureHeight = MaxTextureWidth;

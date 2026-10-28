@@ -1,5 +1,6 @@
 #include "mesh-v11-io.h"
 #include "mesh-io-primitives.h"
+#include "private/facial-animation.h"
 
 #include <cstring>
 #include <miniz-wrap/miniz-wrap.h>
@@ -166,6 +167,11 @@ namespace util
         if (!readSectionHeaderV11(fp, header))
             return false;
 
+        if ((header.type == SECTION_FACIAL_TARGETS || header.type == SECTION_FACIAL_CLIPS) &&
+            (header.sectionVersion != 1 || header.uncompressedLength > mbm::facial::MAX_SECTION_BYTES ||
+             header.compressedLength > mbm::facial::MAX_SECTION_BYTES ||
+             header.compression > SECTION_COMPRESSION_DEFLATE))
+            return false;
         payloadOut.resize(header.uncompressedLength);
         if (header.uncompressedLength == 0)
             return header.compressedLength == 0 && header.crc32Value == mbm::crc32Buffer(nullptr, 0);

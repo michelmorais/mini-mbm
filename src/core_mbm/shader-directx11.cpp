@@ -155,6 +155,7 @@ namespace mbm
             ID3D11InputLayout *inputLayout = nullptr;
             ID3D11Buffer *matrixBuffer = nullptr;
             ID3D11Buffer *skeletalPaletteBuffer = nullptr;
+            ID3D11Buffer *facialMorphWeightsBuffer = nullptr;
             ID3D11Buffer *colorBuffer = nullptr;
             ID3D11Buffer *lightBuffer = nullptr;
 #if USE_NORMAL_MAPPING_3D
@@ -186,6 +187,7 @@ namespace mbm
 #endif
                 if (matrixBuffer) matrixBuffer->Release();
                 if (skeletalPaletteBuffer) skeletalPaletteBuffer->Release();
+                if (facialMorphWeightsBuffer) facialMorphWeightsBuffer->Release();
                 if (inputLayout) inputLayout->Release();
                 if (pixelShader) pixelShader->Release();
                 if (vertexShader) vertexShader->Release();
@@ -201,6 +203,7 @@ namespace mbm
 #endif
                 matrixBuffer = nullptr;
                 skeletalPaletteBuffer = nullptr;
+                facialMorphWeightsBuffer = nullptr;
                 inputLayout = nullptr;
                 pixelShader = nullptr;
                 vertexShader = nullptr;
@@ -212,7 +215,11 @@ namespace mbm
                 usesCustomReservedLight = false;
                 skeletalPaletteSize = 0;
                 skeletalMethod = SKELETAL_SHADER_METHOD::NONE;
+                facialMorphTargetCount = 0;
+                facialMorphActive = false;
             }
+            uint32_t facialMorphTargetCount = 0;
+            bool facialMorphActive = false;
         };
 
         bool createBuffer(ID3D11Device *device, const void *data, const UINT byteWidth,
@@ -538,13 +545,34 @@ namespace mbm
     }
 
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept
-        : vertexBuffer(nullptr), skinVertexBuffer(nullptr), indexBuffer(nullptr), vertexStride(sizeof(D3D11_VERTEX)), dynamicVertexBuffer(false)
+        : vertexBuffer(nullptr), skinVertexBuffer(nullptr), indexBuffer(nullptr), facialMorphTexture(nullptr),
+          facialMorphTextureView(nullptr), facialMorphVertexIdBuffer(nullptr), vertexStride(sizeof(D3D11_VERTEX)),
+          dynamicVertexBuffer(false), facialMorphTextureWidth(0), facialMorphTextureHeight(0),
+          facialMorphRowsPerTarget(0), facialMorphTargetCount(0), facialMorphHasNormals(false)
     {
     }
 
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
     {
         this->release();
+    }
+
+    void BUFFER_SPECIFIC::releaseFacialMorph() noexcept
+    {
+        if (facialMorphVertexIdBuffer) facialMorphVertexIdBuffer->Release();
+        for (ID3D11Buffer *buffer : facialMorphVertexIdBufferVB)
+            if (buffer) buffer->Release();
+        facialMorphVertexIdBufferVB.clear();
+        if (facialMorphTextureView) facialMorphTextureView->Release();
+        if (facialMorphTexture) facialMorphTexture->Release();
+        facialMorphVertexIdBuffer = nullptr;
+        facialMorphTextureView = nullptr;
+        facialMorphTexture = nullptr;
+        facialMorphTextureWidth = 0;
+        facialMorphTextureHeight = 0;
+        facialMorphRowsPerTarget = 0;
+        facialMorphTargetCount = 0;
+        facialMorphHasNormals = false;
     }
 
 #if USE_NORMAL_MAPPING_3D
@@ -606,6 +634,7 @@ namespace mbm
 #if USE_NORMAL_MAPPING_3D
         releaseNormalMap();
 #endif
+        releaseFacialMorph();
         if (indexBuffer) indexBuffer->Release();
         if (skinVertexBuffer) skinVertexBuffer->Release();
         if (vertexBuffer) vertexBuffer->Release();
@@ -990,7 +1019,10 @@ namespace mbm
 
     bool SHADER::compileBackend(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader,
                                mbm::FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
-                               const SKELETAL_SHADER_METHOD skeletalMethod)
+                               const SKELETAL_SHADER_METHOD skeletalMethod,
+                               const uint32_t facialMorphTargetCount, const uint32_t facialMorphTextureWidth,
+                               const uint32_t facialMorphTextureHeight, const uint32_t facialMorphRowsPerTarget,
+                               const bool facialMorphHasNormals)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
             return false;
@@ -1015,6 +1047,9 @@ namespace mbm
                                fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
         const bool hasUv = fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV ||
                            fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        const bool usesFacialMorph = facialMorphTargetCount > 0 && facialMorphTextureWidth > 0 &&
+            facialMorphTextureHeight > 0 && facialMorphRowsPerTarget > 0;
+        const bool usesFacialMorphNormals = usesFacialMorph && facialMorphHasNormals && hasNormal;
         const bool usesGeneratedReservedLight = this->shouldCompileReservedLightDefault();
         const bool usesCustomReservedLight = (ptrPshader && shaderSourceHasReservedLightD3D11(ptrPshader->getCode())) ||
                                              (ptrVshader && shaderSourceHasReservedLightD3D11(ptrVshader->getCode()));
@@ -1026,16 +1061,27 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "canonical DirectX11 skinning does not support a custom vertex shader");
             return false;
         }
+        if (usesFacialMorph && ptrVshader)
+        {
+            ERROR_AT(__LINE__, __FILE__, "canonical DirectX11 facial morph does not support a custom vertex shader");
+            return false;
+        }
         std::string defaultShaderSource =
             "cbuffer Matrices:register(b0){row_major float4x4 mvp;row_major float4x4 mv;}";
         if (usesSkeletal)
             skeletal::appendDirectX9SkeletalFunctions(defaultShaderSource, skeletalPaletteSize, skeletalMethod);
+        if (usesFacialMorph)
+            skeletal::appendDirectX11FacialMorphFunctions(defaultShaderSource, facialMorphTargetCount,
+                                                           facialMorphTextureWidth, facialMorphTextureHeight,
+                                                           facialMorphRowsPerTarget, usesFacialMorphNormals);
         defaultShaderSource +=
             "struct VSInput { float4 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0;";
         if (usesSkeletal)
             defaultShaderSource += " float4 boneIndices : BLENDINDICES0; float4 boneWeights : BLENDWEIGHT0;";
         if (usesNormalMapping)
             defaultShaderSource += "float4 tangent:TANGENT0;";
+        if (usesFacialMorph)
+            defaultShaderSource += "float facialVertexId:FACIAL_VERTEX_ID;";
         defaultShaderSource +=
             " };struct VSOutput {float4 position:SV_POSITION;float2 uv:TEXCOORD0;";
         if (usesLightingScaffolding)
@@ -1044,18 +1090,32 @@ namespace mbm
             defaultShaderSource += "float4 tangentView:TEXCOORD3;";
         defaultShaderSource += "};"
             "VSOutput VSMain(VSInput input) { VSOutput output;";
+        if (usesFacialMorph)
+        {
+            defaultShaderSource += "float4 facialPosition=input.position;";
+            if (hasNormal)
+                defaultShaderSource += "float3 facialNormal=input.normal;";
+            defaultShaderSource += "applyFacialMorph(facialPosition";
+            if (usesFacialMorphNormals)
+                defaultShaderSource += ",facialNormal";
+            defaultShaderSource += ",input.facialVertexId);";
+        }
         if (usesSkeletal)
             skeletal::appendDirectX9SkeletalDeformation(defaultShaderSource, skeletalMethod,
-                                                         usesLightingScaffolding && hasNormal);
+                                                         usesLightingScaffolding && hasNormal,
+                                                         usesFacialMorph ? "facialPosition" : "input.position",
+                                                         usesFacialMorph ? "facialNormal" : "input.normal");
         else
-            defaultShaderSource += "float4 skinnedPosition=input.position;";
+            defaultShaderSource += usesFacialMorph ? "float4 skinnedPosition=facialPosition;" :
+                "float4 skinnedPosition=input.position;";
         defaultShaderSource +=
             "output.position=mul(skinnedPosition,mvp);output.uv=input.uv;";
         if (usesLightingScaffolding)
         {
             defaultShaderSource += usesSkeletal && hasNormal ?
                 "output.normalView=mul(float4(skinnedNormal,0),mv).xyz;" :
-                "output.normalView=mul(float4(input.normal,0),mv).xyz;";
+                (usesFacialMorph ? "output.normalView=mul(float4(facialNormal,0),mv).xyz;" :
+                 "output.normalView=mul(float4(input.normal,0),mv).xyz;");
             defaultShaderSource += "output.positionView=mul(skinnedPosition,mv).xyz;";
             if (usesNormalMapping)
                 defaultShaderSource += R"HLSL(
@@ -1193,7 +1253,7 @@ namespace mbm
         }
         if (errors) errors->Release();
         ID3D11Device *d3dDevice = DEVICE::getInstance()->getSpecificContextDevice()->device;
-        D3D11_INPUT_ELEMENT_DESC elements[] = {
+        D3D11_INPUT_ELEMENT_DESC elements[6] = {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(D3D11_VERTEX, position)), D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(D3D11_VERTEX, normal)), D3D11_INPUT_PER_VERTEX_DATA, 0 },
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, static_cast<UINT>(offsetof(D3D11_VERTEX, uv)), D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -1207,8 +1267,11 @@ namespace mbm
                                                   nullptr, &shaderData->pixelShader);
         if (usesNormalMapping)
             elements[3] = { "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 2, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        UINT elementCount = usesSkeletal ? 5u : (usesNormalMapping ? 4u : 3u);
+        if (usesFacialMorph)
+            elements[elementCount++] = { "FACIAL_VERTEX_ID", 0, DXGI_FORMAT_R32_FLOAT, 2, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 };
         if (SUCCEEDED(result))
-            result = d3dDevice->CreateInputLayout(elements, usesSkeletal ? 5u : (usesNormalMapping ? 4u : 3u),
+            result = d3dDevice->CreateInputLayout(elements, elementCount,
                                                   vertexByteCode->GetBufferPointer(), vertexByteCode->GetBufferSize(),
                                                   &shaderData->inputLayout);
         if (SUCCEEDED(result) && usesCustomVertexShader)
@@ -1233,6 +1296,12 @@ namespace mbm
         const bool createdPaletteBuffer = !usesSkeletal ||
             createBuffer(d3dDevice, nullptr, skeletalPaletteSize * floatsPerBone * sizeof(float),
                          D3D11_BIND_CONSTANT_BUFFER, true, &shaderData->skeletalPaletteBuffer);
+        // The HLSL facial weight array is packed as float4 registers. Keep the
+        // upload layout contiguous: four target weights per constant-buffer row.
+        const UINT facialWeightBytes = ((facialMorphTargetCount + 3u) / 4u) * 16u;
+        const bool createdFacialMorphBuffer = !usesFacialMorph ||
+            createBuffer(d3dDevice, nullptr, facialWeightBytes, D3D11_BIND_CONSTANT_BUFFER, true,
+                         &shaderData->facialMorphWeightsBuffer);
         const bool needsColorBuffer = usesLineColor || usesParticle || steeredParticleHasColor;
         const bool needsSampler = !usesLineColor;
         const bool createdColorBuffer = !needsColorBuffer ||
@@ -1258,7 +1327,8 @@ namespace mbm
 #else
         constexpr bool createdNormalMapBuffers = true;
 #endif
-        if (FAILED(result) || !createdMatrixBuffer || !createdLightBuffer || !createdPaletteBuffer || !createdPixelResource || !createdNormalMapBuffers)
+        if (FAILED(result) || !createdMatrixBuffer || !createdLightBuffer || !createdPaletteBuffer ||
+            !createdFacialMorphBuffer || !createdPixelResource || !createdNormalMapBuffers)
         {
             shaderData->release();
             ERROR_LOG("DirectX11 failed to create the basic shader pipeline (HRESULT=0x%08lx)", result);
@@ -1272,6 +1342,8 @@ namespace mbm
         shaderData->usesCustomReservedLight = usesCustomReservedLight;
         shaderData->skeletalPaletteSize = skeletalPaletteSize;
         shaderData->skeletalMethod = usesSkeletal ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
+        shaderData->facialMorphTargetCount = usesFacialMorph ? facialMorphTargetCount : 0u;
+        shaderData->facialMorphActive = usesFacialMorph;
         return true;
     }
 
@@ -1287,7 +1359,8 @@ namespace mbm
 
     bool SHADER::renderBackend(const BUFFER_GL *pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
-                        const uint32_t skeletalPaletteFloatCount) const
+                        const uint32_t skeletalPaletteFloatCount,
+                        const float *facialMorphWeights, const uint32_t facialMorphWeightCount) const
     {
         const ScopedRenderizableContextD3D11 scopedRenderizableContext(renderizableOwner);
         if (!pBufferId)
@@ -1320,6 +1393,22 @@ namespace mbm
             context->immediateContext->Unmap(shaderData->matrixBuffer, 0);
         }
         const bool usesSkeletal = shaderData->skeletalPaletteSize > 0;
+        const bool usesFacialMorph = shaderData->facialMorphActive;
+        if (usesFacialMorph && (!buffer->facialMorphTextureView || !buffer->facialMorphVertexIdBuffer ||
+                                !shaderData->facialMorphWeightsBuffer || !facialMorphWeights ||
+                                facialMorphWeightCount != shaderData->facialMorphTargetCount))
+            return false;
+        if (usesFacialMorph)
+        {
+            if (FAILED(context->immediateContext->Map(shaderData->facialMorphWeightsBuffer, 0,
+                                                      D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+                return false;
+            const size_t bytes = static_cast<size_t>(facialMorphWeightCount) * sizeof(float);
+            memcpy(mapped.pData, facialMorphWeights, bytes);
+            context->immediateContext->Unmap(shaderData->facialMorphWeightsBuffer, 0);
+            context->immediateContext->VSSetConstantBuffers(3, 1, &shaderData->facialMorphWeightsBuffer);
+            context->immediateContext->VSSetShaderResources(6, 1, &buffer->facialMorphTextureView);
+        }
         if (usesSkeletal)
         {
             if (!buffer->skinVertexBuffer || !shaderData->skeletalPaletteBuffer)
@@ -1353,10 +1442,21 @@ namespace mbm
             context->immediateContext->Unmap(shaderData->skeletalPaletteBuffer, 0);
         }
         const UINT offset = 0;
+        const UINT facialIdStride = sizeof(float);
         if (usesSkeletal)
         {
-            ID3D11Buffer *vertexBuffers[2] = { buffer->vertexBuffer, buffer->skinVertexBuffer };
-            const UINT strides[2] = { buffer->vertexStride, sizeof(skeletal::GPU_LBS_VERTEX) };
+            ID3D11Buffer *vertexBuffers[3] = { buffer->vertexBuffer, buffer->skinVertexBuffer,
+                                                usesFacialMorph ? buffer->facialMorphVertexIdBuffer : nullptr };
+            const UINT strides[3] = { buffer->vertexStride, sizeof(skeletal::GPU_LBS_VERTEX),
+                                      facialIdStride };
+            const UINT offsets[3] = { 0, 0, 0 };
+            context->immediateContext->IASetVertexBuffers(0, usesFacialMorph ? 3u : 2u,
+                                                           vertexBuffers, strides, offsets);
+        }
+        else if (usesFacialMorph)
+        {
+            ID3D11Buffer *vertexBuffers[2] = { buffer->vertexBuffer, buffer->facialMorphVertexIdBuffer };
+            const UINT strides[2] = { buffer->vertexStride, facialIdStride };
             const UINT offsets[2] = { 0, 0 };
             context->immediateContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
         }
@@ -1396,11 +1496,19 @@ namespace mbm
             return false;
 #if USE_NORMAL_MAPPING_3D
         bool usingNormalMapBuffers = false;
-        if (shaderData->zeroTangentBuffer)
+        if (shaderData->zeroTangentBuffer && !usesFacialMorph)
             context->immediateContext->IASetVertexBuffers(2,1,&shaderData->zeroTangentBuffer,&offset,&offset);
 #endif
         for (uint32_t subset = firstSubset; subset < lastSubset; ++subset)
         {
+            if (usesFacialMorph && !pBufferId->isIndexBuffer())
+            {
+                if (subset >= buffer->facialMorphVertexIdBufferVB.size() ||
+                    !buffer->facialMorphVertexIdBufferVB[subset])
+                    return false;
+                context->immediateContext->IASetVertexBuffers(2, 1,
+                    &buffer->facialMorphVertexIdBufferVB[subset], &facialIdStride, &offset);
+            }
             if (shaderData->usesReservedLight &&
                 !uploadReservedLightConstantsD3D11(context->immediateContext, shaderData, pBufferId, subset))
                 return false;

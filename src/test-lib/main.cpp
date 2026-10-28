@@ -26,6 +26,7 @@
 
 #include "my-scene-test.h"
 #include "skeletal-foundation-tests.h"
+#include "facial-animation-tests.h"
 #include "normal-map-preparation-tests.h"
 #include "normal-map-native-resource-tests.h"
 #include "gles-skeletal-parity-tests.h"
@@ -398,6 +399,7 @@ namespace
 //        testLib --launcher-args-test (Windows UTF-8 argument lifetime regression)
 //        testLib --normal-map-preparation-tests
 //        testLib --skeletal-foundation-tests
+//        testLib --facial-performance-benchmark
 //        testLib --animation-zero-interval-test
 //        testLib --gles-dqs-shader-test
 //        testLib --gles-skeletal-parity-test
@@ -514,7 +516,16 @@ static int runTestLib(int argc, char **argv
         return passed ? 0 : 1;
     }
 #endif
+    if (argc == 2 && std::strcmp(argv[1], "--facial-foundation-tests") == 0)
+        return runFacialFoundationTests();
+    if (argc == 2 && std::strcmp(argv[1], "--facial-performance-benchmark") == 0)
+        return runFacialPerformanceBenchmark();
     GAME game;
+    if (argc == 2 && std::strcmp(argv[1], "--facial-runtime-test") == 0)
+    {
+        game.myScene.testFacialAnimation = true;
+        game.myScene.testTimeoutSeconds = 8.0f;
+    }
     game.myScene.testCoreManager = &game;
 #if defined(USE_DIRECTX11)
     if (argc == 2 && std::strcmp(argv[1], "--directx11-builtin-shader-test") == 0)

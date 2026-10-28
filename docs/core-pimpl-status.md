@@ -273,3 +273,11 @@ Revisit a boundary when a concrete backend type leaks into a public header, a
 specific compatibility/ABI requirement calls for it, or an explicit subsystem
 redesign needs it. Strict PIMPL alone is not a reason to redesign gameplay values,
 file-format records, or authoring APIs.
+
+### Metal facial morph storage
+
+The macOS indexed facial morph texture is owned by the private Metal `BUFFER_SPECIFIC` and released
+with the instance buffer. Morph shader metadata lives in the private Metal pipeline object; weights
+remain in the existing private facial render state. No new public handles, containers, or mutable
+storage are exposed. Vertex buffer slots 22-23 and vertex texture 6 carry weights, subset offset,
+and immutable deltas without overlapping existing lighting, skeletal, or normal-map bindings.

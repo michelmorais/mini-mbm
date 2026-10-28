@@ -6783,8 +6783,12 @@ int onAddTextImDrawListLua(lua_State *lua)
     const ImU32 color          = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++));
     const char * p_text_begin  = luaL_checkstring(lua,index_input++);
     const char * p_text_end    = top >= index_input ? lua_tostring(lua,index_input++) :  nullptr;
+    const float font_size      = top >= index_input ? luaL_checknumber(lua,index_input++) : 0.0f;
     ImDrawList* draw_list      = GetImDrawListLua();
-    draw_list->AddText(pos,color,p_text_begin,p_text_end);
+    if (font_size > 0.0f)
+        draw_list->AddText(ImGui::GetFont(),font_size,pos,color,p_text_begin,p_text_end);
+    else
+        draw_list->AddText(pos,color,p_text_begin,p_text_end);
     return 0;
 }
     

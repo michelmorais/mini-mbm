@@ -215,6 +215,167 @@ namespace mbm
         return 1;
     }
 
+    uint32_t facialTargetIndex(lua_State *lua, MESH *mesh, const int index)
+    {
+        if (lua_type(lua, index) == LUA_TSTRING)
+        {
+            const char *name = luaL_checkstring(lua, index);
+            for (uint32_t target = 0; target < mesh->getTotalFacialTargets(); ++target)
+                if (std::strcmp(mesh->getFacialTargetName(target), name) == 0) return target;
+            return UINT32_MAX;
+        }
+        const lua_Integer value = luaL_checkinteger(lua, index);
+        return value > 0 && static_cast<uint64_t>(value) <= mesh->getTotalFacialTargets()
+            ? static_cast<uint32_t>(value - 1) : UINT32_MAX;
+    }
+
+    int onGetTotalFacialTargetsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalFacialTargets()));
+        return 1;
+    }
+
+    int onGetFacialTargetNameLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0 ? mesh->getFacialTargetName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetFacialTargetInfoLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0 || static_cast<uint32_t>(index - 1) >= mesh->getTotalFacialTargets())
+        { lua_pushnil(lua); return 1; }
+        const uint32_t target = static_cast<uint32_t>(index - 1);
+        char id[17] = "";
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(mesh->getFacialTargetId(target)));
+        lua_createtable(lua, 0, 4);
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "id");
+        lua_pushstring(lua, mesh->getFacialTargetName(target)); lua_setfield(lua, -2, "name");
+        lua_pushstring(lua, mesh->getFacialTargetConvention(target)); lua_setfield(lua, -2, "convention");
+        lua_pushnumber(lua, mesh->getFacialTargetDefaultWeight(target)); lua_setfield(lua, -2, "defaultWeight");
+        return 1;
+    }
+
+    int onSetFacialWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t target = facialTargetIndex(lua, mesh, 2);
+        const float weight = static_cast<float>(luaL_checknumber(lua, 3));
+        const bool ok = target != UINT32_MAX && mesh->setFacialWeight(target, weight);
+        lua_pushboolean(lua, ok ? 1 : 0);
+        return 1;
+    }
+
+    int onGetFacialWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t target = facialTargetIndex(lua, mesh, 2);
+        float weight = 0.0f;
+        if (target == UINT32_MAX || !mesh->getFacialWeight(target, &weight)) { lua_pushnil(lua); return 1; }
+        lua_pushnumber(lua, weight);
+        return 1;
+    }
+
+    int onClearFacialWeightLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t target = facialTargetIndex(lua, mesh, 2);
+        lua_pushboolean(lua, target != UINT32_MAX && mesh->clearFacialWeight(target) ? 1 : 0);
+        return 1;
+    }
+
+    int onResetFacialWeightsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->resetFacialWeights() ? 1 : 0);
+        return 1;
+    }
+
+    int onGetTotalFacialClipsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalFacialClips()));
+        return 1;
+    }
+
+    int onGetFacialClipNameLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = index > 0 ? mesh->getFacialClipName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetFacialClipDurationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        float duration = 0.0f;
+        if (index <= 0 || !mesh->getFacialClipDuration(static_cast<uint32_t>(index - 1), &duration))
+        { lua_pushnil(lua); return 1; }
+        lua_pushnumber(lua, duration);
+        return 1;
+    }
+
+    int onPlayFacialAnimationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushboolean(lua, mesh->playFacialAnimation(luaL_checkstring(lua, 2)) ? 1 : 0);
+        return 1;
+    }
+
+    int onPauseFacialAnimationLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushboolean(lua, mesh->pauseFacialAnimation() ? 1 : 0); return 1; }
+    int onResumeFacialAnimationLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushboolean(lua, mesh->resumeFacialAnimation() ? 1 : 0); return 1; }
+    int onStopFacialAnimationLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushboolean(lua, mesh->stopFacialAnimation() ? 1 : 0); return 1; }
+    int onSeekFacialAnimationLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushboolean(lua, mesh->seekFacialAnimation(static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0); return 1; }
+    int onGetFacialAnimationTimeLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1); float time = 0.0f;
+        if (mesh->getFacialAnimationTime(&time)) lua_pushnumber(lua, time); else lua_pushnil(lua);
+        return 1;
+    }
+    int onSetFacialAnimationPlaybackSpeedLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushboolean(lua, mesh->setFacialAnimationPlaybackSpeed(static_cast<float>(luaL_checknumber(lua, 2))) ? 1 : 0); return 1; }
+    int onGetFacialAnimationPlaybackSpeedLua(lua_State *lua)
+    { MESH *mesh = getMeshFromRawTable(lua, 1, 1); lua_pushnumber(lua, mesh->getFacialAnimationPlaybackSpeed()); return 1; }
+
+    int onGetFacialAnimationReportLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        FACIAL_ANIMATION_REPORT report;
+        mesh->getFacialAnimationReport(report);
+        lua_createtable(lua, 0, 16);
+        lua_pushinteger(lua, report.targetCount); lua_setfield(lua, -2, "targetCount");
+        lua_pushinteger(lua, report.clipCount); lua_setfield(lua, -2, "clipCount");
+        lua_pushinteger(lua, static_cast<lua_Integer>(report.deformationCount)); lua_setfield(lua, -2, "deformationCount");
+        lua_pushinteger(lua, static_cast<lua_Integer>(report.uploadCount)); lua_setfield(lua, -2, "uploadCount");
+        lua_pushboolean(lua, report.ready ? 1 : 0); lua_setfield(lua, -2, "ready");
+        lua_pushboolean(lua, report.playing ? 1 : 0); lua_setfield(lua, -2, "playing");
+        lua_pushboolean(lua, report.paused ? 1 : 0); lua_setfield(lua, -2, "paused");
+        lua_pushinteger(lua, report.clipIndex == UINT32_MAX ? 0 : static_cast<lua_Integer>(report.clipIndex + 1)); lua_setfield(lua, -2, "clipIndex");
+        lua_pushnumber(lua, report.clipTime); lua_setfield(lua, -2, "clipTime");
+        lua_pushnumber(lua, report.clipDuration); lua_setfield(lua, -2, "clipDuration");
+        lua_pushnumber(lua, report.playbackSpeed); lua_setfield(lua, -2, "playbackSpeed");
+        if (report.clipName) lua_pushstring(lua, report.clipName); else lua_pushnil(lua);
+        lua_setfield(lua, -2, "clipName");
+        lua_pushstring(lua, report.executionPath); lua_setfield(lua, -2, "executionPath");
+        lua_pushstring(lua, report.morphExecutionPath); lua_setfield(lua, -2, "morphExecutionPath");
+        lua_pushstring(lua, report.morphStatus); lua_setfield(lua, -2, "morphStatus");
+        lua_pushstring(lua, report.status); lua_setfield(lua, -2, "status");
+        return 1;
+    }
+
     int onSetSkeletalSkinningMethodLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -926,6 +1087,25 @@ namespace mbm
                                                      {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                      {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                      {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                     {"getTotalFacialTargets", onGetTotalFacialTargetsLua},
+                                                     {"getFacialTargetName", onGetFacialTargetNameLua},
+                                                     {"getFacialTargetInfo", onGetFacialTargetInfoLua},
+                                                     {"setFacialWeight", onSetFacialWeightLua},
+                                                     {"getFacialWeight", onGetFacialWeightLua},
+                                                     {"clearFacialWeight", onClearFacialWeightLua},
+                                                     {"resetFacialWeights", onResetFacialWeightsLua},
+                                                     {"getTotalFacialClips", onGetTotalFacialClipsLua},
+                                                     {"getFacialClipName", onGetFacialClipNameLua},
+                                                     {"getFacialClipDuration", onGetFacialClipDurationLua},
+                                                     {"playFacialAnimation", onPlayFacialAnimationLua},
+                                                     {"pauseFacialAnimation", onPauseFacialAnimationLua},
+                                                     {"resumeFacialAnimation", onResumeFacialAnimationLua},
+                                                     {"stopFacialAnimation", onStopFacialAnimationLua},
+                                                     {"seekFacialAnimation", onSeekFacialAnimationLua},
+                                                     {"getFacialAnimationTime", onGetFacialAnimationTimeLua},
+                                                     {"setFacialAnimationPlaybackSpeed", onSetFacialAnimationPlaybackSpeedLua},
+                                                     {"getFacialAnimationPlaybackSpeed", onGetFacialAnimationPlaybackSpeedLua},
+                                                     {"getFacialAnimationReport", onGetFacialAnimationReportLua},
                                                      {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
                                                      {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
                                                      {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},
@@ -1021,6 +1201,25 @@ namespace mbm
                                                          {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                          {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                          {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
+                                                     {"getTotalFacialTargets", onGetTotalFacialTargetsLua},
+                                                     {"getFacialTargetName", onGetFacialTargetNameLua},
+                                                     {"getFacialTargetInfo", onGetFacialTargetInfoLua},
+                                                     {"setFacialWeight", onSetFacialWeightLua},
+                                                     {"getFacialWeight", onGetFacialWeightLua},
+                                                     {"clearFacialWeight", onClearFacialWeightLua},
+                                                     {"resetFacialWeights", onResetFacialWeightsLua},
+                                                     {"getTotalFacialClips", onGetTotalFacialClipsLua},
+                                                     {"getFacialClipName", onGetFacialClipNameLua},
+                                                     {"getFacialClipDuration", onGetFacialClipDurationLua},
+                                                     {"playFacialAnimation", onPlayFacialAnimationLua},
+                                                     {"pauseFacialAnimation", onPauseFacialAnimationLua},
+                                                     {"resumeFacialAnimation", onResumeFacialAnimationLua},
+                                                     {"stopFacialAnimation", onStopFacialAnimationLua},
+                                                     {"seekFacialAnimation", onSeekFacialAnimationLua},
+                                                     {"getFacialAnimationTime", onGetFacialAnimationTimeLua},
+                                                     {"setFacialAnimationPlaybackSpeed", onSetFacialAnimationPlaybackSpeedLua},
+                                                     {"getFacialAnimationPlaybackSpeed", onGetFacialAnimationPlaybackSpeedLua},
+                                                     {"getFacialAnimationReport", onGetFacialAnimationReportLua},
                                                          {"setSkeletalSkinningMethod", onSetSkeletalSkinningMethodLua},
                                                          {"getSkeletalSkinningMethod", onGetSkeletalSkinningMethodLua},
                                                          {"getResolvedSkeletalSkinningMethod", onGetResolvedSkeletalSkinningMethodLua},

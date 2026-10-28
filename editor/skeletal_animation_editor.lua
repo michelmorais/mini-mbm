@@ -142,6 +142,7 @@ local state = {
     skeletonGizmoGeneration = 0,
     markersAlwaysOnTop = true,
     info = nil,
+    facialTargetCount = 0,
     bindReport = nil,
     bindTreeKeepExpanded = false,
     bindRenameBoneId = nil,
@@ -1108,10 +1109,15 @@ function applyWorkspaceVisibility()
     if state.preview then
         -- Paint Weights' filled-face heatmap is a complete read-only surface copy. Hiding the
         -- textured preview there avoids z-fighting and color mixing; other worktrees keep it.
-        state.preview.visible=(state.meshVisible or (paintWorkspace and
+        local previewVisible=(state.meshVisible or (paintWorkspace and
             state.paint.aabbCapture.active)) and not
             (paintWorkspace and #state.paint.heatmapLines>0 and
                 not state.paint.aabbCapture.active)
+        -- Keep culling paired with the instance that is actually visible. The editor owns
+        -- several independent runtime meshes, so one worktree must not leave another
+        -- instance with a stale visibility policy.
+        state.preview.alwaysRender=previewVisible==true
+        state.preview.visible=previewVisible
         pcall(function()
             local x=0
             if runtimeWorkspace and
@@ -1125,12 +1131,16 @@ function applyWorkspaceVisibility()
         end)
     end
     if state.comparisonPreview then
-        state.comparisonPreview.visible=state.meshVisible and runtimeWorkspace and
+        local comparisonVisible=state.meshVisible and runtimeWorkspace and
             (state.skeletalPreview.poseStress or state.skeletalPreview.gpuCpuCompare)
+        state.comparisonPreview.alwaysRender=comparisonVisible==true
+        state.comparisonPreview.visible=comparisonVisible
     end
     for _,entry in ipairs(state.wearableFollowers) do
         if entry.preview then
-            entry.preview.visible=state.meshVisible and entry.visible and runtimeWorkspace
+            local wearableVisible=state.meshVisible and entry.visible and runtimeWorkspace
+            entry.preview.alwaysRender=wearableVisible==true
+            entry.preview.visible=wearableVisible
         end
     end
     mirrorRuntimeWearableTransforms()
@@ -2945,6 +2955,15 @@ local function rebuildPreview(sourcePath)
     playback.runtimePose=nil
     sourcePath=sourcePath or state.fileName
     if not sourcePath then return end
+    local facialTargetCount=state.facialTargetCount or 0
+    -- The runtime facial composite currently requires LBS. AUTO may resolve to DQS for
+    -- a rigid skeleton, which makes a facial preview fail during MSH load. Keep every
+    -- facial editor preview on the supported LBS contract; GPU/CPU comparison remains
+    -- valid, while the LBS/DQS stress comparison is not.
+    if facialTargetCount>0 then
+        playback.method=2
+        playback.poseStress=false
+    end
     local extent=state.meshBounds and math.max(state.meshBounds.maxX-state.meshBounds.minX,
         state.meshBounds.maxY-state.meshBounds.minY,state.meshBounds.maxZ-state.meshBounds.minZ) or 1
     local separation=extent*0.65
@@ -2956,6 +2975,11 @@ local function rebuildPreview(sourcePath)
         if not preview:setSkeletalExecutionPath(execution) then preview:destroy(); return nil end
         if not preview:load(sourcePath) then preview:destroy(); return nil end
         preview:setSkeletalAnimationPlaybackSpeed(playback.speed)
+        -- Facial indexed morphs can update the runtime AABB after the mesh is loaded.
+        -- Keep this editor preview visible while the authoring camera is framed from
+        -- the source mesh; otherwise frustum culling can discard the whole preview
+        -- even though the skeletal/facial shader path is ready.
+        preview.alwaysRender=true
         preview:setPos(x,0,0)
         preview.visible=state.meshVisible
         return preview
@@ -3293,6 +3317,7 @@ end
 local function showSkeletalPreviewControls()
     if tTutorials.consumeFocus('runtime_preview') then tImGui.SetScrollHereY(0.15) end
     local playback=state.skeletalPreview
+    local facialTargetCount=state.facialTargetCount or 0
     local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
         state.runtimePreviewMemoryDirty and 'swl_runtime_source_memory_stale' or
         'swl_runtime_source_memory'
@@ -3310,7 +3335,12 @@ local function showSkeletalPreviewControls()
         rebuildSkeletonVisuals()
         applyWorkspaceVisibility()
     end
+    tImGui.BeginDisabled(facialTargetCount>0)
     local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
+    tImGui.EndDisabled()
+    if facialTargetCount>0 then
+        tImGui.TextDisabled(tLang.L('swl_pose_stress_unavailable'))
+    end
     if poseStress~=playback.poseStress then
         playback.poseStress=poseStress
         if poseStress then
@@ -3338,7 +3368,7 @@ local function showSkeletalPreviewControls()
         tImGui.TextWrapped(tLang.L('swl_gpu_cpu_layout'))
     end
     local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
-    tImGui.BeginDisabled(swlHasRuntimeComparison())
+    tImGui.BeginDisabled(swlHasRuntimeComparison() or facialTargetCount>0)
     tImGui.PushItemWidth(190)
     local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
     tImGui.PopItemWidth()
@@ -3616,6 +3646,8 @@ local function loadMesh(path)
     state.paint.maskRestrictBrush=false
     destroySkeletonVisuals()
     state.fileName, state.meshD = path, meshD
+    local okFacial,totalFacial=safeCall(function() return meshD:getTotalFacialTargets() end)
+    state.facialTargetCount=okFacial and (tonumber(totalFacial) or 0) or 0
     state.meshVisible = true
     state.info = meshDebug:getInfo(path)
     refreshBindReport()
@@ -3775,6 +3807,8 @@ local function cancelBoneEditorDrag()
         return false
     end
     state.meshD=restored
+    local okFacial,totalFacial=safeCall(function() return restored:getTotalFacialTargets() end)
+    state.facialTargetCount=okFacial and (tonumber(totalFacial) or 0) or 0
     state.modified=drag.snapshot.modified==true
     discardRollbackSnapshot(drag.snapshot)
     state.boneEditorDrag=nil
@@ -6179,6 +6213,8 @@ local function restoreHistoryEntry(entry)
         return false
     end
     state.meshD = restored
+    local okFacial,totalFacial=safeCall(function() return restored:getTotalFacialTargets() end)
+    state.facialTargetCount=okFacial and (tonumber(totalFacial) or 0) or 0
     clearPaintVisuals()
     state.topologyAdjacency=nil
     state.coincidentSeams=nil

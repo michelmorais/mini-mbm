@@ -41,6 +41,9 @@ namespace mbm
         D3DXHANDLE mvpMatrixHandle;
         D3DXHANDLE mvMatrixHandle;
         D3DXHANDLE bonePaletteHandle;
+        D3DXHANDLE facialMorphWeightsHandle;
+        uint32_t facialMorphTargetCount;
+        bool facialMorphActive;
         uint32_t skeletalPaletteSize;
         SKELETAL_SHADER_METHOD skeletalMethod;
         D3DXHANDLE samplerHandle0;
