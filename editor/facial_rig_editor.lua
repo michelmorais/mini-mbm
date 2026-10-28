@@ -2226,6 +2226,14 @@ end
 
 local function selectWorkspace(workspace)
     state.workspace=state.workspace==workspace and nil or workspace
+    -- The mask overlay owns the primary mesh visibility while it is active.
+    -- Restore that ownership immediately when leaving the mask worktree so a
+    -- dirty surface kept during brush edits cannot hide the mesh elsewhere.
+    if state.workspace=='masks' then
+        setMaskVisualizationViewportVisible(true)
+    else
+        setMaskVisualizationViewportVisible(false)
+    end
     if state.workspace~='masks' and state.maskVisualization.building then
         state.maskVisualization.building=false
         state.maskVisualization.buildSelected=nil
@@ -4251,7 +4259,8 @@ refreshMaskVisualization=function()
     local visualization=state.maskVisualization
     if visualization.building then return end
     if not visualization.dirty then return end
-    if visualization.keepSurfaceWhileDirty and visualization.surface then
+    if visualization.keepSurfaceWhileDirty and visualization.surface and visualization.visible and
+            state.workspace=='masks' then
         visualization.dirty=false
         return
     end
