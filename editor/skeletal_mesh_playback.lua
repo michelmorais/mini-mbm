@@ -23,7 +23,31 @@
 -- Read-only runtime preview. Cache authored clip names until the Mesh Debug object changes.
 local M = {}
 
+local function drawExecutionReport(preview, ready, call)
+    if not preview then return end
+    local ok, report = call(function() return preview:getSkeletalSkinningReport() end)
+    if not ok or type(report) ~= 'table' or (tonumber(report.requiredBoneCount) or 0) == 0 then return end
+    local path = report.resolvedExecutionPath or report.executionPath
+    local status = report.executionStatus
+    local color
+    if ready and path == 'gpu' and status == 'gpu-ready' then
+        color = {r=0.15,g=0.82,b=0.32,a=1}
+    elseif ready and path == 'cpu' and (status == 'cpu-lbs-ready' or status == 'cpu-dqs-ready') then
+        color = {r=1,g=0.55,b=0.10,a=1}
+    end
+    if color then
+        local cursor = tImGui.GetCursorScreenPos()
+        tImGui.Dummy({x=12,y=14})
+        tImGui.AddCircleFilled({x=cursor.x+6,y=cursor.y+7},5,color,18)
+        tImGui.SameLine()
+    end
+    tImGui.Text(tLang.L('swl_execution_path') .. ': ' .. (path or 'unknown'):upper() ..
+        ' / ' .. (report.resolvedMethod or 'unknown'):upper())
+    if not color then tImGui.TextDisabled(status or 'unknown') end
+end
+
 function M.draw(entry, data, preview, ready, call, onEdit)
+    drawExecutionReport(preview, ready, call)
     local state = entry.skeletalPlayback
     if not state or state.data ~= data then
         state = {data = data, clips = {}, selected = 1, mode = 1, weight = 0.5}

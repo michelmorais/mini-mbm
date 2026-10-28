@@ -99,6 +99,17 @@ viewport conventions. Its current worktrees are:
 7. Facial clips with a timeline, keys, interpolation, capture, and preview.
 8. Preview of expressions, project clips, imported MSH clips, and skeletal clips together.
 
+The Preview worktree offers a single preview, CPU/GPU comparison, and (on Metal with a rigid
+skeleton) LBS/DQS comparison. LBS is on the left and DQS on the right; both use GPU skeletal
+execution. The second preview follows the active skeletal clip/time, project expressions, and
+imported facial playback. Its skeletal player stays paused between explicit time changes, so a
+paused primary does not trigger continuous seeks or uploads. Comparison instances are released
+when disabled or when another mesh is loaded.
+
+Both facial Preview and Mesh Debug's Facial Animation panel show live execution indicators:
+green for GPU and orange for CPU, separately for facial morphing and skeletal skinning (including
+the resolved LBS/DQS method). Unready/unknown reports are not marked as successful GPU/CPU paths.
+
 The editor persists project metadata in Lua. The MSH stores runtime geometry, targets, clips,
 skeleton data, and weights. Project clips can be embedded into the exported MSH by an option that
 is enabled by default. Existing runtime clips with the same name are replaced; unrelated clips are
