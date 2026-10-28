@@ -12616,8 +12616,10 @@ namespace mbm
         const bool skin = player && player->impl->active;
         const bool gpuSkin = skin && useGpuSkinning;
         const auto fail = [&state](const char *reason) { state.status = reason; return false; };
-        if (skin && player->impl->resolvedSkinningMethod != SKELETAL_SHADER_METHOD::LBS)
-            return fail("facial-requires-lbs");
+        const SKELETAL_SHADER_METHOD method = player ? player->impl->resolvedSkinningMethod :
+            SKELETAL_SHADER_METHOD::NONE;
+        if (useGpuSkinning && !facial::supportsGpuSkinningMethod(method))
+            return fail("facial-gpu-skeletal-unsupported");
         // CPU skinning needs CPU-morphed input; applying GPU morphs afterwards reverses the order.
         if (skin && !gpuSkin && state.gpuMorph)
         {
@@ -12627,8 +12629,9 @@ namespace mbm
             state.morphStatus = "cpu-skeletal-composition";
         }
         const bool geometryChanged = state.positions.empty() || (!state.gpuMorph && state.dirty) ||
-            state.gpuSkinning != useGpuSkinning;
-        const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows) ||
+            (!useGpuSkinning && skin != state.hadSkin) || state.gpuSkinning != useGpuSkinning;
+        const bool poseChanged = skin != state.hadSkin || method != state.skinningMethod ||
+            (skin && state.palette != player->impl->paletteRows) ||
             state.gpuSkinning != useGpuSkinning;
         if (!state.dirty && !poseChanged) return true;
         if (state.dirty && !state.gpuMorph && !facial::deform(impl->facialAsset, impl->skeletalBindPositions,
@@ -12638,9 +12641,11 @@ namespace mbm
         {
             skeletal::SKELETAL_POSE pose;
             pose.globalTransforms = player->impl->evaluatedGlobalTransforms;
-            if (!skeletal::skinVerticesLbsReference(impl->canonicalSkeleton, impl->canonicalWeights,
+            const auto skinVertices = method == SKELETAL_SHADER_METHOD::DQS_RIGID
+                ? skeletal::skinVerticesDqsRigidReference : skeletal::skinVerticesLbsReference;
+            if (!skinVertices(impl->canonicalSkeleton, impl->canonicalWeights,
                     pose, state.morphPositions, state.morphNormals, state.positions, state.normals))
-                return fail("facial-cpu-lbs-evaluation-failed");
+                return fail("facial-cpu-skinning-evaluation-failed");
         }
         else if (geometryChanged)
         {
@@ -12680,6 +12685,7 @@ namespace mbm
             state.bounds.lsCube[0]->halfDim = extent;
         }
         state.hadSkin = skin;
+        state.skinningMethod = method;
         // Keep this flag as the selected shader variant, even while the skeletal
         // player is idle. The GPU variant still needs bone attributes so an identity
         // palette can render the facial bind pose.
@@ -12687,7 +12693,7 @@ namespace mbm
         if (skin) state.palette = player->impl->paletteRows;
         else state.palette.clear();
         state.dirty = false;
-        if (geometryChanged) state.uploadDirty = !state.gpuMorph;
+        if (geometryChanged || (!gpuSkin && poseChanged)) state.uploadDirty = !state.gpuMorph;
         if (geometryChanged || (!gpuSkin && poseChanged)) ++state.evaluations;
         state.status = "ready";
         return true;
@@ -12785,12 +12791,13 @@ namespace mbm
             }
             const uint32_t desiredPaletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
             if (state.gpuMorph && (!state.gpuMorphShaderCompiled || state.gpuMorphShaderOwner != shader ||
-                                   state.gpuMorphShaderPaletteSize != desiredPaletteSize))
+                                   state.gpuMorphShaderPaletteSize != desiredPaletteSize ||
+                                   state.gpuMorphShaderMethod != state.skinningMethod))
             {
                 const uint32_t paletteSize = desiredPaletteSize;
                 shader->releaseShader();
                 const bool compiled = shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
-                    paletteSize, paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE,
+                    paletteSize, paletteSize ? state.skinningMethod : SKELETAL_SHADER_METHOD::NONE,
                     state.morphLayout.targetCount, state.morphLayout.textureWidth,
                     state.morphLayout.textureHeight, state.morphLayout.rowsPerTarget,
                     state.morphLayout.hasNormals);
@@ -12806,7 +12813,7 @@ namespace mbm
                     state.morphStatus = "gpu-morph-shader-unavailable";
                     if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf,
                                                paletteSize,
-                                               paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE))
+                                               paletteSize ? state.skinningMethod : SKELETAL_SHADER_METHOD::NONE))
                         return false;
                 }
                 else
@@ -12814,6 +12821,7 @@ namespace mbm
                     state.gpuMorphShaderCompiled = true;
                     state.gpuMorphShaderOwner = shader;
                     state.gpuMorphShaderPaletteSize = paletteSize;
+                    state.gpuMorphShaderMethod = state.skinningMethod;
                 }
             }
         }
@@ -12823,7 +12831,7 @@ namespace mbm
             shader->releaseShader();
             const uint32_t paletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
             if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
-                    paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE)) return false;
+                    paletteSize ? state.skinningMethod : SKELETAL_SHADER_METHOD::NONE)) return false;
             state.gpuMorphShaderCompiled = false;
             state.gpuMorphShaderOwner = nullptr;
             state.gpuMorphShaderPaletteSize = 0;
@@ -12879,7 +12887,7 @@ namespace mbm
             shader->releaseShader();
             const uint32_t paletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
             shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
-                                  paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE);
+                                  paletteSize ? state.skinningMethod : SKELETAL_SHADER_METHOD::NONE);
         }
         if (!result) state.status = "facial-draw-failed";
         return result;

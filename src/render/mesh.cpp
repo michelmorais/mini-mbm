@@ -145,14 +145,11 @@ namespace mbm
         this->resolveSkeletalExecutionPath();
         if (facialState->targetCount && (!this->is3DObject() ||
             (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU &&
-             (getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS ||
-              !this->mesh->supportsGpuSkeletalPath(SKELETAL_SHADER_METHOD::LBS))) ||
-            (getResolvedSkeletalExecutionPath() == SKELETAL_EXECUTION_PATH::CPU &&
-             getResolvedSkeletalSkinningMethod() != SKELETAL_SHADER_METHOD::LBS)))
+             (!facial::supportsGpuSkinningMethod(getResolvedSkeletalSkinningMethod()) ||
+              !this->mesh->supportsGpuSkeletalPath(getResolvedSkeletalSkinningMethod())))))
         {
             facialState->status = !this->is3DObject() ? "facial-requires-3d" :
-                (cpuSkeletalRenderState->requestedExecutionPath == SKELETAL_EXECUTION_PATH::GPU
-                    ? "facial-gpu-skeletal-unsupported" : "facial-requires-lbs-or-gpu-composite");
+                "facial-gpu-skeletal-unsupported";
             facialState->ready = false;
             this->mesh = nullptr;
             return false;
@@ -355,7 +352,7 @@ namespace mbm
         {
             cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::CPU;
             const SKELETAL_SHADER_METHOD method = getResolvedSkeletalSkinningMethod();
-            if (method == SKELETAL_SHADER_METHOD::LBS && mesh && mesh->supportsGpuSkeletalPath(method))
+            if (facial::supportsGpuSkinningMethod(method) && mesh && mesh->supportsGpuSkeletalPath(method))
             {
                 cpuSkeletalRenderState->resolvedExecutionPath = SKELETAL_EXECUTION_PATH::GPU;
                 cpuSkeletalRenderState->executionReason = "facial-gpu-composite-auto";

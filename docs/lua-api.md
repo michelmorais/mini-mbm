@@ -702,6 +702,11 @@ contribution while retaining manual overrides. Non-looping clips clamp at their 
 looping clips wrap time. `seekFacialAnimation` clamps to the active clip interval and preserves its
 playing/paused state.
 
+Facial morphing precedes skeletal deformation. Select `"dqs"` with
+`setSkeletalSkinningMethod` before loading to use rigid DQS with facial targets on Metal GPU or
+the CPU reference. Other GPU backends require LBS for facial composition; AUTO execution falls
+back to CPU for DQS. Existing rigid-transform eligibility rules apply.
+
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |

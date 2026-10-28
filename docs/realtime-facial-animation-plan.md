@@ -29,7 +29,7 @@ Facial data is optional at the asset and instance level. A mesh that has neither
 facial clips follows the existing static or skeletal render path and does not pay the facial morph
 cost. A mesh can also contain facial targets without a facial bone rig; in that case the targets
 run as morph-only animation. If the same mesh has a body skeleton, facial morphing is composed
-before skeletal LBS, so facial bones are not required for the morph path itself.
+before skeletal LBS or supported rigid DQS, so facial bones are not required for the morph path itself.
 
 The following combinations are explicit current boundaries:
 
@@ -38,7 +38,8 @@ The following combinations are explicit current boundaries:
 | No facial sections | Existing static/skeletal path |
 | Facial targets/clips without a skeleton | CPU or indexed-GPU morph-only path |
 | Facial targets/clips with a body skeleton using LBS | Morph-then-LBS composition |
-| Facial targets/clips with active DQS | Rejected with `facial-requires-lbs` |
+| Facial targets/clips with rigid DQS on macOS Metal | GPU morph-then-DQS; CPU reference supported |
+| Facial targets/clips with rigid DQS on other backends | CPU composition; explicit GPU rejected with `facial-gpu-skeletal-unsupported` |
 | Facial targets/clips with a custom vertex or pixel shader | Rejected with `facial-custom-shader-unsupported` |
 | Facial targets/clips with normal-map material/prepared data | Rejected with `facial-normal-mapping-unsupported` |
 
@@ -73,8 +74,10 @@ metadata inspection and validated project-clip insertion/removal for export.
 | macOS Metal | Existing skeletal backend | Indexed GPU deltas using the measured float texture path | CPU reference |
 
 The report never labels an incomplete GPU upload or shader as ready. A capability or shader failure
-selects the CPU reference path explicitly. Facial-target meshes currently require LBS for skeletal
-composition; facial morph plus rigid DQS is not implemented.
+selects the CPU reference path explicitly. Facial targets support rigid DQS in the CPU reference
+and Metal GPU composition. Other GPU backends currently support LBS composition only; AUTO
+execution selects CPU for facial DQS on those backends. The existing rigid-transform eligibility
+rules still apply: AUTO skinning can resolve to LBS for non-rigid skeletons.
 
 `USE_NORMAL_MAPPING_3D` and `SUPPORTED_MAX_LIGHTS` are lighting/shader build settings, not facial
 morph settings. The supported normal-mapping matrix is `USE_NORMAL_MAPPING_3D=0/1` combined with
@@ -158,9 +161,37 @@ Clips worktrees rather than introduce a second animation model.
 
 ### Facial morph plus DQS composition
 
-Define and implement facial morphing with rigid dual-quaternion skinning in the CPU reference and
-all supported GPU paths. Add capability reporting, parity tests, and editor comparison coverage.
-Until then, facial-target meshes remain on LBS.
+The first delivery supports macOS Metal and the shared CPU reference. Morph positions and normals
+are evaluated before rigid DQS, using the selected skeletal palette format. The skeletal report
+identifies the method/execution path; the facial report identifies GPU indexed deltas or CPU morphs.
+The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparisons on Metal.
+Shader method and palette size participate in the per-instance facial shader cache; stopped poses
+and unchanged weights do not repeatedly deform or upload geometry.
+
+Remaining deliveries: native GPU composition and acceptance for OpenGL ES and DirectX 9/11,
+and explicit iOS device acceptance. The CPU implementation is shared, but this delivery's native
+execution validation is macOS only. Custom shaders and normal-mapped facial assets remain unsupported.
+
+macOS validation commands (use the configured build output directory):
+
+```sh
+MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --facial-runtime-test dqs
+MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --facial-runtime-test
+MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --metal-skeletal-parity-test
+bin/release/arm64/testLib --facial-foundation-tests
+```
+
+The DQS runtime variant exercises simultaneous clips, seek/pause/reload, instance isolation,
+idle evaluation/upload counts, and CPU skeletal fallback. Metal parity checks morphed positions
+and normals, zero/mixed/full facial weights, tiled textures, and subset offsets for LBS and DQS.
+
+Validated on 2026-10-28 on macOS / Apple M4 (Release, Metal API validation enabled): facial
+foundation, LBS and DQS runtime, and Metal parity suites passed. The 34,164-vertex / 52-target
+DQS facial case had maximum component error `3.8147e-06` against the expected rigid transform.
+A Lua smoke scene also passed with `dqs` and GPU/CPU/AUTO execution. The editor passed Lua syntax
+checking; manual interaction with its comparison controls remains to be checked. Backend detection
+is cached at editor initialization, and the existing comparison synchronization only seeks when
+playing and the two times differ; this change adds no per-frame mesh scans or uploads.
 
 ### Additional platform acceptance
 

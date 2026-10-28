@@ -281,3 +281,7 @@ with the instance buffer. Morph shader metadata lives in the private Metal pipel
 remain in the existing private facial render state. No new public handles, containers, or mutable
 storage are exposed. Vertex buffer slots 22-23 and vertex texture 6 carry weights, subset offset,
 and immutable deltas without overlapping existing lighting, skeletal, or normal-map bindings.
+
+Facial/DQS composition keeps the resolved skinning method and compiled morph shader method in
+`private/facial-render-state.h`. The method selects the CPU reference and Metal shader palette
+layout without adding public API storage or backend handles.

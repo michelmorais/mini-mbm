@@ -472,7 +472,7 @@ int runFacialPerformanceBenchmark()
     return passed ? 0 : 1;
 }
 
-bool beginFacialRuntimeTests(const mbm::SCENE *scene)
+bool beginFacialRuntimeTests(const mbm::SCENE *scene, bool dqs)
 {
     failures=0; tick=0; asyncDone=false; asyncOk=false;
     if (!makeFixture(true,true,"runtime.msh") || !makeFixture(false,false,"async.msh")) return false;
@@ -480,7 +480,21 @@ bool beginFacialRuntimeTests(const mbm::SCENE *scene)
     second=std::make_unique<mbm::MESH>(scene,true,false);
     asyncMesh=std::make_unique<mbm::MESH>(scene,true,false);
     const auto path=(directory/"runtime.msh").string();
+    if (dqs)
+    {
+        expect(first->setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD::DQS_RIGID) &&
+            second->setSkeletalSkinningMethod(SKELETAL_SHADER_METHOD::DQS_RIGID), "select facial DQS");
+    }
     if (!first->load(path.c_str()) || !second->load(path.c_str())) return false;
+    if (dqs)
+    {
+        expect(first->getResolvedSkeletalSkinningMethod()==SKELETAL_SHADER_METHOD::DQS_RIGID,
+            "facial instance actually resolves to DQS");
+#if defined(USE_METAL)
+        expect(first->getResolvedSkeletalExecutionPath()==SKELETAL_EXECUTION_PATH::GPU,
+            "Metal AUTO selects GPU facial DQS composition");
+#endif
+    }
     first->setPosition(VEC3(-120,0,0)); second->setPosition(VEC3(120,0,0));
     expect(first->getTotalFacialTargets()==2 && first->getTotalFacialClips()==1,
         "facial target and clip enumeration");
@@ -559,6 +573,8 @@ int stepFacialRuntimeTests()
         expect(second->setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH::CPU) &&
             second->load((directory/"runtime.msh").string().c_str()),
             "select CPU skeletal policy before loading a facial instance");
+        const auto method = second->getResolvedSkeletalSkinningMethod();
+        expect(method == first->getResolvedSkeletalSkinningMethod(), "CPU and GPU resolve same skinning method");
         first->release();
         expect(first->load((directory/"runtime.msh").string().c_str()),"reload instance");
         float weight=-1; expect(first->getFacialWeight(0,&weight) && weight==0,"reload restores default weights");
@@ -569,11 +585,37 @@ int stepFacialRuntimeTests()
     if (tick==75)
         expect(second->playSkeletalAnimation("pose") && second->setFacialWeight(0,.5f),
             "start CPU skeletal playback after GPU morph rendering");
-    if (tick>=90 && asyncDone)
+    if (tick==90)
+    {
+        expect(second->pauseSkeletalAnimation(), "pause CPU pose");
+        changed=b;
+    }
+    if (tick==100)
+    {
+        expect(b.uploadCount==changed.uploadCount && b.deformationCount==changed.deformationCount,
+            "idle CPU composition does not evaluate or upload");
+        expect(second->seekSkeletalAnimation(.75f), "seek CPU pose with unchanged facial weights");
+    }
+    if (tick==110)
+    {
+        expect(b.uploadCount==changed.uploadCount+1 && b.deformationCount==changed.deformationCount+1,
+            "skeletal-only CPU pose change evaluates and uploads once");
+        changed=b;
+        expect(second->stopSkeletalAnimation(), "stop CPU pose with facial morphs active");
+    }
+    if (tick==120)
+    {
+        expect(b.ready && b.uploadCount==changed.uploadCount+1 &&
+            b.deformationCount==changed.deformationCount+1, "stop CPU pose restores morphed bind geometry");
+        changed=b;
+    }
+    if (tick>=130 && asyncDone)
     {
         expect(b.ready && b.status && std::strcmp(b.status,"ready")==0 && b.uploadCount>0 &&
             b.morphExecutionPath && std::strcmp(b.morphExecutionPath,"cpu-reference")==0,
             "CPU skeletal fallback preserves morph-then-skin and renders");
+        expect(b.uploadCount==changed.uploadCount && b.deformationCount==changed.deformationCount,
+            "stopped CPU pose remains idle");
         FACIAL_ANIMATION_REPORT asyncReport; asyncMesh->getFacialAnimationReport(asyncReport);
         const bool asyncGpuMorph = asyncReport.morphExecutionPath &&
             std::strcmp(asyncReport.morphExecutionPath,"gpu-indexed-deltas")==0;
