@@ -82,7 +82,7 @@ rules still apply: AUTO skinning can resolve to LBS for non-rigid skeletons.
 `USE_NORMAL_MAPPING_3D` and `SUPPORTED_MAX_LIGHTS` are lighting/shader build settings, not facial
 morph settings. The supported normal-mapping matrix is `USE_NORMAL_MAPPING_3D=0/1` combined with
 `SUPPORTED_MAX_LIGHTS=1..4` on each native backend; the facial contract is tested separately on
-meshes with no facial data, morph-only data, and morph plus LBS. The normal-mapping matrix and its
+meshes with no facial data, morph-only data, and morph plus LBS or rigid DQS. The normal-mapping matrix and its
 host-specific execution commands are maintained in [normal-mapping validation](normal-mapping.md).
 
 ## Facial authoring editor
@@ -151,8 +151,8 @@ The Linux delivery must provide the same offline contract already accepted on Wi
 - report GPU indexed morphing when the OpenGL ES capability path is ready and CPU fallback otherwise;
 - keep idle editor frames event-driven without repeated topology scans or uploads.
 
-This is the minimum feature delivery. It does not require live capture, native target sculpting, or
-facial DQS.
+This is the minimum Linux delivery. It does not require live capture, native target sculpting, or
+native Linux facial DQS GPU composition; the macOS Metal facial DQS delivery is documented below.
 
 ## Future deliveries
 
@@ -170,9 +170,9 @@ sculpting dense facial target deltas. It must provide undo/redo, topology valida
 handling, target preview, and transactional MSH export. This must reuse the existing Expressions and
 Clips worktrees rather than introduce a second animation model.
 
-### Facial morph plus DQS composition
+### Facial morph plus DQS composition (macOS Metal delivered)
 
-The first delivery supports macOS Metal and the shared CPU reference. Morph positions and normals
+The delivered macOS implementation supports Metal and the shared CPU reference. Morph positions and normals
 are evaluated before rigid DQS, using the selected skeletal palette format. The skeletal report
 identifies the method/execution path; the facial report identifies GPU indexed deltas or CPU morphs.
 The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparisons on Metal.
