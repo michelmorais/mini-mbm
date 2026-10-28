@@ -555,6 +555,10 @@ int stepFacialRuntimeTests()
     }
     if (tick==70)
     {
+        second->release();
+        expect(second->setSkeletalExecutionPath(SKELETAL_EXECUTION_PATH::CPU) &&
+            second->load((directory/"runtime.msh").string().c_str()),
+            "select CPU skeletal policy before loading a facial instance");
         first->release();
         expect(first->load((directory/"runtime.msh").string().c_str()),"reload instance");
         float weight=-1; expect(first->getFacialWeight(0,&weight) && weight==0,"reload restores default weights");
@@ -562,8 +566,14 @@ int stepFacialRuntimeTests()
         auto *asset=MESH_MANAGER::getInstance()->load((directory/"runtime.msh").string().c_str());
         expect(copy.loadDebugFromMemory(asset) && save(copy,"runtime-extracted.msh",true),"runtime extraction preserves facial geometry and skeleton");
     }
+    if (tick==75)
+        expect(second->playSkeletalAnimation("pose") && second->setFacialWeight(0,.5f),
+            "start CPU skeletal playback after GPU morph rendering");
     if (tick>=90 && asyncDone)
     {
+        expect(b.ready && b.status && std::strcmp(b.status,"ready")==0 && b.uploadCount>0 &&
+            b.morphExecutionPath && std::strcmp(b.morphExecutionPath,"cpu-reference")==0,
+            "CPU skeletal fallback preserves morph-then-skin and renders");
         FACIAL_ANIMATION_REPORT asyncReport; asyncMesh->getFacialAnimationReport(asyncReport);
         const bool asyncGpuMorph = asyncReport.morphExecutionPath &&
             std::strcmp(asyncReport.morphExecutionPath,"gpu-indexed-deltas")==0;

@@ -124,7 +124,7 @@ namespace mbm::facial
     }
 }
 
-#elif !defined(USE_DIRECTX9) && !defined(USE_DIRECTX11)
+#elif !defined(USE_DIRECTX9) && !defined(USE_DIRECTX11) && !defined(USE_METAL)
 
 #include "facial-gpu-upload.h"
 

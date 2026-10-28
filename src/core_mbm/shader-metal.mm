@@ -20,6 +20,7 @@
 #include "specific-metal-context.h"
 #include "specific-metal-buffer.h"
 #include "skeletal-metal-shader-source.h"
+#include "facial-metal-shader-source.h"
 #include <device.h>
 #include <util-interface.h>
 #include <particle-control.h>
@@ -429,6 +430,7 @@ static id<MTLDepthStencilState> getOrCreateFluidDepthReadState(mbm::SPECIFIC_AUX
 @property (nonatomic, assign) bool normalMapping;
 #endif
 @property (nonatomic, assign) uint32_t skeletalPaletteSize;
+@property (nonatomic, assign) uint32_t facialTargetCount;
 @property (nonatomic, assign) mbm::SKELETAL_SHADER_METHOD skeletalMethod;
 @end
 @implementation MBMPSOPair
@@ -538,7 +540,9 @@ static NSString* patchVInStruct(NSString* vsStr, mbm::FVF_PROVIDE_BY_ENGINE fvf)
 // Builds the MSL source for the default shader matching the given FVF.
 static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool useReservedLightScaffolding,
                                   const uint32_t skeletalPaletteSize,
-                                  const mbm::SKELETAL_SHADER_METHOD skeletalMethod, const bool normalMapping)
+                                  const mbm::SKELETAL_SHADER_METHOD skeletalMethod, const bool normalMapping,
+                                  const uint32_t facialTargets = 0, const uint32_t facialWidth = 0,
+                                  const uint32_t facialRows = 0, const bool facialNormals = false)
 {
     using F = mbm::FVF_PROVIDE_BY_ENGINE;
     const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
@@ -596,7 +600,16 @@ static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf, const bool use
     if (skeletalPaletteSize > 0)
         [src appendFormat:@", device const float4* bonePalette [[buffer(%u)]]",
                           METAL_SKINNING_PALETTE_BUFFER_INDEX];
+    if (facialTargets)
+        [src appendString:@", uint facialVertexId [[vertex_id]], texture2d<float, access::read> facialDeltas [[texture(6)]], constant float* facialWeights [[buffer(22)]], constant uint& facialVertexOffset [[buffer(23)]]"];
     [src appendString:@") {\n  VOut out;\n"];
+    if (facialTargets)
+    {
+        std::string deformation;
+        mbm::facial::appendMetalFacialDeformation(deformation, facialTargets, facialWidth,
+                                                 facialRows, facialNormals && hasNor);
+        [src appendString:[NSString stringWithUTF8String:deformation.c_str()]];
+    }
     if (skeletalPaletteSize == 0)
         [src appendString:@"  float4 skinnedPosition=float4(in.pos,1.0f);\n"];
     else
@@ -1342,9 +1355,12 @@ namespace mbm
     bool SHADER::compileBackend(BASE_SHADER* ptrPshader, BASE_SHADER* ptrVshader,
                                FVF_PROVIDE_BY_ENGINE fvf, const uint32_t skeletalPaletteSize,
                                const SKELETAL_SHADER_METHOD skeletalMethod,
-                               const uint32_t, const uint32_t, const uint32_t, const uint32_t, const bool)
+                               const uint32_t facialTargets, const uint32_t facialWidth, const uint32_t facialHeight,
+                               const uint32_t facialRows, const bool facialNormals)
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
+        if (facialTargets && (!facialWidth || !facialHeight || !facialRows || facialTargets > 256u ||
+            ptrVshader || skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID || usesNormalMappingVariant())) return false;
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (backendShaderSpecific) return true;  // already compiled
 
@@ -1363,7 +1379,7 @@ namespace mbm
         // useReservedLightScaffolding) combination -- every placement of the same mesh type after
         // the first hits this branch, skipping MSL source generation and the real
         // newLibraryWithSource:/PSO-compile calls entirely.
-        if (this->usesPureDefaultShaderPair())
+        if (!facialTargets && this->usesPureDefaultShaderPair())
         {
             const uint64_t key = makeDefaultProgramCacheKeyMetal(
                 fvf, this->shouldCompileReservedLightDefault(), skeletalPaletteSize,
@@ -1423,7 +1439,7 @@ namespace mbm
                     // canonical skinning when requested, and replace only its fragment stage.
                     NSString *generated = defaultMSLSource(
                         fvf, reservedLighting, skeletalPaletteSize,
-                        skeletalMethod, normalMapping);
+                        skeletalMethod, normalMapping, facialTargets, facialWidth, facialRows, facialNormals);
                     NSRange fragRange = [generated rangeOfString:@"\nfragment "
                                                          options:NSBackwardsSearch];
                     if (fragRange.location != NSNotFound)
@@ -1433,7 +1449,7 @@ namespace mbm
                 }
                 else
                     mslSrc = defaultMSLSource(fvf, this->shouldCompileReservedLightDefault(),
-                                              skeletalPaletteSize, skeletalMethod, normalMapping);
+                                              skeletalPaletteSize, skeletalMethod, normalMapping, facialTargets, facialWidth, facialRows, facialNormals);
             }
 #if USE_NORMAL_MAPPING_3D
             if (normalMapping && ptrPshader)
@@ -1464,6 +1480,7 @@ namespace mbm
             pair.normalMapping = normalMapping;
 #endif
             pair.skeletalPaletteSize = skeletalPaletteSize;
+            pair.facialTargetCount = facialTargets;
             pair.skeletalMethod = skeletalPaletteSize > 0 ? skeletalMethod : SKELETAL_SHADER_METHOD::NONE;
             pair.standardPSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
                                                 vtxDesc, colorFmt, /*additive=*/false);
@@ -1473,7 +1490,7 @@ namespace mbm
                 return false;
             setBackendShaderSpecific((__bridge_retained void*)pair);
 
-            if (this->usesPureDefaultShaderPair())
+            if (!facialTargets && this->usesPureDefaultShaderPair())
             {
                 // The cache takes its own independent +1 reference (separate from the one this
                 // instance just took above) so `pair` survives for the rest of the process lifetime
@@ -1502,7 +1519,7 @@ namespace mbm
     bool SHADER::renderBackend(const BUFFER_GL* pBufferId, const RENDERIZABLE *renderizableOwner,
                         const int32_t subsetIndex, const float *skeletalPaletteRows,
                         const uint32_t skeletalPaletteFloatCount,
-                        const float *, const uint32_t) const
+                        const float *facialWeights, const uint32_t facialWeightCount) const
     {
         const ScopedRenderizableContextMetal scopedRenderizableContext(renderizableOwner);
         void *backendShaderSpecific = getBackendShaderSpecific();
@@ -1527,6 +1544,16 @@ namespace mbm
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pair = (__bridge MBMPSOPair*)backendShaderSpecific;
+            // Slots 20-21 belong to normal mapping; 22-23 are facial-only.
+            if (pair.facialTargetCount)
+            {
+                if (!backendBuffer->facialMorphTexture || !facialWeights ||
+                    facialWeightCount != pair.facialTargetCount) return false;
+                [enc setVertexTexture:backendBuffer->facialMorphTexture atIndex:6];
+                [enc setVertexBytes:facialWeights length:facialWeightCount * sizeof(float) atIndex:22];
+                const uint32_t offset = 0;
+                [enc setVertexBytes:&offset length:sizeof(offset) atIndex:23];
+            }
             id<MTLBuffer> paletteBuffer = nil;
             if (pair.skeletalPaletteSize > 0)
             {
@@ -1661,6 +1688,11 @@ namespace mbm
                         const NSUInteger skinOffset =
                             (NSUInteger)pBufferId->vertexStartVB[i] * 8u * sizeof(float);
                         [enc setVertexBuffer:backendBuffer->skinVertexBuffer offset:skinOffset atIndex:2];
+                    }
+                    if (pair.facialTargetCount)
+                    {
+                        const uint32_t offset = pBufferId->vertexStartVB[i];
+                        [enc setVertexBytes:&offset length:sizeof(offset) atIndex:23];
                     }
                     [enc drawPrimitives:prim
                             vertexStart:0

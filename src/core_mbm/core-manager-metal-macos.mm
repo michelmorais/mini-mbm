@@ -15,6 +15,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(USE_METAL)
+#include "private/facial-render-capability.h"
 #if !defined(ANDROID)
 #if defined(__APPLE__) && !TARGET_OS_IOS
 
@@ -226,6 +227,13 @@ namespace mbm
             static_cast<uint64_t>(ctx->mtlDevice.maxBufferLength / (4u * sizeof(float))),
             static_cast<uint64_t>(UINT32_MAX));
         skeletal::setMeasuredSkinningCapability(static_cast<uint32_t>(paletteVectors), 31u);
+        // Conservative desktop Metal limit; validate RGBA32Float allocation on this device.
+        MTLTextureDescriptor *morphProbeDescriptor = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA32Float width:4096 height:1 mipmapped:NO];
+        morphProbeDescriptor.usage = MTLTextureUsageShaderRead;
+        morphProbeDescriptor.storageMode = MTLStorageModeShared;
+        id<MTLTexture> morphProbe = [ctx->mtlDevice newTextureWithDescriptor:morphProbeDescriptor];
+        facial::setMeasuredGpuMorphCapability(16u, 4096u, morphProbe != nil);
         ctx->commandQueue = [ctx->mtlDevice newCommandQueue];
         if (!ctx->commandQueue)
         {

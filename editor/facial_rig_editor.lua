@@ -4676,8 +4676,7 @@ local function handleViewportAuthoringClick(x,y)
     if state.workspace=='face_position' then
         local faceOrigin=state.project.faceOrigin
         if not faceOrigin or not faceOrigin.placed or state.controlDown then
-            local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
-                viewportPickRadius(0.025))
+            local vertexHit=tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
             if vertexHit then return setFaceOriginFromVertex(vertexHit) end
         end
     elseif state.workspace=='landmarks' then
@@ -4707,8 +4706,7 @@ local function handleViewportAuthoringClick(x,y)
             return true
         end
         if state.controlDown then
-            local vertexHit=tFacialLandmarks.nearestVertex(state.topology,origin,direction,
-                viewportPickRadius(0.025))
+            local vertexHit=tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
             if vertexHit then
                 local selected=state.project.landmarks[state.selectedLandmark]
                 if selected then

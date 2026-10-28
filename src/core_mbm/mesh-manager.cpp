@@ -12431,7 +12431,7 @@ namespace mbm
         const auto &asset = impl->facialAsset;
         if (!asset.meshId) return true;
         state.morphCapability = facial::getMeasuredGpuMorphCapability();
-#if defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
+#if defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11) || defined(USE_METAL)
         constexpr bool gpuMorphPathAvailable = true;
 #else
         constexpr bool gpuMorphPathAvailable = false;
@@ -12618,6 +12618,14 @@ namespace mbm
         const auto fail = [&state](const char *reason) { state.status = reason; return false; };
         if (skin && player->impl->resolvedSkinningMethod != SKELETAL_SHADER_METHOD::LBS)
             return fail("facial-requires-lbs");
+        // CPU skinning needs CPU-morphed input; applying GPU morphs afterwards reverses the order.
+        if (skin && !gpuSkin && state.gpuMorph)
+        {
+            state.gpuMorph = false;
+            state.dirty = true;
+            state.morphExecutionPath = "cpu-reference";
+            state.morphStatus = "cpu-skeletal-composition";
+        }
         const bool geometryChanged = state.positions.empty() || (!state.gpuMorph && state.dirty) ||
             state.gpuSkinning != useGpuSkinning;
         const bool poseChanged = skin != state.hadSkin || (skin && state.palette != player->impl->paletteRows) ||
@@ -12808,6 +12816,17 @@ namespace mbm
                     state.gpuMorphShaderPaletteSize = paletteSize;
                 }
             }
+        }
+
+        if (!state.gpuMorph && state.gpuMorphShaderCompiled)
+        {
+            shader->releaseShader();
+            const uint32_t paletteSize = state.gpuSkinning ? impl->gpuSkinningInput.requiredBoneCount : 0u;
+            if (!shader->compileShader(nullptr, nullptr, state.buffer.pBufferGL->fvf, paletteSize,
+                    paletteSize ? SKELETAL_SHADER_METHOD::LBS : SKELETAL_SHADER_METHOD::NONE)) return false;
+            state.gpuMorphShaderCompiled = false;
+            state.gpuMorphShaderOwner = nullptr;
+            state.gpuMorphShaderPaletteSize = 0;
         }
 
         // The facial buffer uses the same bind-vertex order as the canonical skeletal

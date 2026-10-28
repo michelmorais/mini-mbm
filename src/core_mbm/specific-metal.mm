@@ -52,6 +52,7 @@ namespace mbm
         vertexBuffer = nil;
         indexBuffer  = nil;
         skinVertexBuffer = nil;
+        facialMorphTexture = nil;
         vertexCount  = 0;
         indexCount   = 0;
     }

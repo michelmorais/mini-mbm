@@ -169,6 +169,19 @@ function M.intersectRaySurface(topology, origin, direction, allowedVertices)
     return best
 end
 
+-- Select only among vertices of the first surface crossed by the camera ray.
+-- A vertex behind that surface may be closer to the ray but is occluded.
+function M.nearestSurfaceVertex(topology, origin, direction)
+    local hit=M.intersectRaySurface(topology,origin,direction)
+    if not hit then return nil end
+    local bestIndex,bestDistance=nil,math.huge
+    for _,index in ipairs(hit.triangle) do
+        local distance=pointDistanceSquared(topology.vertices[index],hit.point)
+        if distance<bestDistance then bestIndex,bestDistance=index,distance end
+    end
+    return {index=bestIndex,point=topology.vertices[bestIndex],distance=math.sqrt(bestDistance)}
+end
+
 function M.nearestVertex(topology, origin, direction, maxDistance)
     if not topology or not topology.vertices or not origin or not direction then return nil end
     local bestIndex,bestDistance,bestDepth=nil,math.huge,math.huge

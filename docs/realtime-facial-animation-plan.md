@@ -135,7 +135,7 @@ timings and dense delta memory. For 20,000 vertices, 52 targets, and 8 active ta
 reference measured approximately 8.992 ms dense versus 2.454 ms sparse. Targets decoded from MSH files now carry
 indices for vertices with non-zero position or normal deltas; manually constructed fixtures retain
 the dense compatibility path. This is evidence for a later decision, not a hardware-independent
-budget. GPU morph evaluation is enabled for measured OpenGL ES 2, DirectX 11, and DirectX 9
+budget. GPU morph evaluation is enabled for measured OpenGL ES 2, DirectX 11, DirectX 9, and macOS Metal
 backends after the representative Megan/Fuzzy Fury profiles established the texture capacity and
 layout contract. DirectX 9 additionally requires vertex-shader 3.0 and a supported floating-point
 vertex texture format. Any backend that fails its capability, layout, upload, or shader checks keeps
@@ -193,7 +193,7 @@ must produce the same validated packet table in its separate capture PR.
 Measure the optimized CPU path on representative face meshes and target counts, then validate a
 rigged facial-plus-skeletal asset. The first GPU composition slice reuses the existing GPU LBS shader
 for the skeletal stage, avoiding a second CPU deformation pass while preserving the morph-then-skin
-contract. The OpenGL ES, DirectX 11, and DirectX 9 morph slices now upload indexed position/normal
+contract. The OpenGL ES, DirectX 11, DirectX 9, and macOS Metal morph slices now upload indexed position/normal
 deltas to a float texture and sample them in the vertex shader with per-frame weights. They are
 selected only after backend-specific capability and layout validation; failed uploads or shader
 specialization fall back to CPU. Establish limits for active targets, vertex counts, buffer memory,
@@ -256,7 +256,7 @@ including bounded preview sliders, capture/apply, side mirroring, rename, persis
 The Clips worktree now authors temporal facial clips from expression poses and target-weight keys.
 The Preview worktree reviews saved poses, imported facial clips, authored project clips, and skeletal clips together,
 while GPU morph parity for the Windows DirectX 9/11 paths is covered by the indexed resource;
-Metal remains on the CPU reference path until an equivalent resource is implemented.
+macOS Metal now uses the equivalent indexed RGBA32Float resource, with CPU fallback.
 
 Exporting authored clips to Blender Shape Key Actions is optional interoperability. Runtime MSH
 export also offers an enabled-by-default option to serialize the project-authored clips directly;
@@ -267,6 +267,10 @@ The Rig worktree exposes the two materialization actions before its reports: add
 facial bones (or repair the facial root parent) and apply the verified facial weight assignment.
 Saving the derived MSH is enabled only after both operations. Read-only diagnostics are grouped
 separately from the optional Blender bridge/workflow controls.
+
+Face-position and Ctrl-click landmark placement select a vertex from the nearest triangle hit by
+the camera ray. A hidden vertex closer to the ray cannot override the visible surface. Intersection
+work runs only on explicit placement clicks; idle frames do not scan topology for placement.
 
 Preview controls document the distinction between skeletal clips, project-authored facial clips,
 individual target overrides, saved expressions, and facial clips embedded in the MSH. The face
@@ -313,8 +317,10 @@ The minimum backend contract is:
 - Windows builds use the existing DirectX 9/11 runtime paths. When the measured device supports the
   indexed facial resource, the morph stage runs as `gpu-indexed-deltas`; otherwise it uses the CPU
   reference path. DirectX 9 and DirectX 11 both preserve the morph-then-skin composition order.
-- macOS builds use the existing Metal runtime path and the CPU facial morph reference path. The
-  OpenGL compatibility path is not a separate acceptance target.
+- macOS builds use Metal indexed GPU deltas when resource, layout, upload, and shader checks pass,
+  otherwise the CPU facial reference path. Metal applies morphs before LBS. CPU skeletal execution
+  also selects CPU morphing to preserve that order. The OpenGL compatibility path is not a separate
+  acceptance target.
 - Skeletal animation continues to use the backend's existing skinning path; facial deformation is
   composed with it in the documented morph-then-skin order.
 - Blender remains optional at runtime. It is only needed when an author chooses the assisted target

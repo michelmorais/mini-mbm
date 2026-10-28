@@ -105,3 +105,13 @@ mask.topologySignature=topology.signature
 mask.vertices={4}
 assert(not Project.validate(project,true,topology).ok)
 print('FACIAL RIG LANDMARKS OK')
+
+-- The hidden vertex lies exactly on the ray; visible nose vertices do not.
+local occluded={vertices={{x=-1,y=-1,z=1},{x=1,y=-1,z=1},{x=0,y=1,z=1},
+    {x=0,y=0,z=-1},{x=1,y=-1,z=-1},{x=-1,y=-1,z=-1}},triangles={{4,5,6},{1,2,3}}}
+local visible=assert(Landmarks.nearestSurfaceVertex(occluded,{x=0,y=0,z=5},{x=0,y=0,z=-2}))
+assert(visible.index<=3 and visible.point.z==1,'must pick the nose surface, not the hidden scalp vertex')
+assert(not Landmarks.nearestSurfaceVertex(occluded,{x=10,y=0,z=5},{x=0,y=0,z=-1}))
+occluded.triangles={{3,2,1},{6,5,4}}
+assert(Landmarks.nearestSurfaceVertex(occluded,{x=0,y=0,z=5},{x=0,y=0,z=-1}).point.z==1,
+    'surface picking must be independent of winding and triangle order')
