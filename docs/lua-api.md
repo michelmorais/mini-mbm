@@ -690,7 +690,7 @@ silently switching to LBS.
 | `obj:getAutomaticSkeletalRootMotionBone` | `()` | table or nil | Return `{name, boneId, applyRotation}` for the currently enabled automatic root-motion bone, or `nil` when disabled |
 | `obj:setSkeletalAuthoringPalette` | `(method, palette, time, orderedBoneIds)` | bool, string or nil | Editor bridge: install an evaluated `"lbs"` or `"dqs"` palette as a paused in-memory pose after exact ordered-bone identity validation; failure returns a diagnostic reason |
 
-#### Facial targets and clips (`mesh`, Phase 2)
+#### Facial targets and clips (`mesh`)
 
 Facial controls are per mesh instance. Target arrays and authored clips remain immutable in the
 cached `.msh` asset; manual weights, the active clip, time, pause state, and playback speed belong
