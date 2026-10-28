@@ -24,6 +24,16 @@ settings. CMake and Visual Studio propagate the definitions to their targets.
 the linked engine's compiled capability. This is read-only and distinct from
 whether an asset has tangents, a normal texture or an active mapped draw.
 
+### Facial mesh interaction
+
+Normal mapping and facial morphing are separate runtime features. A facial asset may use the
+ordinary geometric lighting path, but a mesh containing facial targets/clips is rejected when it
+contains normal-map material settings or prepared normal-map frame data. This restriction applies
+with either `USE_NORMAL_MAPPING_3D=0` or `1`; the flag controls static 3D normal-map rendering and
+does not enable facial-plus-normal-map composition. For a facial build, remove normal-map sections
+and material references before export. Meshes without facial sections remain compatible with the
+normal-mapping matrix documented below.
+
 The light cap limits selected point lights per draw; the independent 3D
 directional light is not counted against it. Generated arrays and loops use the
 compiled cap. Runtime light selection/request APIs remain available but do not

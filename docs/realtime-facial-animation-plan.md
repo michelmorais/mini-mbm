@@ -23,6 +23,31 @@ The loader validates target and clip identities, topology signatures, vertex cou
 weight ranges, key ordering, section relationships, and payload limits before committing an asset.
 Ordinary save/reload preserves facial sections together with skeletal sections and textures.
 
+## Meshes without facial data
+
+Facial data is optional at the asset and instance level. A mesh that has neither facial targets nor
+facial clips follows the existing static or skeletal render path and does not pay the facial morph
+cost. A mesh can also contain facial targets without a facial bone rig; in that case the targets
+run as morph-only animation. If the same mesh has a body skeleton, facial morphing is composed
+before skeletal LBS, so facial bones are not required for the morph path itself.
+
+The following combinations are explicit current boundaries:
+
+| Combination | Result |
+|---|---|
+| No facial sections | Existing static/skeletal path |
+| Facial targets/clips without a skeleton | CPU or indexed-GPU morph-only path |
+| Facial targets/clips with a body skeleton using LBS | Morph-then-LBS composition |
+| Facial targets/clips with active DQS | Rejected with `facial-requires-lbs` |
+| Facial targets/clips with a custom vertex or pixel shader | Rejected with `facial-custom-shader-unsupported` |
+| Facial targets/clips with normal-map material/prepared data | Rejected with `facial-normal-mapping-unsupported` |
+
+The last restriction is independent of the normal-mapping build flag. Disabling
+`USE_NORMAL_MAPPING_3D` removes the 3D mapped rendering path for ordinary meshes, but it does not
+make a facial asset containing normal-map sections compatible. Remove those sections/materials
+from a facial mesh before export when using such a build. See
+[normal-mapping interaction](normal-mapping.md#facial-mesh-interaction).
+
 ## Runtime capabilities already available
 
 Each loaded mesh instance supports:
@@ -50,6 +75,12 @@ metadata inspection and validated project-clip insertion/removal for export.
 The report never labels an incomplete GPU upload or shader as ready. A capability or shader failure
 selects the CPU reference path explicitly. Facial-target meshes currently require LBS for skeletal
 composition; facial morph plus rigid DQS is not implemented.
+
+`USE_NORMAL_MAPPING_3D` and `SUPPORTED_MAX_LIGHTS` are lighting/shader build settings, not facial
+morph settings. The supported normal-mapping matrix is `USE_NORMAL_MAPPING_3D=0/1` combined with
+`SUPPORTED_MAX_LIGHTS=1..4` on each native backend; the facial contract is tested separately on
+meshes with no facial data, morph-only data, and morph plus LBS. The normal-mapping matrix and its
+host-specific execution commands are maintained in [normal-mapping validation](normal-mapping.md).
 
 ## Facial authoring editor
 
