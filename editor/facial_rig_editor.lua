@@ -1474,10 +1474,15 @@ local function rebuildFacialComparison(enabled, mode)
     if not primaryPathOk or primaryPath~='gpu' then
         return false,'fre_preview_gpu_cpu_reason_gpu_unavailable'
     end
+    local primaryReportOk,primaryReport=dpCall(function() return state.mesh:getSkeletalSkinningReport() end)
+    if not primaryReportOk or type(primaryReport)~='table' then
+        return false,'fre_preview_gpu_cpu_reason_gpu_unavailable'
+    end
+    local primaryMethod=primaryReport.resolvedMethod=='dqs' and 'dqs' or 'lbs'
+    local candidateMethod=comparison.mode=='lbs_dqs' and (primaryMethod=='dqs' and 'lbs' or 'dqs') or primaryMethod
     local candidate=mesh:new('3d')
     local cpuOk,cpuReady=dpCall(function()
-        local method=comparison.mode=='lbs_dqs' and 'dqs' or 'lbs'
-        return candidate:setSkeletalSkinningMethod(method) and
+        return candidate:setSkeletalSkinningMethod(candidateMethod) and
             candidate:setSkeletalExecutionPath(comparison.mode=='lbs_dqs' and 'gpu' or 'cpu')
     end)
     local loadOk,loaded=false,false
@@ -1490,7 +1495,7 @@ local function rebuildFacialComparison(enabled, mode)
     end
     if comparison.mode=='lbs_dqs' then
         local ok,report=dpCall(function() return candidate:getSkeletalSkinningReport() end)
-        if not ok or report.resolvedMethod~='dqs' or report.executionStatus~='gpu-ready' then
+        if not ok or report.resolvedMethod==primaryMethod or report.executionStatus~='gpu-ready' then
             candidate:destroy()
             return false,'fre_preview_dqs_unavailable'
         end
@@ -1583,7 +1588,7 @@ local function loadMesh(path, preserveProject)
     if directory then mbm.addPath(directory) end
     local candidate=mesh:new('3d')
     local okLoaded,loaded=dpCall(function()
-        return candidate:setSkeletalSkinningMethod('lbs') and candidate:load(path)
+        return candidate:setSkeletalSkinningMethod('auto') and candidate:load(path)
     end)
     if not okLoaded or loaded==false then
         candidate:destroy()
@@ -3364,18 +3369,25 @@ local function showPreview()
     state.project.expressions=expressions
     if state.preview.skeletalDirty then refreshPreviewSkeletalCatalog() end
     local comparison=state.facialComparison
-    local modes={tLang.L('fre_preview_compare_none'),tLang.L('fre_preview_gpu_cpu_compare'),
-        tLang.L('fre_preview_lbs_dqs_compare')}
     local selected=comparison.enabled and (comparison.mode=='lbs_dqs' and 3 or 2) or 1
-    local changed,index=tImGui.Combo(tLang.L('fre_preview_compare_mode'),selected,modes)
-    if changed then
-        local mode=index==3 and 'lbs_dqs' or 'gpu_cpu'
-        local rebuilt,reason=rebuildFacialComparison(index~=1,mode)
-        if not rebuilt then
-            comparison.enabled=false
-            if state.meshBounds then frameCamera(state.meshBounds) end
-            setStatus(tLang.L('fre_preview_compare_failed') .. ': ' ..
-                tLang.L(reason or 'fre_preview_gpu_cpu_reason_unknown'),true)
+    tImGui.Text(tLang.L('fre_preview_compare_mode'))
+    local options={
+        {label=tLang.L('fre_preview_compare_none'),value=1},
+        {label=tLang.L('fre_preview_gpu_cpu_compare'),value=2},
+        {label=tLang.L('fre_preview_lbs_dqs_compare'),value=3},
+    }
+    for _,option in ipairs(options) do
+        if tImGui.RadioButton(option.label,selected==option.value) then
+            local mode=option.value==3 and 'lbs_dqs' or 'gpu_cpu'
+            local rebuilt,reason=rebuildFacialComparison(option.value~=1,mode)
+            if rebuilt then
+                selected=option.value
+            else
+                comparison.enabled=false
+                if state.meshBounds then frameCamera(state.meshBounds) end
+                setStatus(tLang.L('fre_preview_compare_failed') .. ': ' ..
+                    tLang.L(reason or 'fre_preview_gpu_cpu_reason_unknown'),true)
+            end
         end
     end
     showHelpTooltip(tLang.L('fre_preview_compare_tooltip'))

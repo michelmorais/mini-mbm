@@ -100,8 +100,8 @@ viewport conventions. Its current worktrees are:
 8. Preview of expressions, project clips, imported MSH clips, and skeletal clips together.
 
 The Preview worktree offers a single preview, CPU/GPU comparison, and (on Metal with a rigid
-skeleton) LBS/DQS comparison. LBS is on the left and DQS on the right; both use GPU skeletal
-execution. The second preview follows the active skeletal clip/time, project expressions, and
+skeleton) LBS/DQS comparison. The primary preview uses the mesh's automatic resolved method and
+the second preview uses the alternate LBS/DQS method; both use GPU skeletal execution. The second preview follows the active skeletal clip/time, project expressions, and
 imported facial playback. Its skeletal player stays paused between explicit time changes, so a
 paused primary does not trigger continuous seeks or uploads. Comparison instances are released
 when disabled or when another mesh is loaded.
