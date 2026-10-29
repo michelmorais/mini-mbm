@@ -1490,42 +1490,58 @@ local function showTargets()
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_target_metadata_title'))
+    tImGui.SetNextItemWidth(300)
     local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freTargetName',authoring.nameDraft or '')
     if nameChanged then authoring.nameDraft=name end
+    tImGui.SetNextItemWidth(300)
     local conventionChanged,convention=tImGui.InputText(tLang.L('fre_target_convention')..'##freTargetConvention',authoring.conventionDraft or '')
     if conventionChanged then authoring.conventionDraft=convention end
+    tImGui.SetNextItemWidth(300)
     local weightChanged,weight=tImGui.SliderFloat(tLang.L('fre_target_default_weight')..'##freTargetDefaultWeight',authoring.defaultWeight or 0,0,1,'%.3f')
     if weightChanged then authoring.defaultWeight=weight end
 
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_target_edit_title'))
     tImGui.TextWrapped(tLang.L('fre_target_edit_help'))
-    local modeLabels={tLang.L('fre_target_edit_translate'),tLang.L('fre_target_edit_rotate'),tLang.L('fre_target_edit_reset')}
-    local modeChanged,mode=tImGui.Combo(tLang.L('fre_target_edit_mode')..'##freTargetEditMode',authoring.editMode or 1,modeLabels,-1)
-    if modeChanged then authoring.editMode=mode end
+    tImGui.Text(tLang.L('fre_target_edit_mode'))
+    local mode=authoring.editMode or 1
+    mode=tImGui.RadioButton(tLang.L('fre_target_edit_translate')..'##freTargetEditTranslate',mode,1)
+    tImGui.SameLine()
+    mode=tImGui.RadioButton(tLang.L('fre_target_edit_rotate')..'##freTargetEditRotate',mode,2)
+    tImGui.SameLine()
+    mode=tImGui.RadioButton(tLang.L('fre_target_edit_reset')..'##freTargetEditReset',mode,3)
+    authoring.editMode=mode
     local selectionLabels={tLang.L('fre_target_edit_all')}
     for index,mask in ipairs(state.project.masks or {}) do
         selectionLabels[#selectionLabels+1]=string.format(tLang.L('fre_target_edit_mask_fmt'),mask.name or ('#'..tostring(index)))
     end
+    authoring.selectionMode=math.max(1,math.min(authoring.selectionMode or 1,#selectionLabels))
+    tImGui.SetNextItemWidth(300)
     local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
         authoring.selectionMode or 1,selectionLabels,-1)
     if selectionChanged then authoring.selectionMode=selection end
     if authoring.editMode==1 then
+        tImGui.SetNextItemWidth(115)
         local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
         if changed then authoring.dx=value end
         tImGui.SameLine()
+        tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dy')..'##freTargetEditDy',authoring.dy or 0,0.001,0.01,'%.5f')
         if changed then authoring.dy=value end
         tImGui.SameLine()
+        tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dz')..'##freTargetEditDz',authoring.dz or 0,0.001,0.01,'%.5f')
         if changed then authoring.dz=value end
     elseif authoring.editMode==2 then
+        tImGui.SetNextItemWidth(115)
         local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
         if changed then authoring.rx=value end
         tImGui.SameLine()
+        tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
         if changed then authoring.ry=value end
         tImGui.SameLine()
+        tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
         if changed then authoring.rz=value end
         local origin=state.project.faceOrigin
