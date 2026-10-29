@@ -35,7 +35,8 @@ The first native authoring slice is available on this branch:
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
   mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
   it rebuilds on target, weight, or geometry changes and replaces the textured preview while shown.
-  At preview weight zero, the heat map is hidden and the neutral textured mesh is shown.
+  At preview weight zero, the neutral geometry keeps the heat-map shader; the overlay toggle
+  switches to the textured mesh at any weight.
 
 ### Manual authoring trial
 

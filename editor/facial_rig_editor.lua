@@ -4648,9 +4648,8 @@ end
 -- preview mesh while visible, so the matching surfaces cannot fight for depth.
 setTargetOverlayVisible=function(visible)
     local overlay=state.targetOverlay
-    local neutral=(state.targetAuthoring.previewWeight or 1)<=1e-6
     local show=visible and overlay.visible and overlay.surface~=nil and not overlay.building and
-        not overlay.dirty and not neutral and state.workspace=='targets'
+        not overlay.dirty and state.workspace=='targets'
     if show and state.mesh then
         if not overlay.meshHidden then
             overlay.meshWasVisible=state.mesh.visible~=false
@@ -4661,7 +4660,6 @@ setTargetOverlayVisible=function(visible)
         state.mesh.visible=overlay.meshWasVisible
         overlay.meshHidden=false
     end
-    if neutral and state.workspace=='targets' and state.mesh then state.mesh.visible=true end
     if overlay.surface then overlay.surface.visible=show end
 end
 
@@ -4682,12 +4680,10 @@ startTargetOverlayBuild=function()
     local vertices=state.topology.vertices or {}
     local deltas=target.positionDeltas or {}
     local weight=state.targetAuthoring.previewWeight or 1
-    if weight<=0 then overlay.dirty=false; return end
     local maximum=0
     for _,delta in ipairs(deltas) do
         maximum=math.max(maximum,math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z))
     end
-    if maximum<=1e-10 then overlay.dirty=false; return end
     local coords,uvs={},{}
     for index,point in ipairs(vertices) do
         local delta=deltas[index] or {x=0,y=0,z=0}
