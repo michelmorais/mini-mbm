@@ -22,14 +22,16 @@ The first native authoring slice is available on this branch:
 - The Lua `meshDebug` binding exposes those operations using dense `{x, y, z}` position and
   optional normal-delta arrays. Target removal also remaps facial clip weights and protects the
   last target when clips still reference it.
-- The Facial Rig Editor has a `Morph Targets` worktree for creating zero targets, duplicating
-  targets, editing metadata, and deleting targets.
+- The Facial Rig Editor splits `Morph Targets` into Add, Edit, and Paint modes. Add shows only
+  neutral-target creation fields and opens Edit after creation. Edit shows target metadata, batch
+  operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
+  selection, preview, vertex filter, and local undo/redo controls.
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
   all vertices or to an existing facial mask, with a local undo/redo stack for those target edits.
-- The worktree uses the same viewport controls as Masks: left drag orbits, middle drag pans, and
-  right drag paints move/smooth deltas with radius, strength, and optional mask filtering. A third
-  brush mode uses right click to pick a neutral surface vertex. Each stroke commits once on release
-  and enters the same local undo/redo history.
+- The worktree uses the same viewport controls as Masks: left drag orbits and middle drag pans.
+  Right click picks a neutral vertex in Edit; right drag paints move/smooth deltas in Paint with
+  radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
+  commits once on release and enters the same local undo/redo history.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
   the selected target at the chosen preview weight. The exported MSH is still saved explicitly.
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
@@ -42,12 +44,13 @@ The first native authoring slice is available on this branch:
 
 A new project does not clear targets already embedded in the opened MSH: the project stores editor
 metadata, while the MSH stores dense target deltas. To test native authoring without changing an
-imported expression, keep the current weighted MSH open, enter a unique target name such as
-`jawOpen_manual_test`, and create a zero target. Select the new target and set its preview weight
-to 1. Restrict the vertex selection to a facial mask before using batch Delta X/Y/Z or the Move
-brush; otherwise the batch edit affects the entire mesh. The brush uses the entered X/Y/Z offset
+imported expression, keep the current weighted MSH open, choose Add, enter a unique target name
+such as `jawOpen_manual_test`, and create a zero target. The editor selects it and opens Edit.
+Set its preview weight to 1, then restrict the vertex selection to a facial mask before using
+batch Delta X/Y/Z or switching to Paint and using the Move brush; otherwise the batch edit affects
+the entire mesh. The brush uses the entered X/Y/Z offset
 with radius and strength; mouse drag only places strokes. Smooth blends existing neighboring
-deltas and cannot create motion from a zero target. Pick vertex selects a neutral vertex for a
+deltas and cannot create motion from a zero target. Right click in Edit picks a neutral vertex for
 single-vertex selection and does not edit geometry. Export a new MSH to retain the result.
 
 For a clean asset with no imported targets, prepare a separate MSH candidate without facial targets;

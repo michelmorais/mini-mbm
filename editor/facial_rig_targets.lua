@@ -43,6 +43,7 @@ end
 
 function M.new()
     return {targets={},selectedTarget=1,vertexCount=0,catalogDirty=true,
+        mode=1,newNameDraft='',newConventionDraft='ARKit',newDefaultWeight=0,
         nameDraft='',conventionDraft='ARKit',defaultWeight=0,modified=false,previewDirty=false,
         editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
         previewWeight=1,previewTarget=nil,selectedVertex=nil,brushMode=1,brushRadius=0.025,
