@@ -2071,12 +2071,14 @@ vertex order and contain `{x,y,z}` tables. The first native Facial Rig Editor wo
 APIs for target identity and batch data operations. Its first sculpt-foundation controls apply
 translation, rotation around the face-origin/mesh-center pivot, or reset to all vertices or to an
 existing project mask; the controls commit only on explicit Apply and have local undo/redo.
-Ctrl + left click picks a neutral-surface vertex; Ctrl + right drag applies a bounded move/smooth
-brush, optionally filtered through a project mask. The editor stages each stroke in Lua, calls
+In Edit, right click picks a neutral-surface vertex; in Paint, right drag applies a bounded
+move/smooth brush, optionally filtered through a project mask. The editor stages each stroke in Lua,
+calls
 `updateFacialTarget` once on release, and refreshes its runtime preview through a temporary MSH
 when the candidate changes. The brush currently preserves existing normal deltas; deformed-surface
-picking and normal recomputation remain future work. Save the candidate to a new MSH before closing
-or loading another asset.
+picking and normal recomputation remain future work. The Facial Rig Editor now saves changed/new
+targets and deletions as sparse project edits relative to the source MSH; export a new MSH when the
+target payload is ready for runtime use.
 
 Mesh Debug can also mark one animation to start on each newly loaded instance of the saved V11
 asset:

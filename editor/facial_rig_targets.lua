@@ -45,6 +45,7 @@ function M.new()
     return {targets={},selectedTarget=1,vertexCount=0,catalogDirty=true,
         mode=1,newNameDraft='',newConventionDraft='ARKit',newDefaultWeight=0,
         nameDraft='',conventionDraft='ARKit',defaultWeight=0,modified=false,previewDirty=false,
+        createdIds={},deletedBaseIds={},
         editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
         previewWeight=1,previewTarget=nil,selectedVertex=nil,brushMode=1,brushRadius=0.025,
         brushStrength=0.5,brushDx=0,brushDy=-0.01,brushDz=0}
@@ -52,9 +53,9 @@ end
 
 function M.catalogFromDebug(meshDebug)
     local result={}
-    if not meshDebug then return result,0 end
+    if not meshDebug then return result,0,false end
     local exportData=meshDebug:getFacialExportData()
-    if type(exportData)~='table' then return result,0 end
+    if type(exportData)~='table' then return result,0,false end
     local hasNormals=exportData.hasNormals==true
     for index,target in ipairs(exportData.targets or {}) do
         if type(target)=='table' and type(target.name)=='string' and target.name~='' then
@@ -65,7 +66,7 @@ function M.catalogFromDebug(meshDebug)
                 normalDeltas=hasNormals and copyVectors(target.normalDeltas) or {}}
         end
     end
-    return result,tonumber(exportData.vertexCount) or 0
+    return result,tonumber(exportData.vertexCount) or 0,hasNormals
 end
 
 function M.zeroDeltas(vertexCount)

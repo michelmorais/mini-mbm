@@ -32,6 +32,7 @@ tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
 tFacialTargets = require "facial_rig_targets"
+tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
@@ -1294,7 +1295,10 @@ local function saveAssignedMesh()
     if state.targetAuthoring then
         state.targetAuthoring.modified=false
         state.targetAuthoring.previewDirty=true
+        state.targetAuthoring.createdIds={}
+        state.targetAuthoring.deletedBaseIds={}
     end
+    state.project.morphTargetEdits=nil
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
 end
@@ -1585,10 +1589,12 @@ local function showTargets()
                 end)
                 if callOk and newIndex then
                     markFacialTargetAuthoringModified()
+                    local created=tFacialTargets.find(authoring.targets,newIndex)
+                    if created then authoring.createdIds[created.id]=true end
                     tFacialTargets.clearEditHistory(authoring)
                     authoring.selectedTarget=newIndex
                     authoring.newNameDraft=''
-                    authoring.mode=2
+                    authoring.mode=3
                     state.targetOverlay.dirty=true
                     setStatus(tLang.L('fre_target_created'),false)
                 else
@@ -1597,7 +1603,9 @@ local function showTargets()
             end
         end
         showHelpTooltip(tLang.L('fre_target_create_tooltip'))
-        if authoring.modified then tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help')) end
+        if authoring.modified and state.modified then
+            tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))
+        end
         return
     end
     tImGui.Text(string.format(tLang.L('fre_targets_vertex_count_fmt'),authoring.vertexCount or 0))
@@ -1906,6 +1914,8 @@ local function showTargets()
                 end)
                 if callOk and newIndex then
                     markFacialTargetAuthoringModified()
+                    local created=tFacialTargets.find(authoring.targets,newIndex)
+                    if created then authoring.createdIds[created.id]=true end
                     tFacialTargets.clearEditHistory(authoring)
                     authoring.selectedTarget=newIndex
                     setStatus(tLang.L('fre_target_duplicated'),false)
@@ -1917,8 +1927,14 @@ local function showTargets()
         showHelpTooltip(tLang.L('fre_target_duplicate_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_target_delete')) then
+            local deletedId=selected and selected.id
             local callOk,removed=dpCall(function() return state.meshDebug:removeFacialTarget(authoring.selectedTarget) end)
             if callOk and removed~=false then
+                if authoring.createdIds[deletedId] then
+                    authoring.createdIds[deletedId]=nil
+                else
+                    authoring.deletedBaseIds[deletedId]=true
+                end
                 markFacialTargetAuthoringModified()
                 tFacialTargets.clearEditHistory(authoring)
                 authoring.selectedTarget=math.max(1,authoring.selectedTarget-1)
@@ -1930,7 +1946,7 @@ local function showTargets()
         showHelpTooltip(tLang.L('fre_target_delete_tooltip'))
         tImGui.EndDisabled()
     end
-    if authoring.modified then
+    if authoring.modified and state.modified then
         tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))
     end
 end
@@ -2128,14 +2144,13 @@ local function loadMesh(path, preserveProject)
     -- deterministic bind/T-pose; playback is opt-in from Preview.
     dpCall(function() return candidate:stopSkeletalAnimation() end)
     local inspector=meshDebug:new()
-    local okInspected=dpCall(function() return inspector:load(path) end)
-    if not okInspected then
+    local okInspected,inspected=dpCall(function() return inspector:load(path) end)
+    if not okInspected or inspected~=true then
         candidate:destroy()
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
         return false
     end
     local bounds,count,topology=inspectMesh(inspector)
-    destroyPreview()
     if not topology then
         candidate:destroy()
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
@@ -2145,7 +2160,25 @@ local function loadMesh(path, preserveProject)
     local projectCompatible=not requestedPreserve or state.project.meshTopologySignature=='' or
         (state.project.meshTopologySignature==topology.signature and
             (state.project.meshVertexCount==0 or state.project.meshVertexCount==topology.vertexCount))
+    if requestedPreserve and not projectCompatible and state.project.morphTargetEdits then
+        candidate:destroy()
+        setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
+        return false
+    end
     if requestedPreserve and not projectCompatible then preserveProject=false end
+    local restoredIds={}
+    if preserveProject and state.project.morphTargetEdits then
+        local restored,ok,idMap=dpCall(function()
+            return tFacialTargetProject.apply(inspector,state.project.morphTargetEdits,topology.signature)
+        end)
+        if not restored or not ok then
+            candidate:destroy()
+            setStatus(string.format(tLang.L('fre_target_project_restore_failed'),tostring(idMap or ok)),true)
+            return false
+        end
+        restoredIds=idMap or {}
+    end
+    destroyPreview()
     state.mesh=candidate
     state.meshDebug=inspector
     state.meshBounds=bounds
@@ -2176,11 +2209,25 @@ local function loadMesh(path, preserveProject)
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
     state.targetAuthoring=tFacialTargets.new()
+    if preserveProject and state.project.morphTargetEdits then
+        state.targetAuthoring.modified=true
+        state.targetAuthoring.previewDirty=true
+        state.targetAuthoring.projectRestorePending=true
+        local patch=state.project.morphTargetEdits
+        local baseIds={}
+        for _,id in ipairs(patch.baseIds or {}) do baseIds[id]=true end
+        for _,id in ipairs(patch.removedIds or {}) do state.targetAuthoring.deletedBaseIds[id]=true end
+        for _,record in ipairs(patch.targets or {}) do
+            if not baseIds[record.id] or state.targetAuthoring.deletedBaseIds[record.id] then
+                state.targetAuthoring.createdIds[restoredIds[record.id] or record.id]=true
+            end
+        end
+    end
     local savedPreview=state.project.morphTargetPreview
     if savedPreview and savedPreview.targetId and savedPreview.targetId~='' then
         refreshFacialTargetCatalog()
         for index,target in ipairs(state.targetAuthoring.targets) do
-            if target.id==savedPreview.targetId then
+            if target.id==(restoredIds[savedPreview.targetId] or savedPreview.targetId) then
                 state.targetAuthoring.selectedTarget=index
                 state.targetAuthoring.previewWeight=savedPreview.weight
                 updateTargetPreviewWeights()
@@ -2247,21 +2294,20 @@ local function openProject()
         setStatus(string.format(tLang.L('fre_project_load_failed_fmt'),tostring(errorMessage)),true)
         return
     end
+    local previousProject,previousPath,previousModified=state.project,state.projectPath,state.modified
+    local previousLanguage=tLang.getLanguage()
     if project.language then tLang.setLanguage(project.language) end
     state.project=project
     state.projectPath=path
-    state.blenderBridgePath=nil
-    state.blenderSourcePath=nil
-    state.blenderGeneratedBlendPath=nil
-    state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
-        exportLogPath=nil,logPath=nil,importLogPath=nil,generationFinishedAt=nil,job=nil,
-        startedAt=0,phase='',detail='',progress=0}
-    state.selectedRole=project.selectedRole or 1
-    state.selectedLandmark=project.selectedLandmark or 1
-    state.landmarkEditMode=project.landmarkEditMode or 1
     state.modified=false
     if project.meshPath~='' then
-        if not loadMesh(project.meshPath,true) then state.project=project end
+        if not loadMesh(project.meshPath,true) then
+            state.project=previousProject
+            state.projectPath=previousPath
+            state.modified=previousModified
+            tLang.setLanguage(previousLanguage)
+            return
+        end
     else
         destroyPreview()
         state.targetAuthoring=tFacialTargets.new()
@@ -2272,6 +2318,15 @@ local function openProject()
             authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
         state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
     end
+    state.blenderBridgePath=nil
+    state.blenderSourcePath=nil
+    state.blenderGeneratedBlendPath=nil
+    state.automatedTargetJob={status='idle',jsonPath=nil,sourceBlendPath=nil,blendPath=nil,mshPath=nil,
+        exportLogPath=nil,logPath=nil,importLogPath=nil,generationFinishedAt=nil,job=nil,
+        startedAt=0,phase='',detail='',progress=0}
+    state.selectedRole=project.selectedRole or 1
+    state.selectedLandmark=project.selectedLandmark or 1
+    state.landmarkEditMode=project.landmarkEditMode or 1
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
 end
@@ -2290,6 +2345,25 @@ local function saveProject(path)
     local selected=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
     state.project.morphTargetPreview={targetId=selected and selected.id or '',
         weight=state.targetAuthoring.previewWeight or 1}
+    if state.targetAuthoring.modified and state.meshDebug then
+        local source=meshDebug:new()
+        local loaded,sourceLoaded=dpCall(function() return source:load(state.project.meshPath) end)
+        if not loaded or sourceLoaded==false then
+            setStatus(tLang.L('fre_target_project_source_failed'),true)
+            return false
+        end
+        local base=tFacialTargets.catalogFromDebug(source)
+        local captured,patch,errorMessage=dpCall(function()
+            return tFacialTargetProject.capture(base,state.targetAuthoring.targets,
+                state.targetAuthoring.vertexCount,state.topology.signature,
+                state.targetAuthoring.createdIds,state.targetAuthoring.deletedBaseIds)
+        end)
+        if not captured or errorMessage then
+            setStatus(string.format(tLang.L('fre_project_save_failed_fmt'),tostring(errorMessage or patch)),true)
+            return false
+        end
+        state.project.morphTargetEdits=patch
+    end
     state.project.selectedClip=state.clipEditor.selectedClip or 1
     state.project.language=tLang.getLanguage()
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
@@ -2298,9 +2372,8 @@ local function saveProject(path)
         return false
     end
     state.projectPath=path
-    -- Dense target edits live in MeshDebug until an MSH export. Keep the dirty
-    -- indicator active when the Lua project was saved but the target payload was not.
-    state.modified=state.targetAuthoring and state.targetAuthoring.modified==true or false
+    -- The project contains the target edits; the MSH export remains explicit.
+    state.modified=false
     setStatus(string.format(tLang.L('fre_project_saved_fmt'),shortName(path)),false)
     return true
 end
@@ -4474,7 +4547,11 @@ end
 function onLoop(delta)
     updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
-    if state.workspace=='targets' and state.targetAuthoring.previewDirty then refreshTargetPreview() end
+    if state.targetAuthoring.previewDirty and
+            (state.workspace=='targets' or state.targetAuthoring.projectRestorePending) then
+        refreshTargetPreview()
+        state.targetAuthoring.projectRestorePending=false
+    end
     if state.workspace=='targets' and state.targetOverlay.dirty and not state.targetOverlay.building then
         startTargetOverlayBuild()
     end

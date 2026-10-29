@@ -99,6 +99,7 @@ function M.new()
         selectedMask=1,
         landmarkEditMode=1,
         morphTargetPreview={targetId='',weight=1},
+        morphTargetEdits=nil,
         expressions={targets={},poses={},selectedTarget=1,selectedPose=1},
         clips={},selectedClip=1,
         language=nil
@@ -150,6 +151,7 @@ function M.normalize(project)
             previewWeight==math.huge or previewWeight==-math.huge then previewWeight=1 end
     project.morphTargetPreview={targetId=type(targetPreview.targetId)=='string' and
         targetPreview.targetId or '',weight=math.max(0,math.min(1,previewWeight))}
+    if type(project.morphTargetEdits)~='table' then project.morphTargetEdits=nil end
     if type(project.expressions)~='table' then
         project.expressions={targets={},poses={},selectedTarget=1,selectedPose=1}
     else

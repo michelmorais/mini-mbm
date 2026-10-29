@@ -23,7 +23,7 @@ The first native authoring slice is available on this branch:
   optional normal-delta arrays. Target addition appends a zero weight to existing facial clip
   keys; removal deletes the corresponding weight and protects the last target when clips remain.
 - The Facial Rig Editor splits `Morph Targets` into Add, Edit, and Paint modes. Add shows only
-  neutral-target creation fields and opens Edit after creation. Edit shows target metadata, batch
+  neutral-target creation fields and opens Paint after creation. Edit shows target metadata, batch
   operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
   selection, preview, vertex filter, and local undo/redo controls.
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
@@ -34,8 +34,10 @@ The first native authoring slice is available on this branch:
   commits once on release and enters the same local undo/redo history.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
   the selected target at the chosen preview weight. The editor project stores the selected target
-  ID and preview weight when saved; the MSH stores target deltas and default weights, not this
-  editor preview preference. The exported MSH is still saved explicitly.
+  ID and preview weight when saved. It also stores changed/new targets as sparse delta overrides
+  against the source MSH and records deleted target IDs. Reopening the project validates the source
+  target IDs and topology before replaying those edits. The MSH stores target deltas and default
+  weights, not the editor preview preference. Exporting a runtime MSH remains explicit.
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
   mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
   it rebuilds on target, weight, or geometry changes and replaces the textured preview while shown.
@@ -45,15 +47,17 @@ The first native authoring slice is available on this branch:
 ### Manual authoring trial
 
 A new project does not clear targets already embedded in the opened MSH: the project stores editor
-metadata, while the MSH stores dense target deltas. To test native authoring without changing an
+metadata and target edits relative to that MSH, while the source MSH stores its original dense
+target deltas. To test native authoring without changing an
 imported expression, keep the current weighted MSH open, choose Add, enter a unique target name
-such as `jawOpen_manual_test`, and create a zero target. The editor selects it and opens Edit.
-Set its preview weight to 1, then restrict the vertex selection to a facial mask before using
-batch Delta X/Y/Z or switching to Paint and using the Move brush; otherwise the batch edit affects
-the entire mesh. The brush uses the entered X/Y/Z offset
+such as `jawOpen_manual_test`, and create a zero target. The editor selects it and opens Paint.
+Set its preview weight to 1, then select a facial mask before using the Move brush. The brush uses
+the entered X/Y/Z offset
 with radius and strength; mouse drag only places strokes. Smooth blends existing neighboring
-deltas and cannot create motion from a zero target. Right click in Edit picks a neutral vertex for
-single-vertex selection and does not edit geometry. Export a new MSH to retain the result.
+deltas and cannot create motion from a zero target. Edit can also start from zero deltas with a
+masked batch Delta X/Y/Z; without a mask the batch edit affects the entire mesh. Right click in
+Edit picks a neutral vertex for single-vertex selection and does not edit geometry. Save the facial
+project to retain the sculpt session, then export a new MSH for runtime use.
 
 For a clean asset with no imported targets, prepare a separate MSH candidate without facial targets;
 creating a new project alone is insufficient. A jaw-opening rotation also needs a pivot near the
@@ -147,10 +151,10 @@ The API should be designed for large copy-outs and batch edits. It must not expo
 containers, or mutable implementation storage through public headers. Existing read-only export
 helpers may be reused, but a setter should not be assembled from one Lua call per vertex.
 
-The first export path should save a new MSH and never overwrite the source asset implicitly. The
-existing project file remains the home for editor metadata and named expressions; the dense target
-payload is persisted by the exported MSH candidate. A later milestone may add a compact working
-sidecar if interrupted sculpt sessions need persistence before export.
+The runtime export path saves a new MSH and does not overwrite the source asset implicitly. The
+project file stores editor metadata, named expressions, and sparse target edits relative to the
+source MSH, so sculpt sessions survive before runtime export. The exported MSH persists the dense
+target payload for the engine.
 
 ### Phase 2 - Target sculpting worktree
 
