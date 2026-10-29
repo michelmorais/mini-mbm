@@ -44,7 +44,8 @@ namespace
         float boneWeights[4];
     };
 
-    bool facialParity(const uint32_t vertexCount, const uint32_t targetCount, const uint32_t width)
+    bool facialParity(const uint32_t vertexCount, const uint32_t targetCount, const uint32_t width,
+                      const SKELETAL_SHADER_METHOD method = SKELETAL_SHADER_METHOD::LBS)
     {
         auto *context = DEVICE::getInstance()->getSpecificContextDevice();
         if (!context || !context->mtlDevice) return false;
@@ -74,7 +75,7 @@ namespace
         if (!facial::uploadGpuMorphStream(&buffer, asset, layout)) return false;
         std::string source = "#include <metal_stdlib>\nusing namespace metal;\n"
             "struct VIn{float3 pos;float3 nor;float4 boneIndices;float4 boneWeights;};\n";
-        appendMetalSkeletalFunctions(source, SKELETAL_SHADER_METHOD::LBS);
+        appendMetalSkeletalFunctions(source, method);
         source += "kernel void facial_test(uint facialVertexId [[thread_position_in_grid]],"
             "device const float4* base [[buffer(0)]],device float4* result [[buffer(1)]],"
             "device const float4* bonePalette [[buffer(19)]],constant float* facialWeights [[buffer(22)]],"
@@ -82,7 +83,7 @@ namespace
             "uint id=facialVertexId+facialVertexOffset;VIn in;in.pos=base[id*2].xyz;in.nor=base[id*2+1].xyz;"
             "in.boneIndices=float4(0);in.boneWeights=float4(1,0,0,0);\n";
         facial::appendMetalFacialDeformation(source, targetCount, width, layout.rowsPerTarget, true);
-        appendMetalSkeletalDeformation(source, SKELETAL_SHADER_METHOD::LBS, true);
+        appendMetalSkeletalDeformation(source, method, true);
         source += "result[facialVertexId*2]=skinnedPosition;result[facialVertexId*2+1]=float4(skinnedNormal,0);}";
         NSError *compileError = nil;
         id<MTLLibrary> library = [context->mtlDevice newLibraryWithSource:
@@ -101,7 +102,12 @@ namespace
         const float palette[12] = {0,-1,0,2, 1,0,0,3, 0,0,1,4};
         id<MTLBuffer> inputs = [context->mtlDevice newBufferWithBytes:input.data() length:input.size()*sizeof(float) options:MTLResourceStorageModeShared];
         id<MTLBuffer> outputs = [context->mtlDevice newBufferWithLength:input.size()*sizeof(float) options:MTLResourceStorageModeShared];
-        id<MTLBuffer> bones = [context->mtlDevice newBufferWithBytes:palette length:sizeof(palette) options:MTLResourceStorageModeShared];
+        const float q = std::sqrt(.5f);
+        // dual = 0.5 * translation quaternion * real (90 degrees around Z).
+        const float dqPalette[8] = {0,0,q,q, 2.5f*q,.5f*q,2*q,-2*q};
+        const bool dqs = method == SKELETAL_SHADER_METHOD::DQS_RIGID;
+        id<MTLBuffer> bones = [context->mtlDevice newBufferWithBytes:dqs ? dqPalette : palette
+            length:dqs ? sizeof(dqPalette) : sizeof(palette) options:MTLResourceStorageModeShared];
         if (!inputs || !outputs || !bones) return false;
         float maximumError = 0;
         double cpuMilliseconds = 0, gpuMilliseconds = 0;
@@ -143,7 +149,7 @@ namespace
                 }
             }
         }
-        INFO_LOG("METAL FACIAL PARITY PASS vertices=%u targets=%u max_error=%g cpu_mean_ms=%.3f gpu_submit_wait_mean_ms=%.3f (zero/mixed/full weights, tiled deltas, normals, LBS, subset offset)", vertexCount, targetCount, maximumError, cpuMilliseconds/3.0, gpuMilliseconds/6.0);
+        INFO_LOG("METAL FACIAL PARITY PASS vertices=%u targets=%u max_error=%g cpu_mean_ms=%.3f gpu_submit_wait_mean_ms=%.3f (zero/mixed/full weights, tiled deltas, normals, %s, subset offset)", vertexCount, targetCount, maximumError, cpuMilliseconds/3.0, gpuMilliseconds/6.0, dqs ? "DQS" : "LBS");
         return true;
     }
 
@@ -272,7 +278,8 @@ namespace
 bool runMetalSkeletalParityTests()
 {
     std::string error;
-    if (facialParity(5, 2, 2) && facialParity(34164, 6, 4096) && facialParity(34164, 52, 4096) && mbm::skeletal::test::runSkeletalParitySuite("Metal", captureRgba8, error))
+    if (facialParity(5, 2, 2, SKELETAL_SHADER_METHOD::DQS_RIGID) &&
+        facialParity(34164, 52, 4096, SKELETAL_SHADER_METHOD::DQS_RIGID) && facialParity(5, 2, 2) && facialParity(34164, 6, 4096) && facialParity(34164, 52, 4096) && mbm::skeletal::test::runSkeletalParitySuite("Metal", captureRgba8, error))
         return true;
     ERROR_LOG("testLib: %s", error.c_str());
     return false;

@@ -521,9 +521,10 @@ static int runTestLib(int argc, char **argv
     if (argc == 2 && std::strcmp(argv[1], "--facial-performance-benchmark") == 0)
         return runFacialPerformanceBenchmark();
     GAME game;
-    if (argc == 2 && std::strcmp(argv[1], "--facial-runtime-test") == 0)
+    if (argc >= 2 && std::strcmp(argv[1], "--facial-runtime-test") == 0)
     {
         game.myScene.testFacialAnimation = true;
+        game.myScene.testFacialDqs = argc >= 3 && std::strcmp(argv[2], "dqs") == 0;
         game.myScene.testTimeoutSeconds = 8.0f;
     }
     game.myScene.testCoreManager = &game;

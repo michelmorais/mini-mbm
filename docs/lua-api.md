@@ -630,7 +630,7 @@ contain unit scale; otherwise it resolves to LBS. Changing method after load ret
 the resolved method is part of the compiled default-shader variant. The Absolute layer supports a
 linear timed fade and a per-instance non-negative playback-speed multiplier shared by base, layer,
 and fade. Per-bone masks, completion callbacks, and Metal are delivered; transition curves/queues
-and priorities remain future work. OpenGL ES, DirectX9, and Metal provide the current GPU paths.
+and priorities remain future work. OpenGL ES, DirectX9, DirectX11, and Metal provide the current GPU paths.
 The default requested execution policy is `"auto"`, which prefers GPU and resolves once at load to
 CPU only when the loaded mesh's
 resolved LBS or rigid DQS method cannot fit the GPU path and the CPU path is ready. Execution auto
@@ -702,6 +702,14 @@ contribution while retaining manual overrides. Non-looping clips clamp at their 
 looping clips wrap time. `seekFacialAnimation` clamps to the active clip interval and preserves its
 playing/paused state.
 
+Facial morphing precedes skeletal deformation. Select `"dqs"` with
+`setSkeletalSkinningMethod` before loading to use rigid DQS with facial targets on the native
+OpenGL ES, DirectX 9, DirectX 11, or Metal GPU skeletal path, or on the CPU reference. Indexed
+GPU facial morphing is capability-dependent; when unavailable, CPU morph output still feeds the
+GPU DQS stage. Existing rigid-transform eligibility rules apply. Mesh Debug requests `"auto"` for
+facial previews, so its report resolves to DQS when the bind and all skeletal clips are rigid;
+otherwise it reports the LBS fallback and the compatibility reason.
+
 | Method | Signature | Returns | Description |
 |---|---|---|---|
 | `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |
@@ -724,7 +732,7 @@ playing/paused state.
 | `obj:getFacialAnimationTime` | `()` | number or nil | Current active clip time |
 | `obj:setFacialAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance playback multiplier |
 | `obj:getFacialAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
-| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, skin execution path (`cpu` or `gpu-skeletal-composite`), morph execution path (`gpu-indexed-deltas` when the measured GLES2, DirectX 11, DirectX 9, or macOS Metal path is available, otherwise `cpu-reference`), morph capability status, and status |
+| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, skin execution path (`cpu` or `gpu-skeletal-composite`), morph execution path (`gpu-indexed-deltas` when the measured GLES2, DirectX 11, DirectX 9, or macOS Metal path is available, otherwise `cpu-reference`), morph capability status, and status. CPU morph with GPU skeletal DQS is a valid fallback combination. |
 
 ```lua
 local face = mesh:new("3d")

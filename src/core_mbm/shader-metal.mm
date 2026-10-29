@@ -1360,7 +1360,7 @@ namespace mbm
     {
         if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE) return false;
         if (facialTargets && (!facialWidth || !facialHeight || !facialRows || facialTargets > 256u ||
-            ptrVshader || skeletalMethod == SKELETAL_SHADER_METHOD::DQS_RIGID || usesNormalMappingVariant())) return false;
+            ptrVshader || usesNormalMappingVariant())) return false;
         void *backendShaderSpecific = getBackendShaderSpecific();
         if (backendShaderSpecific) return true;  // already compiled
 

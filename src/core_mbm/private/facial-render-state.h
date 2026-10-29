@@ -26,6 +26,14 @@
 #include <vector>
 namespace mbm::facial
 {
+    inline bool supportsGpuSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
+    {
+#if defined(USE_METAL) || defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
+        if (method == SKELETAL_SHADER_METHOD::DQS_RIGID) return true;
+#endif
+        return method == SKELETAL_SHADER_METHOD::LBS;
+    }
+
     struct RENDER_STATE
     {
         BUFFER_MESH buffer;
@@ -49,6 +57,8 @@ namespace mbm::facial
         bool gpuMorph = false, gpuMorphShaderCompiled = false, gpuMorphUploaded = false;
         const SHADER *gpuMorphShaderOwner = nullptr;
         uint32_t gpuMorphShaderPaletteSize = 0;
+        SKELETAL_SHADER_METHOD skinningMethod = SKELETAL_SHADER_METHOD::NONE;
+        SKELETAL_SHADER_METHOD gpuMorphShaderMethod = SKELETAL_SHADER_METHOD::NONE;
         bool poseAdvancedForRender = false;
         RENDER_STATE() { bounds.lsCube.push_back(new CUBE()); }
     };

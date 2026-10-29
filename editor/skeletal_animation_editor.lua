@@ -2956,11 +2956,8 @@ local function rebuildPreview(sourcePath)
     sourcePath=sourcePath or state.fileName
     if not sourcePath then return end
     local facialTargetCount=state.facialTargetCount or 0
-    -- The runtime facial composite currently requires LBS. AUTO may resolve to DQS for
-    -- a rigid skeleton, which makes a facial preview fail during MSH load. Keep every
-    -- facial editor preview on the supported LBS contract; GPU/CPU comparison remains
-    -- valid, while the LBS/DQS stress comparison is not.
-    if facialTargetCount>0 then
+    -- Facial GPU DQS is available on the native skeletal shader backends.
+    if facialTargetCount>0 and not state.facialDqsSupported then
         playback.method=2
         playback.poseStress=false
     end
@@ -3318,6 +3315,7 @@ local function showSkeletalPreviewControls()
     if tTutorials.consumeFocus('runtime_preview') then tImGui.SetScrollHereY(0.15) end
     local playback=state.skeletalPreview
     local facialTargetCount=state.facialTargetCount or 0
+    local facialRequiresLbs=facialTargetCount>0 and not state.facialDqsSupported
     local sourceKey=not state.runtimePreviewFromMemory and 'swl_runtime_source_file' or
         state.runtimePreviewMemoryDirty and 'swl_runtime_source_memory_stale' or
         'swl_runtime_source_memory'
@@ -3335,10 +3333,10 @@ local function showSkeletalPreviewControls()
         rebuildSkeletonVisuals()
         applyWorkspaceVisibility()
     end
-    tImGui.BeginDisabled(facialTargetCount>0)
+    tImGui.BeginDisabled(facialRequiresLbs)
     local poseStress=tImGui.Checkbox(tLang.L('swl_pose_stress_compare'),playback.poseStress)
     tImGui.EndDisabled()
-    if facialTargetCount>0 then
+    if facialRequiresLbs then
         tImGui.TextDisabled(tLang.L('swl_pose_stress_unavailable'))
     end
     if poseStress~=playback.poseStress then
@@ -3368,7 +3366,7 @@ local function showSkeletalPreviewControls()
         tImGui.TextWrapped(tLang.L('swl_gpu_cpu_layout'))
     end
     local methods={tLang.L('swl_skinning_auto'),tLang.L('swl_skinning_lbs'),tLang.L('swl_skinning_dqs')}
-    tImGui.BeginDisabled(swlHasRuntimeComparison() or facialTargetCount>0)
+    tImGui.BeginDisabled(swlHasRuntimeComparison() or facialRequiresLbs)
     tImGui.PushItemWidth(190)
     local methodChanged,method=tImGui.Combo(tLang.L('swl_skinning_method'),playback.method,methods,-1)
     tImGui.PopItemWidth()
@@ -10633,6 +10631,8 @@ local function showRuntimeLightWindow()
 end
 
 function onInitScene()
+    state.facialDqsSupported=mbm.get("USE_OPENGL_ES") or mbm.get("USE_DIRECTX9") or
+        mbm.get("USE_DIRECTX11") or mbm.get("USE_METAL")
     camera3d = mbm.getCamera('3d')
     camera3d:setFar(9999999)
     noMoveFlag = tImGui.Flags('ImGuiWindowFlags_NoCollapse')

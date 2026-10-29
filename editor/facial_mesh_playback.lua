@@ -37,6 +37,43 @@ local function showHelpTooltip(message)
     tImGui.EndTooltip()
 end
 
+-- Reports are small runtime snapshots; never cache readiness across shader fallback.
+function M.drawReport(preview, call)
+    local report = safe(call, function() return preview:getFacialAnimationReport() end)
+    local skin = safe(call, function() return preview:getSkeletalSkinningReport() end)
+    if type(report) ~= 'table' then return end
+    local function indicator(label, path)
+        local color = path == 'gpu' and {r=0.15,g=0.82,b=0.32,a=1} or
+            path == 'cpu' and {r=1,g=0.55,b=0.10,a=1} or nil
+        if color then
+            local cursor = tImGui.GetCursorScreenPos()
+            tImGui.Dummy({x=12,y=14})
+            tImGui.AddCircleFilled({x=cursor.x+6,y=cursor.y+7},5,color,18)
+            tImGui.SameLine()
+        end
+        tImGui.Text(label)
+    end
+    local morph = report.morphExecutionPath
+    local morphPath = report.ready and (morph == 'gpu-indexed-deltas' and 'gpu' or
+        morph == 'cpu-reference' and 'cpu') or nil
+    indicator(string.format(tLang.L('fre_preview_morph_fmt'),
+        morphPath and morphPath:upper() or (morph or 'none')), morphPath)
+    if type(skin) == 'table' and (tonumber(skin.requiredBoneCount) or 0) > 0 then
+        local skinReady = skin.executionStatus == 'gpu-ready' or
+            skin.executionStatus == 'cpu-lbs-ready' or skin.executionStatus == 'cpu-dqs-ready'
+        local path = report.ready and skinReady and (skin.resolvedExecutionPath or skin.executionPath) or nil
+        indicator(string.format(tLang.L('fre_preview_skin_fmt'),
+            (skin.resolvedMethod or 'unknown'):upper() .. ' / ' .. (path or 'unknown'):upper()), path)
+        if skin.resolutionReason and skin.resolutionReason ~= '' then
+            tImGui.TextDisabled(string.format(tLang.L('swl_skinning_reason_fmt'), skin.resolutionReason))
+        end
+    end
+    tImGui.TextDisabled(string.format('%s: %s',
+        tLang.L('mesh_debug_facial_status'), report.status or 'unknown'))
+    if report.morphStatus and report.morphStatus ~= '' then tImGui.TextWrapped(report.morphStatus) end
+    return report
+end
+
 local function refreshState(state, preview, call)
     state.preview = preview
     state.targets = {}
@@ -69,6 +106,7 @@ local function apply(state, fn, call)
     local ok, result = call(fn)
     state.failed = not ok or result == false
     state.report = safe(call, function() return state.preview:getFacialAnimationReport() end)
+    if not state.failed and state.onChanged then state.onChanged() end
     return not state.failed
 end
 
@@ -79,7 +117,7 @@ local function refreshWeights(state, preview, call)
     end
 end
 
-function M.draw(entry, data, preview, ready, call)
+function M.draw(entry, data, preview, ready, call, onChanged)
     local state = entry.facialPlayback
     if not preview then
         tImGui.TextDisabled(tLang.L('mesh_debug_facial_preview_unavailable'))
@@ -91,6 +129,7 @@ function M.draw(entry, data, preview, ready, call)
         entry.facialPlayback = state
         refreshState(state, preview, call)
     end
+    state.onChanged = onChanged
     if #state.targets == 0 and #state.clips == 0 then
         tImGui.TextDisabled(tLang.L('mesh_debug_facial_no_data'))
         return
@@ -167,16 +206,7 @@ function M.draw(entry, data, preview, ready, call)
         end
     end
 
-    local report = state.report
-    if type(report) == 'table' then
-        tImGui.TextDisabled(string.format('%s: %s',
-            tLang.L('mesh_debug_facial_status'), report.status or 'unknown'))
-        tImGui.TextDisabled(string.format('Skin: %s', report.executionPath or 'none'))
-        tImGui.TextDisabled(string.format('Morph: %s', report.morphExecutionPath or 'none'))
-        if report.morphStatus and report.morphStatus ~= '' then
-            tImGui.TextWrapped(report.morphStatus)
-        end
-    end
+    state.report = M.drawReport(preview, call)
     if state.failed then
         tImGui.TextWrapped(tLang.L('mesh_debug_facial_failed'))
     end

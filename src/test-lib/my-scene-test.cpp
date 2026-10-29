@@ -221,7 +221,7 @@ void MY_SCENE::onInitScene()
     util::addPath(__FILE__);
     if (testFacialAnimation)
     {
-        automatedTestFailed = !beginFacialRuntimeTests(this);
+        automatedTestFailed = !beginFacialRuntimeTests(this, testFacialDqs);
         if (automatedTestFailed) device->setRun(false);
         return;
     }
