@@ -98,6 +98,7 @@ local startMaskVisualizationBuild
 local stepMaskVisualizationBuild
 local updateMaskBrushHover
 local drawMaskBrushScreenCursor
+local drawTargetBrushScreenCursor
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
@@ -752,6 +753,12 @@ local function destroyPreview()
         dpCall(function() state.facialComparison.mesh:destroy() end)
     end
     state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
+    if state.targetAuthoring and state.targetAuthoring.previewPath then
+        if state.mesh then dpCall(function() state.mesh:destroy() end); state.mesh=nil end
+        dpCall(function() meshDebug:fakeRelease(state.targetAuthoring.previewPath) end)
+        os.remove(state.targetAuthoring.previewPath)
+        state.targetAuthoring.previewPath=nil
+    end
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
     end
@@ -1451,6 +1458,65 @@ local function targetAuthoringError(message)
     setStatus(tLang.L('fre_target_authoring_failed') .. ': ' .. tostring(message or ''),true)
 end
 
+local function updateTargetPreviewWeights()
+    local authoring=state.targetAuthoring
+    if not state.mesh or not authoring or authoring.previewDirty then return end
+    for index=1,#authoring.targets do
+        local weight=index==authoring.selectedTarget and (authoring.previewWeight or 1) or 0
+        dpCall(function() return state.mesh:setFacialWeight(index,weight) end)
+    end
+    authoring.previewTarget=authoring.selectedTarget
+end
+
+local function refreshTargetPreview()
+    local authoring=state.targetAuthoring
+    if not authoring or not authoring.previewDirty or not state.meshDebug or not state.mesh then return end
+    local path=tUtil.getTemporaryFilePath('_facial_target_preview.msh')
+    local savedOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,true) end)
+    if not savedOk or saved~=true then
+        os.remove(path)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    local candidate=mesh:new('3d')
+    local loadedOk,loaded=dpCall(function()
+        return candidate:setSkeletalSkinningMethod('auto') and meshDebug:loadMeshPreview(candidate,path)
+    end)
+    if not loadedOk or loaded~=true then
+        candidate:destroy()
+        dpCall(function() meshDebug:fakeRelease(path) end)
+        os.remove(path)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    dpCall(function() candidate:stopSkeletalAnimation() end)
+    candidate.alwaysRender=true
+    candidate.visible=state.mesh.visible
+    local old=state.mesh
+    if state.facialComparison and state.facialComparison.mesh then
+        state.facialComparison.mesh.alwaysRender=false
+        dpCall(function() state.facialComparison.mesh:destroy() end)
+        state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
+    end
+    candidate:setPos(0,0,0)
+    old.alwaysRender=false
+    dpCall(function() old:destroy() end)
+    if authoring.previewPath then
+        dpCall(function() meshDebug:fakeRelease(authoring.previewPath) end)
+        os.remove(authoring.previewPath)
+    end
+    state.mesh=candidate
+    authoring.previewPath=path
+    authoring.previewDirty=false
+    authoring.previewTarget=nil
+    state.preview.skeletalDirty=true
+    state.preview.activeSkeletal=nil
+    state.preview.authoredClipInitialized=false
+    updateTargetPreviewWeights()
+end
+
 local function showTargets()
     local authoring=state.targetAuthoring
     if authoring.catalogDirty then refreshFacialTargetCatalog() end
@@ -1473,6 +1539,7 @@ local function showTargets()
                 if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
                     authoring.selectedTarget=index
                     authoring.draftTargetIndex=nil
+                    updateTargetPreviewWeights()
                 end
                 tImGui.TableSetColumnIndex(1)
                 tImGui.Text(target.convention~='' and target.convention or '-')
@@ -1482,6 +1549,13 @@ local function showTargets()
     end
 
     local selected=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if selected then
+        tImGui.SetNextItemWidth(300)
+        local changed,value=tImGui.SliderFloat(tLang.L('fre_target_preview_weight')..'##freTargetPreviewWeight',
+            authoring.previewWeight or 1,0,1,'%.2f')
+        if changed then authoring.previewWeight=value; updateTargetPreviewWeights() end
+        if authoring.previewTarget~=authoring.selectedTarget then updateTargetPreviewWeights() end
+    end
     if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
         authoring.nameDraft=selected.name
         authoring.conventionDraft=selected.convention or ''
@@ -1511,7 +1585,7 @@ local function showTargets()
     tImGui.SameLine()
     mode=tImGui.RadioButton(tLang.L('fre_target_edit_reset')..'##freTargetEditReset',mode,3)
     authoring.editMode=mode
-    local selectionLabels={tLang.L('fre_target_edit_all')}
+    local selectionLabels={tLang.L('fre_target_edit_all'),tLang.L('fre_target_edit_picked')}
     for index,mask in ipairs(state.project.masks or {}) do
         selectionLabels[#selectionLabels+1]=string.format(tLang.L('fre_target_edit_mask_fmt'),mask.name or ('#'..tostring(index)))
     end
@@ -1520,6 +1594,31 @@ local function showTargets()
     local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
         authoring.selectionMode or 1,selectionLabels,-1)
     if selectionChanged then authoring.selectionMode=selection end
+    tImGui.TextWrapped(tLang.L('fre_target_pick_help'))
+    if authoring.selectedVertex then
+        tImGui.Text(string.format(tLang.L('fre_target_picked_fmt'),authoring.selectedVertex))
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_target_brush_title'))
+    local brushMode=authoring.brushMode or 1
+    brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_move'),brushMode,1)
+    tImGui.SameLine()
+    brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_smooth'),brushMode,2)
+    authoring.brushMode=brushMode
+    tImGui.SetNextItemWidth(150)
+    local radiusChanged,radius=tImGui.SliderFloat(tLang.L('fre_target_brush_radius'),authoring.brushRadius,0.001,0.15,'%.3f')
+    if radiusChanged then authoring.brushRadius=radius end
+    tImGui.SetNextItemWidth(150)
+    local strengthChanged,strength=tImGui.SliderFloat(tLang.L('fre_target_brush_strength'),authoring.brushStrength,0.01,1,'%.2f')
+    if strengthChanged then authoring.brushStrength=strength end
+    if brushMode==1 then
+        for _,axis in ipairs({{'X','brushDx'},{'Y','brushDy'},{'Z','brushDz'}}) do
+            tImGui.SetNextItemWidth(115)
+            local changed,value=tImGui.InputFloat(axis[1]..'##freTargetBrush'..axis[1],authoring[axis[2]] or 0,0.001,0.01,'%.4f')
+            if changed then authoring[axis[2]]=value end
+            if axis[1]~='Z' then tImGui.SameLine() end
+        end
+    end
     if authoring.editMode==1 then
         tImGui.SetNextItemWidth(115)
         local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
@@ -1557,8 +1656,10 @@ local function showTargets()
         local indices
         if (authoring.selectionMode or 1)==1 then
             indices=tFacialTargets.allIndices(authoring.vertexCount)
+        elseif authoring.selectionMode==2 then
+            indices=authoring.selectedVertex and {authoring.selectedVertex} or {}
         else
-            local mask=state.project.masks and state.project.masks[(authoring.selectionMode or 1)-1]
+            local mask=state.project.masks and state.project.masks[(authoring.selectionMode or 1)-2]
             indices=tFacialTargets.maskIndices(mask,authoring.vertexCount,state.topology.signature)
         end
         if #indices==0 then
@@ -1811,7 +1912,8 @@ local function rebuildFacialComparison(enabled, mode)
             candidate:setSkeletalExecutionPath(comparison.mode=='lbs_dqs' and 'gpu' or 'cpu')
     end)
     local loadOk,loaded=false,false
-    if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(state.project.meshPath) end) end
+    local comparisonPath=state.targetAuthoring and state.targetAuthoring.previewPath or state.project.meshPath
+    if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(comparisonPath) end) end
     if not cpuOk or cpuReady==false or not loadOk or loaded==false then
         candidate.alwaysRender=false
         dpCall(function() candidate:destroy() end)
@@ -4246,6 +4348,7 @@ end
 function onLoop(delta)
     updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
+    if state.workspace=='targets' and state.targetAuthoring.previewDirty then refreshTargetPreview() end
     updateMaskBrushHover()
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
@@ -4257,6 +4360,7 @@ function onLoop(delta)
     showCameraPanel()
     showFacialClipTimelineWindow()
     drawMaskBrushScreenCursor()
+    drawTargetBrushScreenCursor()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
     if state.maskVisualization.building then
@@ -4900,6 +5004,20 @@ drawMaskBrushScreenCursor=function()
     tImGui.SetImDrawListToForeground(false)
 end
 
+drawTargetBrushScreenCursor=function()
+    if state.workspace~='targets' or not state.controlDown or not state.mesh or
+            tImGui.GetWantCaptureMouse() then return end
+    local mouse=tImGui.GetMousePos()
+    if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
+    local authoring=state.targetAuthoring
+    local radius=math.max(6,math.min(96,(authoring.brushRadius or 0.025)/0.025*20))
+    local color=authoring.brushMode==2 and {r=0.25,g=0.75,b=1,a=0.9} or
+        {r=1,g=0.75,b=0.2,a=0.9}
+    tImGui.SetImDrawListToForeground(true)
+    tImGui.AddCircle({x=mouse.x,y=mouse.y},radius,color,32,1.5)
+    tImGui.SetImDrawListToForeground(false)
+end
+
 local function buildMaskBrushSpatialIndex(radius)
     local topology=state.topology
     if not topology or not topology.vertices then return nil end
@@ -5054,6 +5172,57 @@ local function finishMaskBrush()
     markModified()
 end
 
+local function targetBrushRadius()
+    local bounds=state.meshBounds
+    if not bounds then return 0 end
+    local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+    return math.max(extent*(state.targetAuthoring.brushRadius or 0.025),0.0001)
+end
+
+local function stampTargetBrush(x,y,stroke)
+    local hit=maskBrushSurfaceHit(x,y)
+    if not hit then return end
+    local radius=targetBrushRadius()
+    local nearby=collectMaskBrushVertices(hit.point,hit.normal,radius)
+    local authoring=state.targetAuthoring
+    local changed=tFacialTargets.brushStamp(stroke.edited,state.topology.vertices,hit.point,hit.normal,
+        radius,authoring.brushStrength or 0.5,{x=authoring.brushDx or 0,y=authoring.brushDy or 0,
+            z=authoring.brushDz or 0},authoring.brushMode==2,stroke.allowed,nearby)
+    stroke.changed=stroke.changed+changed
+    stroke.lastX,stroke.lastY=x,y
+end
+
+local function beginTargetBrush(x,y)
+    local authoring=state.targetAuthoring
+    local selected=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if not selected or not state.topology then return false end
+    local stroke={index=authoring.selectedTarget,before=tFacialTargets.copyTargetData(selected),
+        edited=tFacialTargets.copyTargetData(selected),changed=0,lastX=x,lastY=y,
+        allowed=tFacialTargets.selectionSet(authoring,state.project.masks,authoring.vertexCount,state.topology.signature)}
+    authoring.brushStroke=stroke
+    stampTargetBrush(x,y,stroke)
+    return true
+end
+
+local function finishTargetBrush()
+    local authoring=state.targetAuthoring
+    local stroke=authoring.brushStroke
+    authoring.brushStroke=nil
+    if not stroke or stroke.changed==0 then return end
+    local ok,updated=dpCall(function()
+        return state.meshDebug:updateFacialTarget(stroke.index,stroke.edited.name,stroke.edited.convention,
+            stroke.edited.defaultWeight,stroke.edited.positionDeltas,
+            #stroke.edited.normalDeltas>0 and stroke.edited.normalDeltas or nil)
+    end)
+    if ok and updated~=false then
+        tFacialTargets.recordEdit(authoring,stroke.index,stroke.before,stroke.edited)
+        markFacialTargetAuthoringModified()
+        setStatus(string.format(tLang.L('fre_target_edit_applied_fmt'),stroke.changed),false)
+    else
+        targetAuthoringError('could not apply brush stroke')
+    end
+end
+
 local function handleViewportAuthoringClick(x,y)
     if not state.topology or not state.mesh then return false end
     local origin,direction=viewportPickRay(x,y)
@@ -5110,6 +5279,17 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if state.workspace=='targets' and state.controlDown and key==0 and state.topology then
+        local origin,direction=viewportPickRay(x,y)
+        local hit=origin and tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
+        if hit then
+            state.targetAuthoring.selectedVertex=hit.index
+            state.targetAuthoring.selectionMode=2
+            setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
+        end
+        return
+    end
+    if state.workspace=='targets' and state.controlDown and key==1 and beginTargetBrush(x,y) then return end
     if key==0 and (state.workspace=='face_position' or state.workspace=='landmarks') then
         local axis=hitTestFaceGuideAxis(x,y)
         if axis and state.faceGuide.origin then
@@ -5166,6 +5346,12 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    local targetStroke=state.targetAuthoring and state.targetAuthoring.brushStroke
+    if targetStroke then
+        local dx,dy=x-targetStroke.lastX,y-targetStroke.lastY
+        if dx*dx+dy*dy>=16 then stampTargetBrush(x,y,targetStroke) end
+        return
+    end
     if state.faceGizmoDrag then
         local drag=state.faceGizmoDrag
         local parameter=rayAxisParameter(x,y,drag.basePoint,drag.axisVector)
@@ -5222,6 +5408,13 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==1 and state.targetAuthoring and state.targetAuthoring.brushStroke then
+        if not tImGui.GetWantCaptureMouse() then
+            stampTargetBrush(x,y,state.targetAuthoring.brushStroke)
+        end
+        finishTargetBrush()
+        return
+    end
     if key==0 then
         state.cameraDrag=nil; state.faceGizmoDrag=nil
         if state.workspace=='masks' then

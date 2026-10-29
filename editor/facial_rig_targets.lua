@@ -44,7 +44,9 @@ end
 function M.new()
     return {targets={},selectedTarget=1,vertexCount=0,catalogDirty=true,
         nameDraft='',conventionDraft='ARKit',defaultWeight=0,modified=false,previewDirty=false,
-        editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={}}
+        editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
+        previewWeight=1,previewTarget=nil,selectedVertex=nil,brushMode=1,brushRadius=0.025,
+        brushStrength=0.5,brushDx=0,brushDy=-0.01,brushDz=0}
 end
 
 function M.catalogFromDebug(meshDebug)
@@ -133,6 +135,17 @@ function M.maskIndices(mask,vertexCount,topologySignature)
     return result
 end
 
+function M.selectionSet(authoring,masks,vertexCount,topologySignature)
+    if (authoring.selectionMode or 1)==1 then return nil end
+    if authoring.selectionMode==2 then
+        return authoring.selectedVertex and {[authoring.selectedVertex]=true} or {}
+    end
+    local mask=masks and masks[(authoring.selectionMode or 1)-2]
+    local set={}
+    for _,index in ipairs(M.maskIndices(mask,vertexCount,topologySignature)) do set[index]=true end
+    return set
+end
+
 function M.applyEdit(target,baseVertices,indices,edit)
     if type(target)~='table' or type(baseVertices)~='table' or type(indices)~='table' then return 0 end
     local positions=target.positionDeltas or {}
@@ -169,6 +182,60 @@ function M.applyEdit(target,baseVertices,indices,edit)
     end
     target.positionDeltas=positions
     target.normalDeltas=normals
+    return changed
+end
+
+-- Stroke changes stay in the Lua candidate until mouse release, then use one
+-- MeshDebug transaction. This avoids a full target validation on every sample.
+function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,smooth,allowed,indices)
+    if not target or not baseVertices or not point or not normal or radius<=0 or strength<=0 then return 0 end
+    local positions=target.positionDeltas or {}
+    local affected={}
+    local radiusSquared=radius*radius
+    local nx,ny,nz=normal.x,normal.y,normal.z
+    for _,index in ipairs(indices or M.allIndices(#baseVertices)) do
+        local base=baseVertices[index]
+        if base and (not allowed or allowed[index]) then
+            local x,y,z=base.x-point.x,base.y-point.y,base.z-point.z
+            local normalDistance=x*nx+y*ny+z*nz
+            local tangentSquared=x*x+y*y+z*z-normalDistance*normalDistance
+            if tangentSquared<=radiusSquared and math.abs(normalDistance)<=radius*0.45 then
+                local distance=math.sqrt(math.max(0,tangentSquared))/radius
+                local falloff=(1-distance*distance)^2*strength
+                if falloff>1e-6 then affected[#affected+1]={index=index,weight=falloff} end
+            end
+        end
+    end
+    if #affected==0 then return 0 end
+    local average={x=0,y=0,z=0}
+    if smooth then
+        local sum=0
+        for _,entry in ipairs(affected) do
+            local delta=positions[entry.index] or {x=0,y=0,z=0}
+            average.x=average.x+delta.x*entry.weight
+            average.y=average.y+delta.y*entry.weight
+            average.z=average.z+delta.z*entry.weight
+            sum=sum+entry.weight
+        end
+        if sum>0 then average.x,average.y,average.z=average.x/sum,average.y/sum,average.z/sum end
+    end
+    local changed=0
+    for _,entry in ipairs(affected) do
+        local old=positions[entry.index] or {x=0,y=0,z=0}
+        local weight=entry.weight
+        local nextPosition
+        if smooth then
+            nextPosition={x=old.x+(average.x-old.x)*weight,y=old.y+(average.y-old.y)*weight,
+                z=old.z+(average.z-old.z)*weight}
+        else
+            nextPosition={x=old.x+(offset.x or 0)*weight,y=old.y+(offset.y or 0)*weight,
+                z=old.z+(offset.z or 0)*weight}
+        end
+        if math.abs(nextPosition.x-old.x)>1e-8 or math.abs(nextPosition.y-old.y)>1e-8 or
+                math.abs(nextPosition.z-old.z)>1e-8 then changed=changed+1 end
+        positions[entry.index]=nextPosition
+    end
+    target.positionDeltas=positions
     return changed
 end
 
