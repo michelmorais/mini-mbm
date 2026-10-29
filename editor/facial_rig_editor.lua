@@ -80,6 +80,8 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
     targetAuthoring=tFacialTargets.new(),
+    targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false},
+    targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
@@ -99,6 +101,11 @@ local stepMaskVisualizationBuild
 local updateMaskBrushHover
 local drawMaskBrushScreenCursor
 local drawTargetBrushScreenCursor
+local updateTargetBrushHover
+local setTargetOverlayVisible
+local startTargetOverlayBuild
+local stepTargetOverlayBuild
+local destroyTargetOverlay
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
@@ -746,6 +753,8 @@ end
 local function destroyPreview()
     destroyRigPreview()
     destroyMaskVisualization()
+    destroyTargetOverlay()
+    state.targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil}
     if state.facialComparison and state.facialComparison.mesh then
         -- This comparison instance is temporary. Clear the editor-only
         -- no-frustum-culling override before destroying it.
@@ -1440,12 +1449,14 @@ local function refreshFacialTargetCatalog()
     authoring.selectedTarget=math.max(1,math.min(authoring.selectedTarget or 1,#catalog>0 and #catalog or 1))
     authoring.draftTargetIndex=nil
     authoring.catalogDirty=false
+    state.targetOverlay.dirty=true
 end
 
 local function markFacialTargetAuthoringModified()
     state.targetAuthoring.modified=true
     state.targetAuthoring.previewDirty=true
     state.targetAuthoring.catalogDirty=true
+    state.targetOverlay.dirty=true
     refreshFacialTargetCatalog()
     state.expressions.catalog=state.targetAuthoring.targets
     state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,state.expressions.catalog)
@@ -1466,6 +1477,7 @@ local function updateTargetPreviewWeights()
         dpCall(function() return state.mesh:setFacialWeight(index,weight) end)
     end
     authoring.previewTarget=authoring.selectedTarget
+    setTargetOverlayVisible(true)
 end
 
 local function refreshTargetPreview()
@@ -1493,7 +1505,7 @@ local function refreshTargetPreview()
     end
     dpCall(function() candidate:stopSkeletalAnimation() end)
     candidate.alwaysRender=true
-    candidate.visible=state.mesh.visible
+    candidate.visible=state.targetOverlay.meshHidden and state.targetOverlay.meshWasVisible or state.mesh.visible
     local old=state.mesh
     if state.facialComparison and state.facialComparison.mesh then
         state.facialComparison.mesh.alwaysRender=false
@@ -1501,6 +1513,7 @@ local function refreshTargetPreview()
         state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
     end
     candidate:setPos(0,0,0)
+    destroyTargetOverlay()
     old.alwaysRender=false
     dpCall(function() old:destroy() end)
     if authoring.previewPath then
@@ -1539,6 +1552,7 @@ local function showTargets()
                 if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
                     authoring.selectedTarget=index
                     authoring.draftTargetIndex=nil
+                    state.targetOverlay.dirty=true
                     updateTargetPreviewWeights()
                 end
                 tImGui.TableSetColumnIndex(1)
@@ -1553,8 +1567,20 @@ local function showTargets()
         tImGui.SetNextItemWidth(300)
         local changed,value=tImGui.SliderFloat(tLang.L('fre_target_preview_weight')..'##freTargetPreviewWeight',
             authoring.previewWeight or 1,0,1,'%.2f')
-        if changed then authoring.previewWeight=value; updateTargetPreviewWeights() end
+        showHelpTooltip(tLang.L('fre_target_preview_weight_tooltip'))
+        if changed then
+            authoring.previewWeight=value
+            state.targetOverlay.dirty=true
+            updateTargetPreviewWeights()
+        end
         if authoring.previewTarget~=authoring.selectedTarget then updateTargetPreviewWeights() end
+    end
+    local overlayVisible=tImGui.Checkbox(tLang.L('fre_target_overlay'),state.targetOverlay.visible)
+    showHelpTooltip(tLang.L('fre_target_overlay_tooltip'))
+    if overlayVisible~=state.targetOverlay.visible then
+        state.targetOverlay.visible=overlayVisible
+        state.targetOverlay.dirty=true
+        setTargetOverlayVisible(true)
     end
     if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
         authoring.nameDraft=selected.name
@@ -1566,12 +1592,15 @@ local function showTargets()
     tImGui.Text(tLang.L('fre_target_metadata_title'))
     tImGui.SetNextItemWidth(300)
     local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freTargetName',authoring.nameDraft or '')
+    showHelpTooltip(tLang.L('fre_target_name_tooltip'))
     if nameChanged then authoring.nameDraft=name end
     tImGui.SetNextItemWidth(300)
     local conventionChanged,convention=tImGui.InputText(tLang.L('fre_target_convention')..'##freTargetConvention',authoring.conventionDraft or '')
+    showHelpTooltip(tLang.L('fre_target_convention_tooltip'))
     if conventionChanged then authoring.conventionDraft=convention end
     tImGui.SetNextItemWidth(300)
     local weightChanged,weight=tImGui.SliderFloat(tLang.L('fre_target_default_weight')..'##freTargetDefaultWeight',authoring.defaultWeight or 0,0,1,'%.3f')
+    showHelpTooltip(tLang.L('fre_target_default_weight_tooltip'))
     if weightChanged then authoring.defaultWeight=weight end
 
     tImGui.Separator()
@@ -1580,10 +1609,13 @@ local function showTargets()
     tImGui.Text(tLang.L('fre_target_edit_mode'))
     local mode=authoring.editMode or 1
     mode=tImGui.RadioButton(tLang.L('fre_target_edit_translate')..'##freTargetEditTranslate',mode,1)
+    showHelpTooltip(tLang.L('fre_target_edit_translate_tooltip'))
     tImGui.SameLine()
     mode=tImGui.RadioButton(tLang.L('fre_target_edit_rotate')..'##freTargetEditRotate',mode,2)
+    showHelpTooltip(tLang.L('fre_target_edit_rotate_tooltip'))
     tImGui.SameLine()
     mode=tImGui.RadioButton(tLang.L('fre_target_edit_reset')..'##freTargetEditReset',mode,3)
+    showHelpTooltip(tLang.L('fre_target_edit_reset_tooltip'))
     authoring.editMode=mode
     local selectionLabels={tLang.L('fre_target_edit_all'),tLang.L('fre_target_edit_picked')}
     for index,mask in ipairs(state.project.masks or {}) do
@@ -1593,6 +1625,7 @@ local function showTargets()
     tImGui.SetNextItemWidth(300)
     local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
         authoring.selectionMode or 1,selectionLabels,-1)
+    showHelpTooltip(tLang.L('fre_target_edit_selection_tooltip'))
     if selectionChanged then authoring.selectionMode=selection end
     tImGui.TextWrapped(tLang.L('fre_target_pick_help'))
     if authoring.selectedVertex then
@@ -1602,19 +1635,27 @@ local function showTargets()
     tImGui.Text(tLang.L('fre_target_brush_title'))
     local brushMode=authoring.brushMode or 1
     brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_move'),brushMode,1)
+    showHelpTooltip(tLang.L('fre_target_brush_move_tooltip'))
     tImGui.SameLine()
     brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_smooth'),brushMode,2)
+    showHelpTooltip(tLang.L('fre_target_brush_smooth_tooltip'))
+    tImGui.SameLine()
+    brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_pick'),brushMode,3)
+    showHelpTooltip(tLang.L('fre_target_brush_pick_tooltip'))
     authoring.brushMode=brushMode
     tImGui.SetNextItemWidth(150)
     local radiusChanged,radius=tImGui.SliderFloat(tLang.L('fre_target_brush_radius'),authoring.brushRadius,0.001,0.15,'%.3f')
+    showHelpTooltip(tLang.L('fre_target_brush_radius_tooltip'))
     if radiusChanged then authoring.brushRadius=radius end
     tImGui.SetNextItemWidth(150)
     local strengthChanged,strength=tImGui.SliderFloat(tLang.L('fre_target_brush_strength'),authoring.brushStrength,0.01,1,'%.2f')
+    showHelpTooltip(tLang.L('fre_target_brush_strength_tooltip'))
     if strengthChanged then authoring.brushStrength=strength end
     if brushMode==1 then
         for _,axis in ipairs({{'X','brushDx'},{'Y','brushDy'},{'Z','brushDz'}}) do
             tImGui.SetNextItemWidth(115)
             local changed,value=tImGui.InputFloat(axis[1]..'##freTargetBrush'..axis[1],authoring[axis[2]] or 0,0.001,0.01,'%.4f')
+            showHelpTooltip(string.format(tLang.L('fre_target_brush_axis_tooltip_fmt'),axis[1]))
             if changed then authoring[axis[2]]=value end
             if axis[1]~='Z' then tImGui.SameLine() end
         end
@@ -1622,26 +1663,32 @@ local function showTargets()
     if authoring.editMode==1 then
         tImGui.SetNextItemWidth(115)
         local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
+        showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'X'))
         if changed then authoring.dx=value end
         tImGui.SameLine()
         tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dy')..'##freTargetEditDy',authoring.dy or 0,0.001,0.01,'%.5f')
+        showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Y'))
         if changed then authoring.dy=value end
         tImGui.SameLine()
         tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dz')..'##freTargetEditDz',authoring.dz or 0,0.001,0.01,'%.5f')
+        showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Z'))
         if changed then authoring.dz=value end
     elseif authoring.editMode==2 then
         tImGui.SetNextItemWidth(115)
         local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
+        showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'X'))
         if changed then authoring.rx=value end
         tImGui.SameLine()
         tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
+        showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Y'))
         if changed then authoring.ry=value end
         tImGui.SameLine()
         tImGui.SetNextItemWidth(115)
         changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
+        showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Z'))
         if changed then authoring.rz=value end
         local origin=state.project.faceOrigin
         if not origin or not origin.placed or not origin.position then
@@ -1694,6 +1741,7 @@ local function showTargets()
             end
         end
     end
+    showHelpTooltip(tLang.L('fre_target_edit_apply_tooltip'))
     tImGui.EndDisabled()
     tImGui.SameLine()
     tImGui.BeginDisabled(not authoring.editUndo or #authoring.editUndo==0)
@@ -1719,6 +1767,7 @@ local function showTargets()
             targetAuthoringError('could not undo delta edit')
         end
     end
+    showHelpTooltip(tLang.L('fre_target_edit_undo_tooltip'))
     tImGui.EndDisabled()
     tImGui.SameLine()
     tImGui.BeginDisabled(not authoring.editRedo or #authoring.editRedo==0)
@@ -1744,6 +1793,7 @@ local function showTargets()
             targetAuthoringError('could not redo delta edit')
         end
     end
+    showHelpTooltip(tLang.L('fre_target_edit_redo_tooltip'))
     tImGui.EndDisabled()
 
     if tImGui.Button(tLang.L('fre_target_create')) then
@@ -2710,6 +2760,14 @@ end
 
 local function selectWorkspace(workspace)
     state.workspace=state.workspace==workspace and nil or workspace
+    state.targetBrushHover.pendingX=nil
+    state.targetBrushHover.pendingY=nil
+    state.targetBrushHover.lastHit=nil
+    if state.workspace~='targets' and state.targetOverlay.building then
+        destroyTargetOverlay()
+    else
+        setTargetOverlayVisible(true)
+    end
     -- The mask overlay owns the primary mesh visibility while it is active.
     -- Restore that ownership immediately when leaving the mask worktree so a
     -- dirty surface kept during brush edits cannot hide the mesh elsewhere.
@@ -4349,7 +4407,11 @@ function onLoop(delta)
     updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
     if state.workspace=='targets' and state.targetAuthoring.previewDirty then refreshTargetPreview() end
+    if state.workspace=='targets' and state.targetOverlay.dirty and not state.targetOverlay.building then
+        startTargetOverlayBuild()
+    end
     updateMaskBrushHover()
+    updateTargetBrushHover()
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
     updateFacialComparisonVisibility()
@@ -4368,6 +4430,7 @@ function onLoop(delta)
     elseif state.maskVisualization.dirty then
         refreshMaskVisualization()
     end
+    if state.targetOverlay.building then stepTargetOverlayBuild() end
     if state.rigPreview.dirty then refreshRigPreview() end
     tUtil.showOverlayMessage()
 end
@@ -4579,6 +4642,108 @@ local function ensureMaskOverlayShader()
         return mbm.addShader({name=maskOverlayShaderName,code=code,var={},min={},max={}})
     end)
     return ok and result~=false
+end
+
+-- Reuse the mask shader as a displacement heat map. The overlay replaces the
+-- preview mesh while visible, so the matching surfaces cannot fight for depth.
+setTargetOverlayVisible=function(visible)
+    local overlay=state.targetOverlay
+    local neutral=(state.targetAuthoring.previewWeight or 1)<=1e-6
+    local show=visible and overlay.visible and overlay.surface~=nil and not overlay.building and
+        not overlay.dirty and not neutral and state.workspace=='targets'
+    if show and state.mesh then
+        if not overlay.meshHidden then
+            overlay.meshWasVisible=state.mesh.visible~=false
+            overlay.meshHidden=true
+        end
+        state.mesh.visible=false
+    elseif overlay.meshHidden and state.mesh then
+        state.mesh.visible=overlay.meshWasVisible
+        overlay.meshHidden=false
+    end
+    if neutral and state.workspace=='targets' and state.mesh then state.mesh.visible=true end
+    if overlay.surface then overlay.surface.visible=show end
+end
+
+destroyTargetOverlay=function()
+    local overlay=state.targetOverlay
+    setTargetOverlayVisible(false)
+    if overlay.surface then dpCall(function() overlay.surface:destroy() end) end
+    state.targetOverlay={visible=overlay.visible,dirty=true,building=false,surface=nil,meshHidden=false}
+end
+
+startTargetOverlayBuild=function()
+    local overlay=state.targetOverlay
+    if not overlay.dirty or not state.topology or not state.mesh or state.targetAuthoring.previewDirty then return end
+    setTargetOverlayVisible(false)
+    if overlay.surface then dpCall(function() overlay.surface:destroy() end); overlay.surface=nil end
+    local target=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
+    if not overlay.visible or not target then overlay.dirty=false; return end
+    local vertices=state.topology.vertices or {}
+    local deltas=target.positionDeltas or {}
+    local weight=state.targetAuthoring.previewWeight or 1
+    if weight<=0 then overlay.dirty=false; return end
+    local maximum=0
+    for _,delta in ipairs(deltas) do
+        maximum=math.max(maximum,math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z))
+    end
+    if maximum<=1e-10 then overlay.dirty=false; return end
+    local coords,uvs={},{}
+    for index,point in ipairs(vertices) do
+        local delta=deltas[index] or {x=0,y=0,z=0}
+        local magnitude=math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z)
+        coords[#coords+1]=point.x+delta.x*weight
+        coords[#coords+1]=point.y+delta.y*weight
+        coords[#coords+1]=point.z+delta.z*weight
+        uvs[#uvs+1]=maximum>1e-10 and math.min(1,magnitude/maximum) or 0
+        uvs[#uvs+1]=1
+    end
+    overlay.coords=coords
+    overlay.uvs=uvs
+    overlay.indices={}
+    overlay.cursor=1
+    overlay.building=true
+    overlay.dirty=false
+end
+
+stepTargetOverlayBuild=function()
+    local overlay=state.targetOverlay
+    if not overlay.building then return end
+    local triangles=state.topology and state.topology.triangles or {}
+    local finish=math.min(#triangles,overlay.cursor+499)
+    for index=overlay.cursor,finish do
+        local triangle=triangles[index]
+        if triangle and state.topology.vertices[triangle[1]] and
+                state.topology.vertices[triangle[2]] and state.topology.vertices[triangle[3]] then
+            local indices=overlay.indices
+            indices[#indices+1]=triangle[1]
+            indices[#indices+1]=triangle[2]
+            indices[#indices+1]=triangle[3]
+        end
+    end
+    overlay.cursor=finish+1
+    if overlay.cursor<=#triangles then return end
+    overlay.building=false
+    if #overlay.indices>0 then
+        local surface=shape:new('3d',0,0,0.0001)
+        local created=surface:createDynamicIndexed(overlay.coords,overlay.indices,overlay.uvs,
+            'facial_target_overlay_'..tostring(mbm.getTimeRun()))
+        if created then
+            local okShader,shader=dpCall(function() return surface:getShader() end)
+            local loaded=false
+            if ensureMaskOverlayShader() and okShader and shader then
+                local okLoad,result=dpCall(function() return shader:load(maskOverlayShaderName,nil) end)
+                loaded=okLoad and result~=false
+            end
+            if not loaded then surface:setColor(0.1,0.7,1,0.8) end
+            surface.visible=false
+            overlay.surface=surface
+        else
+            dpCall(function() surface:destroy() end)
+        end
+    end
+    overlay.coords=nil; overlay.uvs=nil; overlay.indices=nil; overlay.cursor=nil
+    setTargetOverlayVisible(true)
 end
 
 -- Dynamic indexed shapes let a brush stroke recolor only the vertices it
@@ -4911,6 +5076,16 @@ local function maskBrushSurfaceHit(x,y)
     return nearest
 end
 
+updateTargetBrushHover=function()
+    local hover=state.targetBrushHover
+    local x,y=hover.pendingX,hover.pendingY
+    if x==nil or y==nil then return end
+    hover.pendingX=nil; hover.pendingY=nil
+    if state.workspace~='targets' or not state.topology then hover.lastHit=nil; return end
+    hover.lastHit=maskBrushSurfaceHit(x,y)
+    hover.lastX=x; hover.lastY=y
+end
+
 local function maskBrushSurfaceHitForBrush(x,y,brush)
     local previous=brush and brush.lastHit
     local sampleCount=brush and brush.sampleCount or 0
@@ -5005,14 +5180,15 @@ drawMaskBrushScreenCursor=function()
 end
 
 drawTargetBrushScreenCursor=function()
-    if state.workspace~='targets' or not state.controlDown or not state.mesh or
+    if state.workspace~='targets' or not state.mesh or not state.targetBrushHover.lastHit or
             tImGui.GetWantCaptureMouse() then return end
     local mouse=tImGui.GetMousePos()
     if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
     local authoring=state.targetAuthoring
     local radius=math.max(6,math.min(96,(authoring.brushRadius or 0.025)/0.025*20))
-    local color=authoring.brushMode==2 and {r=0.25,g=0.75,b=1,a=0.9} or
-        {r=1,g=0.75,b=0.2,a=0.9}
+    local color=authoring.brushMode==3 and {r=1,g=1,b=1,a=0.9} or
+        (authoring.brushMode==2 and {r=0.25,g=0.75,b=1,a=0.9} or
+        {r=1,g=0.75,b=0.2,a=0.9})
     tImGui.SetImDrawListToForeground(true)
     tImGui.AddCircle({x=mouse.x,y=mouse.y},radius,color,32,1.5)
     tImGui.SetImDrawListToForeground(false)
@@ -5182,6 +5358,9 @@ end
 local function stampTargetBrush(x,y,stroke)
     local hit=maskBrushSurfaceHit(x,y)
     if not hit then return end
+    state.targetBrushHover.lastHit=hit
+    state.targetBrushHover.lastX=x
+    state.targetBrushHover.lastY=y
     local radius=targetBrushRadius()
     local nearby=collectMaskBrushVertices(hit.point,hit.normal,radius)
     local authoring=state.targetAuthoring
@@ -5279,7 +5458,7 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
-    if state.workspace=='targets' and state.controlDown and key==0 and state.topology then
+    if state.workspace=='targets' and key==1 and state.targetAuthoring.brushMode==3 and state.topology then
         local origin,direction=viewportPickRay(x,y)
         local hit=origin and tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
         if hit then
@@ -5289,8 +5468,8 @@ function onTouchDown(key,x,y)
         end
         return
     end
-    if state.workspace=='targets' and state.controlDown and key==1 and beginTargetBrush(x,y) then return end
-    if key==0 and (state.workspace=='face_position' or state.workspace=='landmarks') then
+    if state.workspace=='targets' and key==1 then beginTargetBrush(x,y); return end
+    if key==0 and state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
         local axis=hitTestFaceGuideAxis(x,y)
         if axis and state.faceGuide.origin then
             local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
@@ -5334,13 +5513,15 @@ function onTouchDown(key,x,y)
         beginMaskBrush(x,y)
         return
     end
-    if key==0 and handleViewportAuthoringClick(x,y) then return end
+    if key==0 and state.controlDown and handleViewportAuthoringClick(x,y) then return end
     if key==0 then
         state.cameraDrag={x=x,y=y}
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
-    elseif key==1 then
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
+    elseif key==2 then
         state.cameraPan={x=x,y=y}
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
     end
 end
 
@@ -5366,12 +5547,17 @@ function onTouchMove(key,x,y)
         state.maskBrushHover.pendingY=y
         return
     end
+    if state.workspace=='targets' and not state.cameraDrag and not state.cameraPan then
+        state.targetBrushHover.pendingX=x
+        state.targetBrushHover.pendingY=y
+    end
     if state.workspace=='masks' and not state.cameraDrag and not state.cameraPan then
         state.maskBrushHover.pendingX=x
         state.maskBrushHover.pendingY=y
     end
     if state.cameraPan then
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
         local c=state.camera
         local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
         local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
@@ -5394,6 +5580,7 @@ function onTouchMove(key,x,y)
     end
     if not state.cameraDrag then return end
     if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+    if state.workspace=='targets' then setTargetOverlayVisible(false) end
     if state.workspace=='masks' and
             (math.abs(x-(state.cameraDrag.startX or state.cameraDrag.x))>2 or
                 math.abs(y-(state.cameraDrag.startY or state.cameraDrag.y))>2) then
@@ -5417,6 +5604,11 @@ function onTouchUp(key,x,y)
     end
     if key==0 then
         state.cameraDrag=nil; state.faceGizmoDrag=nil
+        if state.workspace=='targets' then
+            setTargetOverlayVisible(true)
+            state.targetBrushHover.pendingX=x
+            state.targetBrushHover.pendingY=y
+        end
         if state.workspace=='masks' then
             setMaskVisualizationViewportVisible(true)
             state.maskBrushHover.lastHit=nil
@@ -5433,8 +5625,20 @@ function onTouchUp(key,x,y)
             state.maskBrushHover.pendingY=y
             return
         end
-        state.cameraPan=nil
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
+    elseif key==2 then
+        state.cameraPan=nil
+        if state.workspace=='targets' then
+            setTargetOverlayVisible(true)
+            state.targetBrushHover.pendingX=x
+            state.targetBrushHover.pendingY=y
+        end
+        if state.workspace=='masks' then
+            setMaskVisualizationViewportVisible(true)
+            state.maskBrushHover.forceSurfaceHit=true
+            state.maskBrushHover.pendingX=x
+            state.maskBrushHover.pendingY=y
+        end
     end
 end
 

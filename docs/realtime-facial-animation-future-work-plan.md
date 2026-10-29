@@ -9,7 +9,7 @@ The implemented facial runtime contract is documented with the engine state in:
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
 This document separates the current implementation from the remaining work. The first Phase 1
-batch-authoring APIs are now part of the engine contract; sculpting, preview resynchronization,
+batch-authoring APIs, bounded target brush, and candidate preview are available; fuller sculpting,
 bone-driven expressions, and SDK integration remain follow-up work. The former **Native Target
 Authoring** item is expanded below into a concrete native facial expression authoring plan.
 
@@ -26,11 +26,33 @@ The first native authoring slice is available on this branch:
   targets, editing metadata, and deleting targets.
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
   all vertices or to an existing facial mask, with a local undo/redo stack for those target edits.
-- The worktree also supports Ctrl + left click to pick a neutral surface vertex and Ctrl + right
-  drag to paint move/smooth deltas with radius, strength, and optional mask filtering. Each stroke
-  commits once on release and enters the same local undo/redo history.
+- The worktree uses the same viewport controls as Masks: left drag orbits, middle drag pans, and
+  right drag paints move/smooth deltas with radius, strength, and optional mask filtering. A third
+  brush mode uses right click to pick a neutral surface vertex. Each stroke commits once on release
+  and enters the same local undo/redo history.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
   the selected target at the chosen preview weight. The exported MSH is still saved explicitly.
+- An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
+  mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
+  it rebuilds on target, weight, or geometry changes and replaces the textured preview while shown.
+  At preview weight zero, the heat map is hidden and the neutral textured mesh is shown.
+
+### Manual authoring trial
+
+A new project does not clear targets already embedded in the opened MSH: the project stores editor
+metadata, while the MSH stores dense target deltas. To test native authoring without changing an
+imported expression, keep the current weighted MSH open, enter a unique target name such as
+`jawOpen_manual_test`, and create a zero target. Select the new target and set its preview weight
+to 1. Restrict the vertex selection to a facial mask before using batch Delta X/Y/Z or the Move
+brush; otherwise the batch edit affects the entire mesh. The brush uses the entered X/Y/Z offset
+with radius and strength; mouse drag only places strokes. Smooth blends existing neighboring
+deltas and cannot create motion from a zero target. Pick vertex selects a neutral vertex for a
+single-vertex selection and does not edit geometry. Export a new MSH to retain the result.
+
+For a clean asset with no imported targets, prepare a separate MSH candidate without facial targets;
+creating a new project alone is insufficient. A jaw-opening rotation also needs a pivot near the
+jaw hinge. The current batch rotation uses the placed face origin or the mesh bounds center, so
+the Move brush and masked Delta edit are more direct first tests of the native workflow.
 
 There is still no ARKit/Faceit/vendor SDK adapter. Faceit remains a workflow reference for the
 future separation of shape channels from head/bone channels, not a runtime dependency.
