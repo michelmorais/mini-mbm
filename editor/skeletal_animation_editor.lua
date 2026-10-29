@@ -2956,8 +2956,7 @@ local function rebuildPreview(sourcePath)
     sourcePath=sourcePath or state.fileName
     if not sourcePath then return end
     local facialTargetCount=state.facialTargetCount or 0
-    -- Facial GPU DQS is currently implemented by Metal. Other editor backends
-    -- keep LBS until their composite shaders have native acceptance coverage.
+    -- Facial GPU DQS is available on the native skeletal shader backends.
     if facialTargetCount>0 and not state.facialDqsSupported then
         playback.method=2
         playback.poseStress=false
@@ -10632,7 +10631,8 @@ local function showRuntimeLightWindow()
 end
 
 function onInitScene()
-    state.facialDqsSupported=mbm.get("USE_METAL")==true
+    state.facialDqsSupported=mbm.get("USE_OPENGL_ES") or mbm.get("USE_DIRECTX9") or
+        mbm.get("USE_DIRECTX11") or mbm.get("USE_METAL")
     camera3d = mbm.getCamera('3d')
     camera3d:setFar(9999999)
     noMoveFlag = tImGui.Flags('ImGuiWindowFlags_NoCollapse')

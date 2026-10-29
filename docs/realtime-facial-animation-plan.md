@@ -38,8 +38,8 @@ The following combinations are explicit current boundaries:
 | No facial sections | Existing static/skeletal path |
 | Facial targets/clips without a skeleton | CPU or indexed-GPU morph-only path |
 | Facial targets/clips with a body skeleton using LBS | Morph-then-LBS composition |
-| Facial targets/clips with rigid DQS on macOS Metal | GPU morph-then-DQS; CPU reference supported |
-| Facial targets/clips with rigid DQS on other backends | CPU composition; explicit GPU rejected with `facial-gpu-skeletal-unsupported` |
+| Facial targets/clips with rigid DQS on Metal, OpenGL ES, DirectX 9, or DirectX 11 | GPU morph-then-DQS; CPU reference supported |
+| Facial targets/clips with rigid DQS on an unsupported backend | CPU composition where available; explicit GPU rejected with `facial-gpu-skeletal-unsupported` |
 | Facial targets/clips with a custom vertex or pixel shader | Rejected with `facial-custom-shader-unsupported` |
 | Facial targets/clips with normal-map material/prepared data | Rejected with `facial-normal-mapping-unsupported` |
 
@@ -75,9 +75,9 @@ metadata inspection and validated project-clip insertion/removal for export.
 
 The report never labels an incomplete GPU upload or shader as ready. A capability or shader failure
 selects the CPU reference path explicitly. Facial targets support rigid DQS in the CPU reference
-and Metal GPU composition. Other GPU backends currently support LBS composition only; AUTO
-execution selects CPU for facial DQS on those backends. The existing rigid-transform eligibility
-rules still apply: AUTO skinning can resolve to LBS for non-rigid skeletons.
+and GPU composition on the native OpenGL ES, DirectX 9, DirectX 11, and Metal paths. The existing
+rigid-transform eligibility rules still apply: AUTO skinning can resolve to LBS for non-rigid
+skeletons.
 
 `USE_NORMAL_MAPPING_3D` and `SUPPORTED_MAX_LIGHTS` are lighting/shader build settings, not facial
 morph settings. The supported normal-mapping matrix is `USE_NORMAL_MAPPING_3D=0/1` combined with
@@ -151,8 +151,9 @@ The Linux delivery must provide the same offline contract already accepted on Wi
 - report GPU indexed morphing when the OpenGL ES capability path is ready and CPU fallback otherwise;
 - keep idle editor frames event-driven without repeated topology scans or uploads.
 
-This is the minimum Linux delivery. It does not require live capture, native target sculpting, or
-native Linux facial DQS GPU composition; the macOS Metal facial DQS delivery is documented below.
+This is the minimum Linux delivery. It does not require live capture or native target sculpting.
+Linux OpenGL ES facial DQS GPU composition shares the validated skeletal DQS shader and indexed
+morph-resource path; backend acceptance remains part of the validation commands below.
 
 ## Future deliveries
 
@@ -170,26 +171,28 @@ sculpting dense facial target deltas. It must provide undo/redo, topology valida
 handling, target preview, and transactional MSH export. This must reuse the existing Expressions and
 Clips worktrees rather than introduce a second animation model.
 
-### Facial morph plus DQS composition (macOS Metal delivered)
+### Facial morph plus DQS composition (native GPU composition delivered)
 
-The delivered macOS implementation supports Metal and the shared CPU reference. Morph positions and normals
+The delivered implementation supports OpenGL ES, DirectX 9, DirectX 11, Metal, and the shared CPU reference. Morph positions and normals
 are evaluated before rigid DQS, using the selected skeletal palette format. The skeletal report
 identifies the method/execution path; the facial report identifies GPU indexed deltas or CPU morphs.
-The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparisons on Metal.
+The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparisons on native GPU backends.
 Shader method and palette size participate in the per-instance facial shader cache; stopped poses
 and unchanged weights do not repeatedly deform or upload geometry.
 
-Remaining deliveries: native GPU composition and acceptance for OpenGL ES and DirectX 9/11,
-and explicit iOS device acceptance. The CPU implementation is shared, but this delivery's native
-execution validation is macOS only. Custom shaders and normal-mapped facial assets remain unsupported.
+Remaining delivery: explicit iOS device acceptance. Custom shaders and normal-mapped facial assets
+remain unsupported.
 
-macOS validation commands (use the configured build output directory):
+Native validation commands (use the configured build output directory):
 
 ```sh
+bin/debug/linux_x86/testLib --facial-runtime-test dqs
+bin/debug/linux_x86/testLib --facial-foundation-tests
 MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --facial-runtime-test dqs
 MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --facial-runtime-test
 MTL_DEBUG_LAYER=1 bin/release/arm64/testLib --metal-skeletal-parity-test
 bin/release/arm64/testLib --facial-foundation-tests
+# Windows: testLib.exe --facial-runtime-test dqs
 ```
 
 The DQS runtime variant exercises simultaneous clips, seek/pause/reload, instance isolation,

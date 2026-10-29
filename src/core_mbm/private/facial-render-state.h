@@ -28,7 +28,7 @@ namespace mbm::facial
 {
     inline bool supportsGpuSkinningMethod(const SKELETAL_SHADER_METHOD method) noexcept
     {
-#if defined(USE_METAL)
+#if defined(USE_METAL) || defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
         if (method == SKELETAL_SHADER_METHOD::DQS_RIGID) return true;
 #endif
         return method == SKELETAL_SHADER_METHOD::LBS;

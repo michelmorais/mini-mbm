@@ -490,9 +490,9 @@ bool beginFacialRuntimeTests(const mbm::SCENE *scene, bool dqs)
     {
         expect(first->getResolvedSkeletalSkinningMethod()==SKELETAL_SHADER_METHOD::DQS_RIGID,
             "facial instance actually resolves to DQS");
-#if defined(USE_METAL)
+#if defined(USE_METAL) || defined(USE_OPENGL_ES) || defined(USE_DIRECTX9) || defined(USE_DIRECTX11)
         expect(first->getResolvedSkeletalExecutionPath()==SKELETAL_EXECUTION_PATH::GPU,
-            "Metal AUTO selects GPU facial DQS composition");
+            "native backend AUTO selects GPU facial DQS composition");
 #endif
     }
     first->setPosition(VEC3(-120,0,0)); second->setPosition(VEC3(120,0,0));

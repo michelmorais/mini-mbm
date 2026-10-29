@@ -155,11 +155,9 @@ serialized into the mesh.
 
 A mesh may carry both canonical skeletal data and facial targets/clips. Facial morph deltas are
 applied to bind geometry before the skeletal stage, so the evaluated face follows the body pose.
-Facial targets support LBS and rigid DQS on the CPU reference and Metal GPU paths. DirectX 9/11
-and OpenGL ES currently support LBS GPU composition; facial DQS with AUTO execution uses CPU,
-and explicit GPU execution rejects that combination. On Metal, DirectX 9/11, and
-OpenGL ES, the indexed GPU morph path is selected only after backend capability, layout, upload, and
-shader checks; otherwise the per-instance CPU reference path is used. Facial weights and clip time
+Facial targets support LBS and rigid DQS on the CPU reference and the native Metal, DirectX 9/11,
+and OpenGL ES GPU paths. The indexed GPU morph path is selected only after backend capability,
+layout, upload, and shader checks; otherwise the per-instance CPU reference path is used. Facial weights and clip time
 remain instance state, while target deltas and clips remain immutable mesh-asset data.
 
 Mesh V11 can also name one autoplay clip in optional `SECTION_AUTOPLAY_ANIMATION` (44). A newly

@@ -3377,11 +3377,12 @@ local function showPreview()
         {label=tLang.L('fre_preview_lbs_dqs_compare'),value=3},
     }
     for _,option in ipairs(options) do
-        if tImGui.RadioButton(option.label,selected==option.value) then
+        local nextSelected=tImGui.RadioButton(option.label,selected,option.value)
+        if nextSelected~=selected then
             local mode=option.value==3 and 'lbs_dqs' or 'gpu_cpu'
             local rebuilt,reason=rebuildFacialComparison(option.value~=1,mode)
             if rebuilt then
-                selected=option.value
+                selected=nextSelected
             else
                 comparison.enabled=false
                 if state.meshBounds then frameCamera(state.meshBounds) end
@@ -3899,7 +3900,8 @@ local function updateCameraKeyboard(delta)
 end
 
 function onInitScene()
-    state.facialDqsSupported=mbm.get("USE_METAL")==true
+    state.facialDqsSupported=mbm.get("USE_OPENGL_ES") or mbm.get("USE_DIRECTX9") or
+        mbm.get("USE_DIRECTX11") or mbm.get("USE_METAL")
     camera3d=mbm.getCamera('3d')
     camera3d:setFar(9999999)
     noMoveFlag=tImGui.Flags('ImGuiWindowFlags_NoMove')
