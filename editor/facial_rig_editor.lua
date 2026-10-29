@@ -31,6 +31,7 @@ tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
+tFacialTargets = require "facial_rig_targets"
 tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
@@ -78,6 +79,7 @@ local state = {
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
+    targetAuthoring=tFacialTargets.new(),
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
@@ -1240,6 +1242,9 @@ end
 
 local function canExportRuntimeMsh()
     if not state.meshDebug then return false end
+    if state.targetAuthoring and state.targetAuthoring.modified==true then
+        return true
+    end
     if state.weightAssignment.modified==true and state.weightAssignment.facialWeightsApplied==true then
         return true
     end
@@ -1270,6 +1275,10 @@ local function saveAssignedMesh()
     state.modified=true
     state.weightAssignment.modified=false
     state.weightAssignment.facialWeightsApplied=false
+    if state.targetAuthoring then
+        state.targetAuthoring.modified=false
+        state.targetAuthoring.previewDirty=true
+    end
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
 end
@@ -1405,6 +1414,306 @@ local function refreshExpressionCatalog()
     state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#catalog>0 and #catalog or 1))
     state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#(state.project.expressions.poses or {})>0 and #(state.project.expressions.poses or {}) or 1))
     state.expressions.catalogDirty=false
+end
+
+local function refreshFacialTargetCatalog()
+    local authoring=state.targetAuthoring
+    if not state.meshDebug then
+        authoring.targets={}
+        authoring.vertexCount=0
+        authoring.catalogDirty=false
+        return
+    end
+    local ok,catalog,vertexCount=dpCall(function()
+        return tFacialTargets.catalogFromDebug(state.meshDebug)
+    end)
+    if not ok or type(catalog)~='table' then catalog={} end
+    authoring.targets=catalog
+    authoring.vertexCount=math.max(tonumber(vertexCount) or 0,tonumber(state.meshVertexCount) or 0)
+    authoring.selectedTarget=math.max(1,math.min(authoring.selectedTarget or 1,#catalog>0 and #catalog or 1))
+    authoring.draftTargetIndex=nil
+    authoring.catalogDirty=false
+end
+
+local function markFacialTargetAuthoringModified()
+    state.targetAuthoring.modified=true
+    state.targetAuthoring.previewDirty=true
+    state.targetAuthoring.catalogDirty=true
+    refreshFacialTargetCatalog()
+    state.expressions.catalog=state.targetAuthoring.targets
+    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,state.expressions.catalog)
+    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#state.expressions.catalog>0 and #state.expressions.catalog or 1))
+    state.expressions.catalogDirty=false
+    state.modified=true
+end
+
+local function targetAuthoringError(message)
+    setStatus(tLang.L('fre_target_authoring_failed') .. ': ' .. tostring(message or ''),true)
+end
+
+local function showTargets()
+    local authoring=state.targetAuthoring
+    if authoring.catalogDirty then refreshFacialTargetCatalog() end
+    if not state.meshDebug then
+        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+        return
+    end
+    tImGui.TextWrapped(tLang.L('fre_targets_help'))
+    tImGui.Text(string.format(tLang.L('fre_targets_vertex_count_fmt'),authoring.vertexCount or 0))
+    if #authoring.targets==0 then
+        tImGui.TextDisabled(tLang.L('fre_targets_no_targets'))
+    else
+        tImGui.Text(string.format(tLang.L('fre_targets_count_fmt'),#authoring.targets))
+        if tImGui.BeginTable('freFacialTargets',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_target_name_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_target_convention_column'))
+            tImGui.TableHeadersRow()
+            for index,target in ipairs(authoring.targets) do
+                tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
+                if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
+                    authoring.selectedTarget=index
+                    authoring.draftTargetIndex=nil
+                end
+                tImGui.TableSetColumnIndex(1)
+                tImGui.Text(target.convention~='' and target.convention or '-')
+            end
+            tImGui.EndTable()
+        end
+    end
+
+    local selected=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
+        authoring.nameDraft=selected.name
+        authoring.conventionDraft=selected.convention or ''
+        authoring.defaultWeight=selected.defaultWeight or 0
+        authoring.draftTargetIndex=authoring.selectedTarget
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_target_metadata_title'))
+    local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freTargetName',authoring.nameDraft or '')
+    if nameChanged then authoring.nameDraft=name end
+    local conventionChanged,convention=tImGui.InputText(tLang.L('fre_target_convention')..'##freTargetConvention',authoring.conventionDraft or '')
+    if conventionChanged then authoring.conventionDraft=convention end
+    local weightChanged,weight=tImGui.SliderFloat(tLang.L('fre_target_default_weight')..'##freTargetDefaultWeight',authoring.defaultWeight or 0,0,1,'%.3f')
+    if weightChanged then authoring.defaultWeight=weight end
+
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_target_edit_title'))
+    tImGui.TextWrapped(tLang.L('fre_target_edit_help'))
+    local modeLabels={tLang.L('fre_target_edit_translate'),tLang.L('fre_target_edit_rotate'),tLang.L('fre_target_edit_reset')}
+    local modeChanged,mode=tImGui.Combo(tLang.L('fre_target_edit_mode')..'##freTargetEditMode',authoring.editMode or 1,modeLabels,-1)
+    if modeChanged then authoring.editMode=mode end
+    local selectionLabels={tLang.L('fre_target_edit_all')}
+    for index,mask in ipairs(state.project.masks or {}) do
+        selectionLabels[#selectionLabels+1]=string.format(tLang.L('fre_target_edit_mask_fmt'),mask.name or ('#'..tostring(index)))
+    end
+    local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
+        authoring.selectionMode or 1,selectionLabels,-1)
+    if selectionChanged then authoring.selectionMode=selection end
+    if authoring.editMode==1 then
+        local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
+        if changed then authoring.dx=value end
+        tImGui.SameLine()
+        changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dy')..'##freTargetEditDy',authoring.dy or 0,0.001,0.01,'%.5f')
+        if changed then authoring.dy=value end
+        tImGui.SameLine()
+        changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dz')..'##freTargetEditDz',authoring.dz or 0,0.001,0.01,'%.5f')
+        if changed then authoring.dz=value end
+    elseif authoring.editMode==2 then
+        local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
+        if changed then authoring.rx=value end
+        tImGui.SameLine()
+        changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
+        if changed then authoring.ry=value end
+        tImGui.SameLine()
+        changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
+        if changed then authoring.rz=value end
+        local origin=state.project.faceOrigin
+        if not origin or not origin.placed or not origin.position then
+            tImGui.TextWrapped(tLang.L('fre_target_edit_no_face_origin'))
+        else
+            tImGui.TextWrapped(tLang.L('fre_target_edit_pivot'))
+        end
+    end
+    local canApplyEdit=selected~=nil and state.topology and state.topology.vertices and #state.topology.vertices>0
+    tImGui.BeginDisabled(not canApplyEdit)
+    if tImGui.Button(tLang.L('fre_target_edit_apply')) then
+        local indices
+        if (authoring.selectionMode or 1)==1 then
+            indices=tFacialTargets.allIndices(authoring.vertexCount)
+        else
+            local mask=state.project.masks and state.project.masks[(authoring.selectionMode or 1)-1]
+            indices=tFacialTargets.maskIndices(mask,authoring.vertexCount,state.topology.signature)
+        end
+        if #indices==0 then
+            targetAuthoringError(tLang.L('fre_target_edit_no_vertices'))
+        else
+            local before=tFacialTargets.copyTargetData(selected)
+            local edited=tFacialTargets.copyTargetData(selected)
+            local bounds=state.meshBounds or {minX=0,maxX=0,minY=0,maxY=0,minZ=0,maxZ=0}
+            local origin=state.project.faceOrigin
+            local pivot=origin and origin.placed and origin.position or {
+                x=(bounds.minX+bounds.maxX)*0.5,y=(bounds.minY+bounds.maxY)*0.5,z=(bounds.minZ+bounds.maxZ)*0.5}
+            local edit={mode=(authoring.editMode or 1)==1 and 'translate' or
+                (authoring.editMode or 1)==2 and 'rotate' or 'reset',
+                dx=authoring.dx or 0,dy=authoring.dy or 0,dz=authoring.dz or 0,
+                rx=math.rad(authoring.rx or 0),ry=math.rad(authoring.ry or 0),rz=math.rad(authoring.rz or 0),pivot=pivot}
+            local changedCount=tFacialTargets.applyEdit(edited,state.topology.vertices,indices,edit)
+            if changedCount==0 and edit.mode~='reset' then
+                setStatus(tLang.L('fre_target_edit_no_vertices'),true)
+            else
+                local callOk,updated=dpCall(function()
+                    return state.meshDebug:updateFacialTarget(authoring.selectedTarget,edited.name,
+                        edited.convention,edited.defaultWeight,edited.positionDeltas,
+                        #edited.normalDeltas>0 and edited.normalDeltas or nil)
+                end)
+                if callOk and updated~=false then
+                    tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,edited)
+                    markFacialTargetAuthoringModified()
+                    setStatus(string.format(tLang.L('fre_target_edit_applied_fmt'),changedCount),false)
+                else
+                    targetAuthoringError('could not apply delta edit')
+                end
+            end
+        end
+    end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not authoring.editUndo or #authoring.editUndo==0)
+    if tImGui.Button(tLang.L('fre_target_edit_undo')) then
+        local record=table.remove(authoring.editUndo)
+        local target=tFacialTargets.find(authoring.targets,record and record.index)
+        local callOk,restored=false,false
+        if target and record then
+            callOk,restored=dpCall(function()
+                return state.meshDebug:updateFacialTarget(record.index,record.before.name,record.before.convention,
+                    record.before.defaultWeight,record.before.positionDeltas,
+                    #record.before.normalDeltas>0 and record.before.normalDeltas or nil)
+            end)
+        end
+        if callOk and restored~=false then
+            authoring.editRedo=authoring.editRedo or {}
+            authoring.editRedo[#authoring.editRedo+1]=record
+            authoring.selectedTarget=record.index
+            markFacialTargetAuthoringModified()
+            setStatus(tLang.L('fre_undo_done'),false)
+        elseif record then
+            authoring.editUndo[#authoring.editUndo+1]=record
+            targetAuthoringError('could not undo delta edit')
+        end
+    end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not authoring.editRedo or #authoring.editRedo==0)
+    if tImGui.Button(tLang.L('fre_target_edit_redo')) then
+        local record=table.remove(authoring.editRedo)
+        local target=tFacialTargets.find(authoring.targets,record and record.index)
+        local callOk,restored=false,false
+        if target and record then
+            callOk,restored=dpCall(function()
+                return state.meshDebug:updateFacialTarget(record.index,record.after.name,record.after.convention,
+                    record.after.defaultWeight,record.after.positionDeltas,
+                    #record.after.normalDeltas>0 and record.after.normalDeltas or nil)
+            end)
+        end
+        if callOk and restored~=false then
+            authoring.editUndo=authoring.editUndo or {}
+            authoring.editUndo[#authoring.editUndo+1]=record
+            authoring.selectedTarget=record.index
+            markFacialTargetAuthoringModified()
+            setStatus(tLang.L('fre_redo_done'),false)
+        elseif record then
+            authoring.editRedo[#authoring.editRedo+1]=record
+            targetAuthoringError('could not redo delta edit')
+        end
+    end
+    tImGui.EndDisabled()
+
+    if tImGui.Button(tLang.L('fre_target_create')) then
+        local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$')
+        if targetName=='' then
+            targetAuthoringError(tLang.L('fre_target_name_required'))
+        else
+            local positions=tFacialTargets.zeroDeltas(authoring.vertexCount)
+            local callOk,newIndex=dpCall(function()
+                return state.meshDebug:addFacialTarget(targetName,authoring.conventionDraft or '',authoring.defaultWeight or 0,positions)
+            end)
+            if callOk and newIndex then
+                markFacialTargetAuthoringModified()
+                tFacialTargets.clearEditHistory(authoring)
+                authoring.selectedTarget=newIndex
+                setStatus(tLang.L('fre_target_created'),false)
+            else
+                targetAuthoringError('could not create target')
+            end
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_create_tooltip'))
+    tImGui.SameLine()
+    local canEdit=selected~=nil
+    tImGui.BeginDisabled(not canEdit)
+    if tImGui.Button(tLang.L('fre_target_update')) then
+        local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$')
+        local data=tFacialTargets.copyTargetData(selected)
+        local before=tFacialTargets.copyTargetData(selected)
+        if targetName=='' then
+            targetAuthoringError(tLang.L('fre_target_name_required'))
+        elseif data then
+            data.name=targetName
+            data.convention=authoring.conventionDraft or ''
+            data.defaultWeight=authoring.defaultWeight or 0
+            local callOk,updated=dpCall(function()
+                return state.meshDebug:updateFacialTarget(authoring.selectedTarget,targetName,
+                    authoring.conventionDraft or '',authoring.defaultWeight or 0,
+                    data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
+            end)
+            if callOk and updated~=false then
+                tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,data)
+                markFacialTargetAuthoringModified()
+                setStatus(tLang.L('fre_target_updated'),false)
+            else
+                targetAuthoringError('could not update target')
+            end
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_update_tooltip'))
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_target_duplicate')) then
+        local data=tFacialTargets.copyTargetData(selected)
+        local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$') .. '_copy'
+        if data then
+            local callOk,newIndex=dpCall(function()
+                return state.meshDebug:addFacialTarget(targetName,data.convention,data.defaultWeight,
+                    data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
+            end)
+            if callOk and newIndex then
+                markFacialTargetAuthoringModified()
+                tFacialTargets.clearEditHistory(authoring)
+                authoring.selectedTarget=newIndex
+                setStatus(tLang.L('fre_target_duplicated'),false)
+            else
+                targetAuthoringError('could not duplicate target')
+            end
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_duplicate_tooltip'))
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_target_delete')) then
+        local callOk,removed=dpCall(function() return state.meshDebug:removeFacialTarget(authoring.selectedTarget) end)
+        if callOk and removed~=false then
+            markFacialTargetAuthoringModified()
+            tFacialTargets.clearEditHistory(authoring)
+            authoring.selectedTarget=math.max(1,authoring.selectedTarget-1)
+            setStatus(tLang.L('fre_target_deleted'),false)
+        else
+            targetAuthoringError('could not delete target')
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_delete_tooltip'))
+    tImGui.EndDisabled()
+    if authoring.modified then
+        tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))
+    end
 end
 
 local function syncFacialComparisonWeights()
@@ -1646,6 +1955,7 @@ local function loadMesh(path, preserveProject)
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
+    state.targetAuthoring=tFacialTargets.new()
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
@@ -1684,6 +1994,7 @@ local function newProject()
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
+    state.targetAuthoring=tFacialTargets.new()
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
@@ -1721,6 +2032,7 @@ local function openProject()
         if not loadMesh(project.meshPath,true) then state.project=project end
     else
         destroyPreview()
+        state.targetAuthoring=tFacialTargets.new()
         state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
             selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
         state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
@@ -1750,7 +2062,9 @@ local function saveProject(path)
         return false
     end
     state.projectPath=path
-    state.modified=false
+    -- Dense target edits live in MeshDebug until an MSH export. Keep the dirty
+    -- indicator active when the Lua project was saved but the target payload was not.
+    state.modified=state.targetAuthoring and state.targetAuthoring.modified==true or false
     setStatus(string.format(tLang.L('fre_project_saved_fmt'),shortName(path)),false)
     return true
 end
@@ -3813,7 +4127,7 @@ local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
     local workspaces={
         {'setup','fre_setup'}, {'face_position','fre_face_position'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
-        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
+        {'rig','fre_rig'}, {'targets','fre_targets'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
     }
     for _,entry in ipairs(workspaces) do
         local label=tLang.L(entry[2])
@@ -3828,6 +4142,7 @@ local function showWorkspaceTree()
                 elseif entry[1]=='masks' then showMasks()
                 elseif entry[1]=='landmarks' then showLandmarks()
                 elseif entry[1]=='rig' then showRig()
+                elseif entry[1]=='targets' then showTargets()
                 elseif entry[1]=='expressions' then showExpressions()
                 elseif entry[1]=='clips' then showClips()
                 elseif entry[1]=='preview' then showPreview() end

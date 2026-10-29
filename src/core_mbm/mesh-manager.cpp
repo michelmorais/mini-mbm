@@ -6679,6 +6679,71 @@ namespace mbm
                                                    other.impl->canonicalSkeleton, out);
     }
 
+    namespace
+    {
+        bool getFacialBaseGeometry(const MESH_MBM_DEBUG &mesh, const VEC3 *&positions,
+                                   const VEC3 *&normals, uint32_t &vertexCount,
+                                   const uint16_t *&indices, uint32_t &indexCount,
+                                   std::string &error)
+        {
+            positions = nullptr;
+            normals = nullptr;
+            indices = nullptr;
+            vertexCount = 0;
+            indexCount = 0;
+            if (mesh.getMeshType() != util::TYPE_MESH_3D || mesh.getTotalFrames() != 1)
+            {
+                error = "facial target authoring requires one 3D frame";
+                return false;
+            }
+            const util::BUFFER_MESH_DEBUG *frame = mesh.getFrameBuffer(0);
+            if (!frame || !frame->position || frame->headerFrame.stride != 3 ||
+                frame->headerFrame.sizeVertexBuffer <= 0 || !frame->subset.size())
+            {
+                error = "facial target authoring requires a valid frame-0 vertex buffer";
+                return false;
+            }
+            positions = reinterpret_cast<const VEC3 *>(frame->position);
+            vertexCount = static_cast<uint32_t>(frame->headerFrame.sizeVertexBuffer);
+            if (frame->normal)
+                normals = reinterpret_cast<const VEC3 *>(frame->normal);
+            if (frame->headerFrame.sizeIndexBuffer > 0)
+            {
+                if (!frame->indexBuffer)
+                {
+                    error = "facial target authoring requires a valid frame-0 index buffer";
+                    return false;
+                }
+                indices = frame->indexBuffer;
+                indexCount = static_cast<uint32_t>(frame->headerFrame.sizeIndexBuffer);
+            }
+            return true;
+        }
+
+        uint64_t nextFacialTargetId(const std::vector<facial::TARGET> &targets)
+        {
+            uint64_t candidate = 1;
+            for (;;)
+            {
+                bool used = false;
+                for (const facial::TARGET &target : targets)
+                    if (target.id == candidate) { used = true; break; }
+                if (!used) return candidate;
+                if (candidate == std::numeric_limits<uint64_t>::max()) return 0;
+                ++candidate;
+            }
+        }
+
+        bool targetNameExists(const std::vector<facial::TARGET> &targets, const char *name,
+                              const uint32_t ignoredIndex = UINT32_MAX)
+        {
+            if (!name) return false;
+            for (uint32_t index = 0; index < targets.size(); ++index)
+                if (index != ignoredIndex && targets[index].name == name) return true;
+            return false;
+        }
+    }
+
     uint64_t MESH_MBM_DEBUG::getFacialMeshId() const noexcept
     {
         return impl->facialAsset.meshId;
@@ -6744,6 +6809,158 @@ namespace mbm
                 *normalDelta = target.normals[vertexIndex];
             }
         }
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addFacialTarget(const char *name, const char *convention,
+                                          const float defaultWeight, const VEC3 *positionDeltas,
+                                          const VEC3 *normalDeltas, const uint32_t vertexCount,
+                                          uint32_t *newIndexOut, char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (!name || !name[0]) return fail("facial target name must not be empty");
+        if (targetNameExists(impl->facialAsset.targets, name))
+            return fail("facial target name must be unique");
+        if (!positionDeltas || !vertexCount) return fail("facial target position deltas are required");
+        if (!std::isfinite(defaultWeight))
+            return fail("facial target default weight must be finite");
+
+        const VEC3 *basePositions = nullptr;
+        const VEC3 *baseNormals = nullptr;
+        const uint16_t *baseIndices = nullptr;
+        uint32_t baseVertexCount = 0;
+        uint32_t baseIndexCount = 0;
+        std::string geometryError;
+        if (!getFacialBaseGeometry(*this, basePositions, baseNormals, baseVertexCount,
+                                   baseIndices, baseIndexCount, geometryError))
+            return fail(geometryError.c_str());
+        if (vertexCount != baseVertexCount) return fail("facial target vertex count mismatch");
+        if (normalDeltas && !baseNormals) return fail("facial normal deltas require base normals");
+
+        facial::ASSET candidate = impl->facialAsset;
+        const uint64_t signature = facial::geometrySignature(basePositions, baseNormals,
+                                                              baseVertexCount, baseIndices, baseIndexCount);
+        if (!candidate.meshId)
+        {
+            candidate.meshId = signature ? signature : 1;
+            candidate.geometrySignature = signature;
+            candidate.vertexCount = baseVertexCount;
+        }
+        if (candidate.geometrySignature != signature || candidate.vertexCount != baseVertexCount)
+            return fail("facial target geometry does not match frame 0");
+        if (candidate.targets.size() >= facial::MAX_TARGETS)
+            return fail("facial target limit reached");
+        const uint64_t targetId = nextFacialTargetId(candidate.targets);
+        if (!targetId) return fail("facial target ID space is exhausted");
+
+        facial::TARGET target;
+        target.id = targetId;
+        target.name = name;
+        target.convention = convention ? convention : "";
+        target.defaultWeight = defaultWeight;
+        target.positions.assign(positionDeltas, positionDeltas + vertexCount);
+        if (normalDeltas) target.normals.assign(normalDeltas, normalDeltas + vertexCount);
+        else if (baseNormals) target.normals.assign(vertexCount, VEC3());
+        candidate.targets.push_back(std::move(target));
+        std::string validationError;
+        if (!facial::validateGeometry(candidate, basePositions, baseNormals, baseVertexCount,
+                                      baseIndices, baseIndexCount, validationError))
+            return fail(validationError.c_str());
+        impl->facialAsset = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->facialAsset.targets.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateFacialTarget(const uint32_t targetIndex, const char *name,
+                                             const char *convention, const float defaultWeight,
+                                             const VEC3 *positionDeltas, const VEC3 *normalDeltas,
+                                             const uint32_t vertexCount, char *errorOut,
+                                             const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (targetIndex >= impl->facialAsset.targets.size()) return fail("facial target index is out of range");
+        if (!name || !name[0]) return fail("facial target name must not be empty");
+        if (targetNameExists(impl->facialAsset.targets, name, targetIndex))
+            return fail("facial target name must be unique");
+        if (!positionDeltas || !vertexCount) return fail("facial target position deltas are required");
+
+        const VEC3 *basePositions = nullptr;
+        const VEC3 *baseNormals = nullptr;
+        const uint16_t *baseIndices = nullptr;
+        uint32_t baseVertexCount = 0;
+        uint32_t baseIndexCount = 0;
+        std::string geometryError;
+        if (!getFacialBaseGeometry(*this, basePositions, baseNormals, baseVertexCount,
+                                   baseIndices, baseIndexCount, geometryError))
+            return fail(geometryError.c_str());
+        if (vertexCount != baseVertexCount) return fail("facial target vertex count mismatch");
+        if (normalDeltas && !baseNormals) return fail("facial normal deltas require base normals");
+
+        facial::ASSET candidate = impl->facialAsset;
+        if (candidate.geometrySignature != facial::geometrySignature(basePositions, baseNormals,
+                baseVertexCount, baseIndices, baseIndexCount) || candidate.vertexCount != baseVertexCount)
+            return fail("facial target geometry does not match frame 0");
+        facial::TARGET &target = candidate.targets[targetIndex];
+        target.name = name;
+        target.convention = convention ? convention : "";
+        target.defaultWeight = defaultWeight;
+        target.positions.assign(positionDeltas, positionDeltas + vertexCount);
+        target.normals.clear();
+        if (normalDeltas) target.normals.assign(normalDeltas, normalDeltas + vertexCount);
+        else if (baseNormals) target.normals.assign(vertexCount, VEC3());
+        target.activeVertices.clear();
+        target.sparseReady = false;
+        std::string validationError;
+        if (!facial::validateGeometry(candidate, basePositions, baseNormals, baseVertexCount,
+                                      baseIndices, baseIndexCount, validationError))
+            return fail(validationError.c_str());
+        impl->facialAsset = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeFacialTarget(const uint32_t targetIndex, char *errorOut,
+                                             const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (targetIndex >= impl->facialAsset.targets.size()) return fail("facial target index is out of range");
+        if (impl->facialAsset.targets.size() == 1)
+        {
+            if (!impl->facialAsset.clips.empty())
+                return fail("cannot remove the last facial target while clips exist");
+            impl->facialAsset = {};
+            return true;
+        }
+        facial::ASSET candidate = impl->facialAsset;
+        candidate.targets.erase(candidate.targets.begin() + targetIndex);
+        for (facial::CLIP &clip : candidate.clips)
+            for (facial::KEY &key : clip.keys)
+                key.weights.erase(key.weights.begin() + targetIndex);
+        const VEC3 *basePositions = nullptr;
+        const VEC3 *baseNormals = nullptr;
+        const uint16_t *baseIndices = nullptr;
+        uint32_t baseVertexCount = 0;
+        uint32_t baseIndexCount = 0;
+        std::string geometryError;
+        if (!getFacialBaseGeometry(*this, basePositions, baseNormals, baseVertexCount,
+                                   baseIndices, baseIndexCount, geometryError))
+            return fail(geometryError.c_str());
+        std::string validationError;
+        if (!facial::validateGeometry(candidate, basePositions, baseNormals, baseVertexCount,
+                                      baseIndices, baseIndexCount, validationError))
+            return fail(validationError.c_str());
+        impl->facialAsset = std::move(candidate);
         return true;
     }
 

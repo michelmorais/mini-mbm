@@ -715,6 +715,9 @@ otherwise it reports the LBS fallback and the compatibility reason.
 | `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |
 | `obj:getFacialTargetName` | `(index: int)` | string or nil | Name of the 1-based target |
 | `obj:getFacialTargetInfo` | `(index: int)` | table or nil | `{id, name, convention, defaultWeight}`; `id` is a hexadecimal string |
+| `meshD:addFacialTarget` | `(name, convention, defaultWeight, positionDeltas, normalDeltas?)` | int | MeshDebug only: append a validated dense target from frame-0 `{x,y,z}` delta arrays and return its 1-based index; normal deltas are optional and become zero deltas when the base mesh has normals |
+| `meshD:updateFacialTarget` | `(index, name, convention, defaultWeight, positionDeltas, normalDeltas?)` | bool | MeshDebug only: replace one target transactionally after frame-0 topology, finite-value, identity, and normal-delta validation |
+| `meshD:removeFacialTarget` | `(index)` | bool | MeshDebug only: remove a target transactionally and remove the corresponding target-order weight from every facial clip; removing the last target is allowed only when no clips remain |
 | `obj:setFacialWeight` | `(target: int\|string, weight)` | bool | Set a per-instance manual override, clamped to `[0,1]` |
 | `obj:getFacialWeight` | `(target: int\|string)` | number or nil | Current evaluated target weight |
 | `obj:clearFacialWeight` | `(target: int\|string)` | bool | Clear one manual override and restore clip/default contribution |
@@ -2060,6 +2063,16 @@ cache behavior and the usual skeletal initialization path.
 
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations.
+
+Facial target authoring is transactional and currently operates on the in-memory MeshDebug
+candidate. `addFacialTarget`, `updateFacialTarget`, and `removeFacialTarget` preserve the previous
+valid candidate when validation fails. Position and normal delta arrays use the canonical frame-0
+vertex order and contain `{x,y,z}` tables. The first native Facial Rig Editor worktree uses these
+APIs for target identity and batch data operations. Its first sculpt-foundation controls apply
+translation, rotation around the face-origin/mesh-center pivot, or reset to all vertices or to an
+existing project mask; the controls commit only on explicit Apply and have local undo/redo.
+Viewport picking, brush falloff, and runtime preview resynchronization are subsequent milestones.
+Save the candidate to a new MSH before closing or loading another asset.
 
 Mesh Debug can also mark one animation to start on each newly loaded instance of the saved V11
 asset:

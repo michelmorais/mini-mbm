@@ -438,6 +438,22 @@ namespace mbm
         API_IMPL float getFacialTargetDefaultWeight(const uint32_t index) const noexcept;
         API_IMPL bool getFacialTargetDelta(const uint32_t targetIndex, const uint32_t vertexIndex,
                                            VEC3 *positionDelta, VEC3 *normalDelta) const noexcept;
+        // Transactionally creates, replaces, or removes dense facial target data. The input
+        // arrays are caller-owned and contain exactly vertexCount entries. A null normal array
+        // omits authored normal deformation; when frame 0 has normals, zero normal deltas are
+        // stored so the candidate remains compatible with the base geometry. The candidate is
+        // validated against frame 0 before any mutation becomes visible.
+        API_IMPL bool addFacialTarget(const char *name, const char *convention, const float defaultWeight,
+                                      const VEC3 *positionDeltas, const VEC3 *normalDeltas,
+                                      const uint32_t vertexCount, uint32_t *newIndexOut,
+                                      char *errorOut, const int errorOutLen);
+        API_IMPL bool updateFacialTarget(const uint32_t targetIndex, const char *name,
+                                         const char *convention, const float defaultWeight,
+                                         const VEC3 *positionDeltas, const VEC3 *normalDeltas,
+                                         const uint32_t vertexCount, char *errorOut,
+                                         const int errorOutLen);
+        API_IMPL bool removeFacialTarget(const uint32_t targetIndex, char *errorOut,
+                                         const int errorOutLen);
         API_IMPL uint32_t getTotalFacialClips() const noexcept;
         API_IMPL const char *getFacialClipName(const uint32_t index) const noexcept;
         API_IMPL uint64_t getFacialClipId(const uint32_t index) const noexcept;

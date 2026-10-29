@@ -198,6 +198,95 @@ namespace mbm
         return *ud;
     }
 
+    bool readFacialDeltaArray(lua_State *lua, const int index, const char *fieldName,
+                              const uint32_t vertexCount, std::vector<VEC3> &out,
+                              const bool required)
+    {
+        const int absolute = lua_absindex(lua, index);
+        if (lua_isnoneornil(lua, absolute))
+        {
+            if (required) luaL_error(lua, "%s is required", fieldName);
+            out.clear();
+            return false;
+        }
+        luaL_checktype(lua, absolute, LUA_TTABLE);
+        if (lua_rawlen(lua, absolute) != vertexCount)
+            luaL_error(lua, "%s count must match the frame-0 vertex count", fieldName);
+        out.resize(vertexCount);
+        for (uint32_t vertex = 0; vertex < vertexCount; ++vertex)
+        {
+            lua_rawgeti(lua, absolute, static_cast<lua_Integer>(vertex + 1));
+            luaL_checktype(lua, -1, LUA_TTABLE);
+            lua_getfield(lua, -1, "x");
+            out[vertex].x = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "y");
+            out[vertex].y = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+            lua_getfield(lua, -1, "z");
+            out[vertex].z = static_cast<float>(luaL_checknumber(lua, -1));
+            lua_pop(lua, 1);
+            lua_pop(lua, 1);
+        }
+        return true;
+    }
+
+    int onAddFacialTargetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const char *convention = luaL_optstring(lua, 3, "");
+        const float defaultWeight = static_cast<float>(luaL_optnumber(lua, 4, 0.0));
+        std::vector<VEC3> positions;
+        std::vector<VEC3> normals;
+        const uint32_t vertexCount = static_cast<uint32_t>(lua_rawlen(lua, 5));
+        readFacialDeltaArray(lua, 5, "positionDeltas", vertexCount, positions, true);
+        const bool hasNormals = readFacialDeltaArray(lua, 6, "normalDeltas", vertexCount, normals, false);
+        char errorOut[255] = "";
+        uint32_t newIndex = 0;
+        if (!meshDebug->mesh.addFacialTarget(name, convention, defaultWeight, positions.data(),
+                hasNormals ? normals.data() : nullptr, vertexCount, &newIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
+        return 1;
+    }
+
+    int onUpdateFacialTargetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "facial target index must be one-based");
+        const char *name = luaL_checkstring(lua, 3);
+        const char *convention = luaL_optstring(lua, 4, "");
+        const float defaultWeight = static_cast<float>(luaL_optnumber(lua, 5, 0.0));
+        std::vector<VEC3> positions;
+        std::vector<VEC3> normals;
+        const uint32_t vertexCount = static_cast<uint32_t>(lua_rawlen(lua, 6));
+        readFacialDeltaArray(lua, 6, "positionDeltas", vertexCount, positions, true);
+        const bool hasNormals = readFacialDeltaArray(lua, 7, "normalDeltas", vertexCount, normals, false);
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateFacialTarget(static_cast<uint32_t>(index - 1), name, convention,
+                defaultWeight, positions.data(), hasNormals ? normals.data() : nullptr,
+                vertexCount, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
+    int onRemoveFacialTargetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "facial target index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeFacialTarget(static_cast<uint32_t>(index - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushboolean(lua, 1);
+        return 1;
+    }
+
     int onLoadMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -3143,11 +3232,14 @@ namespace mbm
         const uint32_t targetCount = meshDebug->mesh.getTotalFacialTargets();
         const uint32_t vertexCount = meshDebug->mesh.getFacialVertexCount();
         const uint32_t clipCount = meshDebug->mesh.getTotalFacialClips();
-        lua_createtable(lua, 0, 5);
+        lua_createtable(lua, 0, 6);
         pushSkeletonBindId(lua, meshDebug->mesh.getFacialMeshId(), "meshId");
         pushSkeletonBindId(lua, meshDebug->mesh.getFacialGeometrySignature(), "geometrySignature");
         lua_pushinteger(lua, static_cast<lua_Integer>(vertexCount));
         lua_setfield(lua, -2, "vertexCount");
+        const util::BUFFER_MESH_DEBUG *baseFrame = meshDebug->mesh.getFrameBuffer(0);
+        lua_pushboolean(lua, baseFrame && baseFrame->normal != nullptr);
+        lua_setfield(lua, -2, "hasNormals");
 
         lua_createtable(lua, static_cast<int>(targetCount), 0);
         for (uint32_t targetIndex = 0; targetIndex < targetCount; ++targetIndex)
@@ -3947,6 +4039,9 @@ namespace mbm
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"getFacialExportData", onGetFacialExportDataDebugLua},
                                           {"getTotalFacialTargets", onGetTotalFacialTargetsDebugLua},
+                                          {"addFacialTarget", onAddFacialTargetDebugLua},
+                                          {"updateFacialTarget", onUpdateFacialTargetDebugLua},
+                                          {"removeFacialTarget", onRemoveFacialTargetDebugLua},
                                           {"addFacialClip", onAddFacialClipDebugLua},
                                           {"removeFacialClip", onRemoveFacialClipDebugLua},
                                           {"renameSkeletalBone", onRenameSkeletalBoneDebugLua},
