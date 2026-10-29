@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Current State and Future Deliveries
 
-Status: **The minimum facial animation workflow is implemented for Linux, Windows, and macOS.**
+Status: **The minimum facial animation workflow is implemented for Linux, Windows, and macOS. Linux and macOS interactive validation is complete; Windows DirectX acceptance remains pending.**
 
 This document is a snapshot of the current engine. It intentionally does not describe the sequence
 of implementation work. Future items below are independent delivery proposals and are not required
@@ -99,8 +99,8 @@ viewport conventions. Its current worktrees are:
 7. Facial clips with a timeline, keys, interpolation, capture, and preview.
 8. Preview of expressions, project clips, imported MSH clips, and skeletal clips together.
 
-The Preview worktree offers a single preview, CPU/GPU comparison, and (on Metal with a rigid
-skeleton) LBS/DQS comparison. The primary preview uses the mesh's automatic resolved method and
+The Preview worktree offers a single preview, CPU/GPU comparison, and (on native GPU backends with
+a rigid skeleton) LBS/DQS comparison. The primary preview uses the mesh's automatic resolved method and
 the second preview uses the alternate LBS/DQS method; both use GPU skeletal execution. The second preview follows the active skeletal clip/time, project expressions, and
 imported facial playback. Its skeletal player stays paused between explicit time changes, so a
 paused primary does not trigger continuous seeks or uploads. Comparison instances are released
@@ -180,7 +180,7 @@ The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparis
 Shader method and palette size participate in the per-instance facial shader cache; stopped poses
 and unchanged weights do not repeatedly deform or upload geometry.
 
-Remaining delivery: explicit iOS device acceptance. Custom shaders and normal-mapped facial assets
+Remaining delivery: Windows DirectX 9/11 hardware acceptance and explicit iOS device acceptance. Custom shaders and normal-mapped facial assets
 remain unsupported.
 
 Native validation commands (use the configured build output directory):
