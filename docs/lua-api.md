@@ -704,10 +704,11 @@ playing/paused state.
 
 Facial morphing precedes skeletal deformation. Select `"dqs"` with
 `setSkeletalSkinningMethod` before loading to use rigid DQS with facial targets on the native
-OpenGL ES, DirectX 9, DirectX 11, or Metal GPU path, or on the CPU reference. Existing
-rigid-transform eligibility rules apply. Mesh Debug requests `"auto"` for facial previews, so its
-report resolves to DQS when the bind and all skeletal clips are rigid; otherwise it reports the
-LBS fallback and the compatibility reason.
+OpenGL ES, DirectX 9, DirectX 11, or Metal GPU skeletal path, or on the CPU reference. Indexed
+GPU facial morphing is capability-dependent; when unavailable, CPU morph output still feeds the
+GPU DQS stage. Existing rigid-transform eligibility rules apply. Mesh Debug requests `"auto"` for
+facial previews, so its report resolves to DQS when the bind and all skeletal clips are rigid;
+otherwise it reports the LBS fallback and the compatibility reason.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
@@ -731,7 +732,7 @@ LBS fallback and the compatibility reason.
 | `obj:getFacialAnimationTime` | `()` | number or nil | Current active clip time |
 | `obj:setFacialAnimationPlaybackSpeed` | `(speed)` | bool | Set a finite non-negative per-instance playback multiplier |
 | `obj:getFacialAnimationPlaybackSpeed` | `()` | number | Current multiplier; defaults to `1` |
-| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, skin execution path (`cpu` or `gpu-skeletal-composite`), morph execution path (`gpu-indexed-deltas` when the measured GLES2, DirectX 11, DirectX 9, or macOS Metal path is available, otherwise `cpu-reference`), morph capability status, and status |
+| `obj:getFacialAnimationReport` | `()` | table | Target/clip counts, readiness, active clip state, evaluation/upload counters, skin execution path (`cpu` or `gpu-skeletal-composite`), morph execution path (`gpu-indexed-deltas` when the measured GLES2, DirectX 11, DirectX 9, or macOS Metal path is available, otherwise `cpu-reference`), morph capability status, and status. CPU morph with GPU skeletal DQS is a valid fallback combination. |
 
 ```lua
 local face = mesh:new("3d")

@@ -718,9 +718,11 @@ preserves the sections byte-for-byte semantically.
 
 The CPU reference evaluator starts from immutable frame-0 geometry, adds all active position deltas,
 then adds and renormalizes normal deltas when normals are present. When skeletal animation is also
-active, the morphed bind geometry is skinned with the existing CPU linear-blend path. Weights,
-deformed buffers, bounds, and playback state are per `MESH` instance; target and clip arrays remain
-owned by the shared cached mesh asset.
+active, the morphed bind geometry is skinned with the existing CPU LBS or rigid-DQS reference path.
+On native GPU backends, indexed GPU morphing may replace the CPU morph stage after capability,
+layout, upload, and shader checks; otherwise CPU morph output can still feed GPU LBS or GPU DQS.
+Weights, deformed buffers, bounds, and playback state are per `MESH` instance; target and clip arrays
+remain owned by the shared cached mesh asset.
 
 ### Reader compatibility
 

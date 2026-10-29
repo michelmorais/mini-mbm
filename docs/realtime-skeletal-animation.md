@@ -157,8 +157,10 @@ A mesh may carry both canonical skeletal data and facial targets/clips. Facial m
 applied to bind geometry before the skeletal stage, so the evaluated face follows the body pose.
 Facial targets support LBS and rigid DQS on the CPU reference and the native Metal, DirectX 9/11,
 and OpenGL ES GPU paths. The indexed GPU morph path is selected only after backend capability,
-layout, upload, and shader checks; otherwise the per-instance CPU reference path is used. Facial weights and clip time
-remain instance state, while target deltas and clips remain immutable mesh-asset data.
+layout, upload, and shader checks; otherwise the per-instance CPU morph reference is used. CPU
+morphing can still feed GPU skeletal LBS or rigid DQS, so a report may legitimately show CPU facial
+morphing together with GPU DQS. Facial weights and clip time remain instance state, while target
+deltas and clips remain immutable mesh-asset data.
 
 Mesh V11 can also name one autoplay clip in optional `SECTION_AUTOPLAY_ANIMATION` (44). A newly
 loaded `MESH` starts the selected skeletal clip after its animation data is ready. Frame and
@@ -252,6 +254,13 @@ The macOS facial acceptance additionally loaded a generated 34,164-vertex Meg me
 facial targets, facial clips, and canonical skeletal animation in both MeshDebug and the skeletal
 animation editor. The combined asset preserved morph-then-LBS composition; indexed Metal morph
 parity was checked against the CPU reference, with the documented CPU fallback also exercised.
+
+Windows facial acceptance on 2026-10-29 loaded `Meg-facial-targets-auto-facial-weighted.msh` in
+MeshDebug on DirectX 9, DirectX 11, and OpenGL ES. All three backends resolved the skeletal stage
+to rigid DQS on GPU. DirectX 11 and OpenGL ES resolved facial morphing to indexed GPU deltas;
+DirectX 9 resolved facial morphing to the CPU reference because its measured capability/resource
+checks did not leave the indexed morph resource ready. The DirectX 9 result still composes CPU
+morph output before GPU DQS and is therefore a valid implementation of facial animation with DQS.
 
 Deterministic foundation tests cover canonical validation, sampling, easing, hierarchy evaluation,
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,

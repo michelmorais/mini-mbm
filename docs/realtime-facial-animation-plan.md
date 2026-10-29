@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Current State and Future Deliveries
 
-Status: **The minimum facial animation workflow is implemented for Linux, Windows, and macOS. Linux and macOS interactive validation is complete; Windows DirectX acceptance remains pending.**
+Status: **The minimum facial animation workflow is implemented for Linux, Windows, and macOS. Interactive validation is complete on Linux OpenGL ES, Windows DirectX 9/11 and OpenGL ES, and macOS Metal; explicit iOS device acceptance remains pending.**
 
 This document is a snapshot of the current engine. It intentionally does not describe the sequence
 of implementation work. Future items below are independent delivery proposals and are not required
@@ -38,7 +38,7 @@ The following combinations are explicit current boundaries:
 | No facial sections | Existing static/skeletal path |
 | Facial targets/clips without a skeleton | CPU or indexed-GPU morph-only path |
 | Facial targets/clips with a body skeleton using LBS | Morph-then-LBS composition |
-| Facial targets/clips with rigid DQS on Metal, OpenGL ES, DirectX 9, or DirectX 11 | GPU morph-then-DQS; CPU reference supported |
+| Facial targets/clips with rigid DQS on Metal, OpenGL ES, DirectX 9, or DirectX 11 | Indexed GPU morph-then-DQS when the measured morph capability is ready; otherwise CPU morph-then-DQS; CPU reference supported |
 | Facial targets/clips with rigid DQS on an unsupported backend | CPU composition where available; explicit GPU rejected with `facial-gpu-skeletal-unsupported` |
 | Facial targets/clips with a custom vertex or pixel shader | Rejected with `facial-custom-shader-unsupported` |
 | Facial targets/clips with normal-map material/prepared data | Rejected with `facial-normal-mapping-unsupported` |
@@ -70,14 +70,15 @@ metadata inspection and validated project-clip insertion/removal for export.
 |---|---|---|---|
 | Linux OpenGL ES | Existing skeletal backend | Indexed GPU deltas when measured resources and shaders pass | CPU reference |
 | Windows DirectX 11 | Existing skeletal backend | Indexed GPU deltas when capability checks pass | CPU reference |
-| Windows DirectX 9 | Existing skeletal backend | Indexed GPU deltas when the device supports the required vertex texture path | CPU reference |
+| Windows DirectX 9 | Existing skeletal backend | Indexed GPU deltas when the measured vertex texture path is ready | CPU morph fallback, including when GPU DQS remains available |
 | macOS Metal | Existing skeletal backend | Indexed GPU deltas using the measured float texture path | CPU reference |
 
 The report never labels an incomplete GPU upload or shader as ready. A capability or shader failure
-selects the CPU reference path explicitly. Facial targets support rigid DQS in the CPU reference
-and GPU composition on the native OpenGL ES, DirectX 9, DirectX 11, and Metal paths. The existing
-rigid-transform eligibility rules still apply: AUTO skinning can resolve to LBS for non-rigid
-skeletons.
+selects the CPU morph reference explicitly. Facial targets support rigid DQS in the CPU reference
+and GPU skeletal composition on the native OpenGL ES, DirectX 9, DirectX 11, and Metal paths. The
+morph stage may therefore be CPU while the skeletal DQS stage remains GPU; this is the expected
+fallback when a backend cannot provide the indexed morph resource. The existing rigid-transform
+eligibility rules still apply: AUTO skinning can resolve to LBS for non-rigid skeletons.
 
 `USE_NORMAL_MAPPING_3D` and `SUPPORTED_MAX_LIGHTS` are lighting/shader build settings, not facial
 morph settings. The supported normal-mapping matrix is `USE_NORMAL_MAPPING_3D=0/1` combined with
@@ -180,8 +181,10 @@ The skeletal editor enables facial DQS selection and LBS/DQS or GPU/CPU comparis
 Shader method and palette size participate in the per-instance facial shader cache; stopped poses
 and unchanged weights do not repeatedly deform or upload geometry.
 
-Remaining delivery: Windows DirectX 9/11 hardware acceptance and explicit iOS device acceptance. Custom shaders and normal-mapped facial assets
-remain unsupported.
+Remaining delivery: explicit iOS device acceptance. Custom shaders and normal-mapped facial assets
+remain unsupported. Windows DirectX 9/11 and OpenGL ES acceptance is complete for the tested
+Windows asset/hardware path; DirectX 9 may intentionally report CPU morph with GPU DQS when its
+measured capability/resource checks do not leave the indexed morph resource ready.
 
 Native validation commands (use the configured build output directory):
 
@@ -206,6 +209,13 @@ A Lua smoke scene also passed with `dqs` and GPU/CPU/AUTO execution. The editor 
 checking; manual interaction with its comparison controls remains to be checked. Backend detection
 is cached at editor initialization, and the existing comparison synchronization only seeks when
 playing and the two times differ; this change adds no per-frame mesh scans or uploads.
+
+Validated on 2026-10-29 on Windows with `Meg-facial-targets-auto-facial-weighted.msh` in MeshDebug:
+DirectX 9, DirectX 11, and OpenGL ES resolved the skeletal animation to rigid DQS with GPU
+execution. DirectX 11 and OpenGL ES also reported indexed GPU facial morphing. DirectX 9 reported
+CPU facial morphing while retaining GPU DQS; this is the measured capability fallback, not a failure
+of facial DQS composition. The asset contains both skeletal and facial animation and played
+correctly on all three backends.
 
 ### Additional platform acceptance
 
