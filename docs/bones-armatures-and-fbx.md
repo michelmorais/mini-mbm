@@ -17,8 +17,11 @@ Rigid subset animation is a separate implemented feature documented in
 [`articulated-animation.md`](articulated-animation.md). It should not be confused with bone-weighted
 skeletal deformation.
 
-Facial shape-key animation is a separate workstream. Its current MSH, Blender interchange, runtime,
-and editor contract is documented in the [facial animation plan](realtime-facial-animation-plan.md).
+Facial shape-key animation is implemented as a separate runtime capability. Its current MSH, runtime,
+and editor contract is documented in [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md),
+[Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1), and the
+[Lua API](lua-api.md#facial-targets-and-clips-mesh). Optional extensions are listed in the
+[facial animation future work](realtime-facial-animation-future-work-plan.md).
 
 ## Quick Mental Model (Read This First)
 

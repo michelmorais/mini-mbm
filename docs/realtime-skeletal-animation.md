@@ -250,17 +250,10 @@ The complete user workflow is documented in the
 | Windows/OpenGL ES/ANGLE | The same 88-bone reference reports LBS and DQS `88/1024`; GPU and CPU execution were visually accepted. Native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases on OpenGL ES 3.0 through ANGLE's Direct3D 11 backend |
 | macOS/Metal | Apple M4 production-path LBS/DQS validation passed with the committed Lorekeeper; an 88-bone, 13,111-vertex real mesh also ran Auto-resolved GPU LBS at `88/1024` with a 4,224-byte palette; native RGBA8 readback passes all four shared synthetic/Lorekeeper LBS/DQS parity cases with Metal API validation enabled |
 
-The macOS facial acceptance additionally loaded a generated 34,164-vertex Meg mesh with 73 bones,
-facial targets, facial clips, and canonical skeletal animation in both MeshDebug and the skeletal
-animation editor. The combined asset preserved morph-then-LBS composition; indexed Metal morph
-parity was checked against the CPU reference, with the documented CPU fallback also exercised.
-
-Windows facial acceptance on 2026-10-29 loaded `Meg-facial-targets-auto-facial-weighted.msh` in
-MeshDebug on DirectX 9, DirectX 11, and OpenGL ES. All three backends resolved the skeletal stage
-to rigid DQS on GPU. DirectX 11 and OpenGL ES resolved facial morphing to indexed GPU deltas;
-DirectX 9 resolved facial morphing to the CPU reference because its measured capability/resource
-checks did not leave the indexed morph resource ready. The DirectX 9 result still composes CPU
-morph output before GPU DQS and is therefore a valid implementation of facial animation with DQS.
+Facial runtime state is also part of the accepted engine capability. With rigid skeletal content,
+MeshDebug resolves DQS on GPU on DirectX 9, DirectX 11, and OpenGL ES; indexed GPU facial morphing
+is used on DirectX 11 and OpenGL ES, while DirectX 9 may use the CPU morph fallback and still feed
+GPU DQS. Metal uses the same morph-then-skin contract with its measured indexed-resource path.
 
 Deterministic foundation tests cover canonical validation, sampling, easing, hierarchy evaluation,
 bind identity, LBS/DQS reference deformation, antipodality, scale rejection, composition, masks,
