@@ -20,8 +20,8 @@ The first native authoring slice is available on this branch:
 - `MESH_MBM_DEBUG::addFacialTarget`, `updateFacialTarget`, and `removeFacialTarget` mutate a
   candidate facial asset transactionally and validate it against frame-0 geometry.
 - The Lua `meshDebug` binding exposes those operations using dense `{x, y, z}` position and
-  optional normal-delta arrays. Target removal also remaps facial clip weights and protects the
-  last target when clips still reference it.
+  optional normal-delta arrays. Target addition appends a zero weight to existing facial clip
+  keys; removal deletes the corresponding weight and protects the last target when clips remain.
 - The Facial Rig Editor splits `Morph Targets` into Add, Edit, and Paint modes. Add shows only
   neutral-target creation fields and opens Edit after creation. Edit shows target metadata, batch
   operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
@@ -33,7 +33,9 @@ The first native authoring slice is available on this branch:
   radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
   commits once on release and enters the same local undo/redo history.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
-  the selected target at the chosen preview weight. The exported MSH is still saved explicitly.
+  the selected target at the chosen preview weight. The editor project stores the selected target
+  ID and preview weight when saved; the MSH stores target deltas and default weights, not this
+  editor preview preference. The exported MSH is still saved explicitly.
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
   mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
   it rebuilds on target, weight, or geometry changes and replaces the textured preview while shown.

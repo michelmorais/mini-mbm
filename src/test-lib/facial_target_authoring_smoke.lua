@@ -53,6 +53,14 @@ local function run()
         {time = 0, weights = {0, 0}},
         {time = 1, weights = {1, 0.5}},
     }) == 1)
+    local manual = author:addFacialTarget('jawOpen_manual_test', 'ARKit', 0, {
+        vector(0, 0, 0), vector(0, 0, 0), vector(0, 0, 0),
+    })
+    assert(manual == 3)
+    export = author:getFacialExportData()
+    assert(#export.clips[1].keys[1].weights == 3 and export.clips[1].keys[1].weights[3] == 0)
+    assert(#export.clips[1].keys[2].weights == 3 and export.clips[1].keys[2].weights[3] == 0)
+    assert(author:removeFacialTarget(3))
     assert(author:removeFacialTarget(1))
     assert(author:getTotalFacialTargets() == 1)
     export = author:getFacialExportData()

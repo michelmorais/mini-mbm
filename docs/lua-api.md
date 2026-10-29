@@ -715,7 +715,7 @@ otherwise it reports the LBS fallback and the compatibility reason.
 | `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |
 | `obj:getFacialTargetName` | `(index: int)` | string or nil | Name of the 1-based target |
 | `obj:getFacialTargetInfo` | `(index: int)` | table or nil | `{id, name, convention, defaultWeight}`; `id` is a hexadecimal string |
-| `meshD:addFacialTarget` | `(name, convention, defaultWeight, positionDeltas, normalDeltas?)` | int | MeshDebug only: append a validated dense target from frame-0 `{x,y,z}` delta arrays and return its 1-based index; normal deltas are optional and become zero deltas when the base mesh has normals |
+| `meshD:addFacialTarget` | `(name, convention, defaultWeight, positionDeltas, normalDeltas?)` | int | MeshDebug only: append a validated dense target from frame-0 `{x,y,z}` delta arrays and return its 1-based index; normal deltas are optional and become zero deltas when the base mesh has normals; existing facial clip keys gain a zero weight for the new target |
 | `meshD:updateFacialTarget` | `(index, name, convention, defaultWeight, positionDeltas, normalDeltas?)` | bool | MeshDebug only: replace one target transactionally after frame-0 topology, finite-value, identity, and normal-delta validation |
 | `meshD:removeFacialTarget` | `(index)` | bool | MeshDebug only: remove a target transactionally and remove the corresponding target-order weight from every facial clip; removing the last target is allowed only when no clips remain |
 | `obj:setFacialWeight` | `(target: int\|string, weight)` | bool | Set a per-instance manual override, clamped to `[0,1]` |

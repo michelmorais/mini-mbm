@@ -1615,6 +1615,7 @@ local function showTargets()
                     authoring.selectedTarget=index
                     authoring.draftTargetIndex=nil
                     state.targetOverlay.dirty=true
+                    state.modified=true
                     updateTargetPreviewWeights()
                 end
                 tImGui.TableSetColumnIndex(1)
@@ -1633,6 +1634,7 @@ local function showTargets()
         if changed then
             authoring.previewWeight=value
             state.targetOverlay.dirty=true
+            state.modified=true
             updateTargetPreviewWeights()
         end
         if authoring.previewTarget~=authoring.selectedTarget then updateTargetPreviewWeights() end
@@ -2174,6 +2176,18 @@ local function loadMesh(path, preserveProject)
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
     state.targetAuthoring=tFacialTargets.new()
+    local savedPreview=state.project.morphTargetPreview
+    if savedPreview and savedPreview.targetId and savedPreview.targetId~='' then
+        refreshFacialTargetCatalog()
+        for index,target in ipairs(state.targetAuthoring.targets) do
+            if target.id==savedPreview.targetId then
+                state.targetAuthoring.selectedTarget=index
+                state.targetAuthoring.previewWeight=savedPreview.weight
+                updateTargetPreviewWeights()
+                break
+            end
+        end
+    end
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
@@ -2272,6 +2286,10 @@ local function saveProject(path)
     state.project.expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions.selectedTarget=state.expressions.selectedTarget or 1
     state.project.expressions.selectedPose=state.expressions.selectedPose or 1
+    if state.targetAuthoring.catalogDirty and state.meshDebug then refreshFacialTargetCatalog() end
+    local selected=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
+    state.project.morphTargetPreview={targetId=selected and selected.id or '',
+        weight=state.targetAuthoring.previewWeight or 1}
     state.project.selectedClip=state.clipEditor.selectedClip or 1
     state.project.language=tLang.getLanguage()
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)

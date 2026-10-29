@@ -6866,6 +6866,11 @@ namespace mbm
         if (normalDeltas) target.normals.assign(normalDeltas, normalDeltas + vertexCount);
         else if (baseNormals) target.normals.assign(vertexCount, VEC3());
         candidate.targets.push_back(std::move(target));
+        // Existing clips were authored before this target existed. Keep their
+        // keyframes aligned with the new target order without activating it.
+        for (facial::CLIP &clip : candidate.clips)
+            for (facial::KEY &key : clip.keys)
+                key.weights.push_back(0.0f);
         std::string validationError;
         if (!facial::validateGeometry(candidate, basePositions, baseNormals, baseVertexCount,
                                       baseIndices, baseIndexCount, validationError))

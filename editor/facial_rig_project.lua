@@ -98,6 +98,7 @@ function M.new()
         selectedLandmark=1,
         selectedMask=1,
         landmarkEditMode=1,
+        morphTargetPreview={targetId='',weight=1},
         expressions={targets={},poses={},selectedTarget=1,selectedPose=1},
         clips={},selectedClip=1,
         language=nil
@@ -143,6 +144,12 @@ function M.normalize(project)
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
     project.landmarkEditMode=math.max(1,math.min(2,
         math.floor(tonumber(project.landmarkEditMode) or 1)))
+    local targetPreview=type(project.morphTargetPreview)=='table' and project.morphTargetPreview or {}
+    local previewWeight=tonumber(targetPreview.weight)
+    if not previewWeight or previewWeight~=previewWeight or
+            previewWeight==math.huge or previewWeight==-math.huge then previewWeight=1 end
+    project.morphTargetPreview={targetId=type(targetPreview.targetId)=='string' and
+        targetPreview.targetId or '',weight=math.max(0,math.min(1,previewWeight))}
     if type(project.expressions)~='table' then
         project.expressions={targets={},poses={},selectedTarget=1,selectedPose=1}
     else

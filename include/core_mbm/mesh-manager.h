@@ -442,7 +442,8 @@ namespace mbm
         // arrays are caller-owned and contain exactly vertexCount entries. A null normal array
         // omits authored normal deformation; when frame 0 has normals, zero normal deltas are
         // stored so the candidate remains compatible with the base geometry. The candidate is
-        // validated against frame 0 before any mutation becomes visible.
+        // validated against frame 0 before any mutation becomes visible. Adding a target extends
+        // each existing facial clip key with a zero weight for the new target.
         API_IMPL bool addFacialTarget(const char *name, const char *convention, const float defaultWeight,
                                       const VEC3 *positionDeltas, const VEC3 *normalDeltas,
                                       const uint32_t vertexCount, uint32_t *newIndexOut,
