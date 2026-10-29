@@ -3708,6 +3708,13 @@ end
 
 -- Load selected mesh for preview. When mesh has unsaved changes, saves to temp and loads from there
 -- so animation/transform edits are visible at runtime without saving to file.
+local function configureFacialMeshPreview(object, meshD)
+    local ok, targetCount = dpCall(function() return meshD:getTotalFacialTargets() end)
+    if ok and (tonumber(targetCount) or 0) > 0 then
+        object:setSkeletalSkinningMethod('auto')
+    end
+end
+
 function updatePreviewMesh()
     if iSelectedMeshIndex == iLastPreviewedIndex then return end
     destroyPreviewMesh()
@@ -3743,6 +3750,7 @@ function updatePreviewMesh()
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
+        configureFacialMeshPreview(tPreviewMesh, meshD)
         ok = meshDebug:loadMeshPreview(tPreviewMesh,loadPath)
         -- Force the preview's position back to the origin immediately after load, overriding
         -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,
@@ -4404,7 +4412,9 @@ function refreshFrameFilterPreview(tEntry, index)
     if meshType == 'sprite' then
         tPreviewMesh = sprite:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'mesh' then
-        tPreviewMesh = mesh:new(coordType);   ok = meshDebug:loadMeshPreview(tPreviewMesh,tEntry.framePreviewPath)
+        tPreviewMesh = mesh:new(coordType)
+        configureFacialMeshPreview(tPreviewMesh, meshD)
+        ok = meshDebug:loadMeshPreview(tPreviewMesh,tEntry.framePreviewPath)
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType);       ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'particle' then

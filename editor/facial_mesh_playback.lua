@@ -64,6 +64,9 @@ function M.drawReport(preview, call)
         local path = report.ready and skinReady and (skin.resolvedExecutionPath or skin.executionPath) or nil
         indicator(string.format(tLang.L('fre_preview_skin_fmt'),
             (skin.resolvedMethod or 'unknown'):upper() .. ' / ' .. (path or 'unknown'):upper()), path)
+        if skin.resolutionReason and skin.resolutionReason ~= '' then
+            tImGui.TextDisabled(string.format(tLang.L('swl_skinning_reason_fmt'), skin.resolutionReason))
+        end
     end
     tImGui.TextDisabled(string.format('%s: %s',
         tLang.L('mesh_debug_facial_status'), report.status or 'unknown'))
