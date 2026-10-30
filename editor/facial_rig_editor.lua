@@ -84,7 +84,8 @@ local state = {
     targetAuthoring=tFacialTargets.new(),
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,
         targetId=nil,drag=nil,dirty=true},
-    targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false},
+    targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false,
+        bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0},
     targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
@@ -110,6 +111,7 @@ local refreshTargetGizmo
 local setTargetOverlayVisible
 local startTargetOverlayBuild
 local stepTargetOverlayBuild
+local updateTargetOverlayLivePreview
 local destroyTargetOverlay
 
 local function markMaskVisualizationDirty(keepSurface)
@@ -1618,13 +1620,19 @@ local function showTargets()
                         authoring.newDefaultWeight or 0,positions)
                 end)
                 if callOk and newIndex then
+                    authoring.previewWeight=1
+                    authoring.selectionMode=1
+                    authoring.selectedVertex=nil
                     markFacialTargetAuthoringModified()
                     local created=tFacialTargets.find(authoring.targets,newIndex)
                     if created then authoring.createdIds[created.id]=true end
                     tFacialTargets.clearEditHistory(authoring)
                     authoring.selectedTarget=newIndex
                     authoring.newNameDraft=''
-                    authoring.mode=3
+                    authoring.mode=2
+                    authoring.editMode=1
+                    state.targetOverlay.visible=false
+                    setTargetOverlayVisible(false)
                     state.targetOverlay.dirty=true
                     setStatus(tLang.L('fre_target_created'),false)
                 else
@@ -1672,7 +1680,8 @@ local function showTargets()
         showHelpTooltip(tLang.L('fre_target_preview_weight_tooltip'))
         if changed then
             authoring.previewWeight=value
-            state.targetOverlay.dirty=true
+            state.targetOverlay.visible=false
+            setTargetOverlayVisible(false)
             state.modified=true
             updateTargetPreviewWeights()
         end
@@ -1758,6 +1767,7 @@ local function showTargets()
         if mode~=authoring.editMode then
             state.targetGizmo.dirty=true
             state.targetOverlay.dirty=true
+            if mode==2 then state.targetOverlay.visible=true end
         end
         authoring.editMode=mode
     end
@@ -1772,7 +1782,8 @@ local function showTargets()
     showHelpTooltip(tLang.L('fre_target_edit_selection_tooltip'))
     if selectionChanged then
         authoring.selectionMode=selection
-        state.targetOverlay.dirty=true
+        state.targetOverlay.bufferDirty=true
+        state.targetOverlay.bufferForce=true
     end
     tImGui.TextWrapped(tLang.L(workMode==2 and 'fre_target_edit_pick_help' or 'fre_target_paint_help'))
     if authoring.selectedVertex then
@@ -1823,15 +1834,15 @@ local function showTargets()
             tImGui.SetNextItemWidth(115)
             local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'X'))
-            if changed then authoring.rx=value; state.targetOverlay.dirty=true end
+            if changed then authoring.rx=value; state.targetOverlay.bufferDirty=true end
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Y'))
-            if changed then authoring.ry=value; state.targetOverlay.dirty=true end
+            if changed then authoring.ry=value; state.targetOverlay.bufferDirty=true end
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Z'))
-            if changed then authoring.rz=value; state.targetOverlay.dirty=true end
+            if changed then authoring.rz=value; state.targetOverlay.bufferDirty=true end
             if selected then
                 local gizmo=state.targetGizmo
                 local pivot=gizmo.visible and not gizmo.dirty and gizmo.targetId==selected.id and gizmo.origin or
@@ -1844,7 +1855,8 @@ local function showTargets()
                     tTargetGizmo.setPivot(state.project,selected.id,
                         tTargetGizmo.defaultPivot(state.project,state.meshBounds))
                     state.targetGizmo.dirty=true
-                    state.targetOverlay.dirty=true
+                    state.targetOverlay.bufferDirty=true
+                    state.targetOverlay.bufferForce=true
                     state.modified=true
                 end
                 showHelpTooltip(tLang.L('fre_target_pivot_reset_tooltip'))
@@ -1856,7 +1868,8 @@ local function showTargets()
                     tTargetGizmo.setPivot(state.project,selected.id,
                         state.topology.vertices[authoring.selectedVertex])
                     state.targetGizmo.dirty=true
-                    state.targetOverlay.dirty=true
+                    state.targetOverlay.bufferDirty=true
+                    state.targetOverlay.bufferForce=true
                     state.modified=true
                 end
                 tImGui.EndDisabled()
@@ -4656,6 +4669,7 @@ function onLoop(delta)
         refreshMaskVisualization()
     end
     if state.targetOverlay.building then stepTargetOverlayBuild() end
+    updateTargetOverlayLivePreview()
     if state.rigPreview.dirty then refreshRigPreview() end
     tUtil.showOverlayMessage()
 end
@@ -4863,6 +4877,17 @@ local function beginTargetGizmoDrag(x,y)
     if not origin then return false end
     local ring=tTargetGizmo.hitRing(origin,direction,gizmo.origin,gizmo.radius)
     if ring then
+        if (state.targetAuthoring.previewWeight or 0)<=0 then
+            state.targetAuthoring.previewWeight=1
+            state.modified=true
+            updateTargetPreviewWeights()
+            state.targetOverlay.bufferDirty=true
+            state.targetOverlay.bufferForce=true
+        end
+        if not state.targetOverlay.visible then
+            state.targetOverlay.visible=true
+            state.targetOverlay.dirty=true
+        end
         local field='r'..ring.name
         gizmo.drag={kind='ring',name=ring.name,axis=ring.axis,
             startDirection=ring.direction,baseAngle=state.targetAuthoring[field] or 0,
@@ -4996,7 +5021,8 @@ destroyTargetOverlay=function()
     local overlay=state.targetOverlay
     setTargetOverlayVisible(false)
     if overlay.surface then dpCall(function() overlay.surface:destroy() end) end
-    state.targetOverlay={visible=overlay.visible,dirty=true,building=false,surface=nil,meshHidden=false}
+    state.targetOverlay={visible=overlay.visible,dirty=true,building=false,surface=nil,meshHidden=false,
+        bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0}
 end
 
 startTargetOverlayBuild=function()
@@ -5046,13 +5072,16 @@ startTargetOverlayBuild=function()
     overlay.cursor=1
     overlay.building=true
     overlay.dirty=false
+    overlay.bufferDirty=false
+    overlay.bufferArmed=false
+    overlay.bufferApplied=false
 end
 
 stepTargetOverlayBuild=function()
     local overlay=state.targetOverlay
     if not overlay.building then return end
     local triangles=state.topology and state.topology.triangles or {}
-    local finish=math.min(#triangles,overlay.cursor+499)
+    local finish=math.min(#triangles,overlay.cursor+4999)
     for index=overlay.cursor,finish do
         local triangle=triangles[index]
         if triangle and state.topology.vertices[triangle[1]] and
@@ -5086,6 +5115,73 @@ stepTargetOverlayBuild=function()
     end
     overlay.coords=nil; overlay.uvs=nil; overlay.indices=nil; overlay.cursor=nil
     setTargetOverlayVisible(true)
+end
+
+local function updateTargetOverlayBuffer(_,vertex,uv)
+    local overlay=state.targetOverlay
+    if overlay.bufferApplied then return end
+    local authoring=state.targetAuthoring
+    local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    local topology=state.topology
+    if not target or not topology then return end
+    local vertices=topology.vertices or {}
+    local deltas=target.positionDeltas or {}
+    local rotateDraft=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        ((authoring.rx or 0)~=0 or (authoring.ry or 0)~=0 or (authoring.rz or 0)~=0)
+    local pivot,basis,selection
+    if rotateDraft then
+        pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+        basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
+            math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
+        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+            authoring.vertexCount,topology.signature)
+    end
+    local maximum=0
+    local weight=authoring.previewWeight or 1
+    for index,point in ipairs(vertices) do
+        local entry=vertex[index]
+        local color=uv[index]
+        if entry and color then
+            local delta=deltas[index] or {x=0,y=0,z=0}
+            local dx,dy,dz=delta.x,delta.y,delta.z
+            if rotateDraft and (not selection or selection[index]) then
+                dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+            end
+            entry.x=point.x+dx*weight
+            entry.y=point.y+dy*weight
+            entry.z=point.z+dz*weight
+            local magnitude=math.sqrt(dx*dx+dy*dy+dz*dz)
+            color.u=magnitude
+            maximum=math.max(maximum,magnitude)
+        end
+    end
+    for index=1,#vertices do
+        local color=uv[index]
+        if color then color.u=maximum>1e-10 and math.min(1,color.u/maximum) or 0 end
+    end
+    vertex.name='vertex'
+    uv.name='uv'
+    overlay.bufferApplied=true
+    return vertex,uv
+end
+
+updateTargetOverlayLivePreview=function()
+    local overlay=state.targetOverlay
+    if overlay.bufferApplied and overlay.surface then
+        dpCall(function() overlay.surface:onRender(nil) end)
+        overlay.bufferApplied=false
+        overlay.bufferArmed=false
+    end
+    if not overlay.bufferDirty or overlay.bufferArmed or not overlay.surface or overlay.building or
+            overlay.dirty or not overlay.visible or state.workspace~='targets' then return end
+    local now=mbm.getTimeRun()
+    if not overlay.bufferForce and now-(overlay.lastBufferTime or 0)<0.05 then return end
+    local ok=dpCall(function() overlay.surface:onRender(updateTargetOverlayBuffer) end)
+    if not ok then return end
+    overlay.bufferDirty=false
+    overlay.bufferForce=false
+    overlay.bufferArmed=true
+    overlay.lastBufferTime=now
 end
 
 -- Dynamic indexed shapes let a brush stroke recolor only the vertices it
@@ -5812,7 +5908,8 @@ function onTouchDown(key,x,y)
             if hit then
                 state.targetAuthoring.selectedVertex=hit.index
                 state.targetAuthoring.selectionMode=2
-                state.targetOverlay.dirty=true
+                state.targetOverlay.bufferDirty=true
+                state.targetOverlay.bufferForce=true
                 setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
             end
         elseif state.targetAuthoring.mode==3 then
@@ -5894,6 +5991,7 @@ function onTouchMove(key,x,y)
                     if tTargetGizmo.setPivot(state.project,gizmoDrag.targetId,pivot) then
                         state.modified=true
                         state.targetGizmo.dirty=true
+                        state.targetOverlay.bufferDirty=true
                     end
                 end
             end
@@ -5902,6 +6000,7 @@ function onTouchMove(key,x,y)
             if vector then
                 state.targetAuthoring['r'..gizmoDrag.name]=gizmoDrag.baseAngle+
                     tTargetGizmo.signedAngle(gizmoDrag.axis,gizmoDrag.startDirection,vector)
+                state.targetOverlay.bufferDirty=true
             end
         end
         return
@@ -5976,7 +6075,8 @@ end
 
 function onTouchUp(key,x,y)
     if key==0 and state.targetGizmo.drag then
-        state.targetOverlay.dirty=true
+        state.targetOverlay.bufferDirty=true
+        state.targetOverlay.bufferForce=true
         state.targetGizmo.drag=nil
         state.targetGizmo.dirty=true
         return

@@ -23,7 +23,7 @@ The first native authoring slice is available on this branch:
   optional normal-delta arrays. Target addition appends a zero weight to existing facial clip
   keys; removal deletes the corresponding weight and protects the last target when clips remain.
 - The Facial Rig Editor splits `Morph Targets` into Add, Edit, and Paint modes. Add shows only
-  neutral-target creation fields and opens Paint after creation. Edit shows target metadata, batch
+  neutral-target creation fields and opens Edit after creation. Edit shows target metadata, batch
   operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
   selection, preview, vertex filter, and local undo/redo controls.
 - The Convention selector offers `ARKit`, `FACS`, and `Manual`, with `Manual` as the default for
@@ -37,8 +37,8 @@ The first native authoring slice is available on this branch:
   the skeletal animation editor's gizmo interaction. Left dragging a ring fills the matching
   rotation angle; left dragging an axis repositions the target's pivot. Right click can select a
   neutral vertex and a button can place the pivot there. The pivot is project metadata keyed by
-  stable target ID. With the displacement overlay enabled, releasing the ring shows a draft
-  deformation before Apply; pressing Apply writes the rotated deltas to the MeshDebug candidate.
+  stable target ID. The displacement overlay updates the draft deformation during a ring drag,
+  before Apply; pressing Apply writes the rotated deltas to the MeshDebug candidate.
 - The worktree uses the same viewport controls as Masks: left drag orbits and middle drag pans.
   Right click picks a neutral vertex in Edit; right drag paints move/smooth deltas in Paint with
   radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
@@ -54,9 +54,10 @@ The first native authoring slice is available on this branch:
   weights, not the editor preview preference. Exporting a runtime MSH remains explicit.
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
   mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
-  it rebuilds on target, weight, or geometry changes and replaces the textured preview while shown.
-  At preview weight zero, the neutral geometry keeps the heat-map shader; the overlay toggle
-  switches to the textured mesh at any weight.
+  it rebuilds when the target or geometry changes and updates its vertex/UV buffers for draft
+  rotations. While enabled, it replaces the textured mesh. Changing Preview weight switches to
+  the textured mesh and keeps the selected weight; the overlay toggle can enable the heat map
+  again, including at weight zero, where it shows neutral geometry.
 
 ### Manual authoring trial
 
@@ -64,8 +65,8 @@ A new project does not clear targets already embedded in the opened MSH: the pro
 metadata and target edits relative to that MSH, while the source MSH stores its original dense
 target deltas. To test native authoring without changing an imported expression, keep the current
 weighted MSH open, choose Add, enter a unique target name such as `jawOpen_manual_test`, and create
-a zero target. The editor selects it and opens Paint.
-Set its preview weight to 1, then select a facial mask before using the Move brush. The brush uses
+a zero target. The editor selects it and opens Edit with preview weight 1 and the textured mesh.
+Switch to Paint and select a facial mask before using the Move brush. The brush uses
 the entered X/Y/Z offset with radius and strength; mouse drag only places strokes. Smooth blends
 existing neighboring deltas and cannot create motion from a zero target. Edit can also start from
 zero deltas with a masked batch Delta X/Y/Z; without a mask the batch edit affects the entire mesh.
@@ -246,12 +247,15 @@ rescan all vertices, allocate dense arrays, or rewrite target data.
 
 The first implementation slices are the mask-scoped batch delta editor, neutral-surface vertex
 picking, move/smooth brush with bounded falloff, a per-target 3D rotation pivot gizmo, and
-on-change temporary candidate preview. Rotation-ring dragging updates the draft angle; the
-displacement overlay shows the draft after release, while the MeshDebug candidate changes on
-Apply. Brush selection is based on the neutral topology: very large deformations can shift the
-visible surface away from the pick surface. Remaining work includes continuous textured draft
-preview during dragging, picking on the deformed surface, reliable normal-delta recomputation,
-region presets beyond project masks, and a direct in-memory preview bridge.
+on-change temporary candidate preview. Rotation-ring dragging updates the draft angle and the
+dynamic displacement surface at a bounded cadence; the MeshDebug candidate changes on Apply.
+The first surface build batches triangle indices, then draft rotations update its vertex/UV
+buffers without recreating the shape. A new neutral target starts with preview weight 1 and all
+vertices selected so the draft can be seen immediately. Brush selection is based on the neutral
+topology: very large deformations can shift the visible surface away from the pick surface.
+Remaining work includes continuous textured draft preview, picking on the deformed surface,
+reliable normal-delta recomputation, region presets beyond project masks, and a direct in-memory
+preview bridge.
 
 ### Phase 3 - Jaw/head skeletal authoring lane
 

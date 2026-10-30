@@ -2077,9 +2077,11 @@ translation, rotation around a target-specific 3D pivot, or reset to all vertice
 existing project mask; the controls commit only on explicit Apply and have local undo/redo. The
 rotation gizmo provides X/Y/Z rings to set draft angles and axes to move the pivot. The pivot
 defaults to the placed face origin or mesh center and is stored as editor project metadata, keyed
-by target ID; only the resulting vertex deltas are written to the MSH. When the displacement
-overlay is enabled, it shows the draft rotation after a ring drag or angle input changes, before
-the candidate is committed.
+by target ID; only the resulting vertex deltas are written to the MSH. The displacement overlay
+updates its dynamic vertex buffers during a ring drag or angle input changes, before the candidate
+is committed. Entering Rotate enables this overlay; changing Preview weight hides it and shows the
+textured runtime mesh at the chosen weight. A new neutral target opens Edit with preview weight 1,
+all vertices selected, and the textured mesh visible.
 In Edit, right click picks a neutral-surface vertex; in Paint, right drag applies a bounded
 move/smooth brush, optionally filtered through a project mask. The editor stages each stroke in Lua,
 calls
