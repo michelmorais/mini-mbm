@@ -5872,13 +5872,18 @@ local function selectMaskBoundaryLoop(x,y)
     end
     local present={}
     for _,index in ipairs(mask.vertices or {}) do present[index]=true end
-    local changed=0
+    local changed={}
     local add=state.maskEditMode~='remove'
     for _,index in ipairs(indices) do
-        if add and not present[index] then present[index]=true; changed=changed+1
-        elseif not add and present[index] then present[index]=nil; changed=changed+1 end
+        if add and not present[index] then
+            present[index]=true
+            changed[#changed+1]=index
+        elseif not add and present[index] then
+            present[index]=nil
+            changed[#changed+1]=index
+        end
     end
-    if changed==0 then
+    if #changed==0 then
         setStatus(tLang.L('fre_mask_loop_unchanged'),false)
         return
     end
@@ -5887,9 +5892,25 @@ local function selectMaskBoundaryLoop(x,y)
     for index in pairs(present) do mask.vertices[#mask.vertices+1]=index end
     table.sort(mask.vertices)
     mask.topologySignature=topology.signature
-    markMaskVisualizationDirty()
+    for _,index in ipairs(changed) do queueMaskSurfaceUv(index,add) end
+    local visualization=state.maskVisualization
+    visualization.vertexCount=#mask.vertices
+    local faceCount=0
+    for _,triangle in ipairs(topology.triangles or {}) do
+        if present[triangle[1]] and present[triangle[2]] and present[triangle[3]] then
+            faceCount=faceCount+1
+        end
+    end
+    visualization.faceCount=faceCount
+    visualization.needsBuild=false
+    visualization.dirty=false
+    visualization.keepSurfaceWhileDirty=false
+    state.maskBrushReference={key=nil,extent=nil}
+    state.maskBrushHover.lastHit=nil
+    state.maskBrushHover.forceSurfaceHit=true
+    setMaskVisualizationViewportVisible(true)
     markModified()
-    setStatus(string.format(tLang.L('fre_mask_loop_selected_fmt'),changed),false)
+    setStatus(string.format(tLang.L('fre_mask_loop_selected_fmt'),#changed),false)
 end
 
 local function targetBrushRadius()
