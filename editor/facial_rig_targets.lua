@@ -25,6 +25,15 @@
 
 local M={}
 
+M.conventions={'ARKit','FACS','Manual'}
+
+function M.conventionIndex(value)
+    for index,convention in ipairs(M.conventions) do
+        if convention==value then return index end
+    end
+    return 0
+end
+
 local function finite(value,fallback)
     value=tonumber(value)
     if not value or value~=value or value==math.huge or value==-math.huge then return fallback or 0 end
@@ -43,8 +52,8 @@ end
 
 function M.new()
     return {targets={},selectedTarget=1,vertexCount=0,catalogDirty=true,
-        mode=1,newNameDraft='',newConventionDraft='ARKit',newDefaultWeight=0,
-        nameDraft='',conventionDraft='ARKit',defaultWeight=0,modified=false,previewDirty=false,
+        mode=1,newNameDraft='',newConventionDraft='Manual',newDefaultWeight=0,
+        nameDraft='',conventionDraft='Manual',defaultWeight=0,modified=false,previewDirty=false,
         createdIds={},deletedBaseIds={},
         editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
         previewWeight=1,previewTarget=nil,selectedVertex=nil,brushMode=1,brushRadius=0.025,

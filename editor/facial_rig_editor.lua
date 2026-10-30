@@ -1557,18 +1557,22 @@ local function showTargets()
     if workMode~=authoring.mode then state.targetBrushHover.lastHit=nil end
     authoring.mode=workMode
     tImGui.Separator()
+    local purposeKey=workMode==1 and 'fre_target_add_purpose' or
+        workMode==2 and 'fre_target_edit_purpose' or 'fre_target_paint_purpose'
+    tImGui.TextWrapped(tLang.L(purposeKey))
+    tImGui.Separator()
     if workMode==1 then
         tImGui.Text(string.format(tLang.L('fre_targets_vertex_count_fmt'),authoring.vertexCount or 0))
         tImGui.Text(string.format(tLang.L('fre_targets_count_fmt'),#authoring.targets))
-        tImGui.TextWrapped(tLang.L('fre_target_add_help'))
         tImGui.SetNextItemWidth(300)
         local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freNewTargetName',
             authoring.newNameDraft or '')
         showHelpTooltip(tLang.L('fre_target_name_tooltip'))
         if nameChanged then authoring.newNameDraft=name end
         tImGui.SetNextItemWidth(300)
-        local conventionChanged,convention=tImGui.InputText(
-            tLang.L('fre_target_convention')..'##freNewTargetConvention',authoring.newConventionDraft or '')
+        local conventionChanged,_,convention=tImGui.Combo(
+            tLang.L('fre_target_convention')..'##freNewTargetConvention',
+            tFacialTargets.conventionIndex(authoring.newConventionDraft),tFacialTargets.conventions)
         showHelpTooltip(tLang.L('fre_target_convention_tooltip'))
         if conventionChanged then authoring.newConventionDraft=convention end
         tImGui.SetNextItemWidth(300)
@@ -1668,13 +1672,46 @@ local function showTargets()
         showHelpTooltip(tLang.L('fre_target_name_tooltip'))
         if nameChanged then authoring.nameDraft=name end
         tImGui.SetNextItemWidth(300)
-        local conventionChanged,convention=tImGui.InputText(tLang.L('fre_target_convention')..'##freTargetConvention',authoring.conventionDraft or '')
+        local conventionChanged,_,convention=tImGui.Combo(
+            tLang.L('fre_target_convention')..'##freTargetConvention',
+            tFacialTargets.conventionIndex(authoring.conventionDraft),tFacialTargets.conventions)
         showHelpTooltip(tLang.L('fre_target_convention_tooltip'))
         if conventionChanged then authoring.conventionDraft=convention end
+        if tFacialTargets.conventionIndex(authoring.conventionDraft)==0 then
+            tImGui.TextWrapped(string.format(tLang.L('fre_target_convention_existing_fmt'),
+                authoring.conventionDraft~='' and authoring.conventionDraft or '-'))
+        end
         tImGui.SetNextItemWidth(300)
         local weightChanged,weight=tImGui.SliderFloat(tLang.L('fre_target_default_weight')..'##freTargetDefaultWeight',authoring.defaultWeight or 0,0,1,'%.3f')
         showHelpTooltip(tLang.L('fre_target_default_weight_tooltip'))
         if weightChanged then authoring.defaultWeight=weight end
+        tImGui.BeginDisabled(selected==nil)
+        if tImGui.Button(tLang.L('fre_target_update')) then
+            local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$')
+            local data=tFacialTargets.copyTargetData(selected)
+            local before=tFacialTargets.copyTargetData(selected)
+            if targetName=='' then
+                targetAuthoringError(tLang.L('fre_target_name_required'))
+            elseif data then
+                data.name=targetName
+                data.convention=authoring.conventionDraft or ''
+                data.defaultWeight=authoring.defaultWeight or 0
+                local callOk,updated=dpCall(function()
+                    return state.meshDebug:updateFacialTarget(authoring.selectedTarget,targetName,
+                        authoring.conventionDraft or '',authoring.defaultWeight or 0,
+                        data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
+                end)
+                if callOk and updated~=false then
+                    tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,data)
+                    markFacialTargetAuthoringModified()
+                    setStatus(tLang.L('fre_target_updated'),false)
+                else
+                    targetAuthoringError('could not update target')
+                end
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_update_tooltip'))
+        tImGui.EndDisabled()
     end
 
     tImGui.Separator()
@@ -1731,7 +1768,6 @@ local function showTargets()
                 local changed,value=tImGui.InputFloat(axis[1]..'##freTargetBrush'..axis[1],authoring[axis[2]] or 0,0.001,0.01,'%.4f')
                 showHelpTooltip(string.format(tLang.L('fre_target_brush_axis_tooltip_fmt'),axis[1]))
                 if changed then authoring[axis[2]]=value end
-                if axis[1]~='Z' then tImGui.SameLine() end
             end
         end
     end
@@ -1741,12 +1777,10 @@ local function showTargets()
             local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
             showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'X'))
             if changed then authoring.dx=value end
-            tImGui.SameLine()
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dy')..'##freTargetEditDy',authoring.dy or 0,0.001,0.01,'%.5f')
             showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Y'))
             if changed then authoring.dy=value end
-            tImGui.SameLine()
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dz')..'##freTargetEditDz',authoring.dz or 0,0.001,0.01,'%.5f')
             showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Z'))
@@ -1756,12 +1790,10 @@ local function showTargets()
             local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'X'))
             if changed then authoring.rx=value end
-            tImGui.SameLine()
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Y'))
             if changed then authoring.ry=value end
-            tImGui.SameLine()
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Z'))
@@ -1878,32 +1910,6 @@ local function showTargets()
         tImGui.Separator()
         local canEdit=selected~=nil
         tImGui.BeginDisabled(not canEdit)
-        if tImGui.Button(tLang.L('fre_target_update')) then
-            local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$')
-            local data=tFacialTargets.copyTargetData(selected)
-            local before=tFacialTargets.copyTargetData(selected)
-            if targetName=='' then
-                targetAuthoringError(tLang.L('fre_target_name_required'))
-            elseif data then
-                data.name=targetName
-                data.convention=authoring.conventionDraft or ''
-                data.defaultWeight=authoring.defaultWeight or 0
-                local callOk,updated=dpCall(function()
-                    return state.meshDebug:updateFacialTarget(authoring.selectedTarget,targetName,
-                        authoring.conventionDraft or '',authoring.defaultWeight or 0,
-                        data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
-                end)
-                if callOk and updated~=false then
-                    tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,data)
-                    markFacialTargetAuthoringModified()
-                    setStatus(tLang.L('fre_target_updated'),false)
-                else
-                    targetAuthoringError('could not update target')
-                end
-            end
-        end
-        showHelpTooltip(tLang.L('fre_target_update_tooltip'))
-        tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_target_duplicate')) then
             local data=tFacialTargets.copyTargetData(selected)
             local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$') .. '_copy'
@@ -4485,6 +4491,14 @@ local function showMainPanel()
             tImGui.TextDisabled(tLang.L('fre_unsaved_project'))
         end
         showStatus()
+        if state.controlDown then
+            tImGui.TextColored({r=1,g=0.8,b=0.25,a=1},tLang.L('fre_ctrl_pressed'))
+            local hintKey=state.workspace=='face_position' and 'fre_ctrl_face_hint' or
+                state.workspace=='landmarks' and 'fre_ctrl_landmarks_hint' or
+                (state.workspace=='targets' or state.workspace=='masks') and 'fre_ctrl_mouse_unchanged_hint' or
+                'fre_ctrl_shortcuts_hint'
+            tImGui.TextWrapped(tLang.L(hintKey))
+        end
         tImGui.Separator()
         showWorkspaceTree()
     end

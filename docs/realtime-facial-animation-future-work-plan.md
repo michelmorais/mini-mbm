@@ -26,12 +26,19 @@ The first native authoring slice is available on this branch:
   neutral-target creation fields and opens Paint after creation. Edit shows target metadata, batch
   operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
   selection, preview, vertex filter, and local undo/redo controls.
+- The Convention selector offers `ARKit`, `FACS`, and `Manual`, with `Manual` as the default for
+  targets created in this editor. The label is saved with the target but does not map channels or
+  change deformation. Existing labels outside the list remain intact until explicitly changed.
+  FACS describes facial movements as Action Units (AUs); see the
+  [Paul Ekman Group FACS overview](https://www.paulekman.com/facial-action-coding-system/).
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
   all vertices or to an existing facial mask, with a local undo/redo stack for those target edits.
 - The worktree uses the same viewport controls as Masks: left drag orbits and middle drag pans.
   Right click picks a neutral vertex in Edit; right drag paints move/smooth deltas in Paint with
   radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
   commits once on release and enters the same local undo/redo history.
+- A contextual Ctrl indicator appears while Ctrl is held. Ctrl + left click can change placement
+  in Face Position and Landmarks; Ctrl + right click has no distinct action in Morph Targets or Masks.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
   the selected target at the chosen preview weight. The editor project stores the selected target
   ID and preview weight when saved. It also stores changed/new targets as sparse delta overrides
@@ -48,16 +55,15 @@ The first native authoring slice is available on this branch:
 
 A new project does not clear targets already embedded in the opened MSH: the project stores editor
 metadata and target edits relative to that MSH, while the source MSH stores its original dense
-target deltas. To test native authoring without changing an
-imported expression, keep the current weighted MSH open, choose Add, enter a unique target name
-such as `jawOpen_manual_test`, and create a zero target. The editor selects it and opens Paint.
+target deltas. To test native authoring without changing an imported expression, keep the current
+weighted MSH open, choose Add, enter a unique target name such as `jawOpen_manual_test`, and create
+a zero target. The editor selects it and opens Paint.
 Set its preview weight to 1, then select a facial mask before using the Move brush. The brush uses
-the entered X/Y/Z offset
-with radius and strength; mouse drag only places strokes. Smooth blends existing neighboring
-deltas and cannot create motion from a zero target. Edit can also start from zero deltas with a
-masked batch Delta X/Y/Z; without a mask the batch edit affects the entire mesh. Right click in
-Edit picks a neutral vertex for single-vertex selection and does not edit geometry. Save the facial
-project to retain the sculpt session, then export a new MSH for runtime use.
+the entered X/Y/Z offset with radius and strength; mouse drag only places strokes. Smooth blends
+existing neighboring deltas and cannot create motion from a zero target. Edit can also start from
+zero deltas with a masked batch Delta X/Y/Z; without a mask the batch edit affects the entire mesh.
+Right click in Edit picks a neutral vertex for single-vertex selection and does not edit geometry.
+Save the facial project to retain the sculpt session, then export a new MSH for runtime use.
 
 For a clean asset with no imported targets, prepare a separate MSH candidate without facial targets;
 creating a new project alone is insufficient. A jaw-opening rotation also needs a pivot near the
@@ -66,6 +72,28 @@ the Move brush and masked Delta edit are more direct first tests of the native w
 
 There is still no ARKit/Faceit/vendor SDK adapter. Faceit remains a workflow reference for the
 future separation of shape channels from head/bone channels, not a runtime dependency.
+
+### Manual validation - Edit Target (2026-10-30)
+
+The `jawOpen_test_manual` trial confirmed the Edit Target workflow on the current test mesh:
+
+- Applying Delta Z = 1 moved the target by one unit at preview weight 1; changing the preview
+  weight scaled the visible displacement.
+- Applying rotation around X with the `main_face` vertex mask changed only the selected region.
+- Saving the facial project and reopening the editor restored the translation and rotation.
+- Applying Reset to neutral with either all vertices or a mask affected the selected vertices in
+  memory. Closing without saving that second edit restored the last saved translation and rotation.
+
+This validates batch edits, mask selection, preview weight response, and project persistence for
+Edit Target. Paint Target was tested separately below. Runtime MSH export and the anatomical
+quality of `jawOpen` still need separate acceptance passes.
+
+### Manual validation - Paint Target (2026-10-30)
+
+The same target was painted with Move using X = 1. The user observed the local deformation vary
+with preview weight and confirmed that Undo and Redo reversed and restored the stroke. This
+validates the basic brush and local edit history. Reopening a saved painted target and exporting
+it to a runtime MSH remain to be tested.
 
 ## Why native authoring is needed
 
