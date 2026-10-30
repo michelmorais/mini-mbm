@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Future Work
 
-Status: **Implementation in progress; the facial runtime is implemented and Phase 1 native target authoring has started.**
+Status: **Implementation in progress; the facial runtime and basic native target authoring are available. A manual target has been exported and verified in Mesh Debug.**
 
 The implemented facial runtime contract is documented with the engine state in:
 
@@ -86,15 +86,43 @@ The `jawOpen_test_manual` trial confirmed the Edit Target workflow on the curren
   memory. Closing without saving that second edit restored the last saved translation and rotation.
 
 This validates batch edits, mask selection, preview weight response, and project persistence for
-Edit Target. Paint Target was tested separately below. Runtime MSH export and the anatomical
-quality of `jawOpen` still need separate acceptance passes.
+Edit Target. Paint Target was tested separately below. Runtime MSH export was subsequently tested
+as described below; the anatomical quality of `jawOpen` remains unverified.
 
 ### Manual validation - Paint Target (2026-10-30)
 
 The same target was painted with Move using X = 1. The user observed the local deformation vary
 with preview weight and confirmed that Undo and Redo reversed and restored the stroke. This
-validates the basic brush and local edit history. Reopening a saved painted target and exporting
-it to a runtime MSH remain to be tested.
+validates the basic brush and local edit history. Export was subsequently tested as described
+below. Reopening the facial project after the export and checking that its mesh path and authored
+target state remain consistent has not yet been reported.
+
+### Manual validation - exported MSH in Mesh Debug (2026-10-30)
+
+The user exported the edited Megan asset to
+`/home/michel/Downloads/face-tests/Megan-morph-target-test.msh` and opened that file in **Mesh
+Debug**. The authored target was present and its deformation worked there. This validates the
+manual target export and reload path for that asset. It does not establish that the deformation
+opens the jaw anatomically, that the neck stays fixed, or that every target and facial clip has
+the intended content.
+
+The project file `Meg-facial-rig.lua` currently still names `Megan-weighted.msh` as its source
+mesh. Export updates the project mesh path in editor memory; it is written to the project file only
+when the project is saved afterward. The next persistence check is to save the project after export,
+reopen it, and verify that the exported mesh and target load without replaying the old sparse edits.
+
+### Next acceptance step for the Megan workflow
+
+1. Complete the post-export project round trip above and compare the target at preview weights
+   0, 0.5, and 1 in Mesh Debug and the Facial Rig Editor.
+2. Inspect the exported `jawOpen` deformation and the jaw/neck skeleton and skin weights. Confirm
+   whether the neck movement comes from target deltas, skinning, the jaw pivot, or a combination.
+3. Author and review a jaw opening around the mandibular hinge, with upper-face and neck landmarks
+   stable. Decide from that result whether a morph target alone is sufficient or the skeletal jaw
+   lane in Phase 3 is required.
+
+The export plumbing has passed its first manual acceptance. The current native expression
+authoring milestone is not finished until the jaw result meets the Phase 0 anatomical criteria.
 
 ## Why native authoring is needed
 
