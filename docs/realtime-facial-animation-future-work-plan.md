@@ -251,11 +251,13 @@ on-change temporary candidate preview. Rotation-ring dragging updates the draft 
 dynamic displacement surface at a bounded cadence; the MeshDebug candidate changes on Apply.
 The first surface build batches triangle indices, then draft rotations update its vertex/UV
 buffers without recreating the shape. A new neutral target starts with preview weight 1 and all
-vertices selected so the draft can be seen immediately. Brush selection is based on the neutral
-topology: very large deformations can shift the visible surface away from the pick surface.
-Remaining work includes continuous textured draft preview, picking on the deformed surface,
-reliable normal-delta recomputation, region presets beyond project masks, and a direct in-memory
-preview bridge.
+vertices selected so the draft can be seen immediately. The target brush now picks and selects
+vertices on the morph-deformed preview surface, while committing deltas against canonical frame-0
+vertex indices. A stroke holds its starting surface until mouse release; the next stroke uses
+the newly committed deformation. Batch transforms and brush strokes accumulate on one target.
+Reset-to-neutral intentionally clears deltas for the selected vertices. Remaining work includes
+continuous textured draft preview, reliable normal-delta recomputation, region presets beyond
+project masks, and a direct in-memory preview bridge.
 
 ### Phase 3 - Jaw/head skeletal authoring lane
 

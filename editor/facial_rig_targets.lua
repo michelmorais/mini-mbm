@@ -102,6 +102,17 @@ function M.copyTargetData(target)
         positionDeltas=copyVectors(target.positionDeltas),normalDeltas=copyVectors(target.normalDeltas)}
 end
 
+function M.previewVertices(baseVertices,target,weight)
+    local result={}
+    local deltas=target and target.positionDeltas or {}
+    weight=finite(weight,1)
+    for index,base in ipairs(baseVertices or {}) do
+        local delta=deltas[index] or {x=0,y=0,z=0}
+        result[index]={x=base.x+delta.x*weight,y=base.y+delta.y*weight,z=base.z+delta.z*weight}
+    end
+    return result
+end
+
 function M.clearEditHistory(authoring)
     authoring.editUndo={}
     authoring.editRedo={}

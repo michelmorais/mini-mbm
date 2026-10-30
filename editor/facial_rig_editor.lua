@@ -1481,6 +1481,7 @@ local function refreshFacialTargetCatalog()
     authoring.draftTargetIndex=nil
     authoring.catalogDirty=false
     state.targetOverlay.dirty=true
+    state.targetBrushGeometry=nil
 end
 
 local function markFacialTargetAuthoringModified()
@@ -5404,15 +5405,17 @@ local function maskBrushWorldRadius()
     return math.max(cache.extent*math.max(tonumber(state.maskBrushRadius) or 0.045,0.001),0.0001)
 end
 
-local function buildMaskBrushGeometry()
+local function buildMaskBrushGeometry(vertices,cacheKey)
     local topology=state.topology
     if not topology or not topology.vertices or not topology.triangles then return nil end
-    local signature=topology.signature or tostring(#topology.vertices)..':'..tostring(#topology.triangles)
-    local cache=state.maskBrushGeometry
+    vertices=vertices or topology.vertices
+    local signature=cacheKey or topology.signature or tostring(#topology.vertices)..':'..tostring(#topology.triangles)
+    local targetGeometry=cacheKey~=nil
+    local cache=targetGeometry and state.targetBrushGeometry or state.maskBrushGeometry
     if cache and cache.signature==signature and cache.bvh then return cache end
     local triangles={}
     for _,indices in ipairs(topology.triangles) do
-        local a,b,c=topology.vertices[indices[1]],topology.vertices[indices[2]],topology.vertices[indices[3]]
+        local a,b,c=vertices[indices[1]],vertices[indices[2]],vertices[indices[3]]
         if a and b and c then
             triangles[#triangles+1]={a=a,b=b,c=c,
                 minX=math.min(a.x,b.x,c.x),maxX=math.max(a.x,b.x,c.x),
@@ -5442,8 +5445,8 @@ local function buildMaskBrushGeometry()
         node.left=buildBvh(left); node.right=buildBvh(right)
         return node
     end
-    cache={signature=signature,triangles=triangles,bvh=buildBvh(triangles)}
-    state.maskBrushGeometry=cache
+    cache={signature=signature,triangles=triangles,bvh=buildBvh(triangles),vertices=vertices}
+    if targetGeometry then state.targetBrushGeometry=cache else state.maskBrushGeometry=cache end
     return cache
 end
 
@@ -5474,10 +5477,10 @@ local function maskBrushRayTriangle(ox,oy,oz,dx,dy,dz,triangle)
         normal={x=nx,y=ny,z=nz}}
 end
 
-local function maskBrushSurfaceHit(x,y)
+local function maskBrushSurfaceHit(x,y,geometry)
     local origin,direction=viewportPickRay(x,y)
-    if not origin or not rayIntersectsBounds(origin,direction,state.meshBounds) then return nil end
-    local cache=buildMaskBrushGeometry()
+    if not origin or (not geometry and not rayIntersectsBounds(origin,direction,state.meshBounds)) then return nil end
+    local cache=geometry or buildMaskBrushGeometry()
     if not cache or not cache.bvh then return nil end
     local function hitsBounds(node,maxDistance)
         local near,far=0,maxDistance or math.huge
@@ -5514,6 +5517,17 @@ local function maskBrushSurfaceHit(x,y)
     return nearest
 end
 
+local function buildTargetBrushGeometry(target)
+    local topology=state.topology
+    if not target or not topology then return nil end
+    local weight=state.targetAuthoring.previewWeight or 1
+    local signature=tostring(topology.signature)..':'..tostring(target)..':'..tostring(weight)
+    local cached=state.targetBrushGeometry
+    if cached and cached.signature==signature then return cached end
+    local vertices=tFacialTargets.previewVertices(topology.vertices,target,weight)
+    return buildMaskBrushGeometry(vertices,signature)
+end
+
 updateTargetBrushHover=function()
     local hover=state.targetBrushHover
     local x,y=hover.pendingX,hover.pendingY
@@ -5523,7 +5537,9 @@ updateTargetBrushHover=function()
         hover.lastHit=nil
         return
     end
-    hover.lastHit=maskBrushSurfaceHit(x,y)
+    local authoring=state.targetAuthoring
+    local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    hover.lastHit=maskBrushSurfaceHit(x,y,buildTargetBrushGeometry(target))
     hover.lastX=x; hover.lastY=y
 end
 
@@ -5635,16 +5651,17 @@ drawTargetBrushScreenCursor=function()
     tImGui.SetImDrawListToForeground(false)
 end
 
-local function buildMaskBrushSpatialIndex(radius)
+local function buildMaskBrushSpatialIndex(radius,geometry)
     local topology=state.topology
     if not topology or not topology.vertices then return nil end
+    local vertices=geometry and geometry.vertices or topology.vertices
     local cellSize=math.max(tonumber(radius) or 0,1e-5)
-    local key=tostring(topology.signature or '')..':'..string.format('%.6f',cellSize)
-    local cache=state.maskBrushSpatial
+    local key=tostring(geometry and geometry.signature or topology.signature or '')..':'..string.format('%.6f',cellSize)
+    local cache=geometry and geometry.spatial or state.maskBrushSpatial
     if cache and cache.key==key and cache.cells then return cache end
     local cells={}
     local function cellCoordinate(value) return math.floor(value/cellSize) end
-    for index,vertex in ipairs(topology.vertices) do
+    for index,vertex in ipairs(vertices) do
         local cx,cy,cz=cellCoordinate(vertex.x),cellCoordinate(vertex.y),cellCoordinate(vertex.z)
         local cellKey=cx..':'..cy..':'..cz
         local cell=cells[cellKey]
@@ -5652,11 +5669,11 @@ local function buildMaskBrushSpatialIndex(radius)
         cell[#cell+1]=index
     end
     cache={key=key,cellSize=cellSize,cells=cells}
-    state.maskBrushSpatial=cache
+    if geometry then geometry.spatial=cache else state.maskBrushSpatial=cache end
     return cache
 end
 
-local function collectMaskBrushVertices(point,normal,radius)
+local function collectMaskBrushVertices(point,normal,radius,geometry)
     local result={}
     if not point or not normal then return result end
     local normalLength=math.sqrt(normal.x*normal.x+normal.y*normal.y+normal.z*normal.z)
@@ -5664,7 +5681,8 @@ local function collectMaskBrushVertices(point,normal,radius)
     local nx,ny,nz=normal.x/normalLength,normal.y/normalLength,normal.z/normalLength
     local radiusSquared=radius*radius
     local normalLimit=radius*0.45
-    local spatial=buildMaskBrushSpatialIndex(radius)
+    local spatial=buildMaskBrushSpatialIndex(radius,geometry)
+    local vertices=geometry and geometry.vertices or state.topology.vertices
     local candidateIndices={}
     local seen={}
     if spatial then
@@ -5688,10 +5706,10 @@ local function collectMaskBrushVertices(point,normal,radius)
             end
         end
     else
-        for index in ipairs(state.topology.vertices or {}) do candidateIndices[#candidateIndices+1]=index end
+        for index in ipairs(vertices or {}) do candidateIndices[#candidateIndices+1]=index end
     end
     for _,index in ipairs(candidateIndices) do
-        local vertex=state.topology.vertices[index]
+        local vertex=vertices[index]
         if vertex then
             local dx,dy,dz=vertex.x-point.x,vertex.y-point.y,vertex.z-point.z
             local distanceSquared=dx*dx+dy*dy+dz*dz
@@ -5797,15 +5815,15 @@ local function targetBrushRadius()
 end
 
 local function stampTargetBrush(x,y,stroke)
-    local hit=maskBrushSurfaceHit(x,y)
+    local hit=maskBrushSurfaceHit(x,y,stroke.geometry)
     if not hit then return end
     state.targetBrushHover.lastHit=hit
     state.targetBrushHover.lastX=x
     state.targetBrushHover.lastY=y
     local radius=targetBrushRadius()
-    local nearby=collectMaskBrushVertices(hit.point,hit.normal,radius)
+    local nearby=collectMaskBrushVertices(hit.point,hit.normal,radius,stroke.geometry)
     local authoring=state.targetAuthoring
-    local changed=tFacialTargets.brushStamp(stroke.edited,state.topology.vertices,hit.point,hit.normal,
+    local changed=tFacialTargets.brushStamp(stroke.edited,stroke.geometry.vertices,hit.point,hit.normal,
         radius,authoring.brushStrength or 0.5,{x=authoring.brushDx or 0,y=authoring.brushDy or 0,
             z=authoring.brushDz or 0},authoring.brushMode==2,stroke.allowed,nearby)
     stroke.changed=stroke.changed+changed
@@ -5819,6 +5837,8 @@ local function beginTargetBrush(x,y)
     local stroke={index=authoring.selectedTarget,before=tFacialTargets.copyTargetData(selected),
         edited=tFacialTargets.copyTargetData(selected),changed=0,lastX=x,lastY=y,
         allowed=tFacialTargets.selectionSet(authoring,state.project.masks,authoring.vertexCount,state.topology.signature)}
+    stroke.geometry=buildTargetBrushGeometry(selected)
+    if not stroke.geometry then return false end
     authoring.brushStroke=stroke
     stampTargetBrush(x,y,stroke)
     return true

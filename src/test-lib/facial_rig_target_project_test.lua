@@ -113,6 +113,28 @@ Targets.applyEdit(edited,{basePoint},{1},{mode='rotate',pivot=rotationPivot,rz=m
 assert(math.abs(edited.positionDeltas[1].x-previewX)<1e-6)
 assert(math.abs(edited.positionDeltas[1].y-previewY)<1e-6)
 assert(math.abs(edited.positionDeltas[1].z-previewZ)<1e-6)
+
+-- Paint and batch edits must accumulate on the same dense target in either order.
+local neutral={vec(1,0,0),vec(1.05,0,0),vec(3,0,0)}
+local combined={positionDeltas=Targets.zeroDeltas(3),normalDeltas={}}
+assert(Targets.brushStamp(combined,neutral,neutral[1],vec(0,0,1),0.2,1,
+    vec(0,0,0.1),false,nil,{1,2})==2)
+local paintedZ=combined.positionDeltas[1].z
+assert(paintedZ>0)
+Targets.applyEdit(combined,neutral,{1,2},{mode='translate',dx=0.2})
+assert(math.abs(combined.positionDeltas[1].z-paintedZ)<1e-6)
+Targets.applyEdit(combined,neutral,{1,2},{mode='rotate',pivot=vec(0,0,0),ry=0.2})
+local paintedAfterRotation=combined.positionDeltas[1].z
+local deformed=Targets.previewVertices(neutral,combined,1)
+assert(math.abs(deformed[1].z-(neutral[1].z+paintedAfterRotation))<1e-6)
+assert(Targets.brushStamp(combined,deformed,deformed[1],vec(0,0,1),0.2,1,
+    vec(0,0,0.05),false,nil,{1,2})>0)
+assert(combined.positionDeltas[1].z>paintedAfterRotation)
+local combinedMesh=mockMesh({target('0000000000000001','combined',Targets.zeroDeltas(3))},3)
+assert(combinedMesh:updateFacialTarget(1,'combined','Manual',0,combined.positionDeltas))
+local reloaded=Targets.catalogFromDebug(combinedMesh)
+assert(math.abs(reloaded[1].positionDeltas[1].z-combined.positionDeltas[1].z)<1e-6)
+
 local mesh=mockMesh({target('0000000000000001','jawOpen',Targets.zeroDeltas(3))},3)
 local ok,idMap=TargetProject.apply(mesh,restoredProject.morphTargetEdits,'same-topology')
 assert(ok and idMap['0000000000000002']==mesh.targets[2].id)
