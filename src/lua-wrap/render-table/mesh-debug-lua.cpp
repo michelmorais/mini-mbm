@@ -3333,6 +3333,24 @@ namespace mbm
         return 1;
     }
 
+    int onGetTotalFacialClipsDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.getTotalFacialClips()));
+        return 1;
+    }
+
+    int onGetFacialClipNameDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const uint32_t total = meshDebug->mesh.getTotalFacialClips();
+        const char *name = index > 0 && static_cast<uint64_t>(index) <= total
+            ? meshDebug->mesh.getFacialClipName(static_cast<uint32_t>(index - 1)) : nullptr;
+        if (name) lua_pushstring(lua, name); else lua_pushnil(lua);
+        return 1;
+    }
+
     int onAddFacialClipDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -4039,6 +4057,8 @@ namespace mbm
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
                                           {"getFacialExportData", onGetFacialExportDataDebugLua},
                                           {"getTotalFacialTargets", onGetTotalFacialTargetsDebugLua},
+                                          {"getTotalFacialClips", onGetTotalFacialClipsDebugLua},
+                                          {"getFacialClipName", onGetFacialClipNameDebugLua},
                                           {"addFacialTarget", onAddFacialTargetDebugLua},
                                           {"updateFacialTarget", onUpdateFacialTargetDebugLua},
                                           {"removeFacialTarget", onRemoveFacialTargetDebugLua},

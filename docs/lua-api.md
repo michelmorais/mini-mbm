@@ -722,11 +722,11 @@ otherwise it reports the LBS fallback and the compatibility reason.
 | `obj:getFacialWeight` | `(target: int\|string)` | number or nil | Current evaluated target weight |
 | `obj:clearFacialWeight` | `(target: int\|string)` | bool | Clear one manual override and restore clip/default contribution |
 | `obj:resetFacialWeights` | `()` | bool | Clear all manual overrides; returns `true` when no overrides are already active |
-| `obj:getTotalFacialClips` | `()` | int | Number of authored facial clips |
-| `obj:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip |
+| `obj:getTotalFacialClips` / `meshD:getTotalFacialClips` | `()` | int | Number of authored facial clips on a runtime mesh or MeshDebug candidate |
+| `obj:getFacialClipName` / `meshD:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip; `nil` for an invalid index |
 | `obj:getFacialClipDuration` | `(index: int)` | number or nil | Duration in seconds |
-| `obj:addFacialClip` | `(name, duration, loop, interpolation, keys)` | int or nil | Append a validated clip to the loaded debug mesh and return its 1-based index; each key is `{time, weights}` and `weights` follows the mesh target order |
-| `obj:removeFacialClip` | `(index: int)` | bool | Remove a 1-based facial clip from the loaded debug mesh |
+| `meshD:addFacialClip` | `(name, duration, loop, interpolation, keys)` | int or Lua error | MeshDebug only: append a validated clip and return its 1-based index; each key is `{time, weights}` and `weights` follows the mesh target order |
+| `meshD:removeFacialClip` | `(index: int)` | bool or Lua error | MeshDebug only: remove a 1-based facial clip |
 | `obj:playFacialAnimation` | `(name)` | bool | Start or restart a facial clip at time zero |
 | `obj:pauseFacialAnimation` | `()` | bool | Pause the active facial clip |
 | `obj:resumeFacialAnimation` | `()` | bool | Resume the active facial clip |
@@ -753,12 +753,16 @@ face:clearFacialWeight("jawOpen")
 face:stopFacialAnimation()
 
 -- Authoring/export bridge (mesh-debug objects only):
-local clipIndex = face:addFacialClip("sorrir", 1.0, false, 1, {
+local meshD = meshDebug:new()
+assert(meshD:load("character-face.msh"))
+local clipIndex = meshD:addFacialClip("sorrir", 1.0, false, 1, {
     {time = 0.0, weights = {0, 0, 0, 0, 0, 0}},
     {time = 1.0, weights = {0, 0.8, 0, 0, 0, 0}},
 })
 assert(clipIndex)
-assert(face:removeFacialClip(clipIndex))
+assert(meshD:getTotalFacialClips() >= 1)
+assert(meshD:getFacialClipName(clipIndex) == "sorrir")
+assert(meshD:removeFacialClip(clipIndex))
 ```
 
 `addFacialClip` validates the complete candidate asset before committing it. It requires at

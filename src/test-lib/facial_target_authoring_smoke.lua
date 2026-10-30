@@ -53,6 +53,10 @@ local function run()
         {time = 0, weights = {0, 0}},
         {time = 1, weights = {1, 0.5}},
     }) == 1)
+    assert(author:getTotalFacialClips() == 1)
+    assert(author:getFacialClipName(1) == 'test')
+    assert(author:getFacialClipName(0) == nil)
+    assert(author:getFacialClipName(2) == nil)
     local manual = author:addFacialTarget('jawOpen_manual_test', 'ARKit', 0, {
         vector(0, 0, 0), vector(0, 0, 0), vector(0, 0, 0),
     })
@@ -68,18 +72,33 @@ local function run()
     assert(not pcall(function() author:removeFacialTarget(1) end),
         'last target removal with clips must be rejected')
     assert(author:removeFacialClip(1))
+    assert(author:getTotalFacialClips() == 0)
     assert(author:removeFacialTarget(1))
     assert(author:getTotalFacialTargets() == 0)
 
     local finalTarget = author:addFacialTarget('jawOpen', 'ARKit', 0, base)
     assert(finalTarget == 1)
+    assert(author:addFacialClip('test', 1, false, 0, {
+        {time = 0, weights = {0}},
+        {time = 1, weights = {1}},
+    }) == 1)
     local path = '/tmp/facial-target-authoring-smoke.msh'
     assert(author:save(path, false, false, true))
     local loaded = meshDebug:new()
     assert(loaded:load(path))
     assert(loaded:getTotalFacialTargets() == 1)
+    assert(loaded:getTotalFacialClips() == 1)
+    assert(loaded:getFacialClipName(1) == 'test')
+    assert(loaded:removeFacialClip(1))
+    assert(loaded:getTotalFacialClips() == 0)
+    assert(loaded:addFacialClip('test', 1, false, 0, {
+        {time = 0, weights = {0}},
+        {time = 1, weights = {0.5}},
+    }) == 1)
     local loadedExport = loaded:getFacialExportData()
     assert(loadedExport.targets[1].name == 'jawOpen')
+    assert(loadedExport.clips[1].name == 'test')
+    assert(math.abs(loadedExport.clips[1].keys[2].weights[1] - 0.5) < 1e-6)
     assert(math.abs(loadedExport.targets[1].positionDeltas[2].x - 0.2) < 1e-6)
     print('FACIAL TARGET AUTHORING API / CLIP REMAP / MSH ROUNDTRIP OK')
 end

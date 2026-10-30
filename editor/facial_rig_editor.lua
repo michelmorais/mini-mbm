@@ -1201,6 +1201,21 @@ local function applyRigidFacialWeights()
     return true
 end
 
+local function refreshExpressionCatalog()
+    if not state.mesh then
+        state.expressions.catalog={}
+        state.expressions.catalogDirty=false
+        return
+    end
+    local ok,catalog=dpCall(function() return tFacialExpressions.catalogFromMesh(state.mesh) end)
+    if not ok or type(catalog)~='table' then catalog={} end
+    state.expressions.catalog=catalog
+    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,catalog)
+    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#catalog>0 and #catalog or 1))
+    state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#(state.project.expressions.poses or {})>0 and #(state.project.expressions.poses or {}) or 1))
+    state.expressions.catalogDirty=false
+end
+
 local function materializeProjectFacialClips()
     if not state.meshDebug or state.exportWindow.includeProjectFacialClips==false then return true end
     local clips=state.project.clips or {}
@@ -1214,12 +1229,13 @@ local function materializeProjectFacialClips()
     end
     local function findEmbeddedClipIndex(clipName)
         local ok,total=dpCall(function() return state.meshDebug:getTotalFacialClips() end)
-        if not ok then return nil end
+        if not ok then return nil,false end
         for index=1,tonumber(total) or 0 do
             local nameOk,name=dpCall(function() return state.meshDebug:getFacialClipName(index) end)
-            if nameOk and name==clipName then return index end
+            if not nameOk then return nil,false end
+            if name==clipName then return index,true end
         end
-        return nil
+        return nil,true
     end
     for _,clip in ipairs(clips) do
         local validation=tFacialClips.validate(clip)
@@ -1229,7 +1245,11 @@ local function materializeProjectFacialClips()
         end
         -- Query the current list for every replacement. Removing an earlier clip
         -- shifts subsequent 1-based indices, so a cached name->index map is unsafe.
-        local oldIndex=findEmbeddedClipIndex(clip.name)
+        local oldIndex,lookupOk=findEmbeddedClipIndex(clip.name)
+        if not lookupOk then
+            setStatus(string.format(tLang.L('fre_export_clips_failed_fmt'),clip.name or ''),true)
+            return false
+        end
         if oldIndex then
             local removed,removedOk=dpCall(function() return state.meshDebug:removeFacialClip(oldIndex) end)
             if not removed or removedOk==false then
@@ -1301,6 +1321,15 @@ local function saveAssignedMesh()
     state.project.morphTargetEdits=nil
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
+end
+
+local function saveAssignedMeshFromUi()
+    local callOk,saved=dpCall(saveAssignedMesh)
+    if not callOk then
+        setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
+        return false
+    end
+    return saved
 end
 
 local function inspectMesh(meshDebugObject)
@@ -1419,21 +1448,6 @@ end
 
 local function markFaceGuideDirty()
     state.faceGuideDirty=true
-end
-
-local function refreshExpressionCatalog()
-    if not state.mesh then
-        state.expressions.catalog={}
-        state.expressions.catalogDirty=false
-        return
-    end
-    local ok,catalog=dpCall(function() return tFacialExpressions.catalogFromMesh(state.mesh) end)
-    if not ok or type(catalog)~='table' then catalog={} end
-    state.expressions.catalog=catalog
-    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,catalog)
-    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#catalog>0 and #catalog or 1))
-    state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#(state.project.expressions.poses or {})>0 and #(state.project.expressions.poses or {}) or 1))
-    state.expressions.catalogDirty=false
 end
 
 local function refreshFacialTargetCatalog()
@@ -2892,7 +2906,9 @@ local function showExportWindow()
             end
             local canExport=canExportRuntimeMsh()
             tImGui.BeginDisabled(not canExport)
-            if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then saveAssignedMesh() end
+            if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then
+                saveAssignedMeshFromUi()
+            end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_export_msh_tooltip'))
             if not canExport then tImGui.TextDisabled(tLang.L('fre_export_msh_blocked')) end
@@ -4242,7 +4258,7 @@ local function showRig()
         showHelpTooltip(tLang.L('fre_export_msh_include_project_clips_tooltip'))
         tImGui.BeginDisabled(not canSave)
         if tImGui.Button(tLang.L('fre_weight_assignment_save')..'##freRigActionSave',{x=300,y=0}) then
-            saveAssignedMesh()
+            saveAssignedMeshFromUi()
         end
         tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
