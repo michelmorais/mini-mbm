@@ -21,6 +21,7 @@
 ]]--
 
 local M = {}
+local tTargetGizmo = require 'facial_rig_target_gizmo'
 
 local ROLE_NAMES = {
     'main_face', 'left_eye', 'right_eye', 'upper_teeth', 'lower_teeth',
@@ -83,7 +84,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=8,
+        schemaVersion=9,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -99,6 +100,7 @@ function M.new()
         selectedMask=1,
         landmarkEditMode=1,
         morphTargetPreview={targetId='',weight=1},
+        morphTargetPivots={},
         morphTargetEdits=nil,
         expressions={targets={},poses={},selectedTarget=1,selectedPose=1},
         clips={},selectedClip=1,
@@ -122,7 +124,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(8,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(9,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -151,6 +153,7 @@ function M.normalize(project)
             previewWeight==math.huge or previewWeight==-math.huge then previewWeight=1 end
     project.morphTargetPreview={targetId=type(targetPreview.targetId)=='string' and
         targetPreview.targetId or '',weight=math.max(0,math.min(1,previewWeight))}
+    project.morphTargetPivots=tTargetGizmo.normalizePivots(project.morphTargetPivots)
     if type(project.morphTargetEdits)~='table' then project.morphTargetEdits=nil end
     if type(project.expressions)~='table' then
         project.expressions={targets={},poses={},selectedTarget=1,selectedPose=1}

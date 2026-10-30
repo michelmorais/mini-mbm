@@ -23,6 +23,7 @@ package.path='editor/?.lua;'..package.path
 local TargetProject=require 'facial_rig_target_project'
 local Targets=require 'facial_rig_targets'
 local Project=require 'facial_rig_project'
+local Gizmo=require 'facial_rig_target_gizmo'
 
 local function vec(x,y,z) return {x=x,y=y,z=z} end
 local function target(id,name,positions)
@@ -92,14 +93,31 @@ assert(next(patch.targets[2].positions)==nil,'neutral target should not serializ
 local project=Project.new()
 project.morphTargetEdits=patch
 project.morphTargetPreview={targetId='0000000000000002',weight=0}
+assert(Gizmo.setPivot(project,'0000000000000002',vec(1,2,3)))
 local path=os.tmpname()
 assert(Project.save(project,path,serialize))
 local restoredProject=assert(Project.load(path))
 os.remove(path)
 assert(restoredProject.morphTargetPreview.weight==0)
+assert(restoredProject.morphTargetPivots['0000000000000002'].y==2)
+local origin,direction,pivot=vec(1,0,2),vec(0,0,-1),vec(0,0,0)
+local ring=assert(Gizmo.hitRing(origin,direction,pivot,1))
+assert(ring.name=='z' and math.abs(Gizmo.signedAngle(ring.axis,ring.direction,vec(0,1,0))-90)<1e-6)
+assert(Gizmo.hitAxis(vec(0.5,0,2),direction,pivot,1,0.1)=='x')
+assert(math.abs(Gizmo.axisParameter(vec(0.5,0,2),direction,pivot,Gizmo.axes.x)-0.5)<1e-6)
+local basePoint,baseDelta,rotationPivot=vec(2,0,0),vec(0.2,0,0),vec(1,0,0)
+local basis=Targets.rotationBasis(0,0,math.pi*0.5)
+local previewX,previewY,previewZ=Targets.rotatedDelta(basePoint,baseDelta,rotationPivot,basis)
+local edited={positionDeltas={vec(0.2,0,0)},normalDeltas={}}
+Targets.applyEdit(edited,{basePoint},{1},{mode='rotate',pivot=rotationPivot,rz=math.pi*0.5})
+assert(math.abs(edited.positionDeltas[1].x-previewX)<1e-6)
+assert(math.abs(edited.positionDeltas[1].y-previewY)<1e-6)
+assert(math.abs(edited.positionDeltas[1].z-previewZ)<1e-6)
 local mesh=mockMesh({target('0000000000000001','jawOpen',Targets.zeroDeltas(3))},3)
 local ok,idMap=TargetProject.apply(mesh,restoredProject.morphTargetEdits,'same-topology')
 assert(ok and idMap['0000000000000002']==mesh.targets[2].id)
+local pivots=Gizmo.remapPivots(restoredProject.morphTargetPivots,idMap)
+assert(pivots[mesh.targets[2].id].y==2)
 assert(mesh.targets[1].positionDeltas[2].y==-0.2)
 assert(mesh.targets[2].name=='jawOpen_test' and #mesh.targets[2].positionDeltas==3)
 assert(not TargetProject.apply(mockMesh(base,3),patch,'wrong-topology'))

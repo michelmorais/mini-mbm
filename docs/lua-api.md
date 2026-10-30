@@ -2073,8 +2073,13 @@ candidate. `addFacialTarget`, `updateFacialTarget`, and `removeFacialTarget` pre
 valid candidate when validation fails. Position and normal delta arrays use the canonical frame-0
 vertex order and contain `{x,y,z}` tables. The first native Facial Rig Editor worktree uses these
 APIs for target identity and batch data operations. Its first sculpt-foundation controls apply
-translation, rotation around the face-origin/mesh-center pivot, or reset to all vertices or to an
-existing project mask; the controls commit only on explicit Apply and have local undo/redo.
+translation, rotation around a target-specific 3D pivot, or reset to all vertices or to an
+existing project mask; the controls commit only on explicit Apply and have local undo/redo. The
+rotation gizmo provides X/Y/Z rings to set draft angles and axes to move the pivot. The pivot
+defaults to the placed face origin or mesh center and is stored as editor project metadata, keyed
+by target ID; only the resulting vertex deltas are written to the MSH. When the displacement
+overlay is enabled, it shows the draft rotation after a ring drag or angle input changes, before
+the candidate is committed.
 In Edit, right click picks a neutral-surface vertex; in Paint, right drag applies a bounded
 move/smooth brush, optionally filtered through a project mask. The editor stages each stroke in Lua,
 calls

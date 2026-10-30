@@ -32,6 +32,7 @@ tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
 tFacialTargets = require "facial_rig_targets"
+tTargetGizmo = require "facial_rig_target_gizmo"
 tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
@@ -81,6 +82,8 @@ local state = {
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
     targetAuthoring=tFacialTargets.new(),
+    targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,
+        targetId=nil,drag=nil,dirty=true},
     targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false},
     targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
@@ -103,6 +106,7 @@ local updateMaskBrushHover
 local drawMaskBrushScreenCursor
 local drawTargetBrushScreenCursor
 local updateTargetBrushHover
+local refreshTargetGizmo
 local setTargetOverlayVisible
 local startTargetOverlayBuild
 local stepTargetOverlayBuild
@@ -679,6 +683,7 @@ local function restoreHistorySnapshot(snapshot)
     state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
+    state.targetGizmo.dirty=true
     markMaskVisualizationDirty()
     state.rigPreview.dirty=true
     state.rigReview.dirty=true
@@ -755,6 +760,12 @@ local function destroyPreview()
     destroyRigPreview()
     destroyMaskVisualization()
     destroyTargetOverlay()
+    local targetGizmo=state.targetGizmo
+    for _,object in pairs(targetGizmo.rings) do dpCall(function() object:destroy() end) end
+    for _,object in pairs(targetGizmo.axes) do dpCall(function() object:destroy() end) end
+    if targetGizmo.center then dpCall(function() targetGizmo.center:destroy() end) end
+    state.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,
+        targetId=nil,drag=nil,dirty=true}
     state.targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil}
     if state.facialComparison and state.facialComparison.mesh then
         -- This comparison instance is temporary. Clear the editor-only
@@ -1475,6 +1486,7 @@ local function markFacialTargetAuthoringModified()
     state.targetAuthoring.previewDirty=true
     state.targetAuthoring.catalogDirty=true
     state.targetOverlay.dirty=true
+    state.targetGizmo.dirty=true
     refreshFacialTargetCatalog()
     state.expressions.catalog=state.targetAuthoring.targets
     state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,state.expressions.catalog)
@@ -1639,6 +1651,7 @@ local function showTargets()
                 tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
                 if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
                     authoring.selectedTarget=index
+                    state.targetGizmo.dirty=true
                     authoring.draftTargetIndex=nil
                     state.targetOverlay.dirty=true
                     state.modified=true
@@ -1742,6 +1755,10 @@ local function showTargets()
         tImGui.SameLine()
         mode=tImGui.RadioButton(tLang.L('fre_target_edit_reset')..'##freTargetEditReset',mode,3)
         showHelpTooltip(tLang.L('fre_target_edit_reset_tooltip'))
+        if mode~=authoring.editMode then
+            state.targetGizmo.dirty=true
+            state.targetOverlay.dirty=true
+        end
         authoring.editMode=mode
     end
     local selectionLabels={tLang.L('fre_target_edit_all'),tLang.L('fre_target_edit_picked')}
@@ -1753,7 +1770,10 @@ local function showTargets()
     local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
         authoring.selectionMode or 1,selectionLabels,-1)
     showHelpTooltip(tLang.L('fre_target_edit_selection_tooltip'))
-    if selectionChanged then authoring.selectionMode=selection end
+    if selectionChanged then
+        authoring.selectionMode=selection
+        state.targetOverlay.dirty=true
+    end
     tImGui.TextWrapped(tLang.L(workMode==2 and 'fre_target_edit_pick_help' or 'fre_target_paint_help'))
     if authoring.selectedVertex then
         tImGui.Text(string.format(tLang.L('fre_target_picked_fmt'),authoring.selectedVertex))
@@ -1803,20 +1823,44 @@ local function showTargets()
             tImGui.SetNextItemWidth(115)
             local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'X'))
-            if changed then authoring.rx=value end
+            if changed then authoring.rx=value; state.targetOverlay.dirty=true end
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Y'))
-            if changed then authoring.ry=value end
+            if changed then authoring.ry=value; state.targetOverlay.dirty=true end
             tImGui.SetNextItemWidth(115)
             changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
             showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Z'))
-            if changed then authoring.rz=value end
-            local origin=state.project.faceOrigin
-            if not origin or not origin.placed or not origin.position then
-                tImGui.TextWrapped(tLang.L('fre_target_edit_no_face_origin'))
-            else
-                tImGui.TextWrapped(tLang.L('fre_target_edit_pivot'))
+            if changed then authoring.rz=value; state.targetOverlay.dirty=true end
+            if selected then
+                local gizmo=state.targetGizmo
+                local pivot=gizmo.visible and not gizmo.dirty and gizmo.targetId==selected.id and gizmo.origin or
+                    tTargetGizmo.pivot(state.project,selected.id,state.meshBounds)
+                tImGui.TextWrapped(string.format(tLang.L('fre_target_pivot_position_fmt'),
+                    pivot.x,pivot.y,pivot.z))
+                tImGui.TextWrapped(tLang.L('fre_target_pivot_gizmo_help'))
+                if tImGui.Button(tLang.L('fre_target_pivot_reset')) then
+                    pushUndoSnapshot()
+                    tTargetGizmo.setPivot(state.project,selected.id,
+                        tTargetGizmo.defaultPivot(state.project,state.meshBounds))
+                    state.targetGizmo.dirty=true
+                    state.targetOverlay.dirty=true
+                    state.modified=true
+                end
+                showHelpTooltip(tLang.L('fre_target_pivot_reset_tooltip'))
+                tImGui.SameLine()
+                tImGui.BeginDisabled(not authoring.selectedVertex or not state.topology or
+                    not state.topology.vertices[authoring.selectedVertex])
+                if tImGui.Button(tLang.L('fre_target_pivot_vertex')) then
+                    pushUndoSnapshot()
+                    tTargetGizmo.setPivot(state.project,selected.id,
+                        state.topology.vertices[authoring.selectedVertex])
+                    state.targetGizmo.dirty=true
+                    state.targetOverlay.dirty=true
+                    state.modified=true
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_target_pivot_vertex_tooltip'))
             end
         end
         local canApplyEdit=selected~=nil and state.topology and state.topology.vertices and #state.topology.vertices>0
@@ -1836,10 +1880,7 @@ local function showTargets()
             else
                 local before=tFacialTargets.copyTargetData(selected)
                 local edited=tFacialTargets.copyTargetData(selected)
-                local bounds=state.meshBounds or {minX=0,maxX=0,minY=0,maxY=0,minZ=0,maxZ=0}
-                local origin=state.project.faceOrigin
-                local pivot=origin and origin.placed and origin.position or {
-                    x=(bounds.minX+bounds.maxX)*0.5,y=(bounds.minY+bounds.maxY)*0.5,z=(bounds.minZ+bounds.maxZ)*0.5}
+                local pivot=tTargetGizmo.pivot(state.project,selected.id,state.meshBounds)
                 local edit={mode=(authoring.editMode or 1)==1 and 'translate' or
                     (authoring.editMode or 1)==2 and 'rotate' or 'reset',
                     dx=authoring.dx or 0,dy=authoring.dy or 0,dz=authoring.dz or 0,
@@ -1855,6 +1896,7 @@ local function showTargets()
                     end)
                     if callOk and updated~=false then
                         tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,edited)
+                        if authoring.editMode==2 then authoring.rx=0; authoring.ry=0; authoring.rz=0 end
                         markFacialTargetAuthoringModified()
                         setStatus(string.format(tLang.L('fre_target_edit_applied_fmt'),changedCount),false)
                     else
@@ -1935,7 +1977,11 @@ local function showTargets()
                 if callOk and newIndex then
                     markFacialTargetAuthoringModified()
                     local created=tFacialTargets.find(authoring.targets,newIndex)
-                    if created then authoring.createdIds[created.id]=true end
+                    if created then
+                        authoring.createdIds[created.id]=true
+                        local originalPivot=state.project.morphTargetPivots[selected.id]
+                        if originalPivot then tTargetGizmo.setPivot(state.project,created.id,originalPivot) end
+                    end
                     tFacialTargets.clearEditHistory(authoring)
                     authoring.selectedTarget=newIndex
                     setStatus(tLang.L('fre_target_duplicated'),false)
@@ -1950,6 +1996,7 @@ local function showTargets()
             local deletedId=selected and selected.id
             local callOk,removed=dpCall(function() return state.meshDebug:removeFacialTarget(authoring.selectedTarget) end)
             if callOk and removed~=false then
+                state.project.morphTargetPivots[deletedId]=nil
                 if authoring.createdIds[deletedId] then
                     authoring.createdIds[deletedId]=nil
                 else
@@ -2210,6 +2257,10 @@ local function loadMesh(path, preserveProject)
     -- would change depth ordering and is therefore not appropriate here.
     state.mesh.alwaysRender=true
     if not preserveProject then state.project=tFacialProject.new() end
+    if preserveProject and next(restoredIds) then
+        state.project.morphTargetPivots=tTargetGizmo.remapPivots(
+            state.project.morphTargetPivots,restoredIds)
+    end
     loadSourceObjectCatalog(path)
     state.project.meshPath=path
     if not preserveProject or state.project.meshTopologySignature=='' then
@@ -4591,6 +4642,7 @@ function onLoop(delta)
     showMenu()
     showExportWindow()
     showMainPanel()
+    refreshTargetGizmo()
     showLandmarkReferenceModal()
     showCameraPanel()
     showFacialClipTimelineWindow()
@@ -4726,6 +4778,110 @@ local function rayAxisParameter(x,y,origin,axis)
     return (axisProjection-parallel*rayProjection)/denominator
 end
 
+refreshTargetGizmo=function()
+    local gizmo=state.targetGizmo
+    local authoring=state.targetAuthoring
+    local target=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        tFacialTargets.find(authoring.targets,authoring.selectedTarget) or nil
+    if not target or not state.mesh then
+        if gizmo.visible then
+            for _,object in pairs(gizmo.rings) do object.visible=false end
+            for _,object in pairs(gizmo.axes) do object.visible=false end
+            if gizmo.center then gizmo.center.visible=false end
+            gizmo.visible=false
+        end
+        gizmo.drag=nil
+        return
+    end
+    if gizmo.visible and not gizmo.dirty and gizmo.targetId==target.id then return end
+    local pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.11,0.04)
+    local length=radius*1.4
+    local sizeChanged=gizmo.radius~=radius
+    local colors={x={1,0.15,0.15},y={0.15,1,0.2},z={0.2,0.45,1}}
+    for name,axis in pairs(tTargetGizmo.axes) do
+        local ring=gizmo.rings[name]
+        if not ring then
+            ring=line:new('3d',0,0,0)
+            ring:add(tTargetGizmo.ringPoints(name,radius))
+            ring.alwaysOnTop=true
+            ring.alwaysOnTopPriority=3
+            gizmo.rings[name]=ring
+        elseif sizeChanged then
+            ring:set(tTargetGizmo.ringPoints(name,radius),1)
+        end
+        ring:setPos(pivot.x,pivot.y,pivot.z)
+        ring:setColor(colors[name][1],colors[name][2],colors[name][3],
+            gizmo.drag and gizmo.drag.kind=='ring' and gizmo.drag.name~=name and 0.3 or 1)
+        ring.visible=true
+        local handle=gizmo.axes[name]
+        if not handle then
+            handle=line:new('3d',0,0,0)
+            handle:add({0,0,0,axis.x*length,axis.y*length,axis.z*length})
+            handle.alwaysOnTop=true
+            handle.alwaysOnTopPriority=4
+            gizmo.axes[name]=handle
+        elseif sizeChanged then
+            handle:set({0,0,0,axis.x*length,axis.y*length,axis.z*length},1)
+        end
+        handle:setPos(pivot.x,pivot.y,pivot.z)
+        handle:setColor(colors[name][1],colors[name][2],colors[name][3],
+            gizmo.drag and gizmo.drag.kind=='axis' and gizmo.drag.name~=name and 0.3 or 1)
+        handle.visible=true
+    end
+    local centerSize=radius*0.1
+    local cross={
+        {-centerSize,0,0,centerSize,0,0},
+        {0,-centerSize,0,0,centerSize,0},
+        {0,0,-centerSize,0,0,centerSize}}
+    if not gizmo.center then
+        gizmo.center=line:new('3d',0,0,0)
+        for _,path in ipairs(cross) do gizmo.center:add(path) end
+        gizmo.center.alwaysOnTop=true
+        gizmo.center.alwaysOnTopPriority=5
+        gizmo.center:setColor(1,0.85,0.1,1)
+    elseif sizeChanged then
+        for index,path in ipairs(cross) do gizmo.center:set(path,index) end
+    end
+    gizmo.center:setPos(pivot.x,pivot.y,pivot.z)
+    gizmo.center.visible=true
+    gizmo.origin=pivot
+    gizmo.radius=radius
+    gizmo.length=length
+    gizmo.targetId=target.id
+    gizmo.visible=true
+    gizmo.dirty=false
+end
+
+local function beginTargetGizmoDrag(x,y)
+    local gizmo=state.targetGizmo
+    if not gizmo.visible or not gizmo.origin then return false end
+    local origin,direction=viewportPickRay(x,y)
+    if not origin then return false end
+    local ring=tTargetGizmo.hitRing(origin,direction,gizmo.origin,gizmo.radius)
+    if ring then
+        local field='r'..ring.name
+        gizmo.drag={kind='ring',name=ring.name,axis=ring.axis,
+            startDirection=ring.direction,baseAngle=state.targetAuthoring[field] or 0,
+            origin=gizmo.origin}
+        gizmo.dirty=true
+        return true
+    end
+    local axisName=tTargetGizmo.hitAxis(origin,direction,gizmo.origin,gizmo.length,
+        math.max(gizmo.radius*0.08,0.003))
+    if not axisName then return false end
+    local axis=tTargetGizmo.axes[axisName]
+    local parameter=tTargetGizmo.axisParameter(origin,direction,gizmo.origin,axis)
+    if not parameter then return false end
+    gizmo.drag={kind='axis',name=axisName,axis=axis,startParameter=parameter,
+        origin=gizmo.origin,targetId=gizmo.targetId,moved=false}
+    gizmo.dirty=true
+    return true
+end
+
 local function applyFaceGuideAxisDelta(axisName,delta,baseOrigin,baseRelative)
     local axis=axisName=='x' and {x=1,y=0,z=0} or axisName=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
     local origin=state.project.faceOrigin
@@ -4853,17 +5009,34 @@ startTargetOverlayBuild=function()
     local vertices=state.topology.vertices or {}
     local deltas=target.positionDeltas or {}
     local weight=state.targetAuthoring.previewWeight or 1
-    local maximum=0
-    for _,delta in ipairs(deltas) do
-        maximum=math.max(maximum,math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z))
+    local authoring=state.targetAuthoring
+    local rotateDraft=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        ((authoring.rx or 0)~=0 or (authoring.ry or 0)~=0 or (authoring.rz or 0)~=0)
+    local pivot,basis,selection
+    if rotateDraft then
+        pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+        basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
+            math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
+        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+            authoring.vertexCount,state.topology.signature)
     end
-    local coords,uvs={},{}
+    local maximum=0
+    local coords,uvs,magnitudes={},{},{}
     for index,point in ipairs(vertices) do
         local delta=deltas[index] or {x=0,y=0,z=0}
-        local magnitude=math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z)
-        coords[#coords+1]=point.x+delta.x*weight
-        coords[#coords+1]=point.y+delta.y*weight
-        coords[#coords+1]=point.z+delta.z*weight
+        local dx,dy,dz=delta.x,delta.y,delta.z
+        if rotateDraft and (not selection or selection[index]) then
+            dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+        end
+        local magnitude=math.sqrt(dx*dx+dy*dy+dz*dz)
+        maximum=math.max(maximum,magnitude)
+        magnitudes[index]=magnitude
+        coords[#coords+1]=point.x+dx*weight
+        coords[#coords+1]=point.y+dy*weight
+        coords[#coords+1]=point.z+dz*weight
+    end
+    for index=1,#vertices do
+        local magnitude=magnitudes[index]
         uvs[#uvs+1]=maximum>1e-10 and math.min(1,magnitude/maximum) or 0
         uvs[#uvs+1]=1
     end
@@ -5630,6 +5803,8 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and state.workspace=='targets' and state.targetAuthoring.mode==2 and
+            state.targetAuthoring.editMode==2 and beginTargetGizmoDrag(x,y) then return end
     if state.workspace=='targets' and key==1 then
         if state.targetAuthoring.mode==2 and state.topology then
             local origin,direction=viewportPickRay(x,y)
@@ -5637,6 +5812,7 @@ function onTouchDown(key,x,y)
             if hit then
                 state.targetAuthoring.selectedVertex=hit.index
                 state.targetAuthoring.selectionMode=2
+                state.targetOverlay.dirty=true
                 setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
             end
         elseif state.targetAuthoring.mode==3 then
@@ -5702,6 +5878,34 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    local gizmoDrag=state.targetGizmo.drag
+    if gizmoDrag then
+        local origin,direction=viewportPickRay(x,y)
+        if not origin then return end
+        if gizmoDrag.kind=='axis' then
+            local parameter=tTargetGizmo.axisParameter(origin,direction,gizmoDrag.origin,gizmoDrag.axis)
+            if parameter then
+                local amount=parameter-gizmoDrag.startParameter
+                local pivot={x=gizmoDrag.origin.x+gizmoDrag.axis.x*amount,
+                    y=gizmoDrag.origin.y+gizmoDrag.axis.y*amount,
+                    z=gizmoDrag.origin.z+gizmoDrag.axis.z*amount}
+                if math.abs(amount)>1e-6 then
+                    if not gizmoDrag.moved then pushUndoSnapshot(); gizmoDrag.moved=true end
+                    if tTargetGizmo.setPivot(state.project,gizmoDrag.targetId,pivot) then
+                        state.modified=true
+                        state.targetGizmo.dirty=true
+                    end
+                end
+            end
+        else
+            local vector=tTargetGizmo.ringDirection(origin,direction,gizmoDrag.origin,gizmoDrag.axis)
+            if vector then
+                state.targetAuthoring['r'..gizmoDrag.name]=gizmoDrag.baseAngle+
+                    tTargetGizmo.signedAngle(gizmoDrag.axis,gizmoDrag.startDirection,vector)
+            end
+        end
+        return
+    end
     local targetStroke=state.targetAuthoring and state.targetAuthoring.brushStroke
     if targetStroke then
         local dx,dy=x-targetStroke.lastX,y-targetStroke.lastY
@@ -5771,6 +5975,12 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==0 and state.targetGizmo.drag then
+        state.targetOverlay.dirty=true
+        state.targetGizmo.drag=nil
+        state.targetGizmo.dirty=true
+        return
+    end
     if key==1 and state.targetAuthoring and state.targetAuthoring.brushStroke then
         if not tImGui.GetWantCaptureMouse() then
             stampTargetBrush(x,y,state.targetAuthoring.brushStroke)

@@ -125,6 +125,20 @@ local function rotateVector(value,rx,ry,rz)
     return {x=x,y=y,z=z}
 end
 
+function M.rotationBasis(rx,ry,rz)
+    return {x=rotateVector({x=1,y=0,z=0},rx,ry,rz),
+        y=rotateVector({x=0,y=1,z=0},rx,ry,rz),
+        z=rotateVector({x=0,y=0,z=1},rx,ry,rz)}
+end
+
+function M.rotatedDelta(base,delta,pivot,basis)
+    local x,y,z=base.x+delta.x-pivot.x,base.y+delta.y-pivot.y,
+        base.z+delta.z-pivot.z
+    return pivot.x+x*basis.x.x+y*basis.y.x+z*basis.z.x-base.x,
+        pivot.y+x*basis.x.y+y*basis.y.y+z*basis.z.y-base.y,
+        pivot.z+x*basis.x.z+y*basis.y.z+z*basis.z.z-base.z
+end
+
 function M.allIndices(vertexCount)
     local result={}
     for index=1,math.max(0,math.floor(finite(vertexCount,0))) do result[index]=index end
@@ -163,6 +177,7 @@ function M.applyEdit(target,baseVertices,indices,edit)
     local normals=target.normalDeltas or {}
     local mode=edit and edit.mode or 'translate'
     local pivot=edit and edit.pivot or {x=0,y=0,z=0}
+    local rotation=mode=='rotate' and M.rotationBasis(edit.rx or 0,edit.ry or 0,edit.rz or 0)
     local changed=0
     local seen={}
     for _,rawIndex in ipairs(indices) do
@@ -175,10 +190,8 @@ function M.applyEdit(target,baseVertices,indices,edit)
             if mode=='reset' then
                 nextPosition={x=0,y=0,z=0}
             elseif mode=='rotate' then
-                local current={x=base.x+old.x,y=base.y+old.y,z=base.z+old.z}
-                local relative={x=current.x-pivot.x,y=current.y-pivot.y,z=current.z-pivot.z}
-                local rotated=rotateVector(relative,edit.rx or 0,edit.ry or 0,edit.rz or 0)
-                nextPosition={x=pivot.x+rotated.x-base.x,y=pivot.y+rotated.y-base.y,z=pivot.z+rotated.z-base.z}
+                local x,y,z=M.rotatedDelta(base,old,pivot,rotation)
+                nextPosition={x=x,y=y,z=z}
             else
                 nextPosition={x=old.x+(edit.dx or 0),y=old.y+(edit.dy or 0),z=old.z+(edit.dz or 0)}
             end

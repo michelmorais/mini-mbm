@@ -33,6 +33,12 @@ The first native authoring slice is available on this branch:
   [Paul Ekman Group FACS overview](https://www.paulekman.com/facial-action-coding-system/).
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
   all vertices or to an existing facial mask, with a local undo/redo stack for those target edits.
+- Edit Target rotation shows X/Y/Z rings and pivot translation axes in the 3D viewport, following
+  the skeletal animation editor's gizmo interaction. Left dragging a ring fills the matching
+  rotation angle; left dragging an axis repositions the target's pivot. Right click can select a
+  neutral vertex and a button can place the pivot there. The pivot is project metadata keyed by
+  stable target ID. With the displacement overlay enabled, releasing the ring shows a draft
+  deformation before Apply; pressing Apply writes the rotated deltas to the MeshDebug candidate.
 - The worktree uses the same viewport controls as Masks: left drag orbits and middle drag pans.
   Right click picks a neutral vertex in Edit; right drag paints move/smooth deltas in Paint with
   radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
@@ -68,8 +74,9 @@ Save the facial project to retain the sculpt session, then export a new MSH for 
 
 For a clean asset with no imported targets, prepare a separate MSH candidate without facial targets;
 creating a new project alone is insufficient. A jaw-opening rotation also needs a pivot near the
-jaw hinge. The current batch rotation uses the placed face origin or the mesh bounds center, so
-the Move brush and masked Delta edit are more direct first tests of the native workflow.
+jaw hinge. In Edit Target, choose Rotate, right click a nearby neutral vertex, place the pivot there,
+then refine its location with the 3D axes. Drag a rotation ring to set the angle and press Apply.
+Restrict the vertex selection to a jaw mask before applying so the entire head does not rotate.
 
 There is still no ARKit/Faceit/vendor SDK adapter. Faceit remains a workflow reference for the
 future separation of shape channels from head/bone channels, not a runtime dependency.
@@ -106,23 +113,26 @@ manual target export and reload path for that asset. It does not establish that 
 opens the jaw anatomically, that the neck stays fixed, or that every target and facial clip has
 the intended content.
 
-The project file `Meg-facial-rig.lua` currently still names `Megan-weighted.msh` as its source
-mesh. Export updates the project mesh path in editor memory; it is written to the project file only
-when the project is saved afterward. The next persistence check is to save the project after export,
-reopen it, and verify that the exported mesh and target load without replaying the old sparse edits.
+At the time of this check, the project file `Meg-facial-rig.lua` still named `Megan-weighted.msh`
+as its source mesh. Export updates the project mesh path in editor memory; saving the project
+afterward persists that association. The MSH target payload has already passed a user-visible
+export/reload check in Mesh Debug. Saving and reopening the project after export remains a separate
+editor-session check, not a missing API for MSH persistence.
 
 ### Next acceptance step for the Megan workflow
 
-1. Complete the post-export project round trip above and compare the target at preview weights
-   0, 0.5, and 1 in Mesh Debug and the Facial Rig Editor.
+1. Try the 3D pivot gizmo on the Megan jaw, place it near the mandibular hinge, and compare the
+   edited target at preview weights 0, 0.5, and 1 in Mesh Debug and the Facial Rig Editor.
 2. Inspect the exported `jawOpen` deformation and the jaw/neck skeleton and skin weights. Confirm
    whether the neck movement comes from target deltas, skinning, the jaw pivot, or a combination.
 3. Author and review a jaw opening around the mandibular hinge, with upper-face and neck landmarks
    stable. Decide from that result whether a morph target alone is sufficient or the skeletal jaw
    lane in Phase 3 is required.
 
-The export plumbing has passed its first manual acceptance. The current native expression
-authoring milestone is not finished until the jaw result meets the Phase 0 anatomical criteria.
+The MSH write/read path for native targets has passed its first manual acceptance. The 3D pivot
+tool is now available for the next quality pass; its interaction and the anatomical result still
+need user validation. The broader native expression authoring milestone remains open until the jaw
+result meets the Phase 0 anatomical criteria.
 
 ## Why native authoring is needed
 
@@ -235,11 +245,13 @@ and diagnostics when the mesh, target, brush, mask, or camera input changes. Idl
 rescan all vertices, allocate dense arrays, or rewrite target data.
 
 The first implementation slices are the mask-scoped batch delta editor, neutral-surface vertex
-picking, move/smooth brush with bounded falloff, and on-change temporary candidate preview. Brush
-selection is based on the neutral topology: very large deformations can shift the visible surface
-away from the pick surface. Remaining work includes picking on the deformed surface, reliable
-normal-delta recomputation, region presets beyond project masks, and a direct in-memory preview
-bridge.
+picking, move/smooth brush with bounded falloff, a per-target 3D rotation pivot gizmo, and
+on-change temporary candidate preview. Rotation-ring dragging updates the draft angle; the
+displacement overlay shows the draft after release, while the MeshDebug candidate changes on
+Apply. Brush selection is based on the neutral topology: very large deformations can shift the
+visible surface away from the pick surface. Remaining work includes continuous textured draft
+preview during dragging, picking on the deformed surface, reliable normal-delta recomputation,
+region presets beyond project masks, and a direct in-memory preview bridge.
 
 ### Phase 3 - Jaw/head skeletal authoring lane
 
