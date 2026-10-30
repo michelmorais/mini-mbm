@@ -5425,11 +5425,6 @@ refreshMaskVisualization=function()
     local visualization=state.maskVisualization
     if visualization.building then return end
     if not visualization.dirty then return end
-    if visualization.keepSurfaceWhileDirty and visualization.surface and visualization.visible and
-            state.workspace=='masks' then
-        visualization.dirty=false
-        return
-    end
     setMaskVisualizationViewportVisible(true)
     visualization.dirty=false
 end
