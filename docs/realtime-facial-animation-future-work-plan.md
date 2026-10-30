@@ -88,6 +88,13 @@ The mask is a binary vertex selection; use Paint/Smooth near the edge if the rot
 visible seam. Existing role masks continue to serve rig binding, while target selection masks
 serve sculpting only.
 
+The Masks / Regions worktree now has three modes: Rig roles for source-object and rig-role setup,
+Manage masks for creation and metadata, and Edit selection for viewport painting and boundary-loop
+selection. The mask list remains available in the latter two modes. Right-click mask edits are
+active only in Edit selection; changing modes keeps the selected mask and restores the textured
+mesh outside the edit mode. Entering Edit selection or switching masks there starts the shader
+surface build when needed; vertex-only edits update the existing surface.
+
 Masks / Regions now also has a Select open boundary loop checkbox. With it enabled, right click
 near a mesh boundary to add or remove that entire closed loop using the current Add/Remove mode.
 Changed vertices update the existing mask shader and selection counts immediately, without a

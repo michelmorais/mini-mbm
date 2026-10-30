@@ -58,7 +58,7 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskEditMode='add', maskLoopMode=false, maskLoopCache=nil,
+    selectedMask=1, maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskBrushRadius=0.045,
     maskBrushReference={key=nil,extent=nil},
@@ -159,7 +159,7 @@ local function setMaskVisualizationViewportVisible(visible)
     local visualization=state.maskVisualization
     local surfaceCanRemainVisible=visualization.keepSurfaceWhileDirty and visualization.surface~=nil
     local show=visible and visualization.visible and (not visualization.needsBuild or surfaceCanRemainVisible) and
-        not visualization.building and state.workspace=='masks'
+        not visualization.building and state.workspace=='masks' and state.maskWorkspaceMode==3
     if show and visualization.surface and state.mesh then
         if not visualization.meshHidden then
             visualization.meshWasVisible=state.mesh.visible~=false
@@ -3057,114 +3057,144 @@ local function deleteSelectedMask()
 end
 
 local function showMasks()
-    tImGui.TextWrapped(tLang.L('fre_masks_help'))
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
-    tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
-    tImGui.SetNextItemWidth(250)
-    local nameChanged,targetMaskName=tImGui.InputText(
-        tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
-    if nameChanged then state.targetMaskNameDraft=targetMaskName end
-    if tImGui.Button(tLang.L('fre_target_mask_create')) then
-        pushUndoSnapshot()
-        tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
-        state.selectedMask=#state.project.masks
-        state.project.selectedMask=state.selectedMask
-        state.targetMaskNameDraft=''
-        markMaskVisualizationDirty()
-        markModified()
+    local maskMode=state.maskWorkspaceMode or 2
+    if #(state.project.masks or {})==0 and maskMode==3 then maskMode=2 end
+    local previousMaskMode=state.maskWorkspaceMode
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_roles'),maskMode,1)
+    tImGui.SameLine()
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_manage'),maskMode,2)
+    tImGui.SameLine()
+    tImGui.BeginDisabled(#(state.project.masks or {})==0)
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_edit'),maskMode,3)
+    tImGui.EndDisabled()
+    state.maskWorkspaceMode=maskMode
+    if previousMaskMode~=maskMode then
+        state.maskBrushHover.lastHit=nil
+        setMaskVisualizationViewportVisible(true)
+        if maskMode==3 and state.project.masks[state.selectedMask] and
+                state.maskVisualization.needsBuild and not state.maskVisualization.building then
+            startMaskVisualizationBuild()
+        end
     end
-    showHelpTooltip(tLang.L('fre_target_mask_create_tooltip'))
+    tImGui.TextWrapped(tLang.L(maskMode==1 and 'fre_masks_roles_purpose' or
+        maskMode==2 and 'fre_masks_manage_purpose' or 'fre_masks_edit_purpose'))
     tImGui.Separator()
-    if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
-        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
-        tImGui.TableHeadersRow()
-        local guideRows={
-            {'fre_masks_guide_single_object','fre_masks_guide_single_object_action'},
-            {'fre_masks_guide_separate_objects','fre_masks_guide_separate_objects_action'},
-            {'fre_masks_guide_same_object_regions','fre_masks_guide_same_object_regions_action'}
-        }
-        for _,row in ipairs(guideRows) do
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-            tImGui.TextWrapped(tLang.L(row[1]))
-            tImGui.TableSetColumnIndex(1)
-            tImGui.TextWrapped(tLang.L(row[2]))
+    if maskMode==2 then
+        tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
+        tImGui.SetNextItemWidth(250)
+        local nameChanged,targetMaskName=tImGui.InputText(
+            tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
+        if nameChanged then state.targetMaskNameDraft=targetMaskName end
+        if tImGui.Button(tLang.L('fre_target_mask_create')) then
+            pushUndoSnapshot()
+            tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            state.selectedMask=#state.project.masks
+            state.project.selectedMask=state.selectedMask
+            state.targetMaskNameDraft=''
+            markMaskVisualizationDirty()
+            markModified()
         end
-        tImGui.EndTable()
-    end
-    tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
-    local roles=state.project.roles
-    local selected=roles[state.selectedRole] or roles[1]
-    if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_role_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_object_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_enabled_column'))
-        tImGui.TableHeadersRow()
-        for index,role in ipairs(roles) do
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-            local chosen=tImGui.Selectable(role.name,index==state.selectedRole)
-            if chosen then state.selectedRole=index end
-            tImGui.TableSetColumnIndex(1)
-            local objectLabels,objectValues=sourceObjectOptions(role.name)
-            sourceObjectCombo(role,index,objectLabels,objectValues)
-            showHelpTooltip(tLang.L('fre_source_object_tooltip'))
-            tImGui.TableSetColumnIndex(2)
-            tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
-        end
-        tImGui.EndTable()
-    end
-    if selected then
+        showHelpTooltip(tLang.L('fre_target_mask_create_tooltip'))
         tImGui.Separator()
-        tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
-        tImGui.TextWrapped(tLang.L('fre_source_object_help'))
-        local selectedRoleMaskCount=0
-        for _,mask in ipairs(state.project.masks or {}) do
-            if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==state.selectedRole and
-                    mask.enabled~=false and #(mask.vertices or {})>0 then
-                selectedRoleMaskCount=selectedRoleMaskCount + 1
+    end
+    if maskMode==1 then
+        tImGui.TextWrapped(tLang.L('fre_masks_help'))
+        if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
+            tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
+            tImGui.TableHeadersRow()
+            local guideRows={
+                {'fre_masks_guide_single_object','fre_masks_guide_single_object_action'},
+                {'fre_masks_guide_separate_objects','fre_masks_guide_separate_objects_action'},
+                {'fre_masks_guide_same_object_regions','fre_masks_guide_same_object_regions_action'}
+            }
+            for _,row in ipairs(guideRows) do
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                tImGui.TextWrapped(tLang.L(row[1]))
+                tImGui.TableSetColumnIndex(1)
+                tImGui.TextWrapped(tLang.L(row[2]))
             end
+            tImGui.EndTable()
         end
-        if selected.object~='' and selectedRoleMaskCount==0 then
-            tImGui.TextWrapped(string.format(tLang.L('fre_role_object_only_help'),selected.object))
+        tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
+        local roles=state.project.roles
+        local selected=roles[state.selectedRole] or roles[1]
+        if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_role_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_object_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_enabled_column'))
+            tImGui.TableHeadersRow()
+            for index,role in ipairs(roles) do
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                local chosen=tImGui.Selectable(role.name,index==state.selectedRole)
+                if chosen then state.selectedRole=index end
+                tImGui.TableSetColumnIndex(1)
+                local objectLabels,objectValues=sourceObjectOptions(role.name)
+                sourceObjectCombo(role,index,objectLabels,objectValues)
+                showHelpTooltip(tLang.L('fre_source_object_tooltip'))
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
+            end
+            tImGui.EndTable()
         end
-        tImGui.PushItemWidth(320)
-        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
-        if changed then state.sourceObjectDraft=object end
-        tImGui.PopItemWidth()
-        if tImGui.Button(tLang.L('fre_register_object')) then
-            local objectName=(state.sourceObjectDraft or ''):match('^%s*(.-)%s*$')
-            if objectName ~= '' then
+        if selected then
+            tImGui.Separator()
+            tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
+            tImGui.TextWrapped(tLang.L('fre_source_object_help'))
+            local selectedRoleMaskCount=0
+            for _,mask in ipairs(state.project.masks or {}) do
+                if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==state.selectedRole and
+                        mask.enabled~=false and #(mask.vertices or {})>0 then
+                    selectedRoleMaskCount=selectedRoleMaskCount + 1
+                end
+            end
+            if selected.object~='' and selectedRoleMaskCount==0 then
+                tImGui.TextWrapped(string.format(tLang.L('fre_role_object_only_help'),selected.object))
+            end
+            tImGui.PushItemWidth(320)
+            local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
+            if changed then state.sourceObjectDraft=object end
+            tImGui.PopItemWidth()
+            if tImGui.Button(tLang.L('fre_register_object')) then
+                local objectName=(state.sourceObjectDraft or ''):match('^%s*(.-)%s*$')
+                if objectName ~= '' then
+                    pushUndoSnapshot()
+                    tFacialProject.addSourceObject(state.project,objectName)
+                    selected.object=objectName
+                    state.sourceObjectDraft=''
+                    markModified()
+                end
+            end
+            showHelpTooltip(tLang.L('fre_register_object_tooltip'))
+            local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
+            showHelpTooltip(tLang.L('fre_role_enabled_tooltip'))
+            if enabled~=selected.enabled then
                 pushUndoSnapshot()
-                tFacialProject.addSourceObject(state.project,objectName)
-                selected.object=objectName
-                state.sourceObjectDraft=''
+                selected.enabled=enabled
                 markModified()
             end
+            if tImGui.Button(tLang.L('fre_add_mask')) then
+                pushUndoSnapshot()
+                tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                state.selectedMask=#state.project.masks
+                state.project.selectedMask=state.selectedMask
+                state.maskWorkspaceMode=2
+                markMaskVisualizationDirty()
+                markModified()
+            end
+            showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
+            if selected.name=='main_face' then
+                if tImGui.Button(tLang.L('fre_generate_face_mask')) then generateMainFaceMask() end
+                showHelpTooltip(tLang.L('fre_generate_face_mask_tooltip'))
+            end
         end
-        showHelpTooltip(tLang.L('fre_register_object_tooltip'))
-        local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
-        showHelpTooltip(tLang.L('fre_role_enabled_tooltip'))
-        if enabled~=selected.enabled then
-            pushUndoSnapshot()
-            selected.enabled=enabled
-            markModified()
-        end
-        if tImGui.Button(tLang.L('fre_add_mask')) then
-            pushUndoSnapshot()
-            tFacialProject.addMask(state.project,selected.name,state.selectedRole)
-            state.selectedMask=#state.project.masks
-            markModified()
-        end
-        showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
-        if selected.name=='main_face' then
-            if tImGui.Button(tLang.L('fre_generate_face_mask')) then generateMainFaceMask() end
-            showHelpTooltip(tLang.L('fre_generate_face_mask_tooltip'))
-        end
+        return
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
@@ -3181,6 +3211,7 @@ local function showMasks()
                 state.selectedMask=index
                 state.maskDeletePending=nil
                 markMaskVisualizationDirty()
+                if maskMode==3 then startMaskVisualizationBuild() end
             end
             tImGui.TableSetColumnIndex(1)
             local rigMask=tFacialProject.isRigMask(mask)
@@ -3196,133 +3227,142 @@ local function showMasks()
     if selectedMask then
         local visualizationReady=not state.maskVisualization.building and
             (not state.maskVisualization.needsBuild or state.maskVisualization.surface~=nil)
-        if state.maskVisualization.building then
-            local total=math.max(state.maskVisualization.buildTotal,1)
-            local progress=math.max(0,math.min(1,(state.maskVisualization.buildCursor-1)/total))
-            tImGui.Text(tLang.L('fre_mask_visualization_building'))
-            tImGui.ProgressBar(progress,{x=-1,y=0},string.format('%.0f%%',progress*100))
-        else
-            local buildLabel=state.maskVisualization.needsBuild and
-                tLang.L('fre_mask_visualization_generate') or
-                tLang.L('fre_mask_visualization_refresh')
-            if tImGui.Button(buildLabel .. '##freMaskVisualizationBuild') then
-                startMaskVisualizationBuild()
-                visualizationReady=false
-            end
-            showHelpTooltip(tLang.L('fre_mask_visualization_generate_tooltip'))
-            if state.maskVisualization.needsBuild then
-                tImGui.TextWrapped(tLang.L('fre_mask_visualization_pending'))
-            end
-        end
-        tImGui.Separator()
-        tImGui.BeginDisabled(not visualizationReady)
-        tImGui.PushItemWidth(320)
-        local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
-        if changed and name~='' then
-            local duplicate=false
-            for index,mask in ipairs(state.project.masks or {}) do
-                if index~=state.selectedMask and mask.name==name then duplicate=true break end
-            end
-            if duplicate then
-                setStatus(tLang.L('fre_mask_name_duplicate'),true)
+        if maskMode==3 then
+            if state.maskVisualization.building then
+                local total=math.max(state.maskVisualization.buildTotal,1)
+                local progress=math.max(0,math.min(1,(state.maskVisualization.buildCursor-1)/total))
+                tImGui.Text(tLang.L('fre_mask_visualization_building'))
+                tImGui.ProgressBar(progress,{x=-1,y=0},string.format('%.0f%%',progress*100))
             else
+                local buildLabel=state.maskVisualization.needsBuild and
+                    tLang.L('fre_mask_visualization_generate') or
+                    tLang.L('fre_mask_visualization_refresh')
+                if tImGui.Button(buildLabel .. '##freMaskVisualizationBuild') then
+                    startMaskVisualizationBuild()
+                    visualizationReady=false
+                end
+                showHelpTooltip(tLang.L('fre_mask_visualization_generate_tooltip'))
+                if state.maskVisualization.needsBuild then
+                    tImGui.TextWrapped(tLang.L('fre_mask_visualization_pending'))
+                end
+            end
+            tImGui.Separator()
+        end
+        if maskMode==2 then
+            tImGui.PushItemWidth(320)
+            local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
+            if changed and name~='' then
+                local duplicate=false
+                for index,mask in ipairs(state.project.masks or {}) do
+                    if index~=state.selectedMask and mask.name==name then duplicate=true break end
+                end
+                if duplicate then
+                    setStatus(tLang.L('fre_mask_name_duplicate'),true)
+                else
+                    pushUndoSnapshot()
+                    selectedMask.name=name
+                    markModified()
+                end
+            end
+            tImGui.PopItemWidth()
+            if tFacialProject.isRigMask(selectedMask) then
+                local roleNames=tFacialProject.roleNames()
+                tImGui.SetNextItemWidth(240)
+                local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
+                showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
+                if roleChanged then
+                    pushUndoSnapshot()
+                    selectedMask.roleIndex=roleIndex
+                    markModified()
+                end
+            else
+                tImGui.TextWrapped(tLang.L('fre_target_mask_scope_help'))
+            end
+            local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
+                selectedMask.enabled~=false)
+            showHelpTooltip(tLang.L('fre_mask_enabled_tooltip'))
+            if maskEnabled ~= (selectedMask.enabled~=false) then
                 pushUndoSnapshot()
-                selectedMask.name=name
+                selectedMask.enabled=maskEnabled
+                markMaskVisualizationDirty()
                 markModified()
             end
+            tImGui.Separator()
         end
-        tImGui.PopItemWidth()
-        if tFacialProject.isRigMask(selectedMask) then
-            local roleNames=tFacialProject.roleNames()
-            tImGui.SetNextItemWidth(240)
-            local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
-            showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
-            if roleChanged then
-                pushUndoSnapshot()
-                selectedMask.roleIndex=roleIndex
-                markModified()
-            end
-        else
-            tImGui.TextWrapped(tLang.L('fre_target_mask_scope_help'))
-        end
-        local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
-            selectedMask.enabled~=false)
-        showHelpTooltip(tLang.L('fre_mask_enabled_tooltip'))
-        if maskEnabled ~= (selectedMask.enabled~=false) then
-            pushUndoSnapshot()
-            selectedMask.enabled=maskEnabled
-            markMaskVisualizationDirty()
-            markModified()
-        end
-        tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
-        tImGui.Text(tLang.L('fre_mask_edit_mode'))
-        local editMode=state.maskEditMode=='remove' and 2 or 1
-        editMode=tImGui.RadioButton(tLang.L('fre_mask_add_vertices'),editMode,1)
-        tImGui.SameLine()
-        editMode=tImGui.RadioButton(tLang.L('fre_mask_remove_vertices'),editMode,2)
-        state.maskEditMode=editMode==2 and 'remove' or 'add'
-        showHelpTooltip(state.maskEditMode=='remove' and
-            tLang.L('fre_mask_remove_vertices_tooltip') or
-            tLang.L('fre_mask_add_vertices_tooltip'))
-        local loopMode=tImGui.Checkbox(tLang.L('fre_mask_loop_mode'),state.maskLoopMode)
-        if loopMode~=state.maskLoopMode then state.maskLoopMode=loopMode end
-        showHelpTooltip(tLang.L('fre_mask_loop_mode_tooltip'))
-        local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
-            tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
-        if brushRadiusChanged then state.maskBrushRadius=brushRadius end
-        showHelpTooltip(tLang.L('fre_mask_brush_radius_tooltip'))
-        local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
-            tLang.L('fre_mask_mode_add')
-        tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
-        local modeHelp
-        if state.maskLoopMode then
-            modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_loop_remove_help' or
-                'fre_mask_loop_add_help')
-        else
-            modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_remove_mode_help' or
-                'fre_mask_add_mode_help')
-        end
-        tImGui.TextWrapped(modeHelp)
-        if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help')) end
-        tImGui.TextWrapped(tLang.L(state.maskLoopMode and 'fre_mask_loop_help' or 'fre_mask_click_help'))
-        if visualizationReady then
-            local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
-            showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
-            if showMask~=state.maskVisualization.visible then
-                state.maskVisualization.visible=showMask
-                state.maskVisualization.dirty=true
-            end
-        else
-            tImGui.TextDisabled(tLang.L('fre_mask_visualization_unavailable'))
-        end
-        tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
-            state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
-        if tImGui.Button(tLang.L('fre_mask_clear')) then
-            pushUndoSnapshot()
-            selectedMask.vertices={}
-            markMaskVisualizationDirty()
-            markModified()
-        end
-        showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
-        tImGui.SameLine()
-        if state.maskDeletePending==state.selectedMask then
-            if tImGui.Button(tLang.L('fre_mask_delete_confirm') .. '##freMaskDeleteConfirm') then
-                deleteSelectedMask()
-            end
+        if maskMode==3 then
+            tImGui.BeginDisabled(not visualizationReady)
+            if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_help')) end
+            tImGui.Text(tLang.L('fre_mask_edit_mode'))
+            local editMode=state.maskEditMode=='remove' and 2 or 1
+            editMode=tImGui.RadioButton(tLang.L('fre_mask_add_vertices'),editMode,1)
             tImGui.SameLine()
-            if tImGui.Button(tLang.L('fre_mask_delete_cancel') .. '##freMaskDeleteCancel') then
-                state.maskDeletePending=nil
+            editMode=tImGui.RadioButton(tLang.L('fre_mask_remove_vertices'),editMode,2)
+            state.maskEditMode=editMode==2 and 'remove' or 'add'
+            showHelpTooltip(state.maskEditMode=='remove' and
+                tLang.L('fre_mask_remove_vertices_tooltip') or
+                tLang.L('fre_mask_add_vertices_tooltip'))
+            local loopMode=tImGui.Checkbox(tLang.L('fre_mask_loop_mode'),state.maskLoopMode)
+            if loopMode~=state.maskLoopMode then state.maskLoopMode=loopMode end
+            showHelpTooltip(tLang.L('fre_mask_loop_mode_tooltip'))
+            local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
+                tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
+            if brushRadiusChanged then state.maskBrushRadius=brushRadius end
+            showHelpTooltip(tLang.L('fre_mask_brush_radius_tooltip'))
+            local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
+                tLang.L('fre_mask_mode_add')
+            tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
+            local modeHelp
+            if state.maskLoopMode then
+                modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_loop_remove_help' or
+                    'fre_mask_loop_add_help')
+            else
+                modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_remove_mode_help' or
+                    'fre_mask_add_mode_help')
             end
-        else
-            if tImGui.Button(tLang.L('fre_mask_delete') .. '##freMaskDelete') then
-                state.maskDeletePending=state.selectedMask
+            tImGui.TextWrapped(modeHelp)
+            if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help')) end
+            tImGui.TextWrapped(tLang.L(state.maskLoopMode and 'fre_mask_loop_help' or 'fre_mask_click_help'))
+            if visualizationReady then
+                local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
+                showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
+                if showMask~=state.maskVisualization.visible then
+                    state.maskVisualization.visible=showMask
+                    state.maskVisualization.dirty=true
+                end
+            else
+                tImGui.TextDisabled(tLang.L('fre_mask_visualization_unavailable'))
             end
-            showHelpTooltip(tLang.L('fre_mask_delete_tooltip'))
+            tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
+                state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
+            tImGui.EndDisabled()
         end
-        if state.maskDeletePending==state.selectedMask then
-            tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
+        if maskMode==2 then
+            if tImGui.Button(tLang.L('fre_mask_clear')) then
+                pushUndoSnapshot()
+                selectedMask.vertices={}
+                markMaskVisualizationDirty()
+                markModified()
+            end
+            showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
+            tImGui.SameLine()
+            if state.maskDeletePending==state.selectedMask then
+                if tImGui.Button(tLang.L('fre_mask_delete_confirm') .. '##freMaskDeleteConfirm') then
+                    deleteSelectedMask()
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('fre_mask_delete_cancel') .. '##freMaskDeleteCancel') then
+                    state.maskDeletePending=nil
+                end
+            else
+                if tImGui.Button(tLang.L('fre_mask_delete') .. '##freMaskDelete') then
+                    state.maskDeletePending=state.selectedMask
+                end
+                showHelpTooltip(tLang.L('fre_mask_delete_tooltip'))
+            end
+            if state.maskDeletePending==state.selectedMask then
+                tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
+            end
         end
-        tImGui.EndDisabled()
     end
 end
 
@@ -5627,7 +5667,7 @@ updateMaskBrushHover=function(x,y)
         x,y=hover.pendingX,hover.pendingY
     end
     if not hover or x==nil or y==nil then return end
-    if state.workspace~='masks' or state.maskVisualization.building or
+    if state.workspace~='masks' or state.maskWorkspaceMode~=3 or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then
         if hover and hover.cursor then hover.cursor.visible=false end
         return
@@ -5664,7 +5704,7 @@ end
 
 drawMaskBrushScreenCursor=function()
     local hover=state.maskBrushHover
-    if not hover or state.workspace~='masks' or not hover.lastHit or
+    if not hover or state.workspace~='masks' or state.maskWorkspaceMode~=3 or not hover.lastHit or
             not hover.lastX or not hover.lastY or tImGui.GetWantCaptureMouse() then return end
     local mouse=tImGui.GetMousePos()
     local mouseX=mouse and tonumber(mouse.x) or hover.lastX
@@ -6083,7 +6123,7 @@ function onTouchDown(key,x,y)
         setMaskVisualizationViewportVisible(false)
         return
     end
-    if key==1 and state.workspace=='masks' then
+    if key==1 and state.workspace=='masks' and state.maskWorkspaceMode==3 then
         if state.maskLoopMode then selectMaskBoundaryLoop(x,y)
         else beginMaskBrush(x,y) end
         return
@@ -6157,7 +6197,8 @@ function onTouchMove(key,x,y)
         state.targetBrushHover.pendingX=x
         state.targetBrushHover.pendingY=y
     end
-    if state.workspace=='masks' and not state.cameraDrag and not state.cameraPan then
+    if state.workspace=='masks' and state.maskWorkspaceMode==3 and
+            not state.cameraDrag and not state.cameraPan then
         state.maskBrushHover.pendingX=x
         state.maskBrushHover.pendingY=y
     end
