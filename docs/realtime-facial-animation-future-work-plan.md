@@ -88,6 +88,15 @@ The mask is a binary vertex selection; use Paint/Smooth near the edge if the rot
 visible seam. Existing role masks continue to serve rig binding, while target selection masks
 serve sculpting only.
 
+Masks / Regions now also has a Select open boundary loop checkbox. With it enabled, right click
+near a mesh boundary to add or remove that entire closed loop using the current Add/Remove mode.
+The brush radius defines the search distance. The clicked triangle selects the connected surface
+first, because distinct loops can occupy the same 3D positions. This detects edges used by one
+triangle; it does not detect quad edge loops in sealed topology, split welded vertices, or create
+mouth interior geometry. A read-only inspection of the supplied `Megan-weighted.msh` and saved
+`mandibula_inferior` mask found two coincident closed boundary loops of 48 vertices each, with 11
+vertices from each loop already in that mask. Their anatomical meaning still needs visual review.
+
 There is still no ARKit/Faceit/vendor SDK adapter. Faceit remains a workflow reference for the
 future separation of shape channels from head/bone channels, not a runtime dependency.
 

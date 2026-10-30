@@ -26,6 +26,7 @@ tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
+tFacialEdgeLoops = require "facial_rig_edge_loops"
 tFacialBridge = require "facial_rig_blender_bridge"
 tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
@@ -57,7 +58,7 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskEditMode='add',
+    selectedMask=1, maskEditMode='add', maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskBrushRadius=0.045,
     maskBrushReference={key=nil,extent=nil},
@@ -756,6 +757,7 @@ local function destroyMaskVisualization()
         lastTime=0,lastHit=nil,forceSurfaceHit=true}
     state.maskBrushReference={key=nil,extent=nil}
     state.maskBrushGeometry={signature=nil,bvh=nil}
+    state.maskLoopCache=nil
 end
 
 local function destroyPreview()
@@ -3262,6 +3264,9 @@ local function showMasks()
         showHelpTooltip(state.maskEditMode=='remove' and
             tLang.L('fre_mask_remove_vertices_tooltip') or
             tLang.L('fre_mask_add_vertices_tooltip'))
+        local loopMode=tImGui.Checkbox(tLang.L('fre_mask_loop_mode'),state.maskLoopMode)
+        if loopMode~=state.maskLoopMode then state.maskLoopMode=loopMode end
+        showHelpTooltip(tLang.L('fre_mask_loop_mode_tooltip'))
         local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
             tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
         if brushRadiusChanged then state.maskBrushRadius=brushRadius end
@@ -3269,11 +3274,17 @@ local function showMasks()
         local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
             tLang.L('fre_mask_mode_add')
         tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
-        local modeHelp=state.maskEditMode=='remove' and tLang.L('fre_mask_remove_mode_help') or
-            tLang.L('fre_mask_add_mode_help')
+        local modeHelp
+        if state.maskLoopMode then
+            modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_loop_remove_help' or
+                'fre_mask_loop_add_help')
+        else
+            modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_remove_mode_help' or
+                'fre_mask_add_mode_help')
+        end
         tImGui.TextWrapped(modeHelp)
-        tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help'))
-        tImGui.TextWrapped(tLang.L('fre_mask_click_help'))
+        if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help')) end
+        tImGui.TextWrapped(tLang.L(state.maskLoopMode and 'fre_mask_loop_help' or 'fre_mask_click_help'))
         if visualizationReady then
             local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
             showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
@@ -5448,7 +5459,7 @@ local function buildMaskBrushGeometry(vertices,cacheKey)
     for _,indices in ipairs(topology.triangles) do
         local a,b,c=vertices[indices[1]],vertices[indices[2]],vertices[indices[3]]
         if a and b and c then
-            triangles[#triangles+1]={a=a,b=b,c=c,
+            triangles[#triangles+1]={a=a,b=b,c=c,indices=indices,
                 minX=math.min(a.x,b.x,c.x),maxX=math.max(a.x,b.x,c.x),
                 minY=math.min(a.y,b.y,c.y),maxY=math.max(a.y,b.y,c.y),
                 minZ=math.min(a.z,b.z,c.z),maxZ=math.max(a.z,b.z,c.z),
@@ -5505,7 +5516,7 @@ local function maskBrushRayTriangle(ox,oy,oz,dx,dy,dz,triangle)
     nx,ny,nz=nx/length,ny/length,nz/length
     if nx*dx+ny*dy+nz*dz>0 then nx,ny,nz=-nx,-ny,-nz end
     return {distance=distance,point={x=ox+dx*distance,y=oy+dy*distance,z=oz+dz*distance},
-        normal={x=nx,y=ny,z=nz}}
+        normal={x=nx,y=ny,z=nz},indices=triangle.indices}
 end
 
 local function maskBrushSurfaceHit(x,y,geometry)
@@ -5838,6 +5849,49 @@ local function finishMaskBrush()
     markModified()
 end
 
+local function selectMaskBoundaryLoop(x,y)
+    local mask=state.project.masks and state.project.masks[state.selectedMask]
+    local topology=state.topology
+    if not mask or not topology or state.maskVisualization.building or
+            (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return end
+    local hit=maskBrushSurfaceHit(x,y)
+    if not hit then
+        setStatus(tLang.L('fre_mask_loop_no_boundary'),true)
+        return
+    end
+    local cache=state.maskLoopCache
+    if not cache or cache.signature~=topology.signature then
+        cache=tFacialEdgeLoops.build(topology)
+        state.maskLoopCache=cache
+    end
+    local indices,reason=tFacialEdgeLoops.nearest(cache,hit.point,maskBrushWorldRadius(),hit.indices)
+    if not indices then
+        setStatus(tLang.L(reason=='open_chain' and 'fre_mask_loop_open_chain' or
+            'fre_mask_loop_no_boundary'),true)
+        return
+    end
+    local present={}
+    for _,index in ipairs(mask.vertices or {}) do present[index]=true end
+    local changed=0
+    local add=state.maskEditMode~='remove'
+    for _,index in ipairs(indices) do
+        if add and not present[index] then present[index]=true; changed=changed+1
+        elseif not add and present[index] then present[index]=nil; changed=changed+1 end
+    end
+    if changed==0 then
+        setStatus(tLang.L('fre_mask_loop_unchanged'),false)
+        return
+    end
+    pushUndoSnapshot()
+    mask.vertices={}
+    for index in pairs(present) do mask.vertices[#mask.vertices+1]=index end
+    table.sort(mask.vertices)
+    mask.topologySignature=topology.signature
+    markMaskVisualizationDirty()
+    markModified()
+    setStatus(string.format(tLang.L('fre_mask_loop_selected_fmt'),changed),false)
+end
+
 local function targetBrushRadius()
     local bounds=state.meshBounds
     if not bounds then return 0 end
@@ -6009,7 +6063,8 @@ function onTouchDown(key,x,y)
         return
     end
     if key==1 and state.workspace=='masks' then
-        beginMaskBrush(x,y)
+        if state.maskLoopMode then selectMaskBoundaryLoop(x,y)
+        else beginMaskBrush(x,y) end
         return
     end
     if key==0 and state.controlDown and handleViewportAuthoringClick(x,y) then return end
