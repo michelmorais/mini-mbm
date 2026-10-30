@@ -68,7 +68,11 @@ metadata and target edits relative to that MSH, while the source MSH stores its 
 target deltas. To test native authoring without changing an imported expression, keep the current
 weighted MSH open, choose Add, enter a unique target name such as `jawOpen_manual_test`, and create
 a zero target. The editor selects it and opens Edit with preview weight 1 and the textured mesh.
-Switch to Paint and select a facial mask before using the Move brush. The brush uses
+In Masks / Regions, enter `jaw_lower` under New target mask name and choose Create Morph Target
+selection mask. Build its visualization, then paint the lower jaw, chin, and lower lip into this
+mask with the right mouse button. It has no rig role and does not change rig weight assignment.
+Return to Morph Targets and choose `Mask: jaw_lower` under Vertex selection in Edit or Paint.
+Switch to Paint before using the Move brush. The brush uses
 the entered X/Y/Z offset with radius and strength; mouse drag only places strokes. Smooth blends
 existing neighboring deltas and cannot create motion from a zero target. Edit can also start from
 zero deltas with a masked batch Delta X/Y/Z; without a mask the batch edit affects the entire mesh.
@@ -79,7 +83,10 @@ For a clean asset with no imported targets, prepare a separate MSH candidate wit
 creating a new project alone is insufficient. A jaw-opening rotation also needs a pivot near the
 jaw hinge. In Edit Target, choose Rotate, right click a nearby neutral vertex, place the pivot there,
 then refine its location with the 3D axes. Drag a rotation ring to set the angle and press Apply.
-Restrict the vertex selection to a jaw mask before applying so the entire head does not rotate.
+Restrict the vertex selection to the jaw mask before applying so the entire head does not rotate.
+The mask is a binary vertex selection; use Paint/Smooth near the edge if the rotation makes a
+visible seam. Existing role masks continue to serve rig binding, while target selection masks
+serve sculpting only.
 
 There is still no ARKit/Faceit/vendor SDK adapter. Faceit remains a workflow reference for the
 future separation of shape channels from head/bone channels, not a runtime dependency.

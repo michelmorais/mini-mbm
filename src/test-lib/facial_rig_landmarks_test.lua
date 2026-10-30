@@ -27,7 +27,7 @@ local surfaceHit=Landmarks.intersectRaySurface(surface,{x=0.2,y=0.2,z=2},{x=0,y=
 assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
     'surface snapping must intersect the selected triangle')
 local project=Project.new()
-assert(project.schemaVersion==9 and project.landmarkEditMode==1)
+assert(project.schemaVersion==10 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'

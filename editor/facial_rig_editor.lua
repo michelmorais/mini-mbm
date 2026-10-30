@@ -1402,7 +1402,7 @@ local function generateMainFaceMask()
     end
     local selectedMask
     for index,mask in ipairs(state.project.masks or {}) do
-        if (mask.roleIndex or 1)==roleIndex and mask.enabled~=false then
+        if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==roleIndex and mask.enabled~=false then
             selectedMask=mask; state.selectedMask=index; break
         end
     end
@@ -3060,6 +3060,22 @@ local function showMasks()
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
+    tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
+    tImGui.SetNextItemWidth(250)
+    local nameChanged,targetMaskName=tImGui.InputText(
+        tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
+    if nameChanged then state.targetMaskNameDraft=targetMaskName end
+    if tImGui.Button(tLang.L('fre_target_mask_create')) then
+        pushUndoSnapshot()
+        tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+        state.selectedMask=#state.project.masks
+        state.project.selectedMask=state.selectedMask
+        state.targetMaskNameDraft=''
+        markMaskVisualizationDirty()
+        markModified()
+    end
+    showHelpTooltip(tLang.L('fre_target_mask_create_tooltip'))
+    tImGui.Separator()
     if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
         tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
         tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
@@ -3106,7 +3122,8 @@ local function showMasks()
         tImGui.TextWrapped(tLang.L('fre_source_object_help'))
         local selectedRoleMaskCount=0
         for _,mask in ipairs(state.project.masks or {}) do
-            if (mask.roleIndex or 1)==state.selectedRole and mask.enabled~=false and #(mask.vertices or {})>0 then
+            if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==state.selectedRole and
+                    mask.enabled~=false and #(mask.vertices or {})>0 then
                 selectedRoleMaskCount=selectedRoleMaskCount + 1
             end
         end
@@ -3164,8 +3181,10 @@ local function showMasks()
                 markMaskVisualizationDirty()
             end
             tImGui.TableSetColumnIndex(1)
-            local role=state.project.roles[mask.roleIndex or 1]
-            tImGui.Text(role and role.name or tLang.L('fre_unassigned'))
+            local rigMask=tFacialProject.isRigMask(mask)
+            local role=rigMask and state.project.roles[mask.roleIndex or 1]
+            tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
+                tLang.L('fre_target_mask_scope'))
             tImGui.TableSetColumnIndex(2)
             tImGui.Text(tostring(#(mask.vertices or {})))
         end
@@ -3211,14 +3230,18 @@ local function showMasks()
             end
         end
         tImGui.PopItemWidth()
-        local roleNames=tFacialProject.roleNames()
-        tImGui.SetNextItemWidth(240)
-        local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
-        showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
-        if roleChanged then
-            pushUndoSnapshot()
-            selectedMask.roleIndex=roleIndex
-            markModified()
+        if tFacialProject.isRigMask(selectedMask) then
+            local roleNames=tFacialProject.roleNames()
+            tImGui.SetNextItemWidth(240)
+            local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
+            showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
+            if roleChanged then
+                pushUndoSnapshot()
+                selectedMask.roleIndex=roleIndex
+                markModified()
+            end
+        else
+            tImGui.TextWrapped(tLang.L('fre_target_mask_scope_help'))
         end
         local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
             selectedMask.enabled~=false)
@@ -3481,7 +3504,7 @@ local function mainFaceSurfaceVertices()
     local allowed={}
     local count=0
     for _,mask in ipairs(state.project.masks or {}) do
-        if mask.enabled~=false and mask.roleIndex==mainFaceRole then
+        if tFacialProject.isRigMask(mask) and mask.enabled~=false and mask.roleIndex==mainFaceRole then
             for _,vertex in ipairs(mask.vertices or {}) do
                 local index=tonumber(vertex)
                 if index and not allowed[index] then allowed[index]=true; count=count+1 end
