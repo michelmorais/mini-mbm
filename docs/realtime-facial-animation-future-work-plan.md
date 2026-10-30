@@ -37,8 +37,9 @@ The first native authoring slice is available on this branch:
   Right click picks a neutral vertex in Edit; right drag paints move/smooth deltas in Paint with
   radius, strength, and optional mask filtering. Add leaves right click inactive. Each paint stroke
   commits once on release and enters the same local undo/redo history.
-- A contextual Ctrl indicator appears while Ctrl is held. Ctrl + left click can change placement
-  in Face Position and Landmarks; Ctrl + right click has no distinct action in Morph Targets or Masks.
+- A contextual Ctrl indicator appears while Ctrl is held in Face Position or Landmarks, where
+  Ctrl + left click changes placement. Ctrl + right click has no distinct action in Morph Targets
+  or Masks, so these worktrees do not show the indicator.
 - After a committed target edit, the viewport loads a temporary MSH candidate once and displays
   the selected target at the chosen preview weight. The editor project stores the selected target
   ID and preview weight when saved. It also stores changed/new targets as sparse delta overrides

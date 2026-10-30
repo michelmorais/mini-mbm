@@ -4491,12 +4491,10 @@ local function showMainPanel()
             tImGui.TextDisabled(tLang.L('fre_unsaved_project'))
         end
         showStatus()
-        if state.controlDown then
+        if state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
             tImGui.TextColored({r=1,g=0.8,b=0.25,a=1},tLang.L('fre_ctrl_pressed'))
             local hintKey=state.workspace=='face_position' and 'fre_ctrl_face_hint' or
-                state.workspace=='landmarks' and 'fre_ctrl_landmarks_hint' or
-                (state.workspace=='targets' or state.workspace=='masks') and 'fre_ctrl_mouse_unchanged_hint' or
-                'fre_ctrl_shortcuts_hint'
+                'fre_ctrl_landmarks_hint'
             tImGui.TextWrapped(tLang.L(hintKey))
         end
         tImGui.Separator()
