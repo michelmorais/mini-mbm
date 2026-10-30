@@ -169,7 +169,7 @@ local function setMaskVisualizationViewportVisible(visible)
         state.mesh.visible=visualization.meshWasVisible
         visualization.meshHidden=false
     end
-    if visualization.surface then visualization.surface.visible=show end
+    if visualization.surface then visualization.surface.visible=show and visualization.meshWasVisible end
     if visualization.faces then visualization.faces.visible=show end
     if visualization.markers then visualization.markers.visible=show end
     if state.maskBrushHover and state.maskBrushHover.cursor then
@@ -2991,19 +2991,14 @@ local function selectWorkspace(workspace)
     state.targetBrushHover.pendingX=nil
     state.targetBrushHover.pendingY=nil
     state.targetBrushHover.lastHit=nil
+    -- Release the previous surface before the new worktree claims mesh visibility.
+    if state.workspace~='masks' then setMaskVisualizationViewportVisible(false) end
     if state.workspace~='targets' and state.targetOverlay.building then
         destroyTargetOverlay()
     else
         setTargetOverlayVisible(true)
     end
-    -- The mask overlay owns the primary mesh visibility while it is active.
-    -- Restore that ownership immediately when leaving the mask worktree so a
-    -- dirty surface kept during brush edits cannot hide the mesh elsewhere.
-    if state.workspace=='masks' then
-        setMaskVisualizationViewportVisible(true)
-    else
-        setMaskVisualizationViewportVisible(false)
-    end
+    if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
     if state.workspace~='masks' and state.maskVisualization.building then
         state.maskVisualization.building=false
         state.maskVisualization.buildSelected=nil
@@ -4603,8 +4598,21 @@ local function showCameraPanel()
             tImGui.EndDisabled()
             tImGui.SameLine()
         end
-        local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
-        if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
+        local overlay=state.workspace=='targets' and state.targetOverlay or
+            state.workspace=='masks' and state.maskVisualization or nil
+        local meshVisible=state.mesh and (overlay and overlay.meshHidden and overlay.meshWasVisible or
+            (not overlay or not overlay.meshHidden) and state.mesh.visible) or false
+        local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),meshVisible)
+        if state.mesh and visible~=meshVisible then
+            if overlay and overlay.meshHidden then
+                overlay.meshWasVisible=visible
+                if state.workspace=='targets' then setTargetOverlayVisible(true)
+                else setMaskVisualizationViewportVisible(true) end
+            else
+                state.mesh.visible=visible
+            end
+            markLandmarkMarkersDirty()
+        end
         tImGui.Separator()
         if tUtil.drawOrbitGizmo(state.camera,{size=110}) then applyCamera() end
         tImGui.Separator()
@@ -5015,7 +5023,7 @@ setTargetOverlayVisible=function(visible)
         state.mesh.visible=overlay.meshWasVisible
         overlay.meshHidden=false
     end
-    if overlay.surface then overlay.surface.visible=show end
+    if overlay.surface then overlay.surface.visible=show and overlay.meshWasVisible end
 end
 
 destroyTargetOverlay=function()

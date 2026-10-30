@@ -57,7 +57,9 @@ The first native authoring slice is available on this branch:
   it rebuilds when the target or geometry changes and updates its vertex/UV buffers for draft
   rotations. While enabled, it replaces the textured mesh. Changing Preview weight switches to
   the textured mesh and keeps the selected weight; the overlay toggle can enable the heat map
-  again, including at weight zero, where it shows neutral geometry.
+  again, including at weight zero, where it shows neutral geometry. The Viewport Facial Show mesh
+  checkbox controls the desired visibility of either surface; hiding it leaves the heat map
+  option selected, so showing the mesh again restores the heat map.
 
 ### Manual authoring trial
 
