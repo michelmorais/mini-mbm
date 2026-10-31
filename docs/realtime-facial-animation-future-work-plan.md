@@ -169,10 +169,20 @@ inspect the apparent upper/lower-lip attachment. The user considers the first Me
 complete. This records the asset and authoring result; the exact lip vertex-sharing relationship
 was not reported, and the separate project-after-export reopen check is still unreported.
 
+After using the maximum Soft edge setting for the jaw rotation, the user observed that the lips
+open and saved both the facial project and the exported `Megan-morph-target-test.msh`. The saved
+project now names that MSH as its mesh source and includes target-selection masks
+`mandibula_inferior` and `test_lips`. The lower-lip corners still look stretched. This visual
+result shows the mesh can produce a visible opening with the current morph workflow; it does not
+by itself prove that no vertices are shared anywhere along the mouth. The next local cleanup is
+to inspect the corner vertices and adjust the authored deltas there. The existing Paint Target
+Smooth/Move brushes and a narrowly scoped target mask can be tried before adding another tool.
+
 ### Remaining quality checks for the Megan workflow
 
-1. Refine the facial `jawOpen` around the hinge, then inspect the closed, half-open, and fully open
-   shapes in the Facial Rig Editor and Mesh Debug. Check the upper face, chin, neck, and nape.
+1. Refine the facial `jawOpen` around the hinge, including the stretched lower-lip corners, then
+   inspect the closed, half-open, and fully open shapes in the Facial Rig Editor and Mesh Debug.
+   Check the upper face, chin, neck, and nape.
 2. Inspect mouth-edge topology to distinguish shared lip vertices from coincident but independent
    edges. Decide whether the source mesh needs a split and inner-mouth geometry; mask painting
    cannot change topology.
