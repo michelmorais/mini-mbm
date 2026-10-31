@@ -1,6 +1,6 @@
 # Real-Time Facial Animation - Future Work
 
-Status: **Implementation in progress; the facial runtime and basic native target authoring are available. A manual target has been exported and verified in Mesh Debug.**
+Status: **Implementation in progress. The native morph-target jaw authoring goal has a user-validated visible opening, and the edited project and MSH were saved. Expression/clip runtime acceptance and SDK integration remain open.**
 
 The implemented facial runtime contract is documented with the engine state in:
 
@@ -84,9 +84,10 @@ creating a new project alone is insufficient. A jaw-opening rotation also needs 
 jaw hinge. In Edit Target, choose Rotate, right click a nearby neutral vertex, place the pivot there,
 then refine its location with the 3D axes. Drag a rotation ring to set the angle and press Apply.
 Restrict the vertex selection to the jaw mask before applying so the entire head does not rotate.
-The mask is a binary vertex selection; use Paint/Smooth near the edge if the rotation makes a
-visible seam. Existing role masks continue to serve rig binding, while target selection masks
-serve sculpting only.
+The mask is a binary vertex selection; use the optional Soft edge for the batch rotation and
+localized Paint Move corrections where needed. Smooth averages nearby deltas and may close the
+mouth gap, as the Megan trial demonstrated. Existing role masks continue to serve rig binding,
+while target selection masks serve sculpting only.
 
 The Masks / Regions worktree now has three modes: Rig roles for source-object and rig-role setup,
 Manage masks for creation and metadata, and Edit selection for viewport painting and boundary-loop
@@ -178,21 +179,35 @@ by itself prove that no vertices are shared anywhere along the mouth. The next l
 to inspect the corner vertices and adjust the authored deltas there. The existing Paint Target
 Smooth/Move brushes and a narrowly scoped target mask can be tried before adding another tool.
 
+### Manual validation - jaw opening and lip cleanup (2026-10-31)
+
+The user duplicated `jawOpenTest` into `jawOpenTest_copy`, then created the `labioInferior` target
+mask from an open boundary loop. Paint Target Smooth pulled the lips together again in this trial;
+the Move brush on the lower-lip selection opened them. The supplied screenshot shows a visible gap
+between upper and lower lips. The user saved `Meg-facial-rig.lua` and exported
+`Megan-morph-target-test.msh` again. A read-only check found the project references that MSH and
+contains `jawOpenTest_copy` plus `labioInferior`; both files exist with updated timestamps.
+
+This meets the initial goal of authoring a jaw-opening morph in the native Facial Rig Editor and
+persisting the result without relying on Blender for the target edit. It does not establish the
+quality of every preview weight or runtime clip, nor identify the exact lip topology. Smooth's
+result here is a concrete reason to keep Move for localized lower-lip corrections and consider a
+more controlled surface-aware smoothing tool later.
+
 ### Remaining quality checks for the Megan workflow
 
-1. Refine the facial `jawOpen` around the hinge, including the stretched lower-lip corners, then
-   inspect the closed, half-open, and fully open shapes in the Facial Rig Editor and Mesh Debug.
-   Check the upper face, chin, neck, and nape.
-2. Inspect mouth-edge topology to distinguish shared lip vertices from coincident but independent
-   edges. Decide whether the source mesh needs a split and inner-mouth geometry; mask painting
-   cannot change topology.
-3. Export the accepted target to MSH, reload it, and save/reopen the facial project after export to
-   verify that its mesh association and edits remain correct.
+1. Inspect the authored target at weights 0, 0.5, and 1 in the Facial Rig Editor and Mesh Debug.
+   Check the upper face, chin, neck, nape, and lip corners.
+2. If a mouth-edge artifact remains, inspect topology to distinguish shared lip vertices from
+   coincident but independent edges. A selection mask cannot change topology.
+3. Reload the newly exported MSH and reopen the saved facial project to confirm the final
+   `jawOpenTest_copy` deformation and project association in a fresh session.
 
 The MSH write/read path for native targets has passed its first manual acceptance. The 3D pivot
-tool is available and has been used for the jaw trial; the final anatomical result still needs
-validation. The broader native expression authoring milestone remains open until the jaw result
-meets the Phase 0 anatomical criteria.
+tool is available and has been used for the jaw trial. The user validated a visible morph-only jaw
+opening and saved the result. The broader expression/clip runtime milestone still needs a complete
+playback check; further anatomical review can refine the asset without reopening the initial
+authoring goal.
 
 ### Recommended order after the jaw comparison
 
@@ -203,8 +218,8 @@ meets the Phase 0 anatomical criteria.
    separate them.
 2. Improve target sculpt quality where the jaw trial exposed friction: a controllable soft edge
    for masked batch transforms is now available; next, show the textured draft before Apply and add
-   a reliable normal-delta recompute/preserve choice. Brush smoothing remains useful for manual
-   cleanup after a rotation.
+   a reliable normal-delta recompute/preserve choice. A more controlled smoothing tool may help
+   corners; the current Smooth brush closed the lip gap in the Megan trial, while Move restored it.
 3. Validate one complete morph-only expression and facial clip (`jawOpen`) through editor preview,
    MSH export, reload, and runtime playback. Then repeat with blink and an asymmetric expression.
 4. Add authoring conveniences such as target mirroring and clearer expression-reference
