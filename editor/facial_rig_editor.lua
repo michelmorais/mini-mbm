@@ -26,11 +26,15 @@ tImGui = require "ImGui"
 tUtil = require "editor_utils"
 tFacialProject = require "facial_rig_project"
 tFacialLandmarks = require "facial_rig_landmarks"
+tFacialEdgeLoops = require "facial_rig_edge_loops"
 tFacialBridge = require "facial_rig_blender_bridge"
 tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
+tFacialTargets = require "facial_rig_targets"
+tTargetGizmo = require "facial_rig_target_gizmo"
+tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
@@ -54,7 +58,7 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskEditMode='add',
+    selectedMask=1, maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskBrushRadius=0.045,
     maskBrushReference={key=nil,extent=nil},
@@ -78,6 +82,12 @@ local state = {
     bindingPlan={dirty=true,data=nil},
     facialSkeleton={dirty=true,data=nil},
     weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false},
+    targetAuthoring=tFacialTargets.new(),
+    targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,
+        targetId=nil,drag=nil,dirty=true},
+    targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false,
+        bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0},
+    targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
@@ -96,6 +106,14 @@ local startMaskVisualizationBuild
 local stepMaskVisualizationBuild
 local updateMaskBrushHover
 local drawMaskBrushScreenCursor
+local drawTargetBrushScreenCursor
+local updateTargetBrushHover
+local refreshTargetGizmo
+local setTargetOverlayVisible
+local startTargetOverlayBuild
+local stepTargetOverlayBuild
+local updateTargetOverlayLivePreview
+local destroyTargetOverlay
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
@@ -141,7 +159,7 @@ local function setMaskVisualizationViewportVisible(visible)
     local visualization=state.maskVisualization
     local surfaceCanRemainVisible=visualization.keepSurfaceWhileDirty and visualization.surface~=nil
     local show=visible and visualization.visible and (not visualization.needsBuild or surfaceCanRemainVisible) and
-        not visualization.building and state.workspace=='masks'
+        not visualization.building and state.workspace=='masks' and state.maskWorkspaceMode==3
     if show and visualization.surface and state.mesh then
         if not visualization.meshHidden then
             visualization.meshWasVisible=state.mesh.visible~=false
@@ -152,7 +170,7 @@ local function setMaskVisualizationViewportVisible(visible)
         state.mesh.visible=visualization.meshWasVisible
         visualization.meshHidden=false
     end
-    if visualization.surface then visualization.surface.visible=show end
+    if visualization.surface then visualization.surface.visible=show and visualization.meshWasVisible end
     if visualization.faces then visualization.faces.visible=show end
     if visualization.markers then visualization.markers.visible=show end
     if state.maskBrushHover and state.maskBrushHover.cursor then
@@ -668,6 +686,7 @@ local function restoreHistorySnapshot(snapshot)
     state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
+    state.targetGizmo.dirty=true
     markMaskVisualizationDirty()
     state.rigPreview.dirty=true
     state.rigReview.dirty=true
@@ -738,11 +757,20 @@ local function destroyMaskVisualization()
         lastTime=0,lastHit=nil,forceSurfaceHit=true}
     state.maskBrushReference={key=nil,extent=nil}
     state.maskBrushGeometry={signature=nil,bvh=nil}
+    state.maskLoopCache=nil
 end
 
 local function destroyPreview()
     destroyRigPreview()
     destroyMaskVisualization()
+    destroyTargetOverlay()
+    local targetGizmo=state.targetGizmo
+    for _,object in pairs(targetGizmo.rings) do dpCall(function() object:destroy() end) end
+    for _,object in pairs(targetGizmo.axes) do dpCall(function() object:destroy() end) end
+    if targetGizmo.center then dpCall(function() targetGizmo.center:destroy() end) end
+    state.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,
+        targetId=nil,drag=nil,dirty=true}
+    state.targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil}
     if state.facialComparison and state.facialComparison.mesh then
         -- This comparison instance is temporary. Clear the editor-only
         -- no-frustum-culling override before destroying it.
@@ -750,6 +778,12 @@ local function destroyPreview()
         dpCall(function() state.facialComparison.mesh:destroy() end)
     end
     state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
+    if state.targetAuthoring and state.targetAuthoring.previewPath then
+        if state.mesh then dpCall(function() state.mesh:destroy() end); state.mesh=nil end
+        dpCall(function() meshDebug:fakeRelease(state.targetAuthoring.previewPath) end)
+        os.remove(state.targetAuthoring.previewPath)
+        state.targetAuthoring.previewPath=nil
+    end
     for _,marker in ipairs(state.landmarkMarkers or {}) do
         dpCall(function() marker:destroy() end)
     end
@@ -1182,6 +1216,21 @@ local function applyRigidFacialWeights()
     return true
 end
 
+local function refreshExpressionCatalog()
+    if not state.mesh then
+        state.expressions.catalog={}
+        state.expressions.catalogDirty=false
+        return
+    end
+    local ok,catalog=dpCall(function() return tFacialExpressions.catalogFromMesh(state.mesh) end)
+    if not ok or type(catalog)~='table' then catalog={} end
+    state.expressions.catalog=catalog
+    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,catalog)
+    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#catalog>0 and #catalog or 1))
+    state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#(state.project.expressions.poses or {})>0 and #(state.project.expressions.poses or {}) or 1))
+    state.expressions.catalogDirty=false
+end
+
 local function materializeProjectFacialClips()
     if not state.meshDebug or state.exportWindow.includeProjectFacialClips==false then return true end
     local clips=state.project.clips or {}
@@ -1195,12 +1244,13 @@ local function materializeProjectFacialClips()
     end
     local function findEmbeddedClipIndex(clipName)
         local ok,total=dpCall(function() return state.meshDebug:getTotalFacialClips() end)
-        if not ok then return nil end
+        if not ok then return nil,false end
         for index=1,tonumber(total) or 0 do
             local nameOk,name=dpCall(function() return state.meshDebug:getFacialClipName(index) end)
-            if nameOk and name==clipName then return index end
+            if not nameOk then return nil,false end
+            if name==clipName then return index,true end
         end
-        return nil
+        return nil,true
     end
     for _,clip in ipairs(clips) do
         local validation=tFacialClips.validate(clip)
@@ -1210,7 +1260,11 @@ local function materializeProjectFacialClips()
         end
         -- Query the current list for every replacement. Removing an earlier clip
         -- shifts subsequent 1-based indices, so a cached name->index map is unsafe.
-        local oldIndex=findEmbeddedClipIndex(clip.name)
+        local oldIndex,lookupOk=findEmbeddedClipIndex(clip.name)
+        if not lookupOk then
+            setStatus(string.format(tLang.L('fre_export_clips_failed_fmt'),clip.name or ''),true)
+            return false
+        end
         if oldIndex then
             local removed,removedOk=dpCall(function() return state.meshDebug:removeFacialClip(oldIndex) end)
             if not removed or removedOk==false then
@@ -1240,6 +1294,9 @@ end
 
 local function canExportRuntimeMsh()
     if not state.meshDebug then return false end
+    if state.targetAuthoring and state.targetAuthoring.modified==true then
+        return true
+    end
     if state.weightAssignment.modified==true and state.weightAssignment.facialWeightsApplied==true then
         return true
     end
@@ -1270,8 +1327,24 @@ local function saveAssignedMesh()
     state.modified=true
     state.weightAssignment.modified=false
     state.weightAssignment.facialWeightsApplied=false
+    if state.targetAuthoring then
+        state.targetAuthoring.modified=false
+        state.targetAuthoring.previewDirty=true
+        state.targetAuthoring.createdIds={}
+        state.targetAuthoring.deletedBaseIds={}
+    end
+    state.project.morphTargetEdits=nil
     setStatus(string.format(tLang.L('fre_weight_assignment_saved_fmt'),shortName(path)),false)
     return true
+end
+
+local function saveAssignedMeshFromUi()
+    local callOk,saved=dpCall(saveAssignedMesh)
+    if not callOk then
+        setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
+        return false
+    end
+    return saved
 end
 
 local function inspectMesh(meshDebugObject)
@@ -1331,7 +1404,7 @@ local function generateMainFaceMask()
     end
     local selectedMask
     for index,mask in ipairs(state.project.masks or {}) do
-        if (mask.roleIndex or 1)==roleIndex and mask.enabled~=false then
+        if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==roleIndex and mask.enabled~=false then
             selectedMask=mask; state.selectedMask=index; break
         end
     end
@@ -1392,19 +1465,573 @@ local function markFaceGuideDirty()
     state.faceGuideDirty=true
 end
 
-local function refreshExpressionCatalog()
-    if not state.mesh then
-        state.expressions.catalog={}
-        state.expressions.catalogDirty=false
+local function refreshFacialTargetCatalog()
+    local authoring=state.targetAuthoring
+    if not state.meshDebug then
+        authoring.targets={}
+        authoring.vertexCount=0
+        authoring.catalogDirty=false
         return
     end
-    local ok,catalog=dpCall(function() return tFacialExpressions.catalogFromMesh(state.mesh) end)
+    local ok,catalog,vertexCount=dpCall(function()
+        return tFacialTargets.catalogFromDebug(state.meshDebug)
+    end)
     if not ok or type(catalog)~='table' then catalog={} end
-    state.expressions.catalog=catalog
-    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,catalog)
-    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#catalog>0 and #catalog or 1))
-    state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#(state.project.expressions.poses or {})>0 and #(state.project.expressions.poses or {}) or 1))
+    authoring.targets=catalog
+    authoring.vertexCount=math.max(tonumber(vertexCount) or 0,tonumber(state.meshVertexCount) or 0)
+    authoring.selectedTarget=math.max(1,math.min(authoring.selectedTarget or 1,#catalog>0 and #catalog or 1))
+    authoring.draftTargetIndex=nil
+    authoring.catalogDirty=false
+    state.targetOverlay.dirty=true
+    state.targetBrushGeometry=nil
+end
+
+local function markFacialTargetAuthoringModified()
+    state.targetAuthoring.modified=true
+    state.targetAuthoring.previewDirty=true
+    state.targetAuthoring.catalogDirty=true
+    state.targetOverlay.dirty=true
+    state.targetGizmo.dirty=true
+    refreshFacialTargetCatalog()
+    state.expressions.catalog=state.targetAuthoring.targets
+    state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,state.expressions.catalog)
+    state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#state.expressions.catalog>0 and #state.expressions.catalog or 1))
     state.expressions.catalogDirty=false
+    state.modified=true
+end
+
+local function targetAuthoringError(message)
+    setStatus(tLang.L('fre_target_authoring_failed') .. ': ' .. tostring(message or ''),true)
+end
+
+local function updateTargetPreviewWeights()
+    local authoring=state.targetAuthoring
+    if not state.mesh or not authoring or authoring.previewDirty then return end
+    for index=1,#authoring.targets do
+        local weight=index==authoring.selectedTarget and (authoring.previewWeight or 1) or 0
+        dpCall(function() return state.mesh:setFacialWeight(index,weight) end)
+    end
+    authoring.previewTarget=authoring.selectedTarget
+    setTargetOverlayVisible(true)
+end
+
+local function refreshTargetPreview()
+    local authoring=state.targetAuthoring
+    if not authoring or not authoring.previewDirty or not state.meshDebug or not state.mesh then return end
+    local path=tUtil.getTemporaryFilePath('_facial_target_preview.msh')
+    local savedOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,true) end)
+    if not savedOk or saved~=true then
+        os.remove(path)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    local candidate=mesh:new('3d')
+    local loadedOk,loaded=dpCall(function()
+        return candidate:setSkeletalSkinningMethod('auto') and meshDebug:loadMeshPreview(candidate,path)
+    end)
+    if not loadedOk or loaded~=true then
+        candidate:destroy()
+        dpCall(function() meshDebug:fakeRelease(path) end)
+        os.remove(path)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    dpCall(function() candidate:stopSkeletalAnimation() end)
+    candidate.alwaysRender=true
+    candidate.visible=state.targetOverlay.meshHidden and state.targetOverlay.meshWasVisible or state.mesh.visible
+    local old=state.mesh
+    if state.facialComparison and state.facialComparison.mesh then
+        state.facialComparison.mesh.alwaysRender=false
+        dpCall(function() state.facialComparison.mesh:destroy() end)
+        state.facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false}
+    end
+    candidate:setPos(0,0,0)
+    destroyTargetOverlay()
+    old.alwaysRender=false
+    dpCall(function() old:destroy() end)
+    if authoring.previewPath then
+        dpCall(function() meshDebug:fakeRelease(authoring.previewPath) end)
+        os.remove(authoring.previewPath)
+    end
+    state.mesh=candidate
+    authoring.previewPath=path
+    authoring.previewDirty=false
+    authoring.previewTarget=nil
+    state.preview.skeletalDirty=true
+    state.preview.activeSkeletal=nil
+    state.preview.authoredClipInitialized=false
+    updateTargetPreviewWeights()
+end
+
+local function showTargets()
+    local authoring=state.targetAuthoring
+    if authoring.catalogDirty then refreshFacialTargetCatalog() end
+    if not state.meshDebug then
+        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+        return
+    end
+    tImGui.TextWrapped(tLang.L('fre_targets_help'))
+    if #authoring.targets==0 then authoring.mode=1 end
+    local workMode=authoring.mode or 1
+    workMode=tImGui.RadioButton(tLang.L('fre_target_mode_add'),workMode,1)
+    showHelpTooltip(tLang.L('fre_target_mode_add_tooltip'))
+    tImGui.SameLine()
+    tImGui.BeginDisabled(#authoring.targets==0)
+    workMode=tImGui.RadioButton(tLang.L('fre_target_mode_edit'),workMode,2)
+    showHelpTooltip(tLang.L('fre_target_mode_edit_tooltip'))
+    tImGui.SameLine()
+    workMode=tImGui.RadioButton(tLang.L('fre_target_mode_paint'),workMode,3)
+    showHelpTooltip(tLang.L('fre_target_mode_paint_tooltip'))
+    tImGui.EndDisabled()
+    if workMode~=authoring.mode then state.targetBrushHover.lastHit=nil end
+    authoring.mode=workMode
+    tImGui.Separator()
+    local purposeKey=workMode==1 and 'fre_target_add_purpose' or
+        workMode==2 and 'fre_target_edit_purpose' or 'fre_target_paint_purpose'
+    tImGui.TextWrapped(tLang.L(purposeKey))
+    tImGui.Separator()
+    if workMode==1 then
+        tImGui.Text(string.format(tLang.L('fre_targets_vertex_count_fmt'),authoring.vertexCount or 0))
+        tImGui.Text(string.format(tLang.L('fre_targets_count_fmt'),#authoring.targets))
+        tImGui.SetNextItemWidth(300)
+        local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freNewTargetName',
+            authoring.newNameDraft or '')
+        showHelpTooltip(tLang.L('fre_target_name_tooltip'))
+        if nameChanged then authoring.newNameDraft=name end
+        tImGui.SetNextItemWidth(300)
+        local conventionChanged,_,convention=tImGui.Combo(
+            tLang.L('fre_target_convention')..'##freNewTargetConvention',
+            tFacialTargets.conventionIndex(authoring.newConventionDraft),tFacialTargets.conventions)
+        showHelpTooltip(tLang.L('fre_target_convention_tooltip'))
+        if conventionChanged then authoring.newConventionDraft=convention end
+        tImGui.SetNextItemWidth(300)
+        local weightChanged,weight=tImGui.SliderFloat(
+            tLang.L('fre_target_default_weight')..'##freNewTargetDefaultWeight',
+            authoring.newDefaultWeight or 0,0,1,'%.3f')
+        showHelpTooltip(tLang.L('fre_target_default_weight_tooltip'))
+        if weightChanged then authoring.newDefaultWeight=weight end
+        if tImGui.Button(tLang.L('fre_target_create')) then
+            local targetName=(authoring.newNameDraft or ''):match('^%s*(.-)%s*$')
+            if targetName=='' then
+                targetAuthoringError(tLang.L('fre_target_name_required'))
+            else
+                local positions=tFacialTargets.zeroDeltas(authoring.vertexCount)
+                local callOk,newIndex=dpCall(function()
+                    return state.meshDebug:addFacialTarget(targetName,authoring.newConventionDraft or '',
+                        authoring.newDefaultWeight or 0,positions)
+                end)
+                if callOk and newIndex then
+                    authoring.previewWeight=1
+                    authoring.selectionMode=1
+                    authoring.selectedVertex=nil
+                    markFacialTargetAuthoringModified()
+                    local created=tFacialTargets.find(authoring.targets,newIndex)
+                    if created then authoring.createdIds[created.id]=true end
+                    tFacialTargets.clearEditHistory(authoring)
+                    authoring.selectedTarget=newIndex
+                    authoring.newNameDraft=''
+                    authoring.mode=2
+                    authoring.editMode=1
+                    state.targetOverlay.visible=false
+                    setTargetOverlayVisible(false)
+                    state.targetOverlay.dirty=true
+                    setStatus(tLang.L('fre_target_created'),false)
+                else
+                    targetAuthoringError('could not create target')
+                end
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_create_tooltip'))
+        if authoring.modified and state.modified then
+            tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))
+        end
+        return
+    end
+    tImGui.Text(string.format(tLang.L('fre_targets_vertex_count_fmt'),authoring.vertexCount or 0))
+    if #authoring.targets==0 then
+        tImGui.TextDisabled(tLang.L('fre_targets_no_targets'))
+    else
+        tImGui.Text(string.format(tLang.L('fre_targets_count_fmt'),#authoring.targets))
+        if tImGui.BeginTable('freFacialTargets',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_target_name_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_target_convention_column'))
+            tImGui.TableHeadersRow()
+            for index,target in ipairs(authoring.targets) do
+                tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
+                if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
+                    authoring.selectedTarget=index
+                    state.targetGizmo.dirty=true
+                    authoring.draftTargetIndex=nil
+                    state.targetOverlay.dirty=true
+                    state.modified=true
+                    updateTargetPreviewWeights()
+                end
+                tImGui.TableSetColumnIndex(1)
+                tImGui.Text(target.convention~='' and target.convention or '-')
+            end
+            tImGui.EndTable()
+        end
+    end
+
+    local selected=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if selected then
+        tImGui.SetNextItemWidth(300)
+        local changed,value=tImGui.SliderFloat(tLang.L('fre_target_preview_weight')..'##freTargetPreviewWeight',
+            authoring.previewWeight or 1,0,1,'%.2f')
+        showHelpTooltip(tLang.L('fre_target_preview_weight_tooltip'))
+        if changed then
+            authoring.previewWeight=value
+            state.targetOverlay.visible=false
+            setTargetOverlayVisible(false)
+            state.modified=true
+            updateTargetPreviewWeights()
+        end
+        if authoring.previewTarget~=authoring.selectedTarget then updateTargetPreviewWeights() end
+    end
+    local overlayVisible=tImGui.Checkbox(tLang.L('fre_target_overlay'),state.targetOverlay.visible)
+    showHelpTooltip(tLang.L('fre_target_overlay_tooltip'))
+    if overlayVisible~=state.targetOverlay.visible then
+        state.targetOverlay.visible=overlayVisible
+        state.targetOverlay.dirty=true
+        setTargetOverlayVisible(true)
+    end
+    if workMode==2 then
+        if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
+            authoring.nameDraft=selected.name
+            authoring.conventionDraft=selected.convention or ''
+            authoring.defaultWeight=selected.defaultWeight or 0
+            authoring.draftTargetIndex=authoring.selectedTarget
+        end
+        tImGui.Separator()
+        tImGui.Text(tLang.L('fre_target_metadata_title'))
+        tImGui.SetNextItemWidth(300)
+        local nameChanged,name=tImGui.InputText(tLang.L('fre_target_name')..'##freTargetName',authoring.nameDraft or '')
+        showHelpTooltip(tLang.L('fre_target_name_tooltip'))
+        if nameChanged then authoring.nameDraft=name end
+        tImGui.SetNextItemWidth(300)
+        local conventionChanged,_,convention=tImGui.Combo(
+            tLang.L('fre_target_convention')..'##freTargetConvention',
+            tFacialTargets.conventionIndex(authoring.conventionDraft),tFacialTargets.conventions)
+        showHelpTooltip(tLang.L('fre_target_convention_tooltip'))
+        if conventionChanged then authoring.conventionDraft=convention end
+        if tFacialTargets.conventionIndex(authoring.conventionDraft)==0 then
+            tImGui.TextWrapped(string.format(tLang.L('fre_target_convention_existing_fmt'),
+                authoring.conventionDraft~='' and authoring.conventionDraft or '-'))
+        end
+        tImGui.SetNextItemWidth(300)
+        local weightChanged,weight=tImGui.SliderFloat(tLang.L('fre_target_default_weight')..'##freTargetDefaultWeight',authoring.defaultWeight or 0,0,1,'%.3f')
+        showHelpTooltip(tLang.L('fre_target_default_weight_tooltip'))
+        if weightChanged then authoring.defaultWeight=weight end
+        tImGui.BeginDisabled(selected==nil)
+        if tImGui.Button(tLang.L('fre_target_update')) then
+            local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$')
+            local data=tFacialTargets.copyTargetData(selected)
+            local before=tFacialTargets.copyTargetData(selected)
+            if targetName=='' then
+                targetAuthoringError(tLang.L('fre_target_name_required'))
+            elseif data then
+                data.name=targetName
+                data.convention=authoring.conventionDraft or ''
+                data.defaultWeight=authoring.defaultWeight or 0
+                local callOk,updated=dpCall(function()
+                    return state.meshDebug:updateFacialTarget(authoring.selectedTarget,targetName,
+                        authoring.conventionDraft or '',authoring.defaultWeight or 0,
+                        data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
+                end)
+                if callOk and updated~=false then
+                    tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,data)
+                    markFacialTargetAuthoringModified()
+                    setStatus(tLang.L('fre_target_updated'),false)
+                else
+                    targetAuthoringError('could not update target')
+                end
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_update_tooltip'))
+        tImGui.EndDisabled()
+    end
+
+    tImGui.Separator()
+    if workMode==2 then
+        tImGui.Text(tLang.L('fre_target_edit_title'))
+        tImGui.TextWrapped(tLang.L('fre_target_edit_help'))
+        tImGui.Text(tLang.L('fre_target_edit_mode'))
+        local mode=authoring.editMode or 1
+        mode=tImGui.RadioButton(tLang.L('fre_target_edit_translate')..'##freTargetEditTranslate',mode,1)
+        showHelpTooltip(tLang.L('fre_target_edit_translate_tooltip'))
+        tImGui.SameLine()
+        mode=tImGui.RadioButton(tLang.L('fre_target_edit_rotate')..'##freTargetEditRotate',mode,2)
+        showHelpTooltip(tLang.L('fre_target_edit_rotate_tooltip'))
+        tImGui.SameLine()
+        mode=tImGui.RadioButton(tLang.L('fre_target_edit_reset')..'##freTargetEditReset',mode,3)
+        showHelpTooltip(tLang.L('fre_target_edit_reset_tooltip'))
+        if mode~=authoring.editMode then
+            state.targetGizmo.dirty=true
+            state.targetOverlay.dirty=true
+            if mode==2 then state.targetOverlay.visible=true end
+        end
+        authoring.editMode=mode
+    end
+    local selectionLabels={tLang.L('fre_target_edit_all'),tLang.L('fre_target_edit_picked')}
+    for index,mask in ipairs(state.project.masks or {}) do
+        selectionLabels[#selectionLabels+1]=string.format(tLang.L('fre_target_edit_mask_fmt'),mask.name or ('#'..tostring(index)))
+    end
+    authoring.selectionMode=math.max(1,math.min(authoring.selectionMode or 1,#selectionLabels))
+    tImGui.SetNextItemWidth(300)
+    local selectionChanged,selection=tImGui.Combo(tLang.L('fre_target_edit_selection')..'##freTargetEditSelection',
+        authoring.selectionMode or 1,selectionLabels,-1)
+    showHelpTooltip(tLang.L('fre_target_edit_selection_tooltip'))
+    if selectionChanged then
+        authoring.selectionMode=selection
+        state.targetOverlay.bufferDirty=true
+        state.targetOverlay.bufferForce=true
+    end
+    tImGui.TextWrapped(tLang.L(workMode==2 and 'fre_target_edit_pick_help' or 'fre_target_paint_help'))
+    if authoring.selectedVertex then
+        tImGui.Text(string.format(tLang.L('fre_target_picked_fmt'),authoring.selectedVertex))
+    end
+    tImGui.Separator()
+    if workMode==3 then
+        tImGui.Text(tLang.L('fre_target_brush_title'))
+        local brushMode=authoring.brushMode or 1
+        brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_move'),brushMode,1)
+        showHelpTooltip(tLang.L('fre_target_brush_move_tooltip'))
+        tImGui.SameLine()
+        brushMode=tImGui.RadioButton(tLang.L('fre_target_brush_smooth'),brushMode,2)
+        showHelpTooltip(tLang.L('fre_target_brush_smooth_tooltip'))
+        authoring.brushMode=brushMode
+        tImGui.SetNextItemWidth(150)
+        local radiusChanged,radius=tImGui.SliderFloat(tLang.L('fre_target_brush_radius'),authoring.brushRadius,0.001,0.15,'%.3f')
+        showHelpTooltip(tLang.L('fre_target_brush_radius_tooltip'))
+        if radiusChanged then authoring.brushRadius=radius end
+        tImGui.SetNextItemWidth(150)
+        local strengthChanged,strength=tImGui.SliderFloat(tLang.L('fre_target_brush_strength'),authoring.brushStrength,0.01,1,'%.2f')
+        showHelpTooltip(tLang.L('fre_target_brush_strength_tooltip'))
+        if strengthChanged then authoring.brushStrength=strength end
+        if brushMode==1 then
+            for _,axis in ipairs({{'X','brushDx'},{'Y','brushDy'},{'Z','brushDz'}}) do
+                tImGui.SetNextItemWidth(115)
+                local changed,value=tImGui.InputFloat(axis[1]..'##freTargetBrush'..axis[1],authoring[axis[2]] or 0,0.001,0.01,'%.4f')
+                showHelpTooltip(string.format(tLang.L('fre_target_brush_axis_tooltip_fmt'),axis[1]))
+                if changed then authoring[axis[2]]=value end
+            end
+        end
+    end
+    if workMode==2 then
+        if authoring.editMode==1 then
+            tImGui.SetNextItemWidth(115)
+            local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dx')..'##freTargetEditDx',authoring.dx or 0,0.001,0.01,'%.5f')
+            showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'X'))
+            if changed then authoring.dx=value end
+            tImGui.SetNextItemWidth(115)
+            changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dy')..'##freTargetEditDy',authoring.dy or 0,0.001,0.01,'%.5f')
+            showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Y'))
+            if changed then authoring.dy=value end
+            tImGui.SetNextItemWidth(115)
+            changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_dz')..'##freTargetEditDz',authoring.dz or 0,0.001,0.01,'%.5f')
+            showHelpTooltip(string.format(tLang.L('fre_target_batch_axis_tooltip_fmt'),'Z'))
+            if changed then authoring.dz=value end
+        elseif authoring.editMode==2 then
+            tImGui.SetNextItemWidth(115)
+            local changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rx')..'##freTargetEditRx',authoring.rx or 0,1,10,'%.2f')
+            showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'X'))
+            if changed then authoring.rx=value; state.targetOverlay.bufferDirty=true end
+            tImGui.SetNextItemWidth(115)
+            changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_ry')..'##freTargetEditRy',authoring.ry or 0,1,10,'%.2f')
+            showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Y'))
+            if changed then authoring.ry=value; state.targetOverlay.bufferDirty=true end
+            tImGui.SetNextItemWidth(115)
+            changed,value=tImGui.InputFloat(tLang.L('fre_target_edit_rz')..'##freTargetEditRz',authoring.rz or 0,1,10,'%.2f')
+            showHelpTooltip(string.format(tLang.L('fre_target_rotation_axis_tooltip_fmt'),'Z'))
+            if changed then authoring.rz=value; state.targetOverlay.bufferDirty=true end
+            if selected then
+                local gizmo=state.targetGizmo
+                local pivot=gizmo.visible and not gizmo.dirty and gizmo.targetId==selected.id and gizmo.origin or
+                    tTargetGizmo.pivot(state.project,selected.id,state.meshBounds)
+                tImGui.TextWrapped(string.format(tLang.L('fre_target_pivot_position_fmt'),
+                    pivot.x,pivot.y,pivot.z))
+                tImGui.TextWrapped(tLang.L('fre_target_pivot_gizmo_help'))
+                if tImGui.Button(tLang.L('fre_target_pivot_reset')) then
+                    pushUndoSnapshot()
+                    tTargetGizmo.setPivot(state.project,selected.id,
+                        tTargetGizmo.defaultPivot(state.project,state.meshBounds))
+                    state.targetGizmo.dirty=true
+                    state.targetOverlay.bufferDirty=true
+                    state.targetOverlay.bufferForce=true
+                    state.modified=true
+                end
+                showHelpTooltip(tLang.L('fre_target_pivot_reset_tooltip'))
+                tImGui.SameLine()
+                tImGui.BeginDisabled(not authoring.selectedVertex or not state.topology or
+                    not state.topology.vertices[authoring.selectedVertex])
+                if tImGui.Button(tLang.L('fre_target_pivot_vertex')) then
+                    pushUndoSnapshot()
+                    tTargetGizmo.setPivot(state.project,selected.id,
+                        state.topology.vertices[authoring.selectedVertex])
+                    state.targetGizmo.dirty=true
+                    state.targetOverlay.bufferDirty=true
+                    state.targetOverlay.bufferForce=true
+                    state.modified=true
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_target_pivot_vertex_tooltip'))
+            end
+        end
+        local canApplyEdit=selected~=nil and state.topology and state.topology.vertices and #state.topology.vertices>0
+        tImGui.BeginDisabled(not canApplyEdit)
+        if tImGui.Button(tLang.L('fre_target_edit_apply')) then
+            local indices
+            if (authoring.selectionMode or 1)==1 then
+                indices=tFacialTargets.allIndices(authoring.vertexCount)
+            elseif authoring.selectionMode==2 then
+                indices=authoring.selectedVertex and {authoring.selectedVertex} or {}
+            else
+                local mask=state.project.masks and state.project.masks[(authoring.selectionMode or 1)-2]
+                indices=tFacialTargets.maskIndices(mask,authoring.vertexCount,state.topology.signature)
+            end
+            if #indices==0 then
+                targetAuthoringError(tLang.L('fre_target_edit_no_vertices'))
+            else
+                local before=tFacialTargets.copyTargetData(selected)
+                local edited=tFacialTargets.copyTargetData(selected)
+                local pivot=tTargetGizmo.pivot(state.project,selected.id,state.meshBounds)
+                local edit={mode=(authoring.editMode or 1)==1 and 'translate' or
+                    (authoring.editMode or 1)==2 and 'rotate' or 'reset',
+                    dx=authoring.dx or 0,dy=authoring.dy or 0,dz=authoring.dz or 0,
+                    rx=math.rad(authoring.rx or 0),ry=math.rad(authoring.ry or 0),rz=math.rad(authoring.rz or 0),pivot=pivot}
+                local changedCount=tFacialTargets.applyEdit(edited,state.topology.vertices,indices,edit)
+                if changedCount==0 and edit.mode~='reset' then
+                    setStatus(tLang.L('fre_target_edit_no_vertices'),true)
+                else
+                    local callOk,updated=dpCall(function()
+                        return state.meshDebug:updateFacialTarget(authoring.selectedTarget,edited.name,
+                            edited.convention,edited.defaultWeight,edited.positionDeltas,
+                            #edited.normalDeltas>0 and edited.normalDeltas or nil)
+                    end)
+                    if callOk and updated~=false then
+                        tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,edited)
+                        if authoring.editMode==2 then authoring.rx=0; authoring.ry=0; authoring.rz=0 end
+                        markFacialTargetAuthoringModified()
+                        setStatus(string.format(tLang.L('fre_target_edit_applied_fmt'),changedCount),false)
+                    else
+                        targetAuthoringError('could not apply delta edit')
+                    end
+                end
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_edit_apply_tooltip'))
+        tImGui.EndDisabled()
+    end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_target_history'))
+    tImGui.BeginDisabled(not authoring.editUndo or #authoring.editUndo==0)
+    if tImGui.Button(tLang.L('fre_target_edit_undo')) then
+        local record=table.remove(authoring.editUndo)
+        local target=tFacialTargets.find(authoring.targets,record and record.index)
+        local callOk,restored=false,false
+        if target and record then
+            callOk,restored=dpCall(function()
+                return state.meshDebug:updateFacialTarget(record.index,record.before.name,record.before.convention,
+                    record.before.defaultWeight,record.before.positionDeltas,
+                    #record.before.normalDeltas>0 and record.before.normalDeltas or nil)
+            end)
+        end
+        if callOk and restored~=false then
+            authoring.editRedo=authoring.editRedo or {}
+            authoring.editRedo[#authoring.editRedo+1]=record
+            authoring.selectedTarget=record.index
+            markFacialTargetAuthoringModified()
+            setStatus(tLang.L('fre_undo_done'),false)
+        elseif record then
+            authoring.editUndo[#authoring.editUndo+1]=record
+            targetAuthoringError('could not undo delta edit')
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_edit_undo_tooltip'))
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not authoring.editRedo or #authoring.editRedo==0)
+    if tImGui.Button(tLang.L('fre_target_edit_redo')) then
+        local record=table.remove(authoring.editRedo)
+        local target=tFacialTargets.find(authoring.targets,record and record.index)
+        local callOk,restored=false,false
+        if target and record then
+            callOk,restored=dpCall(function()
+                return state.meshDebug:updateFacialTarget(record.index,record.after.name,record.after.convention,
+                    record.after.defaultWeight,record.after.positionDeltas,
+                    #record.after.normalDeltas>0 and record.after.normalDeltas or nil)
+            end)
+        end
+        if callOk and restored~=false then
+            authoring.editUndo=authoring.editUndo or {}
+            authoring.editUndo[#authoring.editUndo+1]=record
+            authoring.selectedTarget=record.index
+            markFacialTargetAuthoringModified()
+            setStatus(tLang.L('fre_redo_done'),false)
+        elseif record then
+            authoring.editRedo[#authoring.editRedo+1]=record
+            targetAuthoringError('could not redo delta edit')
+        end
+    end
+    showHelpTooltip(tLang.L('fre_target_edit_redo_tooltip'))
+    tImGui.EndDisabled()
+
+    if workMode==2 then
+        tImGui.Separator()
+        local canEdit=selected~=nil
+        tImGui.BeginDisabled(not canEdit)
+        if tImGui.Button(tLang.L('fre_target_duplicate')) then
+            local data=tFacialTargets.copyTargetData(selected)
+            local targetName=(authoring.nameDraft or ''):match('^%s*(.-)%s*$') .. '_copy'
+            if data then
+                local callOk,newIndex=dpCall(function()
+                    return state.meshDebug:addFacialTarget(targetName,data.convention,data.defaultWeight,
+                        data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
+                end)
+                if callOk and newIndex then
+                    markFacialTargetAuthoringModified()
+                    local created=tFacialTargets.find(authoring.targets,newIndex)
+                    if created then
+                        authoring.createdIds[created.id]=true
+                        local originalPivot=state.project.morphTargetPivots[selected.id]
+                        if originalPivot then tTargetGizmo.setPivot(state.project,created.id,originalPivot) end
+                    end
+                    tFacialTargets.clearEditHistory(authoring)
+                    authoring.selectedTarget=newIndex
+                    setStatus(tLang.L('fre_target_duplicated'),false)
+                else
+                    targetAuthoringError('could not duplicate target')
+                end
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_duplicate_tooltip'))
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('fre_target_delete')) then
+            local deletedId=selected and selected.id
+            local callOk,removed=dpCall(function() return state.meshDebug:removeFacialTarget(authoring.selectedTarget) end)
+            if callOk and removed~=false then
+                state.project.morphTargetPivots[deletedId]=nil
+                if authoring.createdIds[deletedId] then
+                    authoring.createdIds[deletedId]=nil
+                else
+                    authoring.deletedBaseIds[deletedId]=true
+                end
+                markFacialTargetAuthoringModified()
+                tFacialTargets.clearEditHistory(authoring)
+                authoring.selectedTarget=math.max(1,authoring.selectedTarget-1)
+                setStatus(tLang.L('fre_target_deleted'),false)
+            else
+                targetAuthoringError('could not delete target')
+            end
+        end
+        showHelpTooltip(tLang.L('fre_target_delete_tooltip'))
+        tImGui.EndDisabled()
+    end
+    if authoring.modified and state.modified then
+        tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))
+    end
 end
 
 local function syncFacialComparisonWeights()
@@ -1486,7 +2113,8 @@ local function rebuildFacialComparison(enabled, mode)
             candidate:setSkeletalExecutionPath(comparison.mode=='lbs_dqs' and 'gpu' or 'cpu')
     end)
     local loadOk,loaded=false,false
-    if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(state.project.meshPath) end) end
+    local comparisonPath=state.targetAuthoring and state.targetAuthoring.previewPath or state.project.meshPath
+    if cpuOk and cpuReady~=false then loadOk,loaded=dpCall(function() return candidate:load(comparisonPath) end) end
     if not cpuOk or cpuReady==false or not loadOk or loaded==false then
         candidate.alwaysRender=false
         dpCall(function() candidate:destroy() end)
@@ -1599,14 +2227,13 @@ local function loadMesh(path, preserveProject)
     -- deterministic bind/T-pose; playback is opt-in from Preview.
     dpCall(function() return candidate:stopSkeletalAnimation() end)
     local inspector=meshDebug:new()
-    local okInspected=dpCall(function() return inspector:load(path) end)
-    if not okInspected then
+    local okInspected,inspected=dpCall(function() return inspector:load(path) end)
+    if not okInspected or inspected~=true then
         candidate:destroy()
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
         return false
     end
     local bounds,count,topology=inspectMesh(inspector)
-    destroyPreview()
     if not topology then
         candidate:destroy()
         setStatus(tLang.L('fre_mesh_inspection_failed'),true)
@@ -1616,7 +2243,25 @@ local function loadMesh(path, preserveProject)
     local projectCompatible=not requestedPreserve or state.project.meshTopologySignature=='' or
         (state.project.meshTopologySignature==topology.signature and
             (state.project.meshVertexCount==0 or state.project.meshVertexCount==topology.vertexCount))
+    if requestedPreserve and not projectCompatible and state.project.morphTargetEdits then
+        candidate:destroy()
+        setStatus(tLang.L('fre_mesh_project_topology_mismatch'),true)
+        return false
+    end
     if requestedPreserve and not projectCompatible then preserveProject=false end
+    local restoredIds={}
+    if preserveProject and state.project.morphTargetEdits then
+        local restored,ok,idMap=dpCall(function()
+            return tFacialTargetProject.apply(inspector,state.project.morphTargetEdits,topology.signature)
+        end)
+        if not restored or not ok then
+            candidate:destroy()
+            setStatus(string.format(tLang.L('fre_target_project_restore_failed'),tostring(idMap or ok)),true)
+            return false
+        end
+        restoredIds=idMap or {}
+    end
+    destroyPreview()
     state.mesh=candidate
     state.meshDebug=inspector
     state.meshBounds=bounds
@@ -1628,6 +2273,10 @@ local function loadMesh(path, preserveProject)
     -- would change depth ordering and is therefore not appropriate here.
     state.mesh.alwaysRender=true
     if not preserveProject then state.project=tFacialProject.new() end
+    if preserveProject and next(restoredIds) then
+        state.project.morphTargetPivots=tTargetGizmo.remapPivots(
+            state.project.morphTargetPivots,restoredIds)
+    end
     loadSourceObjectCatalog(path)
     state.project.meshPath=path
     if not preserveProject or state.project.meshTopologySignature=='' then
@@ -1646,6 +2295,33 @@ local function loadMesh(path, preserveProject)
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
+    state.targetAuthoring=tFacialTargets.new()
+    if preserveProject and state.project.morphTargetEdits then
+        state.targetAuthoring.modified=true
+        state.targetAuthoring.previewDirty=true
+        state.targetAuthoring.projectRestorePending=true
+        local patch=state.project.morphTargetEdits
+        local baseIds={}
+        for _,id in ipairs(patch.baseIds or {}) do baseIds[id]=true end
+        for _,id in ipairs(patch.removedIds or {}) do state.targetAuthoring.deletedBaseIds[id]=true end
+        for _,record in ipairs(patch.targets or {}) do
+            if not baseIds[record.id] or state.targetAuthoring.deletedBaseIds[record.id] then
+                state.targetAuthoring.createdIds[restoredIds[record.id] or record.id]=true
+            end
+        end
+    end
+    local savedPreview=state.project.morphTargetPreview
+    if savedPreview and savedPreview.targetId and savedPreview.targetId~='' then
+        refreshFacialTargetCatalog()
+        for index,target in ipairs(state.targetAuthoring.targets) do
+            if target.id==(restoredIds[savedPreview.targetId] or savedPreview.targetId) then
+                state.targetAuthoring.selectedTarget=index
+                state.targetAuthoring.previewWeight=savedPreview.weight
+                updateTargetPreviewWeights()
+                break
+            end
+        end
+    end
     state.expressions={catalogDirty=true,catalog={},selectedTarget=state.project.expressions.selectedTarget or 1,
         selectedPose=state.project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=state.project.expressions.selectedPose or 1,facialPlayback=nil,
@@ -1684,6 +2360,7 @@ local function newProject()
     state.bindingPlan.dirty=true
     state.facialSkeleton={dirty=true,data=nil}
     state.weightAssignment={dirty=true,data=nil,modified=false,facialWeightsApplied=false}
+    state.targetAuthoring=tFacialTargets.new()
     state.expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
     state.preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
@@ -1704,9 +2381,30 @@ local function openProject()
         setStatus(string.format(tLang.L('fre_project_load_failed_fmt'),tostring(errorMessage)),true)
         return
     end
+    local previousProject,previousPath,previousModified=state.project,state.projectPath,state.modified
+    local previousLanguage=tLang.getLanguage()
     if project.language then tLang.setLanguage(project.language) end
     state.project=project
     state.projectPath=path
+    state.modified=false
+    if project.meshPath~='' then
+        if not loadMesh(project.meshPath,true) then
+            state.project=previousProject
+            state.projectPath=previousPath
+            state.modified=previousModified
+            tLang.setLanguage(previousLanguage)
+            return
+        end
+    else
+        destroyPreview()
+        state.targetAuthoring=tFacialTargets.new()
+        state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
+            selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
+        state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
+            skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,authoredClipSelected=1,
+            authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
+        state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
+    end
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
@@ -1716,18 +2414,6 @@ local function openProject()
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
     state.landmarkEditMode=project.landmarkEditMode or 1
-    state.modified=false
-    if project.meshPath~='' then
-        if not loadMesh(project.meshPath,true) then state.project=project end
-    else
-        destroyPreview()
-        state.expressions={catalogDirty=true,catalog={},selectedTarget=project.expressions.selectedTarget or 1,
-            selectedPose=project.expressions.selectedPose or 1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1}
-        state.preview={selectedPose=project.expressions.selectedPose or 1,facialPlayback=nil,
-            skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,authoredClipSelected=1,
-            authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false}
-        state.clipEditor={selectedClip=project.selectedClip or 1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true}
-    end
     clearHistory()
     setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
 end
@@ -1742,6 +2428,29 @@ local function saveProject(path)
     state.project.expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions.selectedTarget=state.expressions.selectedTarget or 1
     state.project.expressions.selectedPose=state.expressions.selectedPose or 1
+    if state.targetAuthoring.catalogDirty and state.meshDebug then refreshFacialTargetCatalog() end
+    local selected=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
+    state.project.morphTargetPreview={targetId=selected and selected.id or '',
+        weight=state.targetAuthoring.previewWeight or 1}
+    if state.targetAuthoring.modified and state.meshDebug then
+        local source=meshDebug:new()
+        local loaded,sourceLoaded=dpCall(function() return source:load(state.project.meshPath) end)
+        if not loaded or sourceLoaded==false then
+            setStatus(tLang.L('fre_target_project_source_failed'),true)
+            return false
+        end
+        local base=tFacialTargets.catalogFromDebug(source)
+        local captured,patch,errorMessage=dpCall(function()
+            return tFacialTargetProject.capture(base,state.targetAuthoring.targets,
+                state.targetAuthoring.vertexCount,state.topology.signature,
+                state.targetAuthoring.createdIds,state.targetAuthoring.deletedBaseIds)
+        end)
+        if not captured or errorMessage then
+            setStatus(string.format(tLang.L('fre_project_save_failed_fmt'),tostring(errorMessage or patch)),true)
+            return false
+        end
+        state.project.morphTargetEdits=patch
+    end
     state.project.selectedClip=state.clipEditor.selectedClip or 1
     state.project.language=tLang.getLanguage()
     local saved,errorMessage=tFacialProject.save(state.project,path,tUtil.save)
@@ -1750,6 +2459,7 @@ local function saveProject(path)
         return false
     end
     state.projectPath=path
+    -- The project contains the target edits; the MSH export remains explicit.
     state.modified=false
     setStatus(string.format(tLang.L('fre_project_saved_fmt'),shortName(path)),false)
     return true
@@ -2263,7 +2973,9 @@ local function showExportWindow()
             end
             local canExport=canExportRuntimeMsh()
             tImGui.BeginDisabled(not canExport)
-            if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then saveAssignedMesh() end
+            if tImGui.Button(tLang.L('fre_export_msh_button')..'##freExportSaveMsh',{x=220,y=0}) then
+                saveAssignedMeshFromUi()
+            end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_export_msh_tooltip'))
             if not canExport then tImGui.TextDisabled(tLang.L('fre_export_msh_blocked')) end
@@ -2278,14 +2990,17 @@ end
 
 local function selectWorkspace(workspace)
     state.workspace=state.workspace==workspace and nil or workspace
-    -- The mask overlay owns the primary mesh visibility while it is active.
-    -- Restore that ownership immediately when leaving the mask worktree so a
-    -- dirty surface kept during brush edits cannot hide the mesh elsewhere.
-    if state.workspace=='masks' then
-        setMaskVisualizationViewportVisible(true)
+    state.targetBrushHover.pendingX=nil
+    state.targetBrushHover.pendingY=nil
+    state.targetBrushHover.lastHit=nil
+    -- Release the previous surface before the new worktree claims mesh visibility.
+    if state.workspace~='masks' then setMaskVisualizationViewportVisible(false) end
+    if state.workspace~='targets' and state.targetOverlay.building then
+        destroyTargetOverlay()
     else
-        setMaskVisualizationViewportVisible(false)
+        setTargetOverlayVisible(true)
     end
+    if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
     if state.workspace~='masks' and state.maskVisualization.building then
         state.maskVisualization.building=false
         state.maskVisualization.buildSelected=nil
@@ -2342,97 +3057,144 @@ local function deleteSelectedMask()
 end
 
 local function showMasks()
-    tImGui.TextWrapped(tLang.L('fre_masks_help'))
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
-    if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
-        tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
-        tImGui.TableHeadersRow()
-        local guideRows={
-            {'fre_masks_guide_single_object','fre_masks_guide_single_object_action'},
-            {'fre_masks_guide_separate_objects','fre_masks_guide_separate_objects_action'},
-            {'fre_masks_guide_same_object_regions','fre_masks_guide_same_object_regions_action'}
-        }
-        for _,row in ipairs(guideRows) do
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-            tImGui.TextWrapped(tLang.L(row[1]))
-            tImGui.TableSetColumnIndex(1)
-            tImGui.TextWrapped(tLang.L(row[2]))
+    local maskMode=state.maskWorkspaceMode or 2
+    if #(state.project.masks or {})==0 and maskMode==3 then maskMode=2 end
+    local previousMaskMode=state.maskWorkspaceMode
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_roles'),maskMode,1)
+    tImGui.SameLine()
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_manage'),maskMode,2)
+    tImGui.SameLine()
+    tImGui.BeginDisabled(#(state.project.masks or {})==0)
+    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_edit'),maskMode,3)
+    tImGui.EndDisabled()
+    state.maskWorkspaceMode=maskMode
+    if previousMaskMode~=maskMode then
+        state.maskBrushHover.lastHit=nil
+        setMaskVisualizationViewportVisible(true)
+        if maskMode==3 and state.project.masks[state.selectedMask] and
+                state.maskVisualization.needsBuild and not state.maskVisualization.building then
+            startMaskVisualizationBuild()
         end
-        tImGui.EndTable()
     end
-    tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
-    local roles=state.project.roles
-    local selected=roles[state.selectedRole] or roles[1]
-    if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_role_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_object_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_enabled_column'))
-        tImGui.TableHeadersRow()
-        for index,role in ipairs(roles) do
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-            local chosen=tImGui.Selectable(role.name,index==state.selectedRole)
-            if chosen then state.selectedRole=index end
-            tImGui.TableSetColumnIndex(1)
-            local objectLabels,objectValues=sourceObjectOptions(role.name)
-            sourceObjectCombo(role,index,objectLabels,objectValues)
-            showHelpTooltip(tLang.L('fre_source_object_tooltip'))
-            tImGui.TableSetColumnIndex(2)
-            tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
+    tImGui.TextWrapped(tLang.L(maskMode==1 and 'fre_masks_roles_purpose' or
+        maskMode==2 and 'fre_masks_manage_purpose' or 'fre_masks_edit_purpose'))
+    tImGui.Separator()
+    if maskMode==2 then
+        tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
+        tImGui.SetNextItemWidth(250)
+        local nameChanged,targetMaskName=tImGui.InputText(
+            tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
+        if nameChanged then state.targetMaskNameDraft=targetMaskName end
+        if tImGui.Button(tLang.L('fre_target_mask_create')) then
+            pushUndoSnapshot()
+            tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            state.selectedMask=#state.project.masks
+            state.project.selectedMask=state.selectedMask
+            state.targetMaskNameDraft=''
+            markMaskVisualizationDirty()
+            markModified()
         end
-        tImGui.EndTable()
-    end
-    if selected then
+        showHelpTooltip(tLang.L('fre_target_mask_create_tooltip'))
         tImGui.Separator()
-        tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
-        tImGui.TextWrapped(tLang.L('fre_source_object_help'))
-        local selectedRoleMaskCount=0
-        for _,mask in ipairs(state.project.masks or {}) do
-            if (mask.roleIndex or 1)==state.selectedRole and mask.enabled~=false and #(mask.vertices or {})>0 then
-                selectedRoleMaskCount=selectedRoleMaskCount + 1
+    end
+    if maskMode==1 then
+        tImGui.TextWrapped(tLang.L('fre_masks_help'))
+        if tImGui.BeginTable('freMasksGuide',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_masks_guide_situation'))
+            tImGui.TableSetupColumn(tLang.L('fre_masks_guide_action'))
+            tImGui.TableHeadersRow()
+            local guideRows={
+                {'fre_masks_guide_single_object','fre_masks_guide_single_object_action'},
+                {'fre_masks_guide_separate_objects','fre_masks_guide_separate_objects_action'},
+                {'fre_masks_guide_same_object_regions','fre_masks_guide_same_object_regions_action'}
+            }
+            for _,row in ipairs(guideRows) do
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                tImGui.TextWrapped(tLang.L(row[1]))
+                tImGui.TableSetColumnIndex(1)
+                tImGui.TextWrapped(tLang.L(row[2]))
             end
+            tImGui.EndTable()
         end
-        if selected.object~='' and selectedRoleMaskCount==0 then
-            tImGui.TextWrapped(string.format(tLang.L('fre_role_object_only_help'),selected.object))
+        tImGui.TextWrapped(tLang.L('fre_masks_subset_help'))
+        local roles=state.project.roles
+        local selected=roles[state.selectedRole] or roles[1]
+        if tImGui.BeginTable('freRoles',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+            tImGui.TableSetupColumn(tLang.L('fre_role_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_object_column'))
+            tImGui.TableSetupColumn(tLang.L('fre_enabled_column'))
+            tImGui.TableHeadersRow()
+            for index,role in ipairs(roles) do
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                local chosen=tImGui.Selectable(role.name,index==state.selectedRole)
+                if chosen then state.selectedRole=index end
+                tImGui.TableSetColumnIndex(1)
+                local objectLabels,objectValues=sourceObjectOptions(role.name)
+                sourceObjectCombo(role,index,objectLabels,objectValues)
+                showHelpTooltip(tLang.L('fre_source_object_tooltip'))
+                tImGui.TableSetColumnIndex(2)
+                tImGui.Text(role.enabled and tLang.L('fre_yes') or tLang.L('fre_no'))
+            end
+            tImGui.EndTable()
         end
-        tImGui.PushItemWidth(320)
-        local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
-        if changed then state.sourceObjectDraft=object end
-        tImGui.PopItemWidth()
-        if tImGui.Button(tLang.L('fre_register_object')) then
-            local objectName=(state.sourceObjectDraft or ''):match('^%s*(.-)%s*$')
-            if objectName ~= '' then
+        if selected then
+            tImGui.Separator()
+            tImGui.Text(string.format(tLang.L('fre_selected_role_fmt'),selected.name))
+            tImGui.TextWrapped(tLang.L('fre_source_object_help'))
+            local selectedRoleMaskCount=0
+            for _,mask in ipairs(state.project.masks or {}) do
+                if tFacialProject.isRigMask(mask) and (mask.roleIndex or 1)==state.selectedRole and
+                        mask.enabled~=false and #(mask.vertices or {})>0 then
+                    selectedRoleMaskCount=selectedRoleMaskCount + 1
+                end
+            end
+            if selected.object~='' and selectedRoleMaskCount==0 then
+                tImGui.TextWrapped(string.format(tLang.L('fre_role_object_only_help'),selected.object))
+            end
+            tImGui.PushItemWidth(320)
+            local changed,object=tImGui.InputText(tLang.L('fre_object_name')..'##freObjectName',state.sourceObjectDraft or '')
+            if changed then state.sourceObjectDraft=object end
+            tImGui.PopItemWidth()
+            if tImGui.Button(tLang.L('fre_register_object')) then
+                local objectName=(state.sourceObjectDraft or ''):match('^%s*(.-)%s*$')
+                if objectName ~= '' then
+                    pushUndoSnapshot()
+                    tFacialProject.addSourceObject(state.project,objectName)
+                    selected.object=objectName
+                    state.sourceObjectDraft=''
+                    markModified()
+                end
+            end
+            showHelpTooltip(tLang.L('fre_register_object_tooltip'))
+            local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
+            showHelpTooltip(tLang.L('fre_role_enabled_tooltip'))
+            if enabled~=selected.enabled then
                 pushUndoSnapshot()
-                tFacialProject.addSourceObject(state.project,objectName)
-                selected.object=objectName
-                state.sourceObjectDraft=''
+                selected.enabled=enabled
                 markModified()
             end
+            if tImGui.Button(tLang.L('fre_add_mask')) then
+                pushUndoSnapshot()
+                tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                state.selectedMask=#state.project.masks
+                state.project.selectedMask=state.selectedMask
+                state.maskWorkspaceMode=2
+                markMaskVisualizationDirty()
+                markModified()
+            end
+            showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
+            if selected.name=='main_face' then
+                if tImGui.Button(tLang.L('fre_generate_face_mask')) then generateMainFaceMask() end
+                showHelpTooltip(tLang.L('fre_generate_face_mask_tooltip'))
+            end
         end
-        showHelpTooltip(tLang.L('fre_register_object_tooltip'))
-        local enabled=tImGui.Checkbox(tLang.L('fre_role_enabled'),selected.enabled)
-        showHelpTooltip(tLang.L('fre_role_enabled_tooltip'))
-        if enabled~=selected.enabled then
-            pushUndoSnapshot()
-            selected.enabled=enabled
-            markModified()
-        end
-        if tImGui.Button(tLang.L('fre_add_mask')) then
-            pushUndoSnapshot()
-            tFacialProject.addMask(state.project,selected.name,state.selectedRole)
-            state.selectedMask=#state.project.masks
-            markModified()
-        end
-        showHelpTooltip(tLang.L('fre_add_mask_tooltip'))
-        if selected.name=='main_face' then
-            if tImGui.Button(tLang.L('fre_generate_face_mask')) then generateMainFaceMask() end
-            showHelpTooltip(tLang.L('fre_generate_face_mask_tooltip'))
-        end
+        return
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
@@ -2449,10 +3211,13 @@ local function showMasks()
                 state.selectedMask=index
                 state.maskDeletePending=nil
                 markMaskVisualizationDirty()
+                if maskMode==3 then startMaskVisualizationBuild() end
             end
             tImGui.TableSetColumnIndex(1)
-            local role=state.project.roles[mask.roleIndex or 1]
-            tImGui.Text(role and role.name or tLang.L('fre_unassigned'))
+            local rigMask=tFacialProject.isRigMask(mask)
+            local role=rigMask and state.project.roles[mask.roleIndex or 1]
+            tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
+                tLang.L('fre_target_mask_scope'))
             tImGui.TableSetColumnIndex(2)
             tImGui.Text(tostring(#(mask.vertices or {})))
         end
@@ -2462,120 +3227,142 @@ local function showMasks()
     if selectedMask then
         local visualizationReady=not state.maskVisualization.building and
             (not state.maskVisualization.needsBuild or state.maskVisualization.surface~=nil)
-        if state.maskVisualization.building then
-            local total=math.max(state.maskVisualization.buildTotal,1)
-            local progress=math.max(0,math.min(1,(state.maskVisualization.buildCursor-1)/total))
-            tImGui.Text(tLang.L('fre_mask_visualization_building'))
-            tImGui.ProgressBar(progress,{x=-1,y=0},string.format('%.0f%%',progress*100))
-        else
-            local buildLabel=state.maskVisualization.needsBuild and
-                tLang.L('fre_mask_visualization_generate') or
-                tLang.L('fre_mask_visualization_refresh')
-            if tImGui.Button(buildLabel .. '##freMaskVisualizationBuild') then
-                startMaskVisualizationBuild()
-                visualizationReady=false
-            end
-            showHelpTooltip(tLang.L('fre_mask_visualization_generate_tooltip'))
-            if state.maskVisualization.needsBuild then
-                tImGui.TextWrapped(tLang.L('fre_mask_visualization_pending'))
-            end
-        end
-        tImGui.Separator()
-        tImGui.BeginDisabled(not visualizationReady)
-        tImGui.PushItemWidth(320)
-        local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
-        if changed and name~='' then
-            local duplicate=false
-            for index,mask in ipairs(state.project.masks or {}) do
-                if index~=state.selectedMask and mask.name==name then duplicate=true break end
-            end
-            if duplicate then
-                setStatus(tLang.L('fre_mask_name_duplicate'),true)
+        if maskMode==3 then
+            if state.maskVisualization.building then
+                local total=math.max(state.maskVisualization.buildTotal,1)
+                local progress=math.max(0,math.min(1,(state.maskVisualization.buildCursor-1)/total))
+                tImGui.Text(tLang.L('fre_mask_visualization_building'))
+                tImGui.ProgressBar(progress,{x=-1,y=0},string.format('%.0f%%',progress*100))
             else
+                local buildLabel=state.maskVisualization.needsBuild and
+                    tLang.L('fre_mask_visualization_generate') or
+                    tLang.L('fre_mask_visualization_refresh')
+                if tImGui.Button(buildLabel .. '##freMaskVisualizationBuild') then
+                    startMaskVisualizationBuild()
+                    visualizationReady=false
+                end
+                showHelpTooltip(tLang.L('fre_mask_visualization_generate_tooltip'))
+                if state.maskVisualization.needsBuild then
+                    tImGui.TextWrapped(tLang.L('fre_mask_visualization_pending'))
+                end
+            end
+            tImGui.Separator()
+        end
+        if maskMode==2 then
+            tImGui.PushItemWidth(320)
+            local changed,name=tImGui.InputText(tLang.L('fre_mask_name')..'##freMaskName',selectedMask.name or '')
+            if changed and name~='' then
+                local duplicate=false
+                for index,mask in ipairs(state.project.masks or {}) do
+                    if index~=state.selectedMask and mask.name==name then duplicate=true break end
+                end
+                if duplicate then
+                    setStatus(tLang.L('fre_mask_name_duplicate'),true)
+                else
+                    pushUndoSnapshot()
+                    selectedMask.name=name
+                    markModified()
+                end
+            end
+            tImGui.PopItemWidth()
+            if tFacialProject.isRigMask(selectedMask) then
+                local roleNames=tFacialProject.roleNames()
+                tImGui.SetNextItemWidth(240)
+                local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
+                showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
+                if roleChanged then
+                    pushUndoSnapshot()
+                    selectedMask.roleIndex=roleIndex
+                    markModified()
+                end
+            else
+                tImGui.TextWrapped(tLang.L('fre_target_mask_scope_help'))
+            end
+            local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
+                selectedMask.enabled~=false)
+            showHelpTooltip(tLang.L('fre_mask_enabled_tooltip'))
+            if maskEnabled ~= (selectedMask.enabled~=false) then
                 pushUndoSnapshot()
-                selectedMask.name=name
+                selectedMask.enabled=maskEnabled
+                markMaskVisualizationDirty()
                 markModified()
             end
+            tImGui.Separator()
         end
-        tImGui.PopItemWidth()
-        local roleNames=tFacialProject.roleNames()
-        tImGui.SetNextItemWidth(240)
-        local roleChanged,roleIndex=tImGui.Combo(tLang.L('fre_mask_role'),selectedMask.roleIndex or 1,roleNames)
-        showHelpTooltip(tLang.L('fre_mask_role_tooltip'))
-        if roleChanged then
-            pushUndoSnapshot()
-            selectedMask.roleIndex=roleIndex
-            markModified()
-        end
-        local maskEnabled=tImGui.Checkbox(tLang.L('fre_mask_enabled') .. '##freMaskEnabled' .. state.selectedMask,
-            selectedMask.enabled~=false)
-        showHelpTooltip(tLang.L('fre_mask_enabled_tooltip'))
-        if maskEnabled ~= (selectedMask.enabled~=false) then
-            pushUndoSnapshot()
-            selectedMask.enabled=maskEnabled
-            markMaskVisualizationDirty()
-            markModified()
-        end
-        tImGui.TextWrapped(tLang.L('fre_mask_edit_help'))
-        tImGui.Text(tLang.L('fre_mask_edit_mode'))
-        local editMode=state.maskEditMode=='remove' and 2 or 1
-        editMode=tImGui.RadioButton(tLang.L('fre_mask_add_vertices'),editMode,1)
-        tImGui.SameLine()
-        editMode=tImGui.RadioButton(tLang.L('fre_mask_remove_vertices'),editMode,2)
-        state.maskEditMode=editMode==2 and 'remove' or 'add'
-        showHelpTooltip(state.maskEditMode=='remove' and
-            tLang.L('fre_mask_remove_vertices_tooltip') or
-            tLang.L('fre_mask_add_vertices_tooltip'))
-        local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
-            tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
-        if brushRadiusChanged then state.maskBrushRadius=brushRadius end
-        showHelpTooltip(tLang.L('fre_mask_brush_radius_tooltip'))
-        local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
-            tLang.L('fre_mask_mode_add')
-        tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
-        local modeHelp=state.maskEditMode=='remove' and tLang.L('fre_mask_remove_mode_help') or
-            tLang.L('fre_mask_add_mode_help')
-        tImGui.TextWrapped(modeHelp)
-        tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help'))
-        tImGui.TextWrapped(tLang.L('fre_mask_click_help'))
-        if visualizationReady then
-            local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
-            showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
-            if showMask~=state.maskVisualization.visible then
-                state.maskVisualization.visible=showMask
-                state.maskVisualization.dirty=true
-            end
-        else
-            tImGui.TextDisabled(tLang.L('fre_mask_visualization_unavailable'))
-        end
-        tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
-            state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
-        if tImGui.Button(tLang.L('fre_mask_clear')) then
-            pushUndoSnapshot()
-            selectedMask.vertices={}
-            markMaskVisualizationDirty()
-            markModified()
-        end
-        showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
-        tImGui.SameLine()
-        if state.maskDeletePending==state.selectedMask then
-            if tImGui.Button(tLang.L('fre_mask_delete_confirm') .. '##freMaskDeleteConfirm') then
-                deleteSelectedMask()
-            end
+        if maskMode==3 then
+            tImGui.BeginDisabled(not visualizationReady)
+            if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_help')) end
+            tImGui.Text(tLang.L('fre_mask_edit_mode'))
+            local editMode=state.maskEditMode=='remove' and 2 or 1
+            editMode=tImGui.RadioButton(tLang.L('fre_mask_add_vertices'),editMode,1)
             tImGui.SameLine()
-            if tImGui.Button(tLang.L('fre_mask_delete_cancel') .. '##freMaskDeleteCancel') then
-                state.maskDeletePending=nil
+            editMode=tImGui.RadioButton(tLang.L('fre_mask_remove_vertices'),editMode,2)
+            state.maskEditMode=editMode==2 and 'remove' or 'add'
+            showHelpTooltip(state.maskEditMode=='remove' and
+                tLang.L('fre_mask_remove_vertices_tooltip') or
+                tLang.L('fre_mask_add_vertices_tooltip'))
+            local loopMode=tImGui.Checkbox(tLang.L('fre_mask_loop_mode'),state.maskLoopMode)
+            if loopMode~=state.maskLoopMode then state.maskLoopMode=loopMode end
+            showHelpTooltip(tLang.L('fre_mask_loop_mode_tooltip'))
+            local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
+                tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
+            if brushRadiusChanged then state.maskBrushRadius=brushRadius end
+            showHelpTooltip(tLang.L('fre_mask_brush_radius_tooltip'))
+            local modeLabel=state.maskEditMode=='remove' and tLang.L('fre_mask_mode_remove') or
+                tLang.L('fre_mask_mode_add')
+            tImGui.Text(tLang.L('fre_mask_mode') .. ': ' .. modeLabel)
+            local modeHelp
+            if state.maskLoopMode then
+                modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_loop_remove_help' or
+                    'fre_mask_loop_add_help')
+            else
+                modeHelp=tLang.L(state.maskEditMode=='remove' and 'fre_mask_remove_mode_help' or
+                    'fre_mask_add_mode_help')
             end
-        else
-            if tImGui.Button(tLang.L('fre_mask_delete') .. '##freMaskDelete') then
-                state.maskDeletePending=state.selectedMask
+            tImGui.TextWrapped(modeHelp)
+            if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_action_help')) end
+            tImGui.TextWrapped(tLang.L(state.maskLoopMode and 'fre_mask_loop_help' or 'fre_mask_click_help'))
+            if visualizationReady then
+                local showMask=tImGui.Checkbox(tLang.L('fre_mask_visualization'),state.maskVisualization.visible)
+                showHelpTooltip(tLang.L('fre_mask_visualization_tooltip'))
+                if showMask~=state.maskVisualization.visible then
+                    state.maskVisualization.visible=showMask
+                    state.maskVisualization.dirty=true
+                end
+            else
+                tImGui.TextDisabled(tLang.L('fre_mask_visualization_unavailable'))
             end
-            showHelpTooltip(tLang.L('fre_mask_delete_tooltip'))
+            tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
+                state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
+            tImGui.EndDisabled()
         end
-        if state.maskDeletePending==state.selectedMask then
-            tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
+        if maskMode==2 then
+            if tImGui.Button(tLang.L('fre_mask_clear')) then
+                pushUndoSnapshot()
+                selectedMask.vertices={}
+                markMaskVisualizationDirty()
+                markModified()
+            end
+            showHelpTooltip(tLang.L('fre_mask_clear_tooltip'))
+            tImGui.SameLine()
+            if state.maskDeletePending==state.selectedMask then
+                if tImGui.Button(tLang.L('fre_mask_delete_confirm') .. '##freMaskDeleteConfirm') then
+                    deleteSelectedMask()
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('fre_mask_delete_cancel') .. '##freMaskDeleteCancel') then
+                    state.maskDeletePending=nil
+                end
+            else
+                if tImGui.Button(tLang.L('fre_mask_delete') .. '##freMaskDelete') then
+                    state.maskDeletePending=state.selectedMask
+                end
+                showHelpTooltip(tLang.L('fre_mask_delete_tooltip'))
+            end
+            if state.maskDeletePending==state.selectedMask then
+                tImGui.TextWrapped(tLang.L('fre_mask_delete_confirm_help'))
+            end
         end
-        tImGui.EndDisabled()
     end
 end
 
@@ -2768,7 +3555,7 @@ local function mainFaceSurfaceVertices()
     local allowed={}
     local count=0
     for _,mask in ipairs(state.project.masks or {}) do
-        if mask.enabled~=false and mask.roleIndex==mainFaceRole then
+        if tFacialProject.isRigMask(mask) and mask.enabled~=false and mask.roleIndex==mainFaceRole then
             for _,vertex in ipairs(mask.vertices or {}) do
                 local index=tonumber(vertex)
                 if index and not allowed[index] then allowed[index]=true; count=count+1 end
@@ -3605,7 +4392,7 @@ local function showRig()
         showHelpTooltip(tLang.L('fre_export_msh_include_project_clips_tooltip'))
         tImGui.BeginDisabled(not canSave)
         if tImGui.Button(tLang.L('fre_weight_assignment_save')..'##freRigActionSave',{x=300,y=0}) then
-            saveAssignedMesh()
+            saveAssignedMeshFromUi()
         end
         tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_weight_assignment_save_tooltip'))
@@ -3813,7 +4600,7 @@ local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
     local workspaces={
         {'setup','fre_setup'}, {'face_position','fre_face_position'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
-        {'rig','fre_rig'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
+        {'rig','fre_rig'}, {'targets','fre_targets'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
     }
     for _,entry in ipairs(workspaces) do
         local label=tLang.L(entry[2])
@@ -3828,6 +4615,7 @@ local function showWorkspaceTree()
                 elseif entry[1]=='masks' then showMasks()
                 elseif entry[1]=='landmarks' then showLandmarks()
                 elseif entry[1]=='rig' then showRig()
+                elseif entry[1]=='targets' then showTargets()
                 elseif entry[1]=='expressions' then showExpressions()
                 elseif entry[1]=='clips' then showClips()
                 elseif entry[1]=='preview' then showPreview() end
@@ -3853,6 +4641,12 @@ local function showMainPanel()
             tImGui.TextDisabled(tLang.L('fre_unsaved_project'))
         end
         showStatus()
+        if state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
+            tImGui.TextColored({r=1,g=0.8,b=0.25,a=1},tLang.L('fre_ctrl_pressed'))
+            local hintKey=state.workspace=='face_position' and 'fre_ctrl_face_hint' or
+                'fre_ctrl_landmarks_hint'
+            tImGui.TextWrapped(tLang.L(hintKey))
+        end
         tImGui.Separator()
         showWorkspaceTree()
     end
@@ -3878,8 +4672,21 @@ local function showCameraPanel()
             tImGui.EndDisabled()
             tImGui.SameLine()
         end
-        local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),state.mesh and state.mesh.visible or false)
-        if state.mesh and visible~=state.mesh.visible then state.mesh.visible=visible; markLandmarkMarkersDirty() end
+        local overlay=state.workspace=='targets' and state.targetOverlay or
+            state.workspace=='masks' and state.maskVisualization or nil
+        local meshVisible=state.mesh and (overlay and overlay.meshHidden and overlay.meshWasVisible or
+            (not overlay or not overlay.meshHidden) and state.mesh.visible) or false
+        local visible=tImGui.Checkbox(tLang.L('fre_show_mesh'),meshVisible)
+        if state.mesh and visible~=meshVisible then
+            if overlay and overlay.meshHidden then
+                overlay.meshWasVisible=visible
+                if state.workspace=='targets' then setTargetOverlayVisible(true)
+                else setMaskVisualizationViewportVisible(true) end
+            else
+                state.mesh.visible=visible
+            end
+            markLandmarkMarkersDirty()
+        end
         tImGui.Separator()
         if tUtil.drawOrbitGizmo(state.camera,{size=110}) then applyCamera() end
         tImGui.Separator()
@@ -3915,17 +4722,28 @@ end
 function onLoop(delta)
     updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
+    if state.targetAuthoring.previewDirty and
+            (state.workspace=='targets' or state.targetAuthoring.projectRestorePending) then
+        refreshTargetPreview()
+        state.targetAuthoring.projectRestorePending=false
+    end
+    if state.workspace=='targets' and state.targetOverlay.dirty and not state.targetOverlay.building then
+        startTargetOverlayBuild()
+    end
     updateMaskBrushHover()
+    updateTargetBrushHover()
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
     updateFacialComparisonVisibility()
     showMenu()
     showExportWindow()
     showMainPanel()
+    refreshTargetGizmo()
     showLandmarkReferenceModal()
     showCameraPanel()
     showFacialClipTimelineWindow()
     drawMaskBrushScreenCursor()
+    drawTargetBrushScreenCursor()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
     if state.maskVisualization.building then
@@ -3933,6 +4751,8 @@ function onLoop(delta)
     elseif state.maskVisualization.dirty then
         refreshMaskVisualization()
     end
+    if state.targetOverlay.building then stepTargetOverlayBuild() end
+    updateTargetOverlayLivePreview()
     if state.rigPreview.dirty then refreshRigPreview() end
     tUtil.showOverlayMessage()
 end
@@ -4055,6 +4875,121 @@ local function rayAxisParameter(x,y,origin,axis)
     return (axisProjection-parallel*rayProjection)/denominator
 end
 
+refreshTargetGizmo=function()
+    local gizmo=state.targetGizmo
+    local authoring=state.targetAuthoring
+    local target=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        tFacialTargets.find(authoring.targets,authoring.selectedTarget) or nil
+    if not target or not state.mesh then
+        if gizmo.visible then
+            for _,object in pairs(gizmo.rings) do object.visible=false end
+            for _,object in pairs(gizmo.axes) do object.visible=false end
+            if gizmo.center then gizmo.center.visible=false end
+            gizmo.visible=false
+        end
+        gizmo.drag=nil
+        return
+    end
+    if gizmo.visible and not gizmo.dirty and gizmo.targetId==target.id then return end
+    local pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.11,0.04)
+    local length=radius*1.4
+    local sizeChanged=gizmo.radius~=radius
+    local colors={x={1,0.15,0.15},y={0.15,1,0.2},z={0.2,0.45,1}}
+    for name,axis in pairs(tTargetGizmo.axes) do
+        local ring=gizmo.rings[name]
+        if not ring then
+            ring=line:new('3d',0,0,0)
+            ring:add(tTargetGizmo.ringPoints(name,radius))
+            ring.alwaysOnTop=true
+            ring.alwaysOnTopPriority=3
+            gizmo.rings[name]=ring
+        elseif sizeChanged then
+            ring:set(tTargetGizmo.ringPoints(name,radius),1)
+        end
+        ring:setPos(pivot.x,pivot.y,pivot.z)
+        ring:setColor(colors[name][1],colors[name][2],colors[name][3],
+            gizmo.drag and gizmo.drag.kind=='ring' and gizmo.drag.name~=name and 0.3 or 1)
+        ring.visible=true
+        local handle=gizmo.axes[name]
+        if not handle then
+            handle=line:new('3d',0,0,0)
+            handle:add({0,0,0,axis.x*length,axis.y*length,axis.z*length})
+            handle.alwaysOnTop=true
+            handle.alwaysOnTopPriority=4
+            gizmo.axes[name]=handle
+        elseif sizeChanged then
+            handle:set({0,0,0,axis.x*length,axis.y*length,axis.z*length},1)
+        end
+        handle:setPos(pivot.x,pivot.y,pivot.z)
+        handle:setColor(colors[name][1],colors[name][2],colors[name][3],
+            gizmo.drag and gizmo.drag.kind=='axis' and gizmo.drag.name~=name and 0.3 or 1)
+        handle.visible=true
+    end
+    local centerSize=radius*0.1
+    local cross={
+        {-centerSize,0,0,centerSize,0,0},
+        {0,-centerSize,0,0,centerSize,0},
+        {0,0,-centerSize,0,0,centerSize}}
+    if not gizmo.center then
+        gizmo.center=line:new('3d',0,0,0)
+        for _,path in ipairs(cross) do gizmo.center:add(path) end
+        gizmo.center.alwaysOnTop=true
+        gizmo.center.alwaysOnTopPriority=5
+        gizmo.center:setColor(1,0.85,0.1,1)
+    elseif sizeChanged then
+        for index,path in ipairs(cross) do gizmo.center:set(path,index) end
+    end
+    gizmo.center:setPos(pivot.x,pivot.y,pivot.z)
+    gizmo.center.visible=true
+    gizmo.origin=pivot
+    gizmo.radius=radius
+    gizmo.length=length
+    gizmo.targetId=target.id
+    gizmo.visible=true
+    gizmo.dirty=false
+end
+
+local function beginTargetGizmoDrag(x,y)
+    local gizmo=state.targetGizmo
+    if not gizmo.visible or not gizmo.origin then return false end
+    local origin,direction=viewportPickRay(x,y)
+    if not origin then return false end
+    local ring=tTargetGizmo.hitRing(origin,direction,gizmo.origin,gizmo.radius)
+    if ring then
+        if (state.targetAuthoring.previewWeight or 0)<=0 then
+            state.targetAuthoring.previewWeight=1
+            state.modified=true
+            updateTargetPreviewWeights()
+            state.targetOverlay.bufferDirty=true
+            state.targetOverlay.bufferForce=true
+        end
+        if not state.targetOverlay.visible then
+            state.targetOverlay.visible=true
+            state.targetOverlay.dirty=true
+        end
+        local field='r'..ring.name
+        gizmo.drag={kind='ring',name=ring.name,axis=ring.axis,
+            startDirection=ring.direction,baseAngle=state.targetAuthoring[field] or 0,
+            origin=gizmo.origin}
+        gizmo.dirty=true
+        return true
+    end
+    local axisName=tTargetGizmo.hitAxis(origin,direction,gizmo.origin,gizmo.length,
+        math.max(gizmo.radius*0.08,0.003))
+    if not axisName then return false end
+    local axis=tTargetGizmo.axes[axisName]
+    local parameter=tTargetGizmo.axisParameter(origin,direction,gizmo.origin,axis)
+    if not parameter then return false end
+    gizmo.drag={kind='axis',name=axisName,axis=axis,startParameter=parameter,
+        origin=gizmo.origin,targetId=gizmo.targetId,moved=false}
+    gizmo.dirty=true
+    return true
+end
+
 local function applyFaceGuideAxisDelta(axisName,delta,baseOrigin,baseRelative)
     local axis=axisName=='x' and {x=1,y=0,z=0} or axisName=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
     local origin=state.project.faceOrigin
@@ -4144,6 +5079,192 @@ local function ensureMaskOverlayShader()
         return mbm.addShader({name=maskOverlayShaderName,code=code,var={},min={},max={}})
     end)
     return ok and result~=false
+end
+
+-- Reuse the mask shader as a displacement heat map. The overlay replaces the
+-- preview mesh while visible, so the matching surfaces cannot fight for depth.
+setTargetOverlayVisible=function(visible)
+    local overlay=state.targetOverlay
+    local show=visible and overlay.visible and overlay.surface~=nil and not overlay.building and
+        not overlay.dirty and state.workspace=='targets'
+    if show and state.mesh then
+        if not overlay.meshHidden then
+            overlay.meshWasVisible=state.mesh.visible~=false
+            overlay.meshHidden=true
+        end
+        state.mesh.visible=false
+    elseif overlay.meshHidden and state.mesh then
+        state.mesh.visible=overlay.meshWasVisible
+        overlay.meshHidden=false
+    end
+    if overlay.surface then overlay.surface.visible=show and overlay.meshWasVisible end
+end
+
+destroyTargetOverlay=function()
+    local overlay=state.targetOverlay
+    setTargetOverlayVisible(false)
+    if overlay.surface then dpCall(function() overlay.surface:destroy() end) end
+    state.targetOverlay={visible=overlay.visible,dirty=true,building=false,surface=nil,meshHidden=false,
+        bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0}
+end
+
+startTargetOverlayBuild=function()
+    local overlay=state.targetOverlay
+    if not overlay.dirty or not state.topology or not state.mesh or state.targetAuthoring.previewDirty then return end
+    setTargetOverlayVisible(false)
+    if overlay.surface then dpCall(function() overlay.surface:destroy() end); overlay.surface=nil end
+    local target=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
+    if not overlay.visible or not target then overlay.dirty=false; return end
+    local vertices=state.topology.vertices or {}
+    local deltas=target.positionDeltas or {}
+    local weight=state.targetAuthoring.previewWeight or 1
+    local authoring=state.targetAuthoring
+    local rotateDraft=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        ((authoring.rx or 0)~=0 or (authoring.ry or 0)~=0 or (authoring.rz or 0)~=0)
+    local pivot,basis,selection
+    if rotateDraft then
+        pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+        basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
+            math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
+        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+            authoring.vertexCount,state.topology.signature)
+    end
+    local maximum=0
+    local coords,uvs,magnitudes={},{},{}
+    for index,point in ipairs(vertices) do
+        local delta=deltas[index] or {x=0,y=0,z=0}
+        local dx,dy,dz=delta.x,delta.y,delta.z
+        if rotateDraft and (not selection or selection[index]) then
+            dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+        end
+        local magnitude=math.sqrt(dx*dx+dy*dy+dz*dz)
+        maximum=math.max(maximum,magnitude)
+        magnitudes[index]=magnitude
+        coords[#coords+1]=point.x+dx*weight
+        coords[#coords+1]=point.y+dy*weight
+        coords[#coords+1]=point.z+dz*weight
+    end
+    for index=1,#vertices do
+        local magnitude=magnitudes[index]
+        uvs[#uvs+1]=maximum>1e-10 and math.min(1,magnitude/maximum) or 0
+        uvs[#uvs+1]=1
+    end
+    overlay.coords=coords
+    overlay.uvs=uvs
+    overlay.indices={}
+    overlay.cursor=1
+    overlay.building=true
+    overlay.dirty=false
+    overlay.bufferDirty=false
+    overlay.bufferArmed=false
+    overlay.bufferApplied=false
+end
+
+stepTargetOverlayBuild=function()
+    local overlay=state.targetOverlay
+    if not overlay.building then return end
+    local triangles=state.topology and state.topology.triangles or {}
+    local finish=math.min(#triangles,overlay.cursor+4999)
+    for index=overlay.cursor,finish do
+        local triangle=triangles[index]
+        if triangle and state.topology.vertices[triangle[1]] and
+                state.topology.vertices[triangle[2]] and state.topology.vertices[triangle[3]] then
+            local indices=overlay.indices
+            indices[#indices+1]=triangle[1]
+            indices[#indices+1]=triangle[2]
+            indices[#indices+1]=triangle[3]
+        end
+    end
+    overlay.cursor=finish+1
+    if overlay.cursor<=#triangles then return end
+    overlay.building=false
+    if #overlay.indices>0 then
+        local surface=shape:new('3d',0,0,0.0001)
+        local created=surface:createDynamicIndexed(overlay.coords,overlay.indices,overlay.uvs,
+            'facial_target_overlay_'..tostring(mbm.getTimeRun()))
+        if created then
+            local okShader,shader=dpCall(function() return surface:getShader() end)
+            local loaded=false
+            if ensureMaskOverlayShader() and okShader and shader then
+                local okLoad,result=dpCall(function() return shader:load(maskOverlayShaderName,nil) end)
+                loaded=okLoad and result~=false
+            end
+            if not loaded then surface:setColor(0.1,0.7,1,0.8) end
+            surface.visible=false
+            overlay.surface=surface
+        else
+            dpCall(function() surface:destroy() end)
+        end
+    end
+    overlay.coords=nil; overlay.uvs=nil; overlay.indices=nil; overlay.cursor=nil
+    setTargetOverlayVisible(true)
+end
+
+local function updateTargetOverlayBuffer(_,vertex,uv)
+    local overlay=state.targetOverlay
+    if overlay.bufferApplied then return end
+    local authoring=state.targetAuthoring
+    local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    local topology=state.topology
+    if not target or not topology then return end
+    local vertices=topology.vertices or {}
+    local deltas=target.positionDeltas or {}
+    local rotateDraft=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
+        ((authoring.rx or 0)~=0 or (authoring.ry or 0)~=0 or (authoring.rz or 0)~=0)
+    local pivot,basis,selection
+    if rotateDraft then
+        pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
+        basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
+            math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
+        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+            authoring.vertexCount,topology.signature)
+    end
+    local maximum=0
+    local weight=authoring.previewWeight or 1
+    for index,point in ipairs(vertices) do
+        local entry=vertex[index]
+        local color=uv[index]
+        if entry and color then
+            local delta=deltas[index] or {x=0,y=0,z=0}
+            local dx,dy,dz=delta.x,delta.y,delta.z
+            if rotateDraft and (not selection or selection[index]) then
+                dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+            end
+            entry.x=point.x+dx*weight
+            entry.y=point.y+dy*weight
+            entry.z=point.z+dz*weight
+            local magnitude=math.sqrt(dx*dx+dy*dy+dz*dz)
+            color.u=magnitude
+            maximum=math.max(maximum,magnitude)
+        end
+    end
+    for index=1,#vertices do
+        local color=uv[index]
+        if color then color.u=maximum>1e-10 and math.min(1,color.u/maximum) or 0 end
+    end
+    vertex.name='vertex'
+    uv.name='uv'
+    overlay.bufferApplied=true
+    return vertex,uv
+end
+
+updateTargetOverlayLivePreview=function()
+    local overlay=state.targetOverlay
+    if overlay.bufferApplied and overlay.surface then
+        dpCall(function() overlay.surface:onRender(nil) end)
+        overlay.bufferApplied=false
+        overlay.bufferArmed=false
+    end
+    if not overlay.bufferDirty or overlay.bufferArmed or not overlay.surface or overlay.building or
+            overlay.dirty or not overlay.visible or state.workspace~='targets' then return end
+    local now=mbm.getTimeRun()
+    if not overlay.bufferForce and now-(overlay.lastBufferTime or 0)<0.05 then return end
+    local ok=dpCall(function() overlay.surface:onRender(updateTargetOverlayBuffer) end)
+    if not ok then return end
+    overlay.bufferDirty=false
+    overlay.bufferForce=false
+    overlay.bufferArmed=true
+    overlay.lastBufferTime=now
 end
 
 -- Dynamic indexed shapes let a brush stroke recolor only the vertices it
@@ -4304,11 +5425,6 @@ refreshMaskVisualization=function()
     local visualization=state.maskVisualization
     if visualization.building then return end
     if not visualization.dirty then return end
-    if visualization.keepSurfaceWhileDirty and visualization.surface and visualization.visible and
-            state.workspace=='masks' then
-        visualization.dirty=false
-        return
-    end
     setMaskVisualizationViewportVisible(true)
     visualization.dirty=false
 end
@@ -4366,17 +5482,19 @@ local function maskBrushWorldRadius()
     return math.max(cache.extent*math.max(tonumber(state.maskBrushRadius) or 0.045,0.001),0.0001)
 end
 
-local function buildMaskBrushGeometry()
+local function buildMaskBrushGeometry(vertices,cacheKey)
     local topology=state.topology
     if not topology or not topology.vertices or not topology.triangles then return nil end
-    local signature=topology.signature or tostring(#topology.vertices)..':'..tostring(#topology.triangles)
-    local cache=state.maskBrushGeometry
+    vertices=vertices or topology.vertices
+    local signature=cacheKey or topology.signature or tostring(#topology.vertices)..':'..tostring(#topology.triangles)
+    local targetGeometry=cacheKey~=nil
+    local cache=targetGeometry and state.targetBrushGeometry or state.maskBrushGeometry
     if cache and cache.signature==signature and cache.bvh then return cache end
     local triangles={}
     for _,indices in ipairs(topology.triangles) do
-        local a,b,c=topology.vertices[indices[1]],topology.vertices[indices[2]],topology.vertices[indices[3]]
+        local a,b,c=vertices[indices[1]],vertices[indices[2]],vertices[indices[3]]
         if a and b and c then
-            triangles[#triangles+1]={a=a,b=b,c=c,
+            triangles[#triangles+1]={a=a,b=b,c=c,indices=indices,
                 minX=math.min(a.x,b.x,c.x),maxX=math.max(a.x,b.x,c.x),
                 minY=math.min(a.y,b.y,c.y),maxY=math.max(a.y,b.y,c.y),
                 minZ=math.min(a.z,b.z,c.z),maxZ=math.max(a.z,b.z,c.z),
@@ -4404,8 +5522,8 @@ local function buildMaskBrushGeometry()
         node.left=buildBvh(left); node.right=buildBvh(right)
         return node
     end
-    cache={signature=signature,triangles=triangles,bvh=buildBvh(triangles)}
-    state.maskBrushGeometry=cache
+    cache={signature=signature,triangles=triangles,bvh=buildBvh(triangles),vertices=vertices}
+    if targetGeometry then state.targetBrushGeometry=cache else state.maskBrushGeometry=cache end
     return cache
 end
 
@@ -4433,13 +5551,13 @@ local function maskBrushRayTriangle(ox,oy,oz,dx,dy,dz,triangle)
     nx,ny,nz=nx/length,ny/length,nz/length
     if nx*dx+ny*dy+nz*dz>0 then nx,ny,nz=-nx,-ny,-nz end
     return {distance=distance,point={x=ox+dx*distance,y=oy+dy*distance,z=oz+dz*distance},
-        normal={x=nx,y=ny,z=nz}}
+        normal={x=nx,y=ny,z=nz},indices=triangle.indices}
 end
 
-local function maskBrushSurfaceHit(x,y)
+local function maskBrushSurfaceHit(x,y,geometry)
     local origin,direction=viewportPickRay(x,y)
-    if not origin or not rayIntersectsBounds(origin,direction,state.meshBounds) then return nil end
-    local cache=buildMaskBrushGeometry()
+    if not origin or (not geometry and not rayIntersectsBounds(origin,direction,state.meshBounds)) then return nil end
+    local cache=geometry or buildMaskBrushGeometry()
     if not cache or not cache.bvh then return nil end
     local function hitsBounds(node,maxDistance)
         local near,far=0,maxDistance or math.huge
@@ -4474,6 +5592,32 @@ local function maskBrushSurfaceHit(x,y)
     end
     visit(cache.bvh)
     return nearest
+end
+
+local function buildTargetBrushGeometry(target)
+    local topology=state.topology
+    if not target or not topology then return nil end
+    local weight=state.targetAuthoring.previewWeight or 1
+    local signature=tostring(topology.signature)..':'..tostring(target)..':'..tostring(weight)
+    local cached=state.targetBrushGeometry
+    if cached and cached.signature==signature then return cached end
+    local vertices=tFacialTargets.previewVertices(topology.vertices,target,weight)
+    return buildMaskBrushGeometry(vertices,signature)
+end
+
+updateTargetBrushHover=function()
+    local hover=state.targetBrushHover
+    local x,y=hover.pendingX,hover.pendingY
+    if x==nil or y==nil then return end
+    hover.pendingX=nil; hover.pendingY=nil
+    if state.workspace~='targets' or state.targetAuthoring.mode~=3 or not state.topology then
+        hover.lastHit=nil
+        return
+    end
+    local authoring=state.targetAuthoring
+    local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    hover.lastHit=maskBrushSurfaceHit(x,y,buildTargetBrushGeometry(target))
+    hover.lastX=x; hover.lastY=y
 end
 
 local function maskBrushSurfaceHitForBrush(x,y,brush)
@@ -4518,7 +5662,7 @@ updateMaskBrushHover=function(x,y)
         x,y=hover.pendingX,hover.pendingY
     end
     if not hover or x==nil or y==nil then return end
-    if state.workspace~='masks' or state.maskVisualization.building or
+    if state.workspace~='masks' or state.maskWorkspaceMode~=3 or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then
         if hover and hover.cursor then hover.cursor.visible=false end
         return
@@ -4555,7 +5699,7 @@ end
 
 drawMaskBrushScreenCursor=function()
     local hover=state.maskBrushHover
-    if not hover or state.workspace~='masks' or not hover.lastHit or
+    if not hover or state.workspace~='masks' or state.maskWorkspaceMode~=3 or not hover.lastHit or
             not hover.lastX or not hover.lastY or tImGui.GetWantCaptureMouse() then return end
     local mouse=tImGui.GetMousePos()
     local mouseX=mouse and tonumber(mouse.x) or hover.lastX
@@ -4569,16 +5713,32 @@ drawMaskBrushScreenCursor=function()
     tImGui.SetImDrawListToForeground(false)
 end
 
-local function buildMaskBrushSpatialIndex(radius)
+drawTargetBrushScreenCursor=function()
+    if state.workspace~='targets' or state.targetAuthoring.mode~=3 or
+            not state.mesh or not state.targetBrushHover.lastHit or
+            tImGui.GetWantCaptureMouse() then return end
+    local mouse=tImGui.GetMousePos()
+    if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
+    local authoring=state.targetAuthoring
+    local radius=math.max(6,math.min(96,(authoring.brushRadius or 0.025)/0.025*20))
+    local color=authoring.brushMode==2 and {r=0.25,g=0.75,b=1,a=0.9} or
+        {r=1,g=0.75,b=0.2,a=0.9}
+    tImGui.SetImDrawListToForeground(true)
+    tImGui.AddCircle({x=mouse.x,y=mouse.y},radius,color,32,1.5)
+    tImGui.SetImDrawListToForeground(false)
+end
+
+local function buildMaskBrushSpatialIndex(radius,geometry)
     local topology=state.topology
     if not topology or not topology.vertices then return nil end
+    local vertices=geometry and geometry.vertices or topology.vertices
     local cellSize=math.max(tonumber(radius) or 0,1e-5)
-    local key=tostring(topology.signature or '')..':'..string.format('%.6f',cellSize)
-    local cache=state.maskBrushSpatial
+    local key=tostring(geometry and geometry.signature or topology.signature or '')..':'..string.format('%.6f',cellSize)
+    local cache=geometry and geometry.spatial or state.maskBrushSpatial
     if cache and cache.key==key and cache.cells then return cache end
     local cells={}
     local function cellCoordinate(value) return math.floor(value/cellSize) end
-    for index,vertex in ipairs(topology.vertices) do
+    for index,vertex in ipairs(vertices) do
         local cx,cy,cz=cellCoordinate(vertex.x),cellCoordinate(vertex.y),cellCoordinate(vertex.z)
         local cellKey=cx..':'..cy..':'..cz
         local cell=cells[cellKey]
@@ -4586,11 +5746,11 @@ local function buildMaskBrushSpatialIndex(radius)
         cell[#cell+1]=index
     end
     cache={key=key,cellSize=cellSize,cells=cells}
-    state.maskBrushSpatial=cache
+    if geometry then geometry.spatial=cache else state.maskBrushSpatial=cache end
     return cache
 end
 
-local function collectMaskBrushVertices(point,normal,radius)
+local function collectMaskBrushVertices(point,normal,radius,geometry)
     local result={}
     if not point or not normal then return result end
     local normalLength=math.sqrt(normal.x*normal.x+normal.y*normal.y+normal.z*normal.z)
@@ -4598,7 +5758,8 @@ local function collectMaskBrushVertices(point,normal,radius)
     local nx,ny,nz=normal.x/normalLength,normal.y/normalLength,normal.z/normalLength
     local radiusSquared=radius*radius
     local normalLimit=radius*0.45
-    local spatial=buildMaskBrushSpatialIndex(radius)
+    local spatial=buildMaskBrushSpatialIndex(radius,geometry)
+    local vertices=geometry and geometry.vertices or state.topology.vertices
     local candidateIndices={}
     local seen={}
     if spatial then
@@ -4622,10 +5783,10 @@ local function collectMaskBrushVertices(point,normal,radius)
             end
         end
     else
-        for index in ipairs(state.topology.vertices or {}) do candidateIndices[#candidateIndices+1]=index end
+        for index in ipairs(vertices or {}) do candidateIndices[#candidateIndices+1]=index end
     end
     for _,index in ipairs(candidateIndices) do
-        local vertex=state.topology.vertices[index]
+        local vertex=vertices[index]
         if vertex then
             local dx,dy,dz=vertex.x-point.x,vertex.y-point.y,vertex.z-point.z
             local distanceSquared=dx*dx+dy*dy+dz*dz
@@ -4723,6 +5884,126 @@ local function finishMaskBrush()
     markModified()
 end
 
+local function selectMaskBoundaryLoop(x,y)
+    local mask=state.project.masks and state.project.masks[state.selectedMask]
+    local topology=state.topology
+    if not mask or not topology or state.maskVisualization.building or
+            (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return end
+    local hit=maskBrushSurfaceHit(x,y)
+    if not hit then
+        setStatus(tLang.L('fre_mask_loop_no_boundary'),true)
+        return
+    end
+    local cache=state.maskLoopCache
+    if not cache or cache.signature~=topology.signature then
+        cache=tFacialEdgeLoops.build(topology)
+        state.maskLoopCache=cache
+    end
+    local indices,reason=tFacialEdgeLoops.nearest(cache,hit.point,maskBrushWorldRadius(),hit.indices)
+    if not indices then
+        setStatus(tLang.L(reason=='open_chain' and 'fre_mask_loop_open_chain' or
+            'fre_mask_loop_no_boundary'),true)
+        return
+    end
+    local present={}
+    for _,index in ipairs(mask.vertices or {}) do present[index]=true end
+    local changed={}
+    local add=state.maskEditMode~='remove'
+    for _,index in ipairs(indices) do
+        if add and not present[index] then
+            present[index]=true
+            changed[#changed+1]=index
+        elseif not add and present[index] then
+            present[index]=nil
+            changed[#changed+1]=index
+        end
+    end
+    if #changed==0 then
+        setStatus(tLang.L('fre_mask_loop_unchanged'),false)
+        return
+    end
+    pushUndoSnapshot()
+    mask.vertices={}
+    for index in pairs(present) do mask.vertices[#mask.vertices+1]=index end
+    table.sort(mask.vertices)
+    mask.topologySignature=topology.signature
+    for _,index in ipairs(changed) do queueMaskSurfaceUv(index,add) end
+    local visualization=state.maskVisualization
+    visualization.vertexCount=#mask.vertices
+    local faceCount=0
+    for _,triangle in ipairs(topology.triangles or {}) do
+        if present[triangle[1]] and present[triangle[2]] and present[triangle[3]] then
+            faceCount=faceCount+1
+        end
+    end
+    visualization.faceCount=faceCount
+    visualization.needsBuild=false
+    visualization.dirty=false
+    visualization.keepSurfaceWhileDirty=false
+    state.maskBrushReference={key=nil,extent=nil}
+    state.maskBrushHover.lastHit=nil
+    state.maskBrushHover.forceSurfaceHit=true
+    setMaskVisualizationViewportVisible(true)
+    markModified()
+    setStatus(string.format(tLang.L('fre_mask_loop_selected_fmt'),#changed),false)
+end
+
+local function targetBrushRadius()
+    local bounds=state.meshBounds
+    if not bounds then return 0 end
+    local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+    return math.max(extent*(state.targetAuthoring.brushRadius or 0.025),0.0001)
+end
+
+local function stampTargetBrush(x,y,stroke)
+    local hit=maskBrushSurfaceHit(x,y,stroke.geometry)
+    if not hit then return end
+    state.targetBrushHover.lastHit=hit
+    state.targetBrushHover.lastX=x
+    state.targetBrushHover.lastY=y
+    local radius=targetBrushRadius()
+    local nearby=collectMaskBrushVertices(hit.point,hit.normal,radius,stroke.geometry)
+    local authoring=state.targetAuthoring
+    local changed=tFacialTargets.brushStamp(stroke.edited,stroke.geometry.vertices,hit.point,hit.normal,
+        radius,authoring.brushStrength or 0.5,{x=authoring.brushDx or 0,y=authoring.brushDy or 0,
+            z=authoring.brushDz or 0},authoring.brushMode==2,stroke.allowed,nearby)
+    stroke.changed=stroke.changed+changed
+    stroke.lastX,stroke.lastY=x,y
+end
+
+local function beginTargetBrush(x,y)
+    local authoring=state.targetAuthoring
+    local selected=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if not selected or not state.topology then return false end
+    local stroke={index=authoring.selectedTarget,before=tFacialTargets.copyTargetData(selected),
+        edited=tFacialTargets.copyTargetData(selected),changed=0,lastX=x,lastY=y,
+        allowed=tFacialTargets.selectionSet(authoring,state.project.masks,authoring.vertexCount,state.topology.signature)}
+    stroke.geometry=buildTargetBrushGeometry(selected)
+    if not stroke.geometry then return false end
+    authoring.brushStroke=stroke
+    stampTargetBrush(x,y,stroke)
+    return true
+end
+
+local function finishTargetBrush()
+    local authoring=state.targetAuthoring
+    local stroke=authoring.brushStroke
+    authoring.brushStroke=nil
+    if not stroke or stroke.changed==0 then return end
+    local ok,updated=dpCall(function()
+        return state.meshDebug:updateFacialTarget(stroke.index,stroke.edited.name,stroke.edited.convention,
+            stroke.edited.defaultWeight,stroke.edited.positionDeltas,
+            #stroke.edited.normalDeltas>0 and stroke.edited.normalDeltas or nil)
+    end)
+    if ok and updated~=false then
+        tFacialTargets.recordEdit(authoring,stroke.index,stroke.before,stroke.edited)
+        markFacialTargetAuthoringModified()
+        setStatus(string.format(tLang.L('fre_target_edit_applied_fmt'),stroke.changed),false)
+    else
+        targetAuthoringError('could not apply brush stroke')
+    end
+end
+
 local function handleViewportAuthoringClick(x,y)
     if not state.topology or not state.mesh then return false end
     local origin,direction=viewportPickRay(x,y)
@@ -4779,7 +6060,25 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
-    if key==0 and (state.workspace=='face_position' or state.workspace=='landmarks') then
+    if key==0 and state.workspace=='targets' and state.targetAuthoring.mode==2 and
+            state.targetAuthoring.editMode==2 and beginTargetGizmoDrag(x,y) then return end
+    if state.workspace=='targets' and key==1 then
+        if state.targetAuthoring.mode==2 and state.topology then
+            local origin,direction=viewportPickRay(x,y)
+            local hit=origin and tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
+            if hit then
+                state.targetAuthoring.selectedVertex=hit.index
+                state.targetAuthoring.selectionMode=2
+                state.targetOverlay.bufferDirty=true
+                state.targetOverlay.bufferForce=true
+                setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
+            end
+        elseif state.targetAuthoring.mode==3 then
+            beginTargetBrush(x,y)
+        end
+        return
+    end
+    if key==0 and state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
         local axis=hitTestFaceGuideAxis(x,y)
         if axis and state.faceGuide.origin then
             local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
@@ -4819,22 +6118,61 @@ function onTouchDown(key,x,y)
         setMaskVisualizationViewportVisible(false)
         return
     end
-    if key==1 and state.workspace=='masks' then
-        beginMaskBrush(x,y)
+    if key==1 and state.workspace=='masks' and state.maskWorkspaceMode==3 then
+        if state.maskLoopMode then selectMaskBoundaryLoop(x,y)
+        else beginMaskBrush(x,y) end
         return
     end
-    if key==0 and handleViewportAuthoringClick(x,y) then return end
+    if key==0 and state.controlDown and handleViewportAuthoringClick(x,y) then return end
     if key==0 then
         state.cameraDrag={x=x,y=y}
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
-    elseif key==1 then
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
+    elseif key==2 then
         state.cameraPan={x=x,y=y}
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
     end
 end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    local gizmoDrag=state.targetGizmo.drag
+    if gizmoDrag then
+        local origin,direction=viewportPickRay(x,y)
+        if not origin then return end
+        if gizmoDrag.kind=='axis' then
+            local parameter=tTargetGizmo.axisParameter(origin,direction,gizmoDrag.origin,gizmoDrag.axis)
+            if parameter then
+                local amount=parameter-gizmoDrag.startParameter
+                local pivot={x=gizmoDrag.origin.x+gizmoDrag.axis.x*amount,
+                    y=gizmoDrag.origin.y+gizmoDrag.axis.y*amount,
+                    z=gizmoDrag.origin.z+gizmoDrag.axis.z*amount}
+                if math.abs(amount)>1e-6 then
+                    if not gizmoDrag.moved then pushUndoSnapshot(); gizmoDrag.moved=true end
+                    if tTargetGizmo.setPivot(state.project,gizmoDrag.targetId,pivot) then
+                        state.modified=true
+                        state.targetGizmo.dirty=true
+                        state.targetOverlay.bufferDirty=true
+                    end
+                end
+            end
+        else
+            local vector=tTargetGizmo.ringDirection(origin,direction,gizmoDrag.origin,gizmoDrag.axis)
+            if vector then
+                state.targetAuthoring['r'..gizmoDrag.name]=gizmoDrag.baseAngle+
+                    tTargetGizmo.signedAngle(gizmoDrag.axis,gizmoDrag.startDirection,vector)
+                state.targetOverlay.bufferDirty=true
+            end
+        end
+        return
+    end
+    local targetStroke=state.targetAuthoring and state.targetAuthoring.brushStroke
+    if targetStroke then
+        local dx,dy=x-targetStroke.lastX,y-targetStroke.lastY
+        if dx*dx+dy*dy>=16 then stampTargetBrush(x,y,targetStroke) end
+        return
+    end
     if state.faceGizmoDrag then
         local drag=state.faceGizmoDrag
         local parameter=rayAxisParameter(x,y,drag.basePoint,drag.axisVector)
@@ -4849,12 +6187,19 @@ function onTouchMove(key,x,y)
         state.maskBrushHover.pendingY=y
         return
     end
-    if state.workspace=='masks' and not state.cameraDrag and not state.cameraPan then
+    if state.workspace=='targets' and state.targetAuthoring.mode==3 and
+            not state.cameraDrag and not state.cameraPan then
+        state.targetBrushHover.pendingX=x
+        state.targetBrushHover.pendingY=y
+    end
+    if state.workspace=='masks' and state.maskWorkspaceMode==3 and
+            not state.cameraDrag and not state.cameraPan then
         state.maskBrushHover.pendingX=x
         state.maskBrushHover.pendingY=y
     end
     if state.cameraPan then
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
         local c=state.camera
         local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
         local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
@@ -4877,6 +6222,7 @@ function onTouchMove(key,x,y)
     end
     if not state.cameraDrag then return end
     if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+    if state.workspace=='targets' then setTargetOverlayVisible(false) end
     if state.workspace=='masks' and
             (math.abs(x-(state.cameraDrag.startX or state.cameraDrag.x))>2 or
                 math.abs(y-(state.cameraDrag.startY or state.cameraDrag.y))>2) then
@@ -4891,8 +6237,27 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==0 and state.targetGizmo.drag then
+        state.targetOverlay.bufferDirty=true
+        state.targetOverlay.bufferForce=true
+        state.targetGizmo.drag=nil
+        state.targetGizmo.dirty=true
+        return
+    end
+    if key==1 and state.targetAuthoring and state.targetAuthoring.brushStroke then
+        if not tImGui.GetWantCaptureMouse() then
+            stampTargetBrush(x,y,state.targetAuthoring.brushStroke)
+        end
+        finishTargetBrush()
+        return
+    end
     if key==0 then
         state.cameraDrag=nil; state.faceGizmoDrag=nil
+        if state.workspace=='targets' then
+            setTargetOverlayVisible(true)
+            state.targetBrushHover.pendingX=x
+            state.targetBrushHover.pendingY=y
+        end
         if state.workspace=='masks' then
             setMaskVisualizationViewportVisible(true)
             state.maskBrushHover.lastHit=nil
@@ -4909,8 +6274,20 @@ function onTouchUp(key,x,y)
             state.maskBrushHover.pendingY=y
             return
         end
-        state.cameraPan=nil
         if state.workspace=='masks' then setMaskVisualizationViewportVisible(true) end
+    elseif key==2 then
+        state.cameraPan=nil
+        if state.workspace=='targets' then
+            setTargetOverlayVisible(true)
+            state.targetBrushHover.pendingX=x
+            state.targetBrushHover.pendingY=y
+        end
+        if state.workspace=='masks' then
+            setMaskVisualizationViewportVisible(true)
+            state.maskBrushHover.forceSurfaceHit=true
+            state.maskBrushHover.pendingX=x
+            state.maskBrushHover.pendingY=y
+        end
     end
 end
 

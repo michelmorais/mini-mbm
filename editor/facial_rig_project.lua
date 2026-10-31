@@ -21,6 +21,7 @@
 ]]--
 
 local M = {}
+local tTargetGizmo = require 'facial_rig_target_gizmo'
 
 local ROLE_NAMES = {
     'main_face', 'left_eye', 'right_eye', 'upper_teeth', 'lower_teeth',
@@ -83,7 +84,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=8,
+        schemaVersion=10,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -98,6 +99,9 @@ function M.new()
         selectedLandmark=1,
         selectedMask=1,
         landmarkEditMode=1,
+        morphTargetPreview={targetId='',weight=1},
+        morphTargetPivots={},
+        morphTargetEdits=nil,
         expressions={targets={},poses={},selectedTarget=1,selectedPose=1},
         clips={},selectedClip=1,
         language=nil
@@ -120,7 +124,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(8,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(10,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -143,6 +147,14 @@ function M.normalize(project)
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
     project.landmarkEditMode=math.max(1,math.min(2,
         math.floor(tonumber(project.landmarkEditMode) or 1)))
+    local targetPreview=type(project.morphTargetPreview)=='table' and project.morphTargetPreview or {}
+    local previewWeight=tonumber(targetPreview.weight)
+    if not previewWeight or previewWeight~=previewWeight or
+            previewWeight==math.huge or previewWeight==-math.huge then previewWeight=1 end
+    project.morphTargetPreview={targetId=type(targetPreview.targetId)=='string' and
+        targetPreview.targetId or '',weight=math.max(0,math.min(1,previewWeight))}
+    project.morphTargetPivots=tTargetGizmo.normalizePivots(project.morphTargetPivots)
+    if type(project.morphTargetEdits)~='table' then project.morphTargetEdits=nil end
     if type(project.expressions)~='table' then
         project.expressions={targets={},poses={},selectedTarget=1,selectedPose=1}
     else
@@ -212,6 +224,7 @@ function M.normalize(project)
         else
             mask.name=type(mask.name)=='string' and mask.name~='' and mask.name or ('region_' .. index)
             mask.roleIndex=math.max(1,math.floor(tonumber(mask.roleIndex) or 1))
+            mask.purpose=mask.purpose=='target' and 'target' or 'rig'
             -- Normalize the serialized list before any read-only review runs. Older
             -- editor versions could leave boolean set-members in this array while
             -- calculating a binding review; discard those malformed values and keep
@@ -280,10 +293,20 @@ function M.addMask(project, name, roleIndex)
             end
         end
     end
-    local mask = {name=uniqueName, roleIndex=roleIndex or 1,
+    local mask = {name=uniqueName, roleIndex=roleIndex or 1,purpose='rig',
         vertices={}, topologySignature=project.meshTopologySignature or '', enabled=true}
     project.masks[#project.masks + 1] = mask
     return mask
+end
+
+function M.addTargetMask(project,name)
+    local mask=M.addMask(project,name,1)
+    mask.purpose='target'
+    return mask
+end
+
+function M.isRigMask(mask)
+    return mask and mask.purpose~='target'
 end
 
 function M.sourceObjects(project)
@@ -400,10 +423,10 @@ function M.validate(project, meshLoaded, topology)
     end
     for index, mask in ipairs(project.masks or {}) do
         local role=project.roles and project.roles[mask.roleIndex or 0]
-        if not role then
+        if M.isRigMask(mask) and not role then
             description.valid=false
             description.errors[#description.errors + 1]='mask has no target role: ' .. tostring(mask.name or index)
-        elseif role.enabled == false and mask.enabled ~= false then
+        elseif M.isRigMask(mask) and role.enabled == false and mask.enabled ~= false then
             description.warnings[#description.warnings + 1]='mask targets a disabled role: ' .. tostring(mask.name or index)
         end
     end
@@ -464,10 +487,12 @@ function M.bindingDescription(project, topology)
         end
     end
     for index,mask in ipairs(project.masks or {}) do
-        local vertices=type(mask.vertices)=='table' and mask.vertices or {}
-        description.masks[#description.masks + 1]={index=index,name=mask.name,
-            roleIndex=mask.roleIndex or 1,vertexCount=#vertices,
-            topologySignature=mask.topologySignature or ''}
+        if M.isRigMask(mask) then
+            local vertices=type(mask.vertices)=='table' and mask.vertices or {}
+            description.masks[#description.masks + 1]={index=index,name=mask.name,
+                roleIndex=mask.roleIndex or 1,vertexCount=#vertices,
+                topologySignature=mask.topologySignature or ''}
+        end
     end
     for index,landmark in ipairs(project.landmarks or {}) do
         if landmark.placed then
@@ -507,7 +532,7 @@ function M.bindingReview(project, topology)
                 end
             end
             for maskIndex,mask in ipairs(project.masks or {}) do
-                if mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
+                if M.isRigMask(mask) and mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
                     item.maskCount=item.maskCount+1
                     local rawMaskVertices=type(mask.vertices)=='table' and mask.vertices or {}
                     if topology and (mask.topologySignature or '')~='' and mask.topologySignature~=topology.signature then
@@ -665,7 +690,7 @@ function M.rigDescription(project, topology)
         if role.enabled then
             local masks={}
             for index, mask in ipairs(project.masks or {}) do
-                if mask.enabled and mask.roleIndex == _ then masks[#masks + 1]=index end
+                if M.isRigMask(mask) and mask.enabled and mask.roleIndex == _ then masks[#masks + 1]=index end
             end
             description.roleBindings[#description.roleBindings + 1]={index=_, name=role.name,
                 object=role.object or '', maskIndices=masks,

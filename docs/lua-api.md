@@ -715,15 +715,18 @@ otherwise it reports the LBS fallback and the compatibility reason.
 | `obj:getTotalFacialTargets` | `()` | int | Number of facial targets; available on runtime mesh and MeshDebug authoring objects |
 | `obj:getFacialTargetName` | `(index: int)` | string or nil | Name of the 1-based target |
 | `obj:getFacialTargetInfo` | `(index: int)` | table or nil | `{id, name, convention, defaultWeight}`; `id` is a hexadecimal string |
+| `meshD:addFacialTarget` | `(name, convention, defaultWeight, positionDeltas, normalDeltas?)` | int | MeshDebug only: append a validated dense target from frame-0 `{x,y,z}` delta arrays and return its 1-based index; normal deltas are optional and become zero deltas when the base mesh has normals; existing facial clip keys gain a zero weight for the new target |
+| `meshD:updateFacialTarget` | `(index, name, convention, defaultWeight, positionDeltas, normalDeltas?)` | bool | MeshDebug only: replace one target transactionally after frame-0 topology, finite-value, identity, and normal-delta validation |
+| `meshD:removeFacialTarget` | `(index)` | bool | MeshDebug only: remove a target transactionally and remove the corresponding target-order weight from every facial clip; removing the last target is allowed only when no clips remain |
 | `obj:setFacialWeight` | `(target: int\|string, weight)` | bool | Set a per-instance manual override, clamped to `[0,1]` |
 | `obj:getFacialWeight` | `(target: int\|string)` | number or nil | Current evaluated target weight |
 | `obj:clearFacialWeight` | `(target: int\|string)` | bool | Clear one manual override and restore clip/default contribution |
 | `obj:resetFacialWeights` | `()` | bool | Clear all manual overrides; returns `true` when no overrides are already active |
-| `obj:getTotalFacialClips` | `()` | int | Number of authored facial clips |
-| `obj:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip |
+| `obj:getTotalFacialClips` / `meshD:getTotalFacialClips` | `()` | int | Number of authored facial clips on a runtime mesh or MeshDebug candidate |
+| `obj:getFacialClipName` / `meshD:getFacialClipName` | `(index: int)` | string or nil | Name of the 1-based facial clip; `nil` for an invalid index |
 | `obj:getFacialClipDuration` | `(index: int)` | number or nil | Duration in seconds |
-| `obj:addFacialClip` | `(name, duration, loop, interpolation, keys)` | int or nil | Append a validated clip to the loaded debug mesh and return its 1-based index; each key is `{time, weights}` and `weights` follows the mesh target order |
-| `obj:removeFacialClip` | `(index: int)` | bool | Remove a 1-based facial clip from the loaded debug mesh |
+| `meshD:addFacialClip` | `(name, duration, loop, interpolation, keys)` | int or Lua error | MeshDebug only: append a validated clip and return its 1-based index; each key is `{time, weights}` and `weights` follows the mesh target order |
+| `meshD:removeFacialClip` | `(index: int)` | bool or Lua error | MeshDebug only: remove a 1-based facial clip |
 | `obj:playFacialAnimation` | `(name)` | bool | Start or restart a facial clip at time zero |
 | `obj:pauseFacialAnimation` | `()` | bool | Pause the active facial clip |
 | `obj:resumeFacialAnimation` | `()` | bool | Resume the active facial clip |
@@ -750,12 +753,16 @@ face:clearFacialWeight("jawOpen")
 face:stopFacialAnimation()
 
 -- Authoring/export bridge (mesh-debug objects only):
-local clipIndex = face:addFacialClip("sorrir", 1.0, false, 1, {
+local meshD = meshDebug:new()
+assert(meshD:load("character-face.msh"))
+local clipIndex = meshD:addFacialClip("sorrir", 1.0, false, 1, {
     {time = 0.0, weights = {0, 0, 0, 0, 0, 0}},
     {time = 1.0, weights = {0, 0.8, 0, 0, 0, 0}},
 })
 assert(clipIndex)
-assert(face:removeFacialClip(clipIndex))
+assert(meshD:getTotalFacialClips() >= 1)
+assert(meshD:getFacialClipName(clipIndex) == "sorrir")
+assert(meshD:removeFacialClip(clipIndex))
 ```
 
 `addFacialClip` validates the complete candidate asset before committing it. It requires at
@@ -2060,6 +2067,29 @@ cache behavior and the usual skeletal initialization path.
 
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations.
+
+Facial target authoring is transactional and currently operates on the in-memory MeshDebug
+candidate. `addFacialTarget`, `updateFacialTarget`, and `removeFacialTarget` preserve the previous
+valid candidate when validation fails. Position and normal delta arrays use the canonical frame-0
+vertex order and contain `{x,y,z}` tables. The first native Facial Rig Editor worktree uses these
+APIs for target identity and batch data operations. Its first sculpt-foundation controls apply
+translation, rotation around a target-specific 3D pivot, or reset to all vertices or to an
+existing project mask; the controls commit only on explicit Apply and have local undo/redo. The
+rotation gizmo provides X/Y/Z rings to set draft angles and axes to move the pivot. The pivot
+defaults to the placed face origin or mesh center and is stored as editor project metadata, keyed
+by target ID; only the resulting vertex deltas are written to the MSH. The displacement overlay
+updates its dynamic vertex buffers during a ring drag or angle input changes, before the candidate
+is committed. Entering Rotate enables this overlay; changing Preview weight hides it and shows the
+textured runtime mesh at the chosen weight. A new neutral target opens Edit with preview weight 1,
+all vertices selected, and the textured mesh visible.
+In Edit, right click picks a neutral-surface vertex; in Paint, right drag applies a bounded
+move/smooth brush, optionally filtered through a project mask. The editor stages each stroke in Lua,
+calls
+`updateFacialTarget` once on release, and refreshes its runtime preview through a temporary MSH
+when the candidate changes. The brush currently preserves existing normal deltas; deformed-surface
+picking and normal recomputation remain future work. The Facial Rig Editor now saves changed/new
+targets and deletions as sparse project edits relative to the source MSH; export a new MSH when the
+target payload is ready for runtime use.
 
 Mesh Debug can also mark one animation to start on each newly loaded instance of the saved V11
 asset:

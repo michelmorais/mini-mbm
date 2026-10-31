@@ -27,13 +27,25 @@ local surfaceHit=Landmarks.intersectRaySurface(surface,{x=0.2,y=0.2,z=2},{x=0,y=
 assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
     'surface snapping must intersect the selected triangle')
 local project=Project.new()
-assert(project.schemaVersion==8 and project.landmarkEditMode==1)
+assert(project.schemaVersion==10 and project.landmarkEditMode==1)
+assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
+project.morphTargetPreview={targetId='0000000000000007',weight=0}
+local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
+assert(Project.save(project,previewPath,function(root,value,lines)
+    lines[#lines+1]=root..'.morphTargetPreview = {targetId='..string.format('%q',value.morphTargetPreview.targetId)..
+        ',weight='..tostring(value.morphTargetPreview.weight)..'}'
+end))
+local restoredPreview=assert(Project.load(previewPath)).morphTargetPreview
+assert(restoredPreview.targetId=='0000000000000007' and restoredPreview.weight==0)
+os.remove(previewPath)
 project.landmarkEditMode=2
 project.language='pt_br'
 assert(Project.normalize(project).landmarkEditMode==2)
 assert(project.language=='pt_br')
 assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
     'legacy facial projects must default to independent side editing')
+assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
+    'legacy facial projects must retain a default preview weight')
 project.expressions=Expressions.syncCatalog(project.expressions,
     {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
 local expression=Expressions.addPose(project.expressions,'smile')
