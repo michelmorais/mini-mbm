@@ -2605,8 +2605,9 @@ local function loadMesh(path, preserveProject)
     end
     if requestedPreserve and not projectCompatible then preserveProject=false end
     local restoredIds={}
+    local embeddedTargetEdits=false
     if preserveProject and state.project.morphTargetEdits then
-        local restored,ok,idMap=dpCall(function()
+        local restored,ok,idMap,alreadyInMsh=dpCall(function()
             return tFacialTargetProject.apply(inspector,state.project.morphTargetEdits,topology.signature)
         end)
         if not restored or not ok then
@@ -2615,8 +2616,10 @@ local function loadMesh(path, preserveProject)
             return false
         end
         restoredIds=idMap or {}
+        embeddedTargetEdits=alreadyInMsh==true
     end
     destroyPreview()
+    if embeddedTargetEdits then state.project.morphTargetEdits=nil end
     state.mesh=candidate
     state.meshDebug=inspector
     state.meshBounds=bounds
@@ -2642,7 +2645,7 @@ local function loadMesh(path, preserveProject)
     state.selectedMask=state.project.selectedMask or 1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
-    state.modified=preserveProject and state.modified or true
+    state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
@@ -2689,7 +2692,7 @@ local function loadMesh(path, preserveProject)
     else
         setStatus(string.format(tLang.L('fre_loaded_fmt'),shortName(path),count),false)
     end
-    return true
+    return true,embeddedTargetEdits
 end
 
 local function newProject()
@@ -2742,14 +2745,17 @@ local function openProject()
     state.project=project
     state.projectPath=path
     state.modified=false
+    local projectNeedsSync=false
     if project.meshPath~='' then
-        if not loadMesh(project.meshPath,true) then
+        local loaded,embeddedTargetEdits=loadMesh(project.meshPath,true)
+        if not loaded then
             state.project=previousProject
             state.projectPath=previousPath
             state.modified=previousModified
             tLang.setLanguage(previousLanguage)
             return
         end
+        projectNeedsSync=embeddedTargetEdits==true
     else
         destroyPreview()
         state.targetAuthoring=tFacialTargets.new()
@@ -2770,7 +2776,11 @@ local function openProject()
     state.selectedLandmark=project.selectedLandmark or 1
     state.landmarkEditMode=project.landmarkEditMode or 1
     clearHistory()
-    setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
+    if projectNeedsSync then
+        setStatus(tLang.L('fre_target_project_embedded_sync'),false)
+    else
+        setStatus(string.format(tLang.L('fre_project_loaded_fmt'),shortName(path)),false)
+    end
 end
 
 local function saveProject(path)

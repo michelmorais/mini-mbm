@@ -102,11 +102,74 @@ local function dense(values,vertexCount)
     return result
 end
 
+local function matchesSparse(actual,saved,vertexCount)
+    if type(saved)~='table' then return false end
+    for index in pairs(saved) do
+        if type(index)~='number' or index%1~=0 or index<1 or index>vertexCount then return false end
+    end
+    for index=1,vertexCount do
+        local current=actual and actual[index]
+        local expected=saved[index]
+        if expected and (not finite(expected.x) or not finite(expected.y) or
+                not finite(expected.z)) then return false end
+        local dx=(current and current.x or 0)-(expected and expected.x or 0)
+        local dy=(current and current.y or 0)-(expected and expected.y or 0)
+        local dz=(current and current.z or 0)-(expected and expected.z or 0)
+        if math.abs(dx)>1e-5 or math.abs(dy)>1e-5 or math.abs(dz)>1e-5 then return false end
+    end
+    return true
+end
+
+local function alreadyEmbedded(base,vertexCount,patch)
+    if type(patch.baseIds)~='table' or type(patch.removedIds)~='table' or
+            type(patch.targets)~='table' or vertexCount~=patch.vertexCount then return false end
+    local removed,baseIds,expected={}, {}, {}
+    for _,id in ipairs(patch.baseIds) do
+        if type(id)~='string' or id=='' or baseIds[id] then return false end
+        baseIds[id]=true
+    end
+    for _,id in ipairs(patch.removedIds) do
+        if not baseIds[id] or removed[id] then return false end
+        removed[id]=true
+    end
+    for _,id in ipairs(patch.baseIds) do
+        if not removed[id] then expected[#expected+1]=id end
+    end
+    local records={}
+    for _,record in ipairs(patch.targets) do
+        if type(record)~='table' or type(record.id)~='string' or record.id=='' or
+                type(record.name)~='string' or record.name=='' or
+                type(record.convention)~='string' or records[record.id] then
+            return false
+        end
+        records[record.id]=record
+        if not baseIds[record.id] or removed[record.id] then
+            expected[#expected+1]=record.id
+        end
+    end
+    if #base~=#expected then return false end
+    for index,target in ipairs(base) do
+        if target.id~=expected[index] then return false end
+        local record=records[target.id]
+        if record then
+            if target.name~=record.name or target.convention~=record.convention or
+                    not finite(record.defaultWeight) or
+                    math.abs(target.defaultWeight-record.defaultWeight)>1e-6 or
+                    not matchesSparse(target.positionDeltas,record.positions,vertexCount) or
+                    not matchesSparse(target.normalDeltas,record.normals,vertexCount) then
+                return false
+            end
+        end
+    end
+    return true
+end
+
 function M.apply(meshDebug,patch,topologySignature)
     if type(patch)~='table' then return true,{} end
     if patch.topologySignature~=topologySignature then return false,'morph target topology mismatch' end
     local base,vertexCount,hasNormals=Targets.catalogFromDebug(meshDebug)
     if #base==0 and vertexCount==0 then vertexCount=patch.vertexCount end
+    if alreadyEmbedded(base,vertexCount,patch) then return true,{},true end
     if vertexCount~=patch.vertexCount or type(patch.baseIds)~='table' or
             #base~=#patch.baseIds then return false,'morph target source MSH mismatch' end
     for index,target in ipairs(base) do

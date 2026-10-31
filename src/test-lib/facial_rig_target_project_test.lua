@@ -184,6 +184,19 @@ assert(combinedMesh:updateFacialTarget(1,'combined','Manual',0,combined.position
 local reloaded=Targets.catalogFromDebug(combinedMesh)
 assert(math.abs(reloaded[1].positionDeltas[1].z-combined.positionDeltas[1].z)<1e-6)
 
+local embeddedMesh=mockMesh({target('0000000000000001','jawOpen',
+    {vec(0,0,0),vec(0,-0.2,0),vec(0,0,0)}),
+    target('0000000000000002','jawOpen_test',Targets.zeroDeltas(3))},3)
+local embeddedOk,embeddedMap,alreadyInMsh=TargetProject.apply(embeddedMesh,patch,'same-topology')
+assert(embeddedOk and alreadyInMsh and next(embeddedMap)==nil and #embeddedMesh.targets==2,
+    'project edit already exported to MSH must not be applied twice')
+local changedExport=mockMesh({target('0000000000000001','jawOpen',
+    {vec(0,0,0),vec(0,-0.2,0),vec(0,0,0)}),
+    target('0000000000000002','jawOpen_test',
+        {vec(0,0,0),vec(0,0.1,0),vec(0,0,0)})},3)
+assert(not TargetProject.apply(changedExport,patch,'same-topology'),
+    'a different MSH must not be accepted as the embedded project edit')
+
 local mesh=mockMesh({target('0000000000000001','jawOpen',Targets.zeroDeltas(3))},3)
 local ok,idMap=TargetProject.apply(mesh,restoredProject.morphTargetEdits,'same-topology')
 assert(ok and idMap['0000000000000002']==mesh.targets[2].id)

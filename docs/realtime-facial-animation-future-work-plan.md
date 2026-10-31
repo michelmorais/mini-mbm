@@ -77,8 +77,11 @@ The first native authoring slice is available on this branch:
   the selected target at the chosen preview weight. The editor project stores the selected target
   ID and preview weight when saved. It also stores changed/new targets as sparse delta overrides
   against the source MSH and records deleted target IDs. Reopening the project validates the source
-  target IDs and topology before replaying those edits. The MSH stores target deltas and default
-  weights, not the editor preview preference. Exporting a runtime MSH remains explicit.
+  target IDs and topology before replaying those edits. If the referenced MSH already contains the
+  exact edited target catalog and deltas, the editor treats the patch as incorporated, removes the
+  redundant patch in memory, and asks for a project save. Other source mismatches remain errors.
+  The MSH stores target deltas and default weights, not the editor preview preference. Exporting a
+  runtime MSH remains explicit.
 - An optional displacement heat map uses the same dynamic indexed surface and pixel shader as the
   mask visualization. Its color intensity follows the selected target's per-vertex delta magnitude;
   it rebuilds when the target or geometry changes and updates its vertex/UV buffers for draft
@@ -157,8 +160,7 @@ as described below; the anatomical quality of `jawOpen` remains unverified.
 The same target was painted with Move using X = 1. The user observed the local deformation vary
 with preview weight and confirmed that Undo and Redo reversed and restored the stroke. This
 validates the basic brush and local edit history. Export was subsequently tested as described
-below. Reopening the facial project after the export and checking that its mesh path and authored
-target state remain consistent has not yet been reported.
+below. The later project reload failure and its repair are recorded below.
 
 ### Manual validation - exported MSH in Mesh Debug (2026-10-30)
 
@@ -172,8 +174,20 @@ the intended content.
 At the time of this check, the project file `Meg-facial-rig.lua` still named `Megan-weighted.msh`
 as its source mesh. Export updates the project mesh path in editor memory; saving the project
 afterward persists that association. The MSH target payload has already passed a user-visible
-export/reload check in Mesh Debug. Saving and reopening the project after export remains a separate
-editor-session check, not a missing API for MSH persistence.
+export/reload check in Mesh Debug. The separate project reload issue is recorded below; it was a
+stale editor patch, not missing MSH target persistence.
+
+### Project reload after exported target (2026-10-31)
+
+The user reported that Mesh Debug loaded `Megan-morph-target-test.msh` and displayed the newly
+exported target, but reopening `Meg-facial-rig.lua` failed. The saved project was valid Lua and
+pointed to that MSH; it still held a patch based on 12 targets. The MSH already contained all 13,
+including `eyeBlinkRightDuplicated` with the same ID, metadata, position deltas, and normal deltas
+as the patch. The old reload path rejected this as a source MSH mismatch. The editor now recognizes
+that exact already-exported state without applying the patch twice, marks the project as changed,
+and prompts a save to remove the redundant patch. A local engine test loaded the actual MSH and
+saved/reloaded a repaired project copy in `/tmp`; reopening through the editor GUI remains to be
+confirmed by the user.
 
 ### Manual validation - Megan jaw comparison (2026-10-31)
 
@@ -195,7 +209,7 @@ The user then saved `Megan-morph-target-test.msh` with the authored `jawOpenTest
 also contains `test-mandibula`, a diagnostic target that moves only the lower lips down on Y to
 inspect the apparent upper/lower-lip attachment. The user considers the first Megan target test
 complete. This records the asset and authoring result; the exact lip vertex-sharing relationship
-was not reported, and the separate project-after-export reopen check is still unreported.
+was not reported. The later project-after-export reload failure is recorded above.
 
 After using the maximum Soft edge setting for the jaw rotation, the user observed that the lips
 open and saved both the facial project and the exported `Megan-morph-target-test.msh`. The saved
@@ -227,8 +241,8 @@ more controlled surface-aware smoothing tool later.
    Check the upper face, chin, neck, nape, and lip corners.
 2. If a mouth-edge artifact remains, inspect topology to distinguish shared lip vertices from
    coincident but independent edges. A selection mask cannot change topology.
-3. Reload the newly exported MSH and reopen the saved facial project to confirm the final
-   `jawOpenTest_copy` deformation and project association in a fresh session.
+3. Reopen the saved facial project in the editor after the patch-reconciliation fix, save it once
+   to remove the redundant patch, and confirm the target and mesh association in a fresh session.
 
 The MSH write/read path for native targets has passed its first manual acceptance. The 3D pivot
 tool is available and has been used for the jaw trial. The user validated a visible morph-only jaw
