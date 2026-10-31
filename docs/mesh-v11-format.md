@@ -715,6 +715,9 @@ versions, duplicate/orphan sections, invalid identities, non-finite values, topo
 and truncated payloads are fatal load errors. Facial edits that would reorder, resize, or otherwise
 change frame-0 geometry are rejected until a remapping implementation exists; ordinary load/save
 preserves the sections byte-for-byte semantically.
+Adding a facial target to a MeshDebug candidate appends a zero weight to every existing facial
+clip key, keeping each key's weight count aligned with the expanded target catalog. Removing a
+target removes its weight from every clip key.
 
 The CPU reference evaluator starts from immutable frame-0 geometry, adds all active position deltas,
 then adds and renormalizes normal deltas when normals are present. When skeletal animation is also

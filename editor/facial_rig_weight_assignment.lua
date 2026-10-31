@@ -150,7 +150,7 @@ local function roleVertices(project,entry,topology)
         appendUnique(vertices,seen,math.floor(index))
     end
     for _,mask in ipairs(project and project.masks or {}) do
-        if mask.enabled~=false and (mask.roleIndex or 1)==entry.index then
+        if mask.purpose~='target' and mask.enabled~=false and (mask.roleIndex or 1)==entry.index then
             if topology and mask.topologySignature~='' and mask.topologySignature~=topology.signature then
                 return nil,'mask topology is stale: ' .. tostring(mask.name or '')
             end
