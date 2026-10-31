@@ -22,22 +22,27 @@ The first native authoring slice is available on this branch:
 - The Lua `meshDebug` binding exposes those operations using dense `{x, y, z}` position and
   optional normal-delta arrays. Target addition appends a zero weight to existing facial clip
   keys; removal deletes the corresponding weight and protects the last target when clips remain.
-- The Facial Rig Editor splits `Morph Targets` into Add, Edit, and Paint modes. Add shows only
+- The Facial Rig Editor splits `Morph Targets` into Add, Edit, Paint, and Mirror modes. Add shows
   neutral-target creation fields and opens Edit after creation. Edit shows target metadata, batch
-  operations, and duplicate/delete actions; Paint shows only brush controls and the shared target
-  selection, preview, vertex filter, and local undo/redo controls.
+  operations, and duplicate/delete actions; Paint shows brush controls, vertex filters, and local
+  undo/redo. Mirror keeps the mirroring inputs and diagnostics separate from Edit. Target selection,
+  preview weight, and the displacement toggle are shared.
 - The Convention selector offers `ARKit`, `FACS`, and `Manual`, with `Manual` as the default for
   targets created in this editor. The label is saved with the target but does not map channels or
   change deformation. Existing labels outside the list remain intact until explicitly changed.
   FACS describes facial movements as Action Units (AUs); see the
   [Paul Ekman Group FACS overview](https://www.paulekman.com/facial-action-coding-system/).
-- Edit Target can analyze an X-plane mirror and create a new target with mirrored position/normal
+- Mirror Target can analyze an X-plane mirror and create a new target with mirrored position/normal
   deltas and pivot. The suggested name swaps recognized Left/Right or L/R suffixes; the name and
   plane are editable. Matching uses neutral vertex positions with an adjustable radius. The report
   shows matched vertices, active source vertices without partners, and ambiguous destinations.
   Exact matching creates directly. A limited approximate mode requires an explicit checkbox and
   permits at most 1% unmatched active vertices, 0.1% ambiguous destinations, and at least 80%
-  matched vertices; the artist must inspect/correct that result. It never changes the source.
+  matched vertices; the artist must inspect/correct that result. Analyze builds a temporary mesh
+  copy with the proposed mirrored target. The preview shows its textured deformation at the chosen
+  weight, or the mirrored displacement heat map when enabled. Changing the source or mirror
+  parameters discards that preview. Only Create mirrored target mutates the editor candidate; the
+  source target remains unchanged.
 - Edit Target can inspect references in authored expressions and project clips. Renaming a target
   migrates named weights in both, including undo/redo of the rename. Deleting a referenced target
   requires a second click and clears those names from project expressions and clips after the
@@ -252,8 +257,8 @@ may originate in Blender Shape Keys or the optional Blender-assisted workflow. T
 facial surface exposes target data for inspection and supports
 project-authored facial clips. It now also has a first batch mutation API for adding, replacing,
 and removing dense targets. Vertex selection, a first brush, and candidate preview now exist in
-the editor; normal-delta recomputation remains to be implemented. Mirror analysis and creation are
-available, subject to neutral-geometry correspondence checks.
+the editor; normal-delta recomputation remains to be implemented. Mirror analysis, visual preview,
+and creation are available in their own mode, subject to neutral-geometry correspondence checks.
 
 This distinction matters for the supplied Megan test asset (`Meg-facial-rig.lua` ->
 `Megan-weighted.msh`). The runtime evaluates the asset's facial and skeletal data; the authoring

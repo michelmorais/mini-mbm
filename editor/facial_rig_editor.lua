@@ -89,6 +89,7 @@ local state = {
         targetId=nil,drag=nil,dirty=true},
     targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false,
         bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0},
+    mirrorPreview={mesh=nil,original=nil,path=nil,targetIndex=nil},
     targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
@@ -116,6 +117,7 @@ local startTargetOverlayBuild
 local stepTargetOverlayBuild
 local updateTargetOverlayLivePreview
 local destroyTargetOverlay
+local releaseMirrorPreview
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
@@ -767,7 +769,33 @@ local function destroyMaskVisualization()
     state.maskLoopCache=nil
 end
 
+releaseMirrorPreview=function()
+    local preview=state.mirrorPreview
+    if not preview or not preview.mesh then return end
+    destroyTargetOverlay()
+    local desiredVisible=preview.mesh.visible~=false
+    preview.mesh.alwaysRender=false
+    dpCall(function() preview.mesh:destroy() end)
+    state.mesh=preview.original
+    if state.mesh then state.mesh.visible=desiredVisible end
+    if preview.path then
+        dpCall(function() meshDebug:fakeRelease(preview.path) end)
+        os.remove(preview.path)
+    end
+    state.mirrorPreview={mesh=nil,original=nil,path=nil,targetIndex=nil}
+    local authoring=state.targetAuthoring
+    if state.mesh and authoring and not authoring.previewDirty then
+        for index=1,#authoring.targets do
+            local weight=authoring.mode~=4 and index==authoring.selectedTarget and
+                (authoring.previewWeight or 1) or 0
+            dpCall(function() return state.mesh:setFacialWeight(index,weight) end)
+        end
+    end
+    state.targetOverlay.dirty=true
+end
+
 local function destroyPreview()
+    releaseMirrorPreview()
     destroyRigPreview()
     destroyMaskVisualization()
     destroyTargetOverlay()
@@ -1517,9 +1545,14 @@ end
 local function updateTargetPreviewWeights()
     local authoring=state.targetAuthoring
     if not state.mesh or not authoring or authoring.previewDirty then return end
+    local mirror=state.mirrorPreview
     for index=1,#authoring.targets do
-        local weight=index==authoring.selectedTarget and (authoring.previewWeight or 1) or 0
+        local weight=authoring.mode~=4 and not (mirror and mirror.mesh) and index==authoring.selectedTarget and
+            (authoring.previewWeight or 1) or 0
         dpCall(function() return state.mesh:setFacialWeight(index,weight) end)
+    end
+    if mirror and mirror.mesh and mirror.targetIndex then
+        dpCall(function() return state.mesh:setFacialWeight(mirror.targetIndex,authoring.previewWeight or 1) end)
     end
     authoring.previewTarget=authoring.selectedTarget
     setTargetOverlayVisible(true)
@@ -1527,6 +1560,7 @@ end
 
 local function refreshTargetPreview()
     local authoring=state.targetAuthoring
+    if state.mirrorPreview and state.mirrorPreview.mesh then releaseMirrorPreview() end
     if not authoring or not authoring.previewDirty or not state.meshDebug or not state.mesh then return end
     local path=tUtil.getTemporaryFilePath('_facial_target_preview.msh')
     local savedOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,true) end)
@@ -1575,6 +1609,65 @@ local function refreshTargetPreview()
     updateTargetPreviewWeights()
 end
 
+local function buildMirrorPreview(plan,selected)
+    releaseMirrorPreview()
+    if not plan or not plan.result or not selected or not state.meshDebug or not state.mesh then return false end
+    local sourcePath=tUtil.getTemporaryFilePath('_facial_mirror_source.msh')
+    local outputPath=tUtil.getTemporaryFilePath('_facial_mirror_preview.msh')
+    local savedOk,saved=dpCall(function() return state.meshDebug:save(sourcePath,false,false,true) end)
+    if not savedOk or saved~=true then os.remove(sourcePath); return false end
+    local copy=meshDebug:new()
+    local loadedOk,loaded=dpCall(function() return copy:load(sourcePath) end)
+    if not loadedOk or loaded~=true then
+        dpCall(function() meshDebug:fakeRelease(sourcePath) end)
+        os.remove(sourcePath)
+        return false
+    end
+    local name='__fre_mirror_preview'
+    local taken={}
+    for _,target in ipairs(state.targetAuthoring.targets) do taken[target.name]=true end
+    while taken[name] do name=name..'_' end
+    local result=plan.result
+    local addOk,index=dpCall(function()
+        return copy:addFacialTarget(name,selected.convention,selected.defaultWeight,
+            result.positions,#result.normals>0 and result.normals or nil)
+    end)
+    local outputOk,output=false,false
+    if addOk and index then
+        outputOk,output=dpCall(function() return copy:save(outputPath,false,false,true) end)
+    end
+    dpCall(function() meshDebug:fakeRelease(sourcePath) end)
+    os.remove(sourcePath)
+    if not addOk or not index or not outputOk or output~=true then
+        os.remove(outputPath)
+        return false
+    end
+    local candidate=mesh:new('3d')
+    local meshOk,meshLoaded=dpCall(function()
+        return candidate:setSkeletalSkinningMethod('auto') and
+            meshDebug:loadMeshPreview(candidate,outputPath)
+    end)
+    if not meshOk or meshLoaded~=true then
+        dpCall(function() candidate:destroy() end)
+        dpCall(function() meshDebug:fakeRelease(outputPath) end)
+        os.remove(outputPath)
+        return false
+    end
+    dpCall(function() candidate:stopSkeletalAnimation() end)
+    candidate.alwaysRender=true
+    candidate:setPos(0,0,0)
+    destroyTargetOverlay()
+    local original=state.mesh
+    candidate.visible=original.visible
+    original.visible=false
+    state.mirrorPreview={mesh=candidate,original=original,path=outputPath,targetIndex=index}
+    state.mesh=candidate
+    state.targetAuthoring.previewTarget=nil
+    updateTargetPreviewWeights()
+    state.targetOverlay.dirty=true
+    return true
+end
+
 local function showTargets()
     local authoring=state.targetAuthoring
     if authoring.catalogDirty then refreshFacialTargetCatalog() end
@@ -1594,12 +1687,27 @@ local function showTargets()
     tImGui.SameLine()
     workMode=tImGui.RadioButton(tLang.L('fre_target_mode_paint'),workMode,3)
     showHelpTooltip(tLang.L('fre_target_mode_paint_tooltip'))
+    tImGui.SameLine()
+    workMode=tImGui.RadioButton(tLang.L('fre_target_mode_mirror'),workMode,4)
+    showHelpTooltip(tLang.L('fre_target_mode_mirror_tooltip'))
     tImGui.EndDisabled()
-    if workMode~=authoring.mode then state.targetBrushHover.lastHit=nil end
+    local modeChanged=workMode~=authoring.mode
+    if modeChanged then
+        state.targetBrushHover.lastHit=nil
+        if authoring.mode==4 then
+            releaseMirrorPreview()
+            authoring.mirrorPlan=nil
+        end
+        state.targetOverlay.dirty=true
+    end
     authoring.mode=workMode
+    if modeChanged then
+        updateTargetPreviewWeights()
+    end
     tImGui.Separator()
     local purposeKey=workMode==1 and 'fre_target_add_purpose' or
-        workMode==2 and 'fre_target_edit_purpose' or 'fre_target_paint_purpose'
+        workMode==2 and 'fre_target_edit_purpose' or
+        workMode==3 and 'fre_target_paint_purpose' or 'fre_target_mirror_purpose'
     tImGui.TextWrapped(tLang.L(purposeKey))
     tImGui.Separator()
     if workMode==1 then
@@ -1671,6 +1779,7 @@ local function showTargets()
             for index,target in ipairs(authoring.targets) do
                 tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
                 if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
+                    if workMode==4 then releaseMirrorPreview(); authoring.mirrorPlan=nil end
                     authoring.selectedTarget=index
                     state.targetGizmo.dirty=true
                     authoring.draftTargetIndex=nil
@@ -1693,8 +1802,13 @@ local function showTargets()
         showHelpTooltip(tLang.L('fre_target_preview_weight_tooltip'))
         if changed then
             authoring.previewWeight=value
-            state.targetOverlay.visible=false
-            setTargetOverlayVisible(false)
+            if workMode==4 then
+                state.targetOverlay.bufferDirty=true
+                state.targetOverlay.bufferForce=true
+            else
+                state.targetOverlay.visible=false
+                setTargetOverlayVisible(false)
+            end
             state.modified=true
             updateTargetPreviewWeights()
         end
@@ -1707,23 +1821,23 @@ local function showTargets()
         state.targetOverlay.dirty=true
         setTargetOverlayVisible(true)
     end
+    if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
+        authoring.nameDraft=selected.name
+        authoring.conventionDraft=selected.convention or ''
+        authoring.defaultWeight=selected.defaultWeight or 0
+        authoring.draftTargetIndex=authoring.selectedTarget
+        authoring.mirrorNameDraft=tFacialMirror.pairedName(selected.name)
+        local origin=state.project.faceOrigin
+        local bounds=state.meshBounds
+        authoring.mirrorPlaneX=origin and origin.placed and origin.position.x or
+            bounds and (bounds.minX+bounds.maxX)*0.5 or 0
+        authoring.mirrorTolerance=0.005
+        authoring.mirrorAllowApprox=false
+        authoring.mirrorPlan=nil
+        authoring.referenceReport=nil
+        authoring.deletePendingId=nil
+    end
     if workMode==2 then
-        if selected and authoring.draftTargetIndex~=authoring.selectedTarget then
-            authoring.nameDraft=selected.name
-            authoring.conventionDraft=selected.convention or ''
-            authoring.defaultWeight=selected.defaultWeight or 0
-            authoring.draftTargetIndex=authoring.selectedTarget
-            authoring.mirrorNameDraft=tFacialMirror.pairedName(selected.name)
-            local origin=state.project.faceOrigin
-            local bounds=state.meshBounds
-            authoring.mirrorPlaneX=origin and origin.placed and origin.position.x or
-                bounds and (bounds.minX+bounds.maxX)*0.5 or 0
-            authoring.mirrorTolerance=0.005
-            authoring.mirrorAllowApprox=false
-            authoring.mirrorPlan=nil
-            authoring.referenceReport=nil
-            authoring.deletePendingId=nil
-        end
         tImGui.Separator()
         tImGui.Text(tLang.L('fre_target_metadata_title'))
         tImGui.SetNextItemWidth(300)
@@ -1789,6 +1903,7 @@ local function showTargets()
         end
     end
 
+    if workMode~=4 then
     tImGui.Separator()
     if workMode==2 then
         tImGui.Text(tLang.L('fre_target_edit_title'))
@@ -2032,6 +2147,7 @@ local function showTargets()
     end
     showHelpTooltip(tLang.L('fre_target_edit_redo_tooltip'))
     tImGui.EndDisabled()
+    end
 
     if workMode==2 then
         tImGui.Separator()
@@ -2095,24 +2211,42 @@ local function showTargets()
         end
         showHelpTooltip(tLang.L('fre_target_delete_tooltip'))
         tImGui.EndDisabled()
+    end
+    if workMode==4 then
         tImGui.Separator()
         tImGui.Text(tLang.L('fre_target_mirror_title'))
         tImGui.SetNextItemWidth(240)
         local mirrorNameChanged,mirrorName=tImGui.InputText(
             tLang.L('fre_target_mirror_name')..'##freTargetMirrorName',authoring.mirrorNameDraft or '')
-        if mirrorNameChanged then authoring.mirrorNameDraft=mirrorName; authoring.mirrorPlan=nil end
+        if mirrorNameChanged then
+            releaseMirrorPreview()
+            authoring.mirrorNameDraft=mirrorName
+            authoring.mirrorPlan=nil
+            state.targetOverlay.dirty=true
+        end
         tImGui.SetNextItemWidth(140)
         local planeChanged,plane=tImGui.InputFloat(tLang.L('fre_target_mirror_plane_x'),
             authoring.mirrorPlaneX or 0,0.001,0.01,'%.5f')
         showHelpTooltip(tLang.L('fre_target_mirror_plane_tooltip'))
-        if planeChanged then authoring.mirrorPlaneX=plane; authoring.mirrorPlan=nil end
+        if planeChanged then
+            releaseMirrorPreview()
+            authoring.mirrorPlaneX=plane
+            authoring.mirrorPlan=nil
+            state.targetOverlay.dirty=true
+        end
         tImGui.SetNextItemWidth(170)
         local toleranceChanged,tolerance=tImGui.SliderFloat(tLang.L('fre_target_mirror_tolerance'),
             authoring.mirrorTolerance or 0.005,0.00001,0.01,'%.5f')
         showHelpTooltip(tLang.L('fre_target_mirror_tolerance_tooltip'))
-        if toleranceChanged then authoring.mirrorTolerance=tolerance; authoring.mirrorPlan=nil end
+        if toleranceChanged then
+            releaseMirrorPreview()
+            authoring.mirrorTolerance=tolerance
+            authoring.mirrorPlan=nil
+            state.targetOverlay.dirty=true
+        end
         tImGui.BeginDisabled(not selected or not state.topology)
         if tImGui.Button(tLang.L('fre_target_mirror_analyze')) then
+            releaseMirrorPreview()
             local bounds=state.meshBounds
             local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
                 bounds.maxZ-bounds.minZ) or 1
@@ -2121,6 +2255,10 @@ local function showTargets()
             authoring.mirrorPlan={sourceId=selected.id,name=authoring.mirrorNameDraft,
                 planeX=authoring.mirrorPlaneX,tolerance=authoring.mirrorTolerance,
                 result=result,reason=reason}
+            if result and not buildMirrorPreview(authoring.mirrorPlan,selected) then
+                targetAuthoringError(tLang.L('fre_target_mirror_preview_failed'))
+            end
+            state.targetOverlay.dirty=true
         end
         tImGui.EndDisabled()
         showHelpTooltip(tLang.L('fre_target_mirror_analyze_tooltip'))
@@ -2152,6 +2290,7 @@ local function showTargets()
                 approximateEligible and authoring.mirrorAllowApprox==true)
         tImGui.BeginDisabled(not canMirror)
         if tImGui.Button(tLang.L('fre_target_mirror_create')) then
+            releaseMirrorPreview()
             local mirrored=plan.result
             local callOk,newIndex=dpCall(function()
                 return state.meshDebug:addFacialTarget(mirrorName,selected.convention,
@@ -2172,6 +2311,7 @@ local function showTargets()
                 end
                 tFacialTargets.clearEditHistory(authoring)
                 authoring.selectedTarget=newIndex
+                authoring.mode=2
                 setStatus(tLang.L('fre_target_mirror_created'),false)
             else
                 targetAuthoringError('could not mirror target')
@@ -3151,7 +3291,15 @@ local function showExportWindow()
 end
 
 local function selectWorkspace(workspace)
-    state.workspace=state.workspace==workspace and nil or workspace
+    local nextWorkspace=state.workspace==workspace and nil or workspace
+    if nextWorkspace~='targets' then
+        releaseMirrorPreview()
+        state.targetAuthoring.mirrorPlan=nil
+    end
+    state.workspace=nextWorkspace
+    if nextWorkspace=='targets' and state.targetAuthoring.mode==4 then
+        updateTargetPreviewWeights()
+    end
     state.targetBrushHover.pendingX=nil
     state.targetBrushHover.pendingY=nil
     state.targetBrushHover.lastHit=nil
@@ -5275,12 +5423,16 @@ startTargetOverlayBuild=function()
     if not overlay.dirty or not state.topology or not state.mesh or state.targetAuthoring.previewDirty then return end
     setTargetOverlayVisible(false)
     if overlay.surface then dpCall(function() overlay.surface:destroy() end); overlay.surface=nil end
-    local target=tFacialTargets.find(state.targetAuthoring.targets,state.targetAuthoring.selectedTarget)
+    local authoring=state.targetAuthoring
+    local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if authoring.mode==4 then
+        target=authoring.mirrorPlan and authoring.mirrorPlan.result and
+            {positionDeltas=authoring.mirrorPlan.result.positions} or nil
+    end
     if not overlay.visible or not target then overlay.dirty=false; return end
     local vertices=state.topology.vertices or {}
     local deltas=target.positionDeltas or {}
     local weight=state.targetAuthoring.previewWeight or 1
-    local authoring=state.targetAuthoring
     local rotateDraft=state.workspace=='targets' and authoring.mode==2 and authoring.editMode==2 and
         ((authoring.rx or 0)~=0 or (authoring.ry or 0)~=0 or (authoring.rz or 0)~=0)
     local pivot,basis,selection
@@ -5378,6 +5530,10 @@ local function updateTargetOverlayBuffer(_,vertex,uv)
     if overlay.bufferApplied then return end
     local authoring=state.targetAuthoring
     local target=tFacialTargets.find(authoring.targets,authoring.selectedTarget)
+    if authoring.mode==4 then
+        target=authoring.mirrorPlan and authoring.mirrorPlan.result and
+            {positionDeltas=authoring.mirrorPlan.result.positions} or nil
+    end
     local topology=state.topology
     if not target or not topology then return end
     local vertices=topology.vertices or {}
