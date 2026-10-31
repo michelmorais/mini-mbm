@@ -33,6 +33,8 @@ tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
 tFacialTargets = require "facial_rig_targets"
+tFacialMirror = require "facial_rig_mirror"
+tFacialReferences = require "facial_rig_references"
 tTargetGizmo = require "facial_rig_target_gizmo"
 tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
@@ -1493,6 +1495,9 @@ end
 
 local function markFacialTargetAuthoringModified()
     state.targetAuthoring.modified=true
+    state.targetAuthoring.mirrorPlan=nil
+    state.targetAuthoring.referenceReport=nil
+    state.targetAuthoring.deletePendingId=nil
     state.targetAuthoring.previewDirty=true
     state.targetAuthoring.catalogDirty=true
     state.targetOverlay.dirty=true
@@ -1708,6 +1713,16 @@ local function showTargets()
             authoring.conventionDraft=selected.convention or ''
             authoring.defaultWeight=selected.defaultWeight or 0
             authoring.draftTargetIndex=authoring.selectedTarget
+            authoring.mirrorNameDraft=tFacialMirror.pairedName(selected.name)
+            local origin=state.project.faceOrigin
+            local bounds=state.meshBounds
+            authoring.mirrorPlaneX=origin and origin.placed and origin.position.x or
+                bounds and (bounds.minX+bounds.maxX)*0.5 or 0
+            authoring.mirrorTolerance=0.005
+            authoring.mirrorAllowApprox=false
+            authoring.mirrorPlan=nil
+            authoring.referenceReport=nil
+            authoring.deletePendingId=nil
         end
         tImGui.Separator()
         tImGui.Text(tLang.L('fre_target_metadata_title'))
@@ -1746,6 +1761,7 @@ local function showTargets()
                         data.positionDeltas,#data.normalDeltas>0 and data.normalDeltas or nil)
                 end)
                 if callOk and updated~=false then
+                    tFacialReferences.rename(state.project,selected.name,targetName)
                     tFacialTargets.recordEdit(authoring,authoring.selectedTarget,before,data)
                     markFacialTargetAuthoringModified()
                     setStatus(tLang.L('fre_target_updated'),false)
@@ -1756,6 +1772,21 @@ local function showTargets()
         end
         showHelpTooltip(tLang.L('fre_target_update_tooltip'))
         tImGui.EndDisabled()
+        if selected and tImGui.Button(tLang.L('fre_target_references_inspect')) then
+            authoring.referenceReport=tFacialReferences.inspect(state.project,selected.name)
+        end
+        showHelpTooltip(tLang.L('fre_target_references_tooltip'))
+        if selected and authoring.referenceReport then
+            local report=authoring.referenceReport
+            tImGui.TextWrapped(string.format(tLang.L('fre_target_references_summary_fmt'),
+                #report.poses,#report.clips,report.keyCount))
+            for _,name in ipairs(report.poses) do
+                tImGui.BulletText(string.format(tLang.L('fre_target_reference_pose_fmt'),name))
+            end
+            for _,clip in ipairs(report.clips) do
+                tImGui.BulletText(string.format(tLang.L('fre_target_reference_clip_fmt'),clip.name,clip.count))
+            end
+        end
     end
 
     tImGui.Separator()
@@ -1961,6 +1992,7 @@ local function showTargets()
             end)
         end
         if callOk and restored~=false then
+            tFacialReferences.rename(state.project,record.after.name,record.before.name)
             authoring.editRedo=authoring.editRedo or {}
             authoring.editRedo[#authoring.editRedo+1]=record
             authoring.selectedTarget=record.index
@@ -1987,6 +2019,7 @@ local function showTargets()
             end)
         end
         if callOk and restored~=false then
+            tFacialReferences.rename(state.project,record.before.name,record.after.name)
             authoring.editUndo=authoring.editUndo or {}
             authoring.editUndo[#authoring.editUndo+1]=record
             authoring.selectedTarget=record.index
@@ -2030,26 +2063,133 @@ local function showTargets()
         end
         showHelpTooltip(tLang.L('fre_target_duplicate_tooltip'))
         tImGui.SameLine()
-        if tImGui.Button(tLang.L('fre_target_delete')) then
-            local deletedId=selected and selected.id
-            local callOk,removed=dpCall(function() return state.meshDebug:removeFacialTarget(authoring.selectedTarget) end)
-            if callOk and removed~=false then
-                state.project.morphTargetPivots[deletedId]=nil
-                if authoring.createdIds[deletedId] then
-                    authoring.createdIds[deletedId]=nil
-                else
-                    authoring.deletedBaseIds[deletedId]=true
-                end
-                markFacialTargetAuthoringModified()
-                tFacialTargets.clearEditHistory(authoring)
-                authoring.selectedTarget=math.max(1,authoring.selectedTarget-1)
-                setStatus(tLang.L('fre_target_deleted'),false)
+        if tImGui.Button(authoring.deletePendingId==selected.id and
+                tLang.L('fre_target_delete_confirm') or tLang.L('fre_target_delete')) then
+            local references=tFacialReferences.inspect(state.project,selected.name)
+            if authoring.deletePendingId~=selected.id and
+                    (#references.poses>0 or #references.clips>0) then
+                authoring.deletePendingId=selected.id
+                authoring.referenceReport=references
+                setStatus(tLang.L('fre_target_delete_references_warning'),true)
             else
-                targetAuthoringError('could not delete target')
+                local deletedId=selected and selected.id
+                local callOk,removed=dpCall(function()
+                    return state.meshDebug:removeFacialTarget(authoring.selectedTarget)
+                end)
+                if callOk and removed~=false then
+                    tFacialReferences.remove(state.project,selected.name)
+                    state.project.morphTargetPivots[deletedId]=nil
+                    if authoring.createdIds[deletedId] then
+                        authoring.createdIds[deletedId]=nil
+                    else
+                        authoring.deletedBaseIds[deletedId]=true
+                    end
+                    markFacialTargetAuthoringModified()
+                    tFacialTargets.clearEditHistory(authoring)
+                    authoring.selectedTarget=math.max(1,authoring.selectedTarget-1)
+                    setStatus(tLang.L('fre_target_deleted'),false)
+                else
+                    targetAuthoringError('could not delete target')
+                end
             end
         end
         showHelpTooltip(tLang.L('fre_target_delete_tooltip'))
         tImGui.EndDisabled()
+        tImGui.Separator()
+        tImGui.Text(tLang.L('fre_target_mirror_title'))
+        tImGui.SetNextItemWidth(240)
+        local mirrorNameChanged,mirrorName=tImGui.InputText(
+            tLang.L('fre_target_mirror_name')..'##freTargetMirrorName',authoring.mirrorNameDraft or '')
+        if mirrorNameChanged then authoring.mirrorNameDraft=mirrorName; authoring.mirrorPlan=nil end
+        tImGui.SetNextItemWidth(140)
+        local planeChanged,plane=tImGui.InputFloat(tLang.L('fre_target_mirror_plane_x'),
+            authoring.mirrorPlaneX or 0,0.001,0.01,'%.5f')
+        showHelpTooltip(tLang.L('fre_target_mirror_plane_tooltip'))
+        if planeChanged then authoring.mirrorPlaneX=plane; authoring.mirrorPlan=nil end
+        tImGui.SetNextItemWidth(170)
+        local toleranceChanged,tolerance=tImGui.SliderFloat(tLang.L('fre_target_mirror_tolerance'),
+            authoring.mirrorTolerance or 0.005,0.00001,0.01,'%.5f')
+        showHelpTooltip(tLang.L('fre_target_mirror_tolerance_tooltip'))
+        if toleranceChanged then authoring.mirrorTolerance=tolerance; authoring.mirrorPlan=nil end
+        tImGui.BeginDisabled(not selected or not state.topology)
+        if tImGui.Button(tLang.L('fre_target_mirror_analyze')) then
+            local bounds=state.meshBounds
+            local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+                bounds.maxZ-bounds.minZ) or 1
+            local result,reason=tFacialMirror.build(selected,state.topology.vertices,
+                authoring.mirrorPlaneX or 0,math.max(extent*(authoring.mirrorTolerance or 0.005),1e-6))
+            authoring.mirrorPlan={sourceId=selected.id,name=authoring.mirrorNameDraft,
+                planeX=authoring.mirrorPlaneX,tolerance=authoring.mirrorTolerance,
+                result=result,reason=reason}
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_target_mirror_analyze_tooltip'))
+        local plan=authoring.mirrorPlan
+        if plan and plan.result then
+            tImGui.TextWrapped(string.format(tLang.L('fre_target_mirror_report_fmt'),
+                plan.result.matched,plan.result.unmatchedActive,plan.result.ambiguous))
+        end
+        local approximateEligible=plan and plan.result and
+            plan.result.matched>=plan.result.vertexCount*0.8 and
+            plan.result.unmatchedActive<=math.max(1,plan.result.totalActive*0.01) and
+            plan.result.ambiguous<=math.max(1,plan.result.vertexCount*0.001)
+        if approximateEligible and
+                (plan.result.unmatchedActive>0 or plan.result.ambiguous>0) then
+            local allow=tImGui.Checkbox(tLang.L('fre_target_mirror_allow_approx'),
+                authoring.mirrorAllowApprox==true)
+            if allow~=authoring.mirrorAllowApprox then authoring.mirrorAllowApprox=allow end
+            showHelpTooltip(tLang.L('fre_target_mirror_allow_approx_tooltip'))
+        end
+        local mirrorName=(authoring.mirrorNameDraft or ''):match('^%s*(.-)%s*$')
+        local nameTaken=mirrorName==''
+        for _,target in ipairs(authoring.targets) do
+            if target.name==mirrorName then nameTaken=true break end
+        end
+        local canMirror=selected and plan and plan.sourceId==selected.id and plan.name==authoring.mirrorNameDraft and
+            plan.planeX==authoring.mirrorPlaneX and plan.tolerance==authoring.mirrorTolerance and
+            plan.result and not nameTaken and
+            (plan.result.unmatchedActive==0 and plan.result.ambiguous==0 or
+                approximateEligible and authoring.mirrorAllowApprox==true)
+        tImGui.BeginDisabled(not canMirror)
+        if tImGui.Button(tLang.L('fre_target_mirror_create')) then
+            local mirrored=plan.result
+            local callOk,newIndex=dpCall(function()
+                return state.meshDebug:addFacialTarget(mirrorName,selected.convention,
+                    selected.defaultWeight,mirrored.positions,
+                    #mirrored.normals>0 and mirrored.normals or nil)
+            end)
+            if callOk and newIndex then
+                local sourceId=selected.id
+                local pivot=state.project.morphTargetPivots[sourceId]
+                markFacialTargetAuthoringModified()
+                local created=tFacialTargets.find(authoring.targets,newIndex)
+                if created then
+                    authoring.createdIds[created.id]=true
+                    if pivot then
+                        tTargetGizmo.setPivot(state.project,created.id,
+                            {x=2*(authoring.mirrorPlaneX or 0)-pivot.x,y=pivot.y,z=pivot.z})
+                    end
+                end
+                tFacialTargets.clearEditHistory(authoring)
+                authoring.selectedTarget=newIndex
+                setStatus(tLang.L('fre_target_mirror_created'),false)
+            else
+                targetAuthoringError('could not mirror target')
+            end
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_target_mirror_create_tooltip'))
+        if plan and not canMirror then
+            local reasonKey='fre_target_mirror_invalid'
+            if nameTaken then reasonKey='fre_target_mirror_name_taken'
+            elseif plan.result then
+                if approximateEligible and (plan.result.ambiguous>0 or plan.result.unmatchedActive>0) then
+                    reasonKey='fre_target_mirror_approx_needed'
+                elseif plan.result.ambiguous>0 then reasonKey='fre_target_mirror_ambiguous'
+                elseif plan.result.unmatchedActive>0 then reasonKey='fre_target_mirror_unmatched' end
+            end
+            tImGui.TextWrapped(tLang.L(reasonKey))
+        end
     end
     if authoring.modified and state.modified then
         tImGui.TextWrapped(tLang.L('fre_targets_unsaved_help'))

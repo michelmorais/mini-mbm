@@ -31,6 +31,23 @@ The first native authoring slice is available on this branch:
   change deformation. Existing labels outside the list remain intact until explicitly changed.
   FACS describes facial movements as Action Units (AUs); see the
   [Paul Ekman Group FACS overview](https://www.paulekman.com/facial-action-coding-system/).
+- Edit Target can analyze an X-plane mirror and create a new target with mirrored position/normal
+  deltas and pivot. The suggested name swaps recognized Left/Right or L/R suffixes; the name and
+  plane are editable. Matching uses neutral vertex positions with an adjustable radius. The report
+  shows matched vertices, active source vertices without partners, and ambiguous destinations.
+  Exact matching creates directly. A limited approximate mode requires an explicit checkbox and
+  permits at most 1% unmatched active vertices, 0.1% ambiguous destinations, and at least 80%
+  matched vertices; the artist must inspect/correct that result. It never changes the source.
+- Edit Target can inspect references in authored expressions and project clips. Renaming a target
+  migrates named weights in both, including undo/redo of the rename. Deleting a referenced target
+  requires a second click and clears those names from project expressions and clips after the
+  MeshDebug operation succeeds. Duplicate and mirrored targets start without references.
+- A Megan source-asset smoke test of `eyeBlinkLeft` with the X plane at 0 and a match radius equal to
+  0.005 of the mesh extent matched 32,417 vertices, found 16 active source vertices without a
+  partner and 3 ambiguous destinations. The limited approximate criteria were satisfied; adding
+  the resulting dense target through MeshDebug succeeded in memory as target index 13. The source
+  MSH was not modified. This verifies the candidate API path, not the artistic quality of the
+  mirrored expression; visual review and an explicit project save/export remain necessary.
 - The worktree now applies explicit translation, rotation-around-pivot, and reset operations to
   all vertices or to an existing facial mask, with a local undo/redo stack for those target edits.
 - Edit Target rotation shows X/Y/Z rings and pivot translation axes in the 3D viewport, following
@@ -222,9 +239,10 @@ authoring goal.
    corners; the current Smooth brush closed the lip gap in the Megan trial, while Move restored it.
 3. Validate one complete morph-only expression and facial clip (`jawOpen`) through editor preview,
    MSH export, reload, and runtime playback. Then repeat with blink and an asymmetric expression.
-4. Add authoring conveniences such as target mirroring and clearer expression-reference
-   diagnostics. Revisit bone-driven expression authoring only for a demonstrated need; schedule
-   OSC/vendor SDK capture after the native expression path is accepted.
+4. Target mirroring and target-reference inspection are now available. Validate the mirrored
+   result on the intended asset, especially when approximate matching is used. Revisit bone-driven
+   expression authoring only for a demonstrated need; schedule OSC/vendor SDK capture after the
+   native expression path is accepted.
 
 ## Why native authoring is needed
 
@@ -234,7 +252,8 @@ may originate in Blender Shape Keys or the optional Blender-assisted workflow. T
 facial surface exposes target data for inspection and supports
 project-authored facial clips. It now also has a first batch mutation API for adding, replacing,
 and removing dense targets. Vertex selection, a first brush, and candidate preview now exist in
-the editor; target mirroring and normal-delta recomputation remain to be implemented.
+the editor; normal-delta recomputation remains to be implemented. Mirror analysis and creation are
+available, subject to neutral-geometry correspondence checks.
 
 This distinction matters for the supplied Megan test asset (`Meg-facial-rig.lua` ->
 `Megan-weighted.msh`). The runtime evaluates the asset's facial and skeletal data; the authoring
@@ -300,14 +319,17 @@ binding while keeping the facial asset PIMPL-owned.
 - [x] create a target from the neutral frame, or duplicate an existing target;
 - [x] rename it and edit its convention/default weight metadata;
 - [x] read and write position deltas and optional normal deltas in batch form;
-- mirror a target across the project face plane while swapping recognized left/right target names;
+- [x] mirror a target across an editable X face plane while swapping recognized left/right target
+  names; ambiguous or incomplete correspondence is diagnosed before creation;
 - [x] remove a target transactionally, remap embedded clip weights, and synchronize the editor's
   named expression references;
 - [x] validate finite values, vertex count/order, topology signature, target IDs/names, delta arrays,
   normal-delta presence, and the Mesh V11 target limit;
 - [x] commit the entire candidate atomically, preserving the previous valid asset on failure.
 
-The remaining Phase 1 work is mirror support and finer-grained expression-reference diagnostics.
+The remaining Phase 1 work is further reference diagnostics for stale names in already imported
+projects. Target-level expression/clip usage and migration on rename/delete are available. A
+direct in-memory preview bridge remains a separate Phase 2 optimization.
 Preview currently writes a temporary MSH on committed edits; a direct in-memory bridge could
 remove that temporary round-trip later.
 
