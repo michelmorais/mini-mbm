@@ -42,7 +42,12 @@ The first native authoring slice is available on this branch:
   copy with the proposed mirrored target. The preview shows its textured deformation at the chosen
   weight, or the mirrored displacement heat map when enabled. Changing the source or mirror
   parameters discards that preview. Only Create mirrored target mutates the editor candidate; the
-  source target remains unchanged.
+  source target remains unchanged. In Mirror mode, enabling a guide selects a representative
+  active source vertex; right clicking the mesh can select another neutral source vertex. The
+  guides show a 3D line to its reflected position and three circles at the match radius.
+  These optional guides update while dragging or typing Face plane X, or adjusting the match radius;
+  the analysis itself still requires Analyze mirror. Selecting a target recalculates Face plane X
+  from Face Origin (or mesh bounds) and resets the match-radius fraction to 0.005.
 - Edit Target can inspect references in authored expressions and project clips. Renaming a target
   migrates named weights in both, including undo/redo of the rename. Deleting a referenced target
   requires a second click and clears those names from project expressions and clips after the

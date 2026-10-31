@@ -90,6 +90,7 @@ local state = {
     targetOverlay={visible=true,dirty=true,building=false,surface=nil,meshHidden=false,
         bufferDirty=false,bufferArmed=false,bufferApplied=false,bufferForce=false,lastBufferTime=0},
     mirrorPreview={mesh=nil,original=nil,path=nil,targetIndex=nil},
+    mirrorGuide={line=nil,rings=nil,sourceIndex=nil,showLine=false,showRadius=false,dirty=true},
     targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
@@ -118,6 +119,17 @@ local stepTargetOverlayBuild
 local updateTargetOverlayLivePreview
 local destroyTargetOverlay
 local releaseMirrorPreview
+local refreshMirrorGuide
+
+local function destroyMirrorGuide()
+    local guide=state.mirrorGuide
+    if guide.line then dpCall(function() guide.line:destroy() end) end
+    if guide.rings then dpCall(function() guide.rings:destroy() end) end
+    guide.line=nil
+    guide.rings=nil
+    guide.sourceIndex=nil
+    guide.dirty=true
+end
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
@@ -796,6 +808,7 @@ end
 
 local function destroyPreview()
     releaseMirrorPreview()
+    destroyMirrorGuide()
     destroyRigPreview()
     destroyMaskVisualization()
     destroyTargetOverlay()
@@ -1668,6 +1681,19 @@ local function buildMirrorPreview(plan,selected)
     return true
 end
 
+local function resetMirrorParameters(authoring)
+    local origin=state.project.faceOrigin
+    local bounds=state.meshBounds
+    authoring.mirrorPlaneX=origin and origin.placed and origin.position.x or
+        bounds and (bounds.minX+bounds.maxX)*0.5 or 0
+    authoring.mirrorTolerance=0.005
+    authoring.mirrorAllowApprox=false
+    authoring.mirrorPlan=nil
+    state.mirrorGuide.sourceIndex=nil
+    state.mirrorGuide.dirty=true
+    state.targetOverlay.dirty=true
+end
+
 local function showTargets()
     local authoring=state.targetAuthoring
     if authoring.catalogDirty then refreshFacialTargetCatalog() end
@@ -1699,6 +1725,7 @@ local function showTargets()
             authoring.mirrorPlan=nil
         end
         state.targetOverlay.dirty=true
+        state.mirrorGuide.dirty=true
     end
     authoring.mode=workMode
     if modeChanged then
@@ -1779,8 +1806,9 @@ local function showTargets()
             for index,target in ipairs(authoring.targets) do
                 tImGui.TableNextRow(); tImGui.TableSetColumnIndex(0)
                 if tImGui.Selectable(target.name,index==authoring.selectedTarget) then
-                    if workMode==4 then releaseMirrorPreview(); authoring.mirrorPlan=nil end
+                    if workMode==4 then releaseMirrorPreview() end
                     authoring.selectedTarget=index
+                    resetMirrorParameters(authoring)
                     state.targetGizmo.dirty=true
                     authoring.draftTargetIndex=nil
                     state.targetOverlay.dirty=true
@@ -1827,13 +1855,7 @@ local function showTargets()
         authoring.defaultWeight=selected.defaultWeight or 0
         authoring.draftTargetIndex=authoring.selectedTarget
         authoring.mirrorNameDraft=tFacialMirror.pairedName(selected.name)
-        local origin=state.project.faceOrigin
-        local bounds=state.meshBounds
-        authoring.mirrorPlaneX=origin and origin.placed and origin.position.x or
-            bounds and (bounds.minX+bounds.maxX)*0.5 or 0
-        authoring.mirrorTolerance=0.005
-        authoring.mirrorAllowApprox=false
-        authoring.mirrorPlan=nil
+        resetMirrorParameters(authoring)
         authoring.referenceReport=nil
         authoring.deletePendingId=nil
     end
@@ -2215,6 +2237,35 @@ local function showTargets()
     if workMode==4 then
         tImGui.Separator()
         tImGui.Text(tLang.L('fre_target_mirror_title'))
+        tImGui.TextWrapped(tLang.L('fre_target_mirror_guide_help'))
+        local guide=state.mirrorGuide
+        local showLine=tImGui.Checkbox(tLang.L('fre_target_mirror_show_line'),guide.showLine)
+        showHelpTooltip(tLang.L('fre_target_mirror_show_line_tooltip'))
+        if showLine~=guide.showLine then guide.showLine=showLine; guide.dirty=true end
+        local showRadius=tImGui.Checkbox(tLang.L('fre_target_mirror_show_radius'),guide.showRadius)
+        showHelpTooltip(tLang.L('fre_target_mirror_show_radius_tooltip'))
+        if showRadius~=guide.showRadius then guide.showRadius=showRadius; guide.dirty=true end
+        if not guide.sourceIndex and selected and state.topology and
+                (guide.showLine or guide.showRadius) then
+            local strongest,index=0,nil
+            local vertices=state.topology.vertices or {}
+            local planeX=authoring.mirrorPlaneX or 0
+            for vertex,delta in ipairs(selected.positionDeltas or {}) do
+                local point=vertices[vertex]
+                if point then
+                    local magnitude=delta.x*delta.x+delta.y*delta.y+delta.z*delta.z
+                    local score=magnitude*(math.abs(point.x-planeX)+0.0001)
+                    if score>strongest then strongest,index=score,vertex end
+                end
+            end
+            guide.sourceIndex=index or
+                (vertices[authoring.selectedVertex or 0] and authoring.selectedVertex) or
+                (vertices[1] and 1)
+            guide.dirty=true
+        end
+        if guide.sourceIndex then
+            tImGui.Text(string.format(tLang.L('fre_target_mirror_source_vertex_fmt'),guide.sourceIndex))
+        end
         tImGui.SetNextItemWidth(240)
         local mirrorNameChanged,mirrorName=tImGui.InputText(
             tLang.L('fre_target_mirror_name')..'##freTargetMirrorName',authoring.mirrorNameDraft or '')
@@ -2224,15 +2275,19 @@ local function showTargets()
             authoring.mirrorPlan=nil
             state.targetOverlay.dirty=true
         end
-        tImGui.SetNextItemWidth(140)
-        local planeChanged,plane=tImGui.InputFloat(tLang.L('fre_target_mirror_plane_x'),
-            authoring.mirrorPlaneX or 0,0.001,0.01,'%.5f')
+        tImGui.SetNextItemWidth(220)
+        local bounds=state.meshBounds
+        local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+            bounds.maxZ-bounds.minZ) or 1
+        local planeChanged,plane=tImGui.DragFloat(tLang.L('fre_target_mirror_plane_x'),
+            authoring.mirrorPlaneX or 0,math.max(extent*0.0005,0.0001),0,0,'%.5f')
         showHelpTooltip(tLang.L('fre_target_mirror_plane_tooltip'))
         if planeChanged then
             releaseMirrorPreview()
             authoring.mirrorPlaneX=plane
             authoring.mirrorPlan=nil
             state.targetOverlay.dirty=true
+            guide.dirty=true
         end
         tImGui.SetNextItemWidth(170)
         local toleranceChanged,tolerance=tImGui.SliderFloat(tLang.L('fre_target_mirror_tolerance'),
@@ -2243,13 +2298,11 @@ local function showTargets()
             authoring.mirrorTolerance=tolerance
             authoring.mirrorPlan=nil
             state.targetOverlay.dirty=true
+            guide.dirty=true
         end
         tImGui.BeginDisabled(not selected or not state.topology)
         if tImGui.Button(tLang.L('fre_target_mirror_analyze')) then
             releaseMirrorPreview()
-            local bounds=state.meshBounds
-            local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
-                bounds.maxZ-bounds.minZ) or 1
             local result,reason=tFacialMirror.build(selected,state.topology.vertices,
                 authoring.mirrorPlaneX or 0,math.max(extent*(authoring.mirrorTolerance or 0.005),1e-6))
             authoring.mirrorPlan={sourceId=selected.id,name=authoring.mirrorNameDraft,
@@ -5049,6 +5102,7 @@ function onLoop(delta)
     showExportWindow()
     showMainPanel()
     refreshTargetGizmo()
+    refreshMirrorGuide()
     showLandmarkReferenceModal()
     showCameraPanel()
     showFacialClipTimelineWindow()
@@ -5183,6 +5237,71 @@ local function rayAxisParameter(x,y,origin,axis)
     local denominator=1-parallel*parallel
     if math.abs(denominator)<0.05 then return nil end
     return (axisProjection-parallel*rayProjection)/denominator
+end
+
+refreshMirrorGuide=function()
+    local guide=state.mirrorGuide
+    local authoring=state.targetAuthoring
+    if state.workspace~='targets' or authoring.mode~=4 or not state.topology then
+        if guide.line and guide.line.visible then guide.line.visible=false end
+        if guide.rings and guide.rings.visible then guide.rings.visible=false end
+        guide.dirty=true
+        return
+    end
+    local source=guide.sourceIndex and state.topology.vertices[guide.sourceIndex]
+    if not source then
+        if guide.line and guide.line.visible then guide.line.visible=false end
+        if guide.rings and guide.rings.visible then guide.rings.visible=false end
+        return
+    end
+    if not guide.dirty then return end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local planeX=authoring.mirrorPlaneX or 0
+    local destination={x=2*planeX-source.x,y=source.y,z=source.z}
+    local markerSize=math.max(extent*0.007,0.003)
+    if guide.showLine then
+        local paths={{source.x,source.y,source.z,destination.x,destination.y,destination.z}}
+        for _,point in ipairs({source,destination}) do
+            paths[#paths+1]={point.x-markerSize,point.y,point.z,point.x+markerSize,point.y,point.z}
+            paths[#paths+1]={point.x,point.y-markerSize,point.z,point.x,point.y+markerSize,point.z}
+            paths[#paths+1]={point.x,point.y,point.z-markerSize,point.x,point.y,point.z+markerSize}
+        end
+        if not guide.line then
+            guide.line=line:new('3d',0,0,0)
+            for _,path in ipairs(paths) do guide.line:add(path) end
+            guide.line.alwaysOnTop=true
+            guide.line.alwaysOnTopPriority=6
+            guide.line.alwaysRender=true
+            guide.line:setColor(1,0.72,0.14,1)
+        else
+            for index,path in ipairs(paths) do guide.line:set(path,index) end
+        end
+        guide.line.visible=true
+    elseif guide.line then
+        guide.line.visible=false
+    end
+    if guide.showRadius then
+        local radius=math.max(extent*(authoring.mirrorTolerance or 0.005),1e-6)
+        local paths={tTargetGizmo.ringPoints('x',radius),
+            tTargetGizmo.ringPoints('y',radius),tTargetGizmo.ringPoints('z',radius)}
+        if not guide.rings then
+            guide.rings=line:new('3d',0,0,0)
+            for _,path in ipairs(paths) do guide.rings:add(path) end
+            guide.rings.alwaysOnTop=true
+            guide.rings.alwaysOnTopPriority=7
+            guide.rings.alwaysRender=true
+            guide.rings:setColor(0.15,0.9,1,1)
+        else
+            for index,path in ipairs(paths) do guide.rings:set(path,index) end
+        end
+        guide.rings:setPos(destination.x,destination.y,destination.z)
+        guide.rings.visible=true
+    elseif guide.rings then
+        guide.rings.visible=false
+    end
+    guide.dirty=false
 end
 
 refreshTargetGizmo=function()
@@ -6414,6 +6533,14 @@ function onTouchDown(key,x,y)
                 state.targetAuthoring.selectionMode=2
                 state.targetOverlay.bufferDirty=true
                 state.targetOverlay.bufferForce=true
+                setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
+            end
+        elseif state.targetAuthoring.mode==4 and state.topology then
+            local origin,direction=viewportPickRay(x,y)
+            local hit=origin and tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
+            if hit then
+                state.mirrorGuide.sourceIndex=hit.index
+                state.mirrorGuide.dirty=true
                 setStatus(string.format(tLang.L('fre_target_picked_fmt'),hit.index),false)
             end
         elseif state.targetAuthoring.mode==3 then
