@@ -134,6 +134,35 @@ assert(math.abs(edited.positionDeltas[1].x-previewX)<1e-6)
 assert(math.abs(edited.positionDeltas[1].y-previewY)<1e-6)
 assert(math.abs(edited.positionDeltas[1].z-previewZ)<1e-6)
 
+-- A soft mask expands over connected triangle edges, not coincident lip surfaces.
+local softTopology={signature='soft',vertices={vec(0,0,0),vec(1,0,0),vec(0,1,0),
+    vec(2,0,0),vec(1,0,0),vec(2,1,0),vec(1,1,0)},
+    triangles={{1,2,3},{2,4,3},{5,6,7}}}
+local softMask={enabled=true,vertices={1},topologySignature='soft'}
+local softAuthoring={selectionMode=3,featherRings=1}
+local softIndices,softWeights=Targets.maskFeather(softAuthoring,{softMask},softTopology)
+assert(#softIndices==3 and softWeights[1]==1 and math.abs(softWeights[2]-0.5)<1e-6)
+assert(softWeights[3]==softWeights[2] and not softWeights[4] and not softWeights[5])
+local cachedIndices=Targets.maskFeather(softAuthoring,{softMask},softTopology)
+assert(cachedIndices==softIndices)
+local softTarget={positionDeltas=Targets.zeroDeltas(7),normalDeltas={}}
+Targets.applyEdit(softTarget,softTopology.vertices,softIndices,{mode='translate',dy=-1},softWeights)
+assert(softTarget.positionDeltas[1].y==-1 and softTarget.positionDeltas[2].y==-0.5)
+assert(softTarget.positionDeltas[4].y==0 and softTarget.positionDeltas[5].y==0)
+local rotatedSoft={positionDeltas=Targets.zeroDeltas(7),normalDeltas={}}
+local rotatedX,rotatedY=Targets.rotatedDelta(softTopology.vertices[2],vec(0,0,0),vec(0,0,0),
+    Targets.rotationBasis(0,0,math.pi*0.5))
+Targets.applyEdit(rotatedSoft,softTopology.vertices,softIndices,
+    {mode='rotate',pivot=vec(0,0,0),rz=math.pi*0.5},softWeights)
+assert(math.abs(rotatedSoft.positionDeltas[2].x-rotatedX*0.5)<1e-6)
+assert(math.abs(rotatedSoft.positionDeltas[2].y-rotatedY*0.5)<1e-6)
+assert(rotatedSoft.positionDeltas[5].x==0 and rotatedSoft.positionDeltas[5].y==0)
+softMask.vertices={4}
+local changedIndices=Targets.maskFeather(softAuthoring,{softMask},softTopology)
+assert(changedIndices~=softIndices)
+softAuthoring.featherRings=0
+assert(Targets.maskFeather(softAuthoring,{softMask},softTopology)==nil)
+
 -- Paint and batch edits must accumulate on the same dense target in either order.
 local neutral={vec(1,0,0),vec(1.05,0,0),vec(3,0,0)}
 local combined={positionDeltas=Targets.zeroDeltas(3),normalDeltas={}}

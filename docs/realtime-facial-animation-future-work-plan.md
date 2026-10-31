@@ -147,20 +147,59 @@ afterward persists that association. The MSH target payload has already passed a
 export/reload check in Mesh Debug. Saving and reopening the project after export remains a separate
 editor-session check, not a missing API for MSH persistence.
 
-### Next acceptance step for the Megan workflow
+### Manual validation - Megan jaw comparison (2026-10-31)
 
-1. Try the 3D pivot gizmo on the Megan jaw, place it near the mandibular hinge, and compare the
-   edited target at preview weights 0, 0.5, and 1 in Mesh Debug and the Facial Rig Editor.
-2. Inspect the exported `jawOpen` deformation and the jaw/neck skeleton and skin weights. Confirm
-   whether the neck movement comes from target deltas, skinning, the jaw pivot, or a combination.
-3. Author and review a jaw opening around the mandibular hinge, with upper-face and neck landmarks
-   stable. Decide from that result whether a morph target alone is sufficient or the skeletal jaw
-   lane in Phase 3 is required.
+The user tried opening Megan's jaw in the skeletal animation editor as well as in the Facial Rig
+Editor's Morph Targets workflow. A jaw-bone rotation was possible, but the user saw a vertex break
+at the nape. The facial target edit did not show that break. The skeletal result could involve skin
+weights, the bind pose, or another asset issue; its cause was not diagnosed. The user also found
+that the lips do not open cleanly in either workflow because of how this mesh represents the mouth.
+Whether the upper and lower lips actually share vertices, or merely have coincident vertices,
+still needs a topology check before choosing an asset fix.
+
+For this Megan asset, continue refining the morph-target `jawOpen` first. A skeletal jaw lane is an
+optional later investigation if the morph result fails the needed poses; there is no current need
+to spend time repainting skeletal weights merely to compare the two authoring paths. This is a
+workflow choice from a visual trial, not acceptance of the final anatomical quality or proof that
+skeletal deformation is generally unsuitable.
+
+The user then saved `Megan-morph-target-test.msh` with the authored `jawOpenTest` target. That MSH
+also contains `test-mandibula`, a diagnostic target that moves only the lower lips down on Y to
+inspect the apparent upper/lower-lip attachment. The user considers the first Megan target test
+complete. This records the asset and authoring result; the exact lip vertex-sharing relationship
+was not reported, and the separate project-after-export reopen check is still unreported.
+
+### Remaining quality checks for the Megan workflow
+
+1. Refine the facial `jawOpen` around the hinge, then inspect the closed, half-open, and fully open
+   shapes in the Facial Rig Editor and Mesh Debug. Check the upper face, chin, neck, and nape.
+2. Inspect mouth-edge topology to distinguish shared lip vertices from coincident but independent
+   edges. Decide whether the source mesh needs a split and inner-mouth geometry; mask painting
+   cannot change topology.
+3. Export the accepted target to MSH, reload it, and save/reopen the facial project after export to
+   verify that its mesh association and edits remain correct.
 
 The MSH write/read path for native targets has passed its first manual acceptance. The 3D pivot
-tool is now available for the next quality pass; its interaction and the anatomical result still
-need user validation. The broader native expression authoring milestone remains open until the jaw
-result meets the Phase 0 anatomical criteria.
+tool is available and has been used for the jaw trial; the final anatomical result still needs
+validation. The broader native expression authoring milestone remains open until the jaw result
+meets the Phase 0 anatomical criteria.
+
+### Recommended order after the jaw comparison
+
+1. The initial Megan target test is complete: `jawOpenTest` and the lower-lip diagnostic target
+   were saved in `Megan-morph-target-test.msh`. Later quality checks can inspect the mouth-edge
+   topology, compare weights 0, 0.5, and 1, and reopen the project after export. Keep mesh
+   topology repair in the asset pipeline if the lips share vertices; a selection mask cannot
+   separate them.
+2. Improve target sculpt quality where the jaw trial exposed friction: a controllable soft edge
+   for masked batch transforms is now available; next, show the textured draft before Apply and add
+   a reliable normal-delta recompute/preserve choice. Brush smoothing remains useful for manual
+   cleanup after a rotation.
+3. Validate one complete morph-only expression and facial clip (`jawOpen`) through editor preview,
+   MSH export, reload, and runtime playback. Then repeat with blink and an asymmetric expression.
+4. Add authoring conveniences such as target mirroring and clearer expression-reference
+   diagnostics. Revisit bone-driven expression authoring only for a demonstrated need; schedule
+   OSC/vendor SDK capture after the native expression path is accepted.
 
 ## Why native authoring is needed
 
@@ -218,6 +257,11 @@ Use the supplied Megan asset as the acceptance fixture before implementing a gen
    responsible for the neck movement.
 4. Decide whether the first production `jawOpen` asset should be morph-only, skeletal-only, or a
    paired corrective expression. This is an acceptance decision, not an implementation assumption.
+
+The 2026-10-31 manual comparison favors a morph-first approach for Megan because the skeletal
+trial showed a nape break that the facial edit did not show. The cause of the skeletal break and
+the lip topology are unverified. This narrows the immediate work without closing the diagnostic
+or ruling out skeletal authoring for other assets.
 
 The spike is complete when the desired result is measurable: the chin opens around the hinge,
 upper-face landmarks stay stable, and the neck does not translate downward merely because the jaw
@@ -286,11 +330,20 @@ Reset-to-neutral intentionally clears deltas for the selected vertices. Remainin
 continuous textured draft preview, reliable normal-delta recomputation, region presets beyond
 project masks, and a direct in-memory preview bridge.
 
+Masked batch Translate/Rotate now has an optional Soft edge control from 0 to 8 edge rings. Zero
+preserves the old hard selection. Selected vertices receive full influence, while adjacent vertices
+on connected triangles receive a decreasing weight; disconnected surfaces at coincident positions
+are not crossed. The same weights drive the rotation draft heat map and the committed deltas.
+Reset-to-neutral and Paint do not use this control. It changes target deltas, not rig skin weights,
+and cannot split vertices shared by both lips. The expanded selection is computed only when the
+mask, topology, or ring count changes, not on each idle frame.
+
 ### Phase 3 - Jaw/head skeletal authoring lane
 
 Add an explicit skeletal lane for expressions whose correct solution is a bone transform rather
-than a vertex delta. This lane is essential for the Megan `jawOpen` investigation and should use
-the canonical skeleton already bound by the Facial Rig Editor.
+than a vertex delta. For Megan, this lane is deferred while the morph-first jaw result is refined;
+revisit it if that result fails the required poses or when another asset needs bone-driven motion.
+It should use the canonical skeleton already bound by the Facial Rig Editor.
 
 - select a facial bone or body `Head`/`Neck` bone and display its bind pivot and influence context;
 - provide a rotation gizmo with hinge-aware jaw defaults, plus optional translation only when the

@@ -117,6 +117,11 @@ local destroyTargetOverlay
 
 local function markMaskVisualizationDirty(keepSurface)
     local visualization=state.maskVisualization
+    if state.targetAuthoring then state.targetAuthoring.featherCache=nil end
+    if state.targetOverlay then
+        state.targetOverlay.bufferDirty=true
+        state.targetOverlay.bufferForce=true
+    end
     if visualization.building then
         visualization.building=false
         visualization.buildSelected=nil
@@ -1788,6 +1793,18 @@ local function showTargets()
         state.targetOverlay.bufferDirty=true
         state.targetOverlay.bufferForce=true
     end
+    if workMode==2 and authoring.editMode~=3 and authoring.selectionMode>2 then
+        tImGui.SetNextItemWidth(150)
+        local ringsChanged,rings=tImGui.SliderInt(tLang.L('fre_target_feather_rings'),
+            authoring.featherRings or 0,0,8)
+        showHelpTooltip(tLang.L('fre_target_feather_rings_tooltip'))
+        if ringsChanged then
+            authoring.featherRings=rings
+            authoring.featherCache=nil
+            state.targetOverlay.bufferDirty=true
+            state.targetOverlay.bufferForce=true
+        end
+    end
     tImGui.TextWrapped(tLang.L(workMode==2 and 'fre_target_edit_pick_help' or 'fre_target_paint_help'))
     if authoring.selectedVertex then
         tImGui.Text(string.format(tLang.L('fre_target_picked_fmt'),authoring.selectedVertex))
@@ -1891,6 +1908,11 @@ local function showTargets()
                 local mask=state.project.masks and state.project.masks[(authoring.selectionMode or 1)-2]
                 indices=tFacialTargets.maskIndices(mask,authoring.vertexCount,state.topology.signature)
             end
+            local featherWeights
+            if authoring.editMode~=3 and authoring.selectionMode>2 and #indices>0 and
+                    (authoring.featherRings or 0)>0 then
+                indices,featherWeights=tFacialTargets.maskFeather(authoring,state.project.masks,state.topology)
+            end
             if #indices==0 then
                 targetAuthoringError(tLang.L('fre_target_edit_no_vertices'))
             else
@@ -1901,7 +1923,7 @@ local function showTargets()
                     (authoring.editMode or 1)==2 and 'rotate' or 'reset',
                     dx=authoring.dx or 0,dy=authoring.dy or 0,dz=authoring.dz or 0,
                     rx=math.rad(authoring.rx or 0),ry=math.rad(authoring.ry or 0),rz=math.rad(authoring.rz or 0),pivot=pivot}
-                local changedCount=tFacialTargets.applyEdit(edited,state.topology.vertices,indices,edit)
+                local changedCount=tFacialTargets.applyEdit(edited,state.topology.vertices,indices,edit,featherWeights)
                 if changedCount==0 and edit.mode~='reset' then
                     setStatus(tLang.L('fre_target_edit_no_vertices'),true)
                 else
@@ -5126,16 +5148,27 @@ startTargetOverlayBuild=function()
         pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
         basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
             math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
-        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
-            authoring.vertexCount,state.topology.signature)
+        if authoring.selectionMode>2 and (authoring.featherRings or 0)>0 then
+            local _,weights=tFacialTargets.maskFeather(authoring,state.project.masks,state.topology)
+            selection=weights
+        else
+            selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+                authoring.vertexCount,state.topology.signature)
+        end
     end
     local maximum=0
     local coords,uvs,magnitudes={},{},{}
     for index,point in ipairs(vertices) do
         local delta=deltas[index] or {x=0,y=0,z=0}
         local dx,dy,dz=delta.x,delta.y,delta.z
-        if rotateDraft and (not selection or selection[index]) then
-            dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+        local influence=1
+        if selection then influence=selection[index] end
+        if rotateDraft and influence then
+            if influence==true then influence=1 end
+            local rx,ry,rz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+            dx=delta.x+(rx-delta.x)*influence
+            dy=delta.y+(ry-delta.y)*influence
+            dz=delta.z+(rz-delta.z)*influence
         end
         local magnitude=math.sqrt(dx*dx+dy*dy+dz*dz)
         maximum=math.max(maximum,magnitude)
@@ -5216,8 +5249,13 @@ local function updateTargetOverlayBuffer(_,vertex,uv)
         pivot=tTargetGizmo.pivot(state.project,target.id,state.meshBounds)
         basis=tFacialTargets.rotationBasis(math.rad(authoring.rx or 0),
             math.rad(authoring.ry or 0),math.rad(authoring.rz or 0))
-        selection=tFacialTargets.selectionSet(authoring,state.project.masks,
-            authoring.vertexCount,topology.signature)
+        if authoring.selectionMode>2 and (authoring.featherRings or 0)>0 then
+            local _,weights=tFacialTargets.maskFeather(authoring,state.project.masks,topology)
+            selection=weights
+        else
+            selection=tFacialTargets.selectionSet(authoring,state.project.masks,
+                authoring.vertexCount,topology.signature)
+        end
     end
     local maximum=0
     local weight=authoring.previewWeight or 1
@@ -5227,8 +5265,14 @@ local function updateTargetOverlayBuffer(_,vertex,uv)
         if entry and color then
             local delta=deltas[index] or {x=0,y=0,z=0}
             local dx,dy,dz=delta.x,delta.y,delta.z
-            if rotateDraft and (not selection or selection[index]) then
-                dx,dy,dz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+            local influence=1
+            if selection then influence=selection[index] end
+            if rotateDraft and influence then
+                if influence==true then influence=1 end
+                local rx,ry,rz=tFacialTargets.rotatedDelta(point,delta,pivot,basis)
+                dx=delta.x+(rx-delta.x)*influence
+                dy=delta.y+(ry-delta.y)*influence
+                dz=delta.z+(rz-delta.z)*influence
             end
             entry.x=point.x+dx*weight
             entry.y=point.y+dy*weight
@@ -5927,6 +5971,9 @@ local function selectMaskBoundaryLoop(x,y)
     for index in pairs(present) do mask.vertices[#mask.vertices+1]=index end
     table.sort(mask.vertices)
     mask.topologySignature=topology.signature
+    state.targetAuthoring.featherCache=nil
+    state.targetOverlay.bufferDirty=true
+    state.targetOverlay.bufferForce=true
     for _,index in ipairs(changed) do queueMaskSurfaceUv(index,add) end
     local visualization=state.maskVisualization
     visualization.vertexCount=#mask.vertices

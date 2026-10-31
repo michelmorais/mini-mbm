@@ -55,7 +55,7 @@ function M.new()
         mode=1,newNameDraft='',newConventionDraft='Manual',newDefaultWeight=0,
         nameDraft='',conventionDraft='Manual',defaultWeight=0,modified=false,previewDirty=false,
         createdIds={},deletedBaseIds={},
-        editMode=1,selectionMode=1,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
+        editMode=1,selectionMode=1,featherRings=0,dx=0,dy=0,dz=0,rx=0,ry=0,rz=0,editUndo={},editRedo={},
         previewWeight=1,previewTarget=nil,selectedVertex=nil,brushMode=1,brushRadius=0.025,
         brushStrength=0.5,brushDx=0,brushDy=-0.01,brushDz=0}
 end
@@ -182,7 +182,83 @@ function M.selectionSet(authoring,masks,vertexCount,topologySignature)
     return set
 end
 
-function M.applyEdit(target,baseVertices,indices,edit)
+-- Only actual triangle edges connect the falloff. Coincident but separate lip
+-- surfaces must not influence each other merely because they occupy the same spot.
+local adjacencyCache=setmetatable({}, {__mode='k'})
+
+function M.featherSelection(topology,indices,rings)
+    rings=math.max(0,math.min(8,math.floor(finite(rings,0))))
+    if rings==0 or not topology then return indices,nil end
+    local vertices=topology.vertices or {}
+    local adjacency=adjacencyCache[topology]
+    if not adjacency then
+        adjacency={}
+        for _,triangle in ipairs(topology.triangles or {}) do
+            local a,b,c=triangle[1],triangle[2],triangle[3]
+            if vertices[a] and vertices[b] and vertices[c] then
+                for edgeIndex=1,3 do
+                    local first=triangle[edgeIndex]
+                    local second=triangle[edgeIndex%3+1]
+                    if first~=second then
+                        adjacency[first]=adjacency[first] or {}
+                        adjacency[second]=adjacency[second] or {}
+                        adjacency[first][second]=true
+                        adjacency[second][first]=true
+                    end
+                end
+            end
+        end
+        adjacencyCache[topology]=adjacency
+    end
+    local result,weights,visited={},{},{}
+    local frontier={}
+    for _,index in ipairs(indices or {}) do
+        if vertices[index] and not visited[index] then
+            visited[index]=true
+            result[#result+1]=index
+            frontier[#frontier+1]=index
+            weights[index]=1
+        end
+    end
+    for ring=1,rings do
+        local nextFrontier={}
+        local t=ring/(rings+1)
+        local influence=1-t*t*(3-2*t)
+        for _,index in ipairs(frontier) do
+            for neighbor in pairs(adjacency[index] or {}) do
+                if not visited[neighbor] then
+                    visited[neighbor]=true
+                    weights[neighbor]=influence
+                    result[#result+1]=neighbor
+                    nextFrontier[#nextFrontier+1]=neighbor
+                end
+            end
+        end
+        frontier=nextFrontier
+        if #frontier==0 then break end
+    end
+    return result,weights
+end
+
+function M.maskFeather(authoring,masks,topology)
+    local mode=authoring.selectionMode or 1
+    if mode<=2 or (authoring.featherRings or 0)<=0 or not topology then return nil,nil end
+    local mask=masks and masks[mode-2]
+    local vertices=mask and mask.vertices
+    local cached=authoring.featherCache
+    if cached and cached.topology==topology and cached.mode==mode and cached.mask==mask and
+            cached.vertices==vertices and cached.enabled==(mask and mask.enabled) and
+            cached.rings==authoring.featherRings then
+        return cached.indices,cached.weights
+    end
+    local indices=M.maskIndices(mask,#(topology.vertices or {}),topology.signature)
+    local expanded,weights=M.featherSelection(topology,indices,authoring.featherRings)
+    authoring.featherCache={topology=topology,mode=mode,mask=mask,vertices=vertices,
+        enabled=mask and mask.enabled,rings=authoring.featherRings,indices=expanded,weights=weights}
+    return expanded,weights
+end
+
+function M.applyEdit(target,baseVertices,indices,edit,weights)
     if type(target)~='table' or type(baseVertices)~='table' or type(indices)~='table' then return 0 end
     local positions=target.positionDeltas or {}
     local normals=target.normalDeltas or {}
@@ -196,22 +272,31 @@ function M.applyEdit(target,baseVertices,indices,edit)
         local base=baseVertices[index]
         if index and base and not seen[index] then
             index=math.floor(index); seen[index]=true
+            local influence=weights and weights[index] or 1
             local old=positions[index] or {x=0,y=0,z=0}
             local nextPosition
             if mode=='reset' then
                 nextPosition={x=0,y=0,z=0}
             elseif mode=='rotate' then
                 local x,y,z=M.rotatedDelta(base,old,pivot,rotation)
-                nextPosition={x=x,y=y,z=z}
+                nextPosition={x=old.x+(x-old.x)*influence,y=old.y+(y-old.y)*influence,
+                    z=old.z+(z-old.z)*influence}
             else
-                nextPosition={x=old.x+(edit.dx or 0),y=old.y+(edit.dy or 0),z=old.z+(edit.dz or 0)}
+                nextPosition={x=old.x+(edit.dx or 0)*influence,y=old.y+(edit.dy or 0)*influence,
+                    z=old.z+(edit.dz or 0)*influence}
             end
             if math.abs(nextPosition.x-old.x)>1e-7 or math.abs(nextPosition.y-old.y)>1e-7 or
                     math.abs(nextPosition.z-old.z)>1e-7 then changed=changed+1 end
             positions[index]=nextPosition
             if #normals>0 then
                 if mode=='reset' then normals[index]={x=0,y=0,z=0}
-                elseif mode=='rotate' then normals[index]=rotateVector(normals[index] or {x=0,y=0,z=0},edit.rx or 0,edit.ry or 0,edit.rz or 0) end
+                elseif mode=='rotate' then
+                    local oldNormal=normals[index] or {x=0,y=0,z=0}
+                    local rotated=rotateVector(oldNormal,edit.rx or 0,edit.ry or 0,edit.rz or 0)
+                    normals[index]={x=oldNormal.x+(rotated.x-oldNormal.x)*influence,
+                        y=oldNormal.y+(rotated.y-oldNormal.y)*influence,
+                        z=oldNormal.z+(rotated.z-oldNormal.z)*influence}
+                end
             end
         end
     end
