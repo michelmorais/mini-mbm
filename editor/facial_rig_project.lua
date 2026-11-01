@@ -61,6 +61,11 @@ local function copyPoint(point)
         z=tonumber(point and point.z) or 0}
 end
 
+local function copyColor(color)
+    return {r=tonumber(color and color.r) or 1,g=tonumber(color and color.g) or 1,
+        b=tonumber(color and color.b) or 1,a=tonumber(color and color.a) or 1}
+end
+
 local function defaultRoles()
     local result = {}
     for index, name in ipairs(ROLE_NAMES) do
@@ -84,7 +89,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=11,
+        schemaVersion=13,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -94,10 +99,14 @@ function M.new()
         sourceVertexMapSignature='',
         masks={},
         landmarks=defaultLandmarks(),
+        facialMasks={},
+        surfaceControls={},
         faceOrigin=defaultFaceOrigin(),
         selectedRole=1,
         selectedLandmark=1,
         selectedMask=1,
+        selectedFacialMask=1,
+        selectedSurfaceControl=1,
         landmarkEditMode=1,
         morphTargetPreview={targetId='',weight=1},
         morphTargetPivots={},
@@ -124,7 +133,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(11,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(13,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -136,6 +145,8 @@ function M.normalize(project)
         project.sourceVertexMapSignature or ''
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
+    project.facialMasks=type(project.facialMasks)=='table' and project.facialMasks or {}
+    project.surfaceControls=type(project.surfaceControls)=='table' and project.surfaceControls or {}
     if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
     project.faceOrigin.placed=project.faceOrigin.placed == true
     project.faceOrigin.position=copyPoint(project.faceOrigin.position)
@@ -145,6 +156,8 @@ function M.normalize(project)
     project.selectedRole=math.max(1, math.floor(tonumber(project.selectedRole) or 1))
     project.selectedLandmark=math.max(1, math.floor(tonumber(project.selectedLandmark) or 1))
     project.selectedMask=math.max(1, math.floor(tonumber(project.selectedMask) or 1))
+    project.selectedFacialMask=math.max(1,math.floor(tonumber(project.selectedFacialMask) or 1))
+    project.selectedSurfaceControl=math.max(1,math.floor(tonumber(project.selectedSurfaceControl) or 1))
     project.landmarkEditMode=math.max(1,math.min(2,
         math.floor(tonumber(project.landmarkEditMode) or 1)))
     local targetPreview=type(project.morphTargetPreview)=='table' and project.morphTargetPreview or {}
@@ -296,6 +309,103 @@ function M.normalize(project)
             landmark.vertexIndex=vertexIndex and math.floor(vertexIndex) or nil
         end
     end
+    local surfaceControlIds={}
+    for index,control in ipairs(project.surfaceControls) do
+        if type(control)~='table' then
+            project.surfaceControls[index]={id='surface_control_'..index,name='control_'..index,
+                kind='polygon',points={},closed=true,topologySignature='',depthOffset=0,
+                relationships={},enabled=true}
+            local generated=project.surfaceControls[index]
+            local suffix=2
+            while surfaceControlIds[generated.id] do
+                generated.id='surface_control_'..index..'_'..suffix
+                suffix=suffix+1
+            end
+            surfaceControlIds[generated.id]=true
+        else
+            control.id=type(control.id)=='string' and control.id~='' and control.id or
+                ('surface_control_'..index)
+            if surfaceControlIds[control.id] then
+                local suffix=2
+                local baseId='surface_control_'..index
+                control.id=baseId
+                while surfaceControlIds[control.id] do
+                    control.id=baseId..'_'..suffix
+                    suffix=suffix+1
+                end
+            end
+            surfaceControlIds[control.id]=true
+            control.name=type(control.name)=='string' and control.name~='' and control.name or
+                ('control_'..index)
+            control.kind=control.kind=='polyline' and 'polyline' or control.kind=='point' and 'point' or 'polygon'
+            control.closed=control.kind=='polygon' and control.closed~=false or false
+            control.topologySignature=type(control.topologySignature)=='string' and control.topologySignature or ''
+            control.depthOffset=tonumber(control.depthOffset) or 0
+            control.enabled=control.enabled~=false
+            control.groupId=type(control.groupId)=='string' and control.groupId or ''
+            control.role=control.role=='action_line' and 'action_line' or
+                control.role=='controller' and 'controller' or 'area'
+            control.color=copyColor(control.color)
+            control.relationships=type(control.relationships)=='table' and control.relationships or {}
+            if control.kind~='point' then control.relationships={} end
+            local normalizedRelationships,seenRelationships={},{}
+            for _,relationship in ipairs(control.relationships) do
+                local controlId=type(relationship)=='table' and relationship.controlId or relationship
+                local weight=type(relationship)=='table' and tonumber(relationship.weight) or 1
+                if type(controlId)=='string' and controlId~='' and not seenRelationships[controlId] then
+                    seenRelationships[controlId]=true
+                    normalizedRelationships[#normalizedRelationships+1]={controlId=controlId,
+                        weight=math.max(0,math.min(1,weight or 1))}
+                end
+            end
+            control.relationships=normalizedRelationships
+            local normalizedPoints,seenPoints={},{}
+            for _,rawPoint in ipairs(type(control.points)=='table' and control.points or {}) do
+                local pointIndex=type(rawPoint)=='table' and tonumber(rawPoint.index) or tonumber(rawPoint)
+                pointIndex=pointIndex and math.floor(pointIndex) or nil
+                if pointIndex and pointIndex>=1 and not seenPoints[pointIndex] then
+                    seenPoints[pointIndex]=true
+                    normalizedPoints[#normalizedPoints+1]={index=pointIndex}
+                end
+            end
+            control.points=normalizedPoints
+            if control.kind=='point' and #control.points>1 then
+                control.points={control.points[1]}
+            end
+        end
+    end
+    local facialMaskIds={}
+    for index,group in ipairs(project.facialMasks) do
+        if type(group)~='table' then
+            project.facialMasks[index]={id='facial_mask_'..index,name='facial_mask_'..index,
+                nameKey='',templateId='',actionUnits={},color={r=1,g=1,b=1,a=1},
+                controlIds={},enabled=true}
+            group=project.facialMasks[index]
+        end
+        group.id=type(group.id)=='string' and group.id~='' and group.id or ('facial_mask_'..index)
+        if facialMaskIds[group.id] then group.id='facial_mask_'..index end
+        facialMaskIds[group.id]=true
+        group.name=type(group.name)=='string' and group.name~='' and group.name or group.id
+        group.nameKey=type(group.nameKey)=='string' and group.nameKey or ''
+        group.templateId=type(group.templateId)=='string' and group.templateId or ''
+        group.color=copyColor(group.color)
+        group.enabled=group.enabled~=false
+        local actionUnits={}
+        for _,actionUnit in ipairs(type(group.actionUnits)=='table' and group.actionUnits or {}) do
+            if type(actionUnit)=='string' and actionUnit~='' then actionUnits[#actionUnits+1]=actionUnit end
+        end
+        group.actionUnits=actionUnits
+        local controlIds,seenControlIds={},{}
+        for _,controlId in ipairs(type(group.controlIds)=='table' and group.controlIds or {}) do
+            if type(controlId)=='string' and controlId~='' and not seenControlIds[controlId] then
+                seenControlIds[controlId]=true
+                controlIds[#controlIds+1]=controlId
+            end
+        end
+        group.controlIds=controlIds
+    end
+    project.selectedFacialMask=math.min(project.selectedFacialMask,math.max(1,#project.facialMasks))
+    project.selectedSurfaceControl=math.min(project.selectedSurfaceControl,math.max(1,#project.surfaceControls))
     return project
 end
 
@@ -336,6 +446,59 @@ function M.addTargetMask(project,name)
     local mask=M.addMask(project,name,1)
     mask.purpose='target'
     return mask
+end
+
+function M.addSurfaceControl(project,name,kind)
+    project.surfaceControls=project.surfaceControls or {}
+    local baseName=type(name)=='string' and name:match('^%s*(.-)%s*$') or ''
+    if baseName=='' then baseName='surface_control_' .. (#project.surfaceControls+1) end
+    local uniqueName=baseName
+    local suffix=2
+    while true do
+        local taken=false
+        for _,existing in ipairs(project.surfaceControls) do
+            if existing.name==uniqueName then taken=true break end
+        end
+        if not taken then break end
+        uniqueName=baseName .. '_' .. suffix
+        suffix=suffix+1
+    end
+    local controlKind=kind=='polyline' and 'polyline' or kind=='point' and 'point' or 'polygon'
+    local controlIdIndex=#project.surfaceControls+1
+    local controlId='surface_control_'..tostring(controlIdIndex)
+    local idTaken=true
+    while idTaken do
+        idTaken=false
+        for _,existing in ipairs(project.surfaceControls) do
+            if existing.id==controlId then
+                idTaken=true
+                controlIdIndex=controlIdIndex+1
+                controlId='surface_control_'..tostring(controlIdIndex)
+                break
+            end
+        end
+    end
+    local control={id=controlId,name=uniqueName,
+        kind=controlKind,points={},closed=false,topologySignature='',depthOffset=0,
+        relationships={},enabled=true}
+    project.surfaceControls[#project.surfaceControls+1]=control
+    return control
+end
+
+function M.surfaceControlNames(project)
+    local result={}
+    for _,control in ipairs(project and project.surfaceControls or {}) do
+        result[#result+1]=control.name or ''
+    end
+    return result
+end
+
+function M.facialMaskNames(project)
+    local result={}
+    for _,group in ipairs(project and project.facialMasks or {}) do
+        result[#result+1]=group.name or group.id or ''
+    end
+    return result
 end
 
 function M.isRigMask(mask)

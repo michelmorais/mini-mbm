@@ -43,6 +43,32 @@ local function normalize(value)
     return {x=value.x/size,y=value.y/size,z=value.z/size}
 end
 
+function M.positionWithDepth(topology,index,position,depth)
+    local point=position or topology and topology.vertices and topology.vertices[index]
+    if not point then return nil end
+    local amount=tonumber(depth) or 0
+    if math.abs(amount)<=1e-8 or not topology or type(topology.triangles)~='table' then
+        return {x=point.x,y=point.y,z=point.z}
+    end
+    local normal={x=0,y=0,z=0}
+    for _,triangle in ipairs(topology.triangles) do
+        if triangle[1]==index or triangle[2]==index or triangle[3]==index then
+            local first=topology.vertices[triangle[1]]
+            local second=topology.vertices[triangle[2]]
+            local third=topology.vertices[triangle[3]]
+            if first and second and third then
+                local faceNormal=cross(subtract(second,first),subtract(third,first))
+                normal.x=normal.x+faceNormal.x
+                normal.y=normal.y+faceNormal.y
+                normal.z=normal.z+faceNormal.z
+            end
+        end
+    end
+    normal=normalize(normal)
+    if not normal then return {x=point.x,y=point.y,z=point.z} end
+    return {x=point.x+normal.x*amount,y=point.y+normal.y*amount,z=point.z+normal.z*amount}
+end
+
 local function copyPoint(point)
     return {x=tonumber(point and point.x) or 0,y=tonumber(point and point.y) or 0,
         z=tonumber(point and point.z) or 0}

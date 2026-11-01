@@ -40,7 +40,12 @@ The facial authoring flow starts in **Landmarks**. The face guide shown there is
 for placing the face origin and landmarks; it is not a legacy mask and is not persisted as a vertex
 selection.
 
-The author creates surface controls directly over the mesh:
+The author selects a pre-defined facial action mask and adapts its controls directly over the mesh:
+
+The templates are FACS-inspired authoring references, not an automatic FACS solver. FACS describes
+visually discernible facial movement through Action Units; the editor maps those actions to editable
+mesh controls. See the [Paul Ekman Group FACS overview](https://www.paulekman.com/facial-action-coding-system/)
+and the [visual reference used by the team](https://coralievogelaar.com/Facial-Action-Coding-System).
 
 | Kind | Meaning | Initial authoring behavior |
 | --- | --- | --- |
@@ -48,9 +53,22 @@ The author creates surface controls directly over the mesh:
 | polyline | Line of action, such as a lip border, furrow, or wrinkle | Open surface line with editable points and depth-adjustable anchors |
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
-The first point-controller implementation uses explicit references to related controls. A later
-optional operation may infer related controls from spatial proximity, but the user must request and
-confirm that inference; it must never silently replace explicit relationships.
+The first template slice contains left and right brow masks. Each brow mask has an area polygon,
+an action-line polyline, and a controller point. The templates are initialized with approximately
+ten contour anchors for the brow area and several anchors for the action line, then adapted to the
+current mesh after the face origin is placed. The controller moves the complete mask group.
+
+All mask outlines remain visible with group colors. Only the selected mask displays square anchors
+for editing; these anchors use the selected mask color and are deliberately small enough not to
+obscure the face. The selected polygon, action line, or controller can be adapted with right-drag in the
+viewport; the controller moves the polygon and action line together. The editor should extend this
+template catalog to the remaining FACS-inspired facial actions without requiring the user to create
+each shape from an empty control.
+
+The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
+The polygon, polyline, and controller are selected as shapes within the chosen mask; the user does
+not create empty controls in this facial workflow. The depth offset is editable per shape and shown
+in the viewport.
 
 **Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and
 vertex weights from the selected polygon, polyline, or point relationships. Generated regions retain
@@ -59,11 +77,10 @@ source topology changes. The user must explicitly regenerate and review them.
 
 Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
 They are not the authoring surface for the new facial workflow, and the editor must not silently
-convert a legacy mask into a surface control.
-
-The current code still contains an interim polygon-mask prototype under **Masks / Regions > Edit
-selection**. That prototype is not the target workflow described here; it must be relocated to
-**Landmarks** before the polygon/polyline/point authoring milestone is considered complete.
+convert a legacy mask into a surface control. Their viewport visualization starts disabled and is
+kept hidden outside **Masks / Regions**, so it cannot be confused with the FACS-inspired controls.
+It can still be explicitly enabled while editing a legacy mask in that workspace for compatibility
+review.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and
@@ -72,8 +89,9 @@ without discarding the selected weight. Viewport mesh visibility controls the se
 
 ## Project and MSH persistence
 
-Saving the facial project stores editor metadata, surface controls, generated-region metadata,
-legacy compatibility masks, expressions, clips, target selection, and preview weight. Target edits
+Saving the facial project stores editor metadata, facial action masks and their surface controls, legacy compatibility masks,
+expressions, clips, target selection, and preview weight. Generated-region metadata will be added
+when the derivation stage is implemented. Target edits
 are stored as sparse changes relative to the assigned source MSH.
 Reopening validates source target identity and topology before applying those changes. If the
 assigned MSH already contains the exact edited target set and deltas, the editor treats the project

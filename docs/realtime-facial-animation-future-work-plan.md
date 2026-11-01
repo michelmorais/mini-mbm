@@ -37,7 +37,8 @@ from the facial-only workflow.
 ## Phase 1 - facial surface-control authoring and region generation
 
 The authoring source is **Landmarks**, not **Masks / Regions**. After the face origin is positioned,
-the user creates and edits surface controls directly on the visible mesh:
+the editor loads a pre-defined facial-action template and the user adapts its controls directly on
+the visible mesh:
 
 | Kind | Intended use | Initial semantics |
 | --- | --- | --- |
@@ -45,15 +46,18 @@ the user creates and edits surface controls directly on the visible mesh:
 | polyline | Line of action, such as a lip border, furrow, or wrinkle | Open ordered surface anchors with editable contour and depth |
 | point | Landmark or controller for a localized action | Explicit references to the polygons/polylines it controls |
 
-The user must be able to select a control, place and drag its surface anchors, adjust their depth,
-edit contours, and inspect the related expression lines in the same facial-mark authoring view.
+The user must be able to select an action mask, drag its pre-authored surface anchors, adjust their
+depth, edit contours, and inspect the related action lines in the same facial-mark authoring view.
+The selected mask exposes its polygon, action-line polyline, and controller as one editable group.
+All other masks remain visible as colored outlines, while only the selected mask exposes clickable
+square anchors. A controller drag moves its related polygon and action lines together.
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
 
-The initial point-controller model is explicit: a point lists the controls it affects, with optional
-per-control contribution values. An optional spatial-inference command may later suggest related
-controls based on proximity, but the user must explicitly invoke and confirm it. Inference must
-produce inspectable relationships and must not overwrite explicit links silently.
+The initial point-controller model is explicit: a controller lists the controls it affects, with
+optional per-control contribution values. An optional spatial-inference command may later suggest
+related controls based on proximity, but the user must explicitly invoke and confirm it. Inference
+must produce inspectable relationships and must not overwrite explicit links silently.
 
 **Masks / Regions** is the derivation stage. It consumes authored controls and generates named
 regions, vertex weights, and any legacy-compatible selections required by existing rig or target
@@ -66,7 +70,8 @@ automatically into polygons, polylines, or points. New projects start with surfa
 authoring; a legacy mask is an explicit compatibility choice.
 
 The current implementation contains an interim polygon-mask editor under **Masks / Regions**. It is
-not the target workflow and should be relocated or replaced before this phase is accepted.
+not the source of the facial-action templates; it remains only as a compatibility path until the
+derivation stage replaces it with generated regions.
 
 The first surface-anchor implementation may use canonical mesh vertices. A later extension may
 anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.
@@ -78,7 +83,8 @@ identity. Existing legacy vertex lists remain available for compatibility export
 Acceptance:
 
 - old facial projects load and save without changing legacy mask semantics;
-- a new project can author a polygon, polyline, and point in the Landmarks worktree;
+- a new project loads a facial-action template in the Landmarks worktree after the face origin is placed;
+- a brow template contains a pre-authored polygon, action-line polyline, and controller group;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and can control multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;

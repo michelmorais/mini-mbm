@@ -5,6 +5,8 @@ local Project=require 'facial_rig_project'
 local Bridge=require 'facial_rig_blender_bridge'
 local Expressions=require 'facial_rig_expressions'
 local Clips=require 'facial_rig_clips'
+local Polygon=require 'facial_rig_polygon'
+local ActionTemplates=require 'facial_rig_action_templates'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -26,8 +28,11 @@ local surface={vertices={{x=0,y=0,z=0},{x=1,y=0,z=0},{x=0,y=1,z=0}},triangles={{
 local surfaceHit=Landmarks.intersectRaySurface(surface,{x=0.2,y=0.2,z=2},{x=0,y=0,z=-1})
 assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
     'surface snapping must intersect the selected triangle')
+local offsetPoint=Polygon.positionWithDepth(surface,1,surface.vertices[1],0.25)
+assert(math.abs(offsetPoint.z-0.25)<0.0001,
+    'surface controls must expose a normal-based depth offset')
 local project=Project.new()
-assert(project.schemaVersion==11 and project.landmarkEditMode==1)
+assert(project.schemaVersion==13 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -47,8 +52,25 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
 local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
-assert(legacyProject.schemaVersion==11 and legacyProject.masks[1].representation=='vertex',
+assert(legacyProject.schemaVersion==13 and legacyProject.masks[1].representation=='vertex',
     'legacy masks must normalize to the vertex representation')
+local polygon=Project.addSurfaceControl(project,'brow_left','polygon')
+assert(polygon.kind=='polygon' and not polygon.closed and #polygon.points==0)
+local polyline=Project.addSurfaceControl(project,'brow_action','polyline')
+assert(polyline.kind=='polyline' and not polyline.closed)
+local point=Project.addSurfaceControl(project,'brow_controller','point')
+assert(point.kind=='point' and not point.closed)
+point.relationships={{controlId=polygon.id,weight=0.75},{controlId=polyline.id,weight=1}}
+Project.normalize(project)
+assert(#project.surfaceControls[3].relationships==2 and
+    project.surfaceControls[3].relationships[1].weight==0.75)
+assert(#project.surfaceControls==3 and project.surfaceControls[1].name=='brow_left')
+local templateProject=Project.new()
+assert(ActionTemplates.instantiate(templateProject,surface,
+    {placed=true,position={x=0,y=0,z=0},scale=1},1))
+assert(#templateProject.facialMasks==2 and #templateProject.surfaceControls==6)
+assert(#templateProject.surfaceControls[3].relationships==2,
+    'a facial template controller must link its area and action line')
 project.expressions=Expressions.syncCatalog(project.expressions,
     {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
 local expression=Expressions.addPose(project.expressions,'smile')
