@@ -74,6 +74,94 @@ local TEMPLATE_DEFINITIONS={
     }
 }
 
+-- Neutral authoring guides, relative to the placed face origin. These are
+-- FACS-related regions, not individual AU deformations or muscle simulations.
+local MORE_LEFT_TEMPLATES={
+    {
+        id='eye_left',nameKey='fre_facs_eye_left',actionUnits={'AU5','AU7'},
+        color=AREA_COLOR,mirrorSign=1,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.105,0.16,-0.11},{-0.12,0.185,-0.11},{-0.16,0.205,-0.11},
+                {-0.20,0.21,-0.11},{-0.245,0.198,-0.11},{-0.275,0.175,-0.11},
+                {-0.28,0.15,-0.11},{-0.255,0.13,-0.11},{-0.21,0.12,-0.11},
+                {-0.165,0.125,-0.11},{-0.13,0.14,-0.11}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.12,0.215,-0.10},{-0.16,0.228,-0.10},{-0.205,0.232,-0.10},
+                {-0.25,0.22,-0.10},{-0.27,0.20,-0.10}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{-0.205,0.245,-0.10}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{-0.20,0.17,-0.11}}}
+        }
+    },
+    {
+        id='cheek_left',nameKey='fre_facs_cheek_left',actionUnits={'AU6'},
+        color=AREA_COLOR,mirrorSign=1,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.105,0.055,-0.14},{-0.12,0.09,-0.14},{-0.16,0.11,-0.14},
+                {-0.215,0.115,-0.14},{-0.27,0.095,-0.14},{-0.31,0.05,-0.14},
+                {-0.30,-0.025,-0.14},{-0.25,-0.075,-0.14},{-0.18,-0.07,-0.14},
+                {-0.12,-0.02,-0.14}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.12,0.09,-0.13},{-0.16,0.08,-0.13},{-0.21,0.075,-0.13},
+                {-0.265,0.08,-0.13},{-0.30,0.10,-0.13}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{-0.22,0.035,-0.13}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{-0.21,-0.015,-0.14}}}
+        }
+    },
+    {
+        id='mouth_corner_left',nameKey='fre_facs_mouth_corner_left',actionUnits={'AU12','AU15'},
+        color=AREA_COLOR,mirrorSign=1,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.08,-0.18,-0.08},{-0.10,-0.14,-0.08},{-0.14,-0.125,-0.08},
+                {-0.19,-0.135,-0.08},{-0.225,-0.17,-0.08},{-0.23,-0.21,-0.08},
+                {-0.205,-0.25,-0.08},{-0.165,-0.27,-0.08},{-0.115,-0.25,-0.08},
+                {-0.085,-0.22,-0.08}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.11,-0.035,-0.07},{-0.14,-0.065,-0.07},{-0.17,-0.10,-0.07},
+                {-0.185,-0.14,-0.07},{-0.19,-0.17,-0.07}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{-0.205,-0.085,-0.07}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{-0.16,-0.20,-0.08}}}
+        }
+    }
+}
+
+local function mirroredTemplate(left)
+    local right={id=left.id:gsub('_left$','_right'),
+        nameKey=left.nameKey:gsub('_left$','_right'),actionUnits={},
+        color=AREA_COLOR,mirrorSign=-1,shapes={}}
+    for _,actionUnit in ipairs(left.actionUnits) do
+        right.actionUnits[#right.actionUnits+1]=actionUnit
+    end
+    for _,shape in ipairs(left.shapes) do
+        local mirrored={id=shape.id,role=shape.role,kind=shape.kind,
+            closed=shape.closed,points={}}
+        for _,point in ipairs(shape.points) do
+            mirrored.points[#mirrored.points+1]={-point[1],point[2],point[3]}
+        end
+        right.shapes[#right.shapes+1]=mirrored
+    end
+    return right
+end
+
+for _,left in ipairs(MORE_LEFT_TEMPLATES) do
+    TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=left
+    TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=mirroredTemplate(left)
+end
+
 local function copyColor(color)
     return {r=color.r,g=color.g,b=color.b,a=color.a}
 end
@@ -316,34 +404,65 @@ function M.names(groups)
     return result
 end
 
-function M.instantiate(project,topology,faceOrigin,scale)
-    if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
-            not faceOrigin.placed or #(project.facialMasks or {})>0 then return false end
-    if #(topology.vertices or {})==0 then return false end
-    project.facialMasks=project.facialMasks or {}
-    project.surfaceControls=project.surfaceControls or {}
-    local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
-    for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
-        local group={id=definition.id,name=definition.id,nameKey=definition.nameKey,
-            templateId=definition.id,actionUnits={},color=copyColor(definition.color),
-            controlIds={},enabled=true}
-        for _,actionUnit in ipairs(definition.actionUnits) do group.actionUnits[#group.actionUnits+1]=actionUnit end
-        for _,shape in ipairs(definition.shapes) do
-            local control={id=definition.id..'_'..shape.id,name=definition.id..'_'..shape.id,
-                groupId=definition.id,role=shape.role,kind=shape.kind,closed=shape.closed==true,
-                points={},topologySignature=topology.signature or '',depthOffset=0,
-                color=copyColor(M.displayColor(group,{role=shape.role})),relationships={},enabled=true}
-            fitPoints(control,shape,topology,faceOrigin,actualScale)
-            project.surfaceControls[#project.surfaceControls+1]=control
-            group.controlIds[#group.controlIds+1]=control.id
-        end
-        linkControllers(project,group)
-        project.facialMasks[#project.facialMasks+1]=group
+local function templateAbsent(project,definition)
+    for _,group in ipairs(project.facialMasks or {}) do
+        if group.templateId==definition.id or group.id==definition.id then return false end
+    end
+    for _,shape in ipairs(definition.shapes) do
+        if M.controlById(project,definition.id..'_'..shape.id) then return false end
     end
     return true
 end
 
--- Add only the missing line controller to saved brow projects. Existing
+function M.missingTemplateCount(project)
+    if type(project)~='table' then return 0 end
+    local count=0
+    for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
+        if templateAbsent(project,definition) then count=count+1 end
+    end
+    return count
+end
+
+-- An explicit addition path keeps authored shapes in saved projects intact.
+function M.addMissing(project,topology,faceOrigin,scale)
+    if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
+            not faceOrigin.placed or #(topology.vertices or {})==0 then return 0 end
+    project.facialMasks=project.facialMasks or {}
+    project.surfaceControls=project.surfaceControls or {}
+    local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
+    local added,firstIndex=0,nil
+    for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
+        if templateAbsent(project,definition) then
+            local group={id=definition.id,name=definition.id,nameKey=definition.nameKey,
+                templateId=definition.id,actionUnits={},color=copyColor(definition.color),
+                controlIds={},enabled=true}
+            for _,actionUnit in ipairs(definition.actionUnits) do
+                group.actionUnits[#group.actionUnits+1]=actionUnit
+            end
+            for _,shape in ipairs(definition.shapes) do
+                local control={id=definition.id..'_'..shape.id,name=definition.id..'_'..shape.id,
+                    groupId=definition.id,role=shape.role,kind=shape.kind,closed=shape.closed==true,
+                    points={},topologySignature=topology.signature or '',depthOffset=0,
+                    color=copyColor(M.displayColor(group,{role=shape.role})),relationships={},enabled=true}
+                fitPoints(control,shape,topology,faceOrigin,actualScale)
+                project.surfaceControls[#project.surfaceControls+1]=control
+                group.controlIds[#group.controlIds+1]=control.id
+            end
+            linkControllers(project,group)
+            project.facialMasks[#project.facialMasks+1]=group
+            added=added+1
+            firstIndex=firstIndex or #project.facialMasks
+        end
+    end
+    return added,firstIndex
+end
+
+function M.instantiate(project,topology,faceOrigin,scale)
+    if type(project)~='table' or #(project.facialMasks or {})>0 then return false end
+    return M.addMissing(project,topology,faceOrigin,scale)>0
+end
+
+-- Add only a missing line controller to saved stock-template projects. Existing
 -- contours, offsets, and group-controller placement remain authored data.
 function M.ensureLineControllers(project,topology,faceOrigin,scale)
     if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or

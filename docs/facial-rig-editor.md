@@ -1,6 +1,6 @@
 # Facial Rig Editor
 
-The Lua Facial Rig Editor authors facial surface controls, generated regions, morph targets, named
+The Lua Facial Rig Editor authors facial surface controls, morph targets, named
 expressions, and facial clips for an assigned MSH. The editor can create and sculpt targets without
 Blender. Faceit is a workflow reference; its add-on and SDK are not required to edit or export an
 MSH.
@@ -42,10 +42,10 @@ and can be shown on demand with **Show landmark guide** in **Landmarks**; it sta
 so facial action shapes are clear.
 
 **Side editing mode** appears at the top of Landmarks. **Independent sides** edits each side
-separately. **Synchronized sides** mirrors paired brow shapes and side landmarks around the nose's
+separately. **Synchronized sides** mirrors paired facial shapes and side landmarks around the nose's
 X position, or the face origin until the nose is placed. Enabling synchronization uses the
-currently selected brow as the source. Subsequent gizmo drags, right drags, surface adjustments,
-and explicit template refits update the opposite brow. Mirroring changes its point offsets while
+currently selected mask as the source. Subsequent gizmo drags, right drags, surface adjustments,
+and explicit template refits update the opposite side. Mirroring changes its point offsets while
 keeping its mesh vertex references and colors; the operation participates in Undo.
 
 The author selects a pre-defined facial action mask and adapts its controls directly over the mesh:
@@ -61,17 +61,23 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | polyline | Line of action, such as a lip border, furrow, or wrinkle | Open surface line with editable points and depth-adjustable anchors |
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
-The first template slice contains left and right brow masks. Each brow mask has an area polygon,
-an action-line polyline, a group controller, and a separate action-line controller. The templates are initialized with
-12 contour anchors for the brow area and five anchors for the action line, then adapted to the
+The stock catalog contains paired masks for brows (AU1, AU2, AU4), eyes (AU5, AU7), cheeks (AU6),
+and mouth corners (AU12, AU15). These AU labels identify related actions; a mask does not solve
+or generate those movements. The [Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
+is the naming reference. Each mask has an area polygon, an action-line polyline, a group
+controller, and a separate action-line controller. The brow masks start with 12 contour anchors
+and five action-line anchors; the other masks provide their own pre-authored contours. All are adapted to the
 current mesh after the face origin is placed. Initial fitting uses the mesh subset containing the
 face origin and prioritizes the front view contour over guessed depth. This avoids snapping brow
 points to a separate hair subset and reduces jumps toward the eyelid. The green group controller
 moves the complete mask. The yellow action-line controller moves only the action lines and itself;
 individual area and line anchors still move one point at a time. The action-line controller is
-placed above the line so its pick target stays distinct from the line anchors.
-In a previously saved project, **Refit selected brow to face** replaces that brow's points with
-the current template; the operation is undoable and never runs automatically on existing edits.
+placed apart from the line so its pick target stays distinct from the line anchors.
+New projects load all eight masks when the face origin is placed. A saved project with only brow
+masks offers **Add missing facial templates** in Landmarks. This explicit action appends only absent
+templates, keeps existing contours and offsets, and can be undone. **Refit selected mask to face**
+replaces only the selected mask's points with its current template; it is undoable and never runs
+automatically on existing edits.
 Opening an older brow project adds only a missing action-line controller and its relationships;
 it is placed near the already edited action line. Existing contours, offsets, and the
 group-controller position are preserved.
@@ -88,9 +94,8 @@ selects its point (a segment selects its nearer endpoint) and displays a 3D tran
 Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the green
 controller's gizmo moves every point in its mask group by the same world-space displacement;
 dragging the yellow controller moves only the action lines and itself. Right drag still snaps an
-anchor or the corresponding controller's set of points to mesh vertices. The editor should extend this
-template catalog to the remaining FACS-inspired facial actions without requiring the user to create
-each shape from an empty control.
+anchor or the corresponding controller's set of points to mesh vertices. Further facial actions
+can extend the catalog without requiring the user to create each shape from an empty control.
 Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
 
 The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
@@ -105,10 +110,9 @@ point, preserves each X/Y position, and applies the shape only when all points c
 The operation is undoable; the other shapes in the mask remain unchanged. The separate
 landmark button below continues to raycast a selected individual landmark onto the surface.
 
-**Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and
-vertex weights from the selected polygon, polyline, or point relationships. Generated regions retain
-the source-control identity and topology signature, and become stale when the authored control or
-source topology changes. The user must explicitly regenerate and review them.
+**Masks / Regions** will consume the authored controls in a later milestone. Region generation,
+vertex weights, source-control identity, topology tracking, and explicit regeneration remain
+planned work; the current workspace still exposes the legacy and interim polygon-mask editors.
 
 Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
 They are not the authoring surface for the new facial workflow, and the editor must not silently
