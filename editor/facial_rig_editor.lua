@@ -89,7 +89,8 @@ local state = {
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
         surfaceUvDirty=false,surfaceUvCallbackArmed=false,surfaceUvChanges={},
         meshHidden=false,meshWasVisible=true,keepSurfaceWhileDirty=false},
-    surfaceControlOverlay={dirty=true,lines={},markers={},visible=true},
+    surfaceControlOverlay={dirty=true,selectionDirty=false,styledGroupIndex=nil,
+        lines={},markers={},visible=true},
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
@@ -1620,7 +1621,20 @@ commitSurfaceControl=function(control)
     return true
 end
 
-refreshSurfaceControlOverlay=function()
+local function setSurfaceControlLineStyle(object,group,control,groupIndex,visible)
+    local groupColor=group.color or {r=1,g=1,b=1,a=1}
+    local selected=groupIndex==state.selectedFacialMask
+    object.alwaysOnTopPriority=selected and 2 or 1
+    local color=tFacialActionTemplates.displayColor(group,control)
+    object:setColor(color.r or groupColor.r,color.g or groupColor.g,
+        color.b or groupColor.b,selected and (color.a or groupColor.a) or
+            (color.a or groupColor.a)*0.45)
+    object.visible=visible and group.enabled~=false
+end
+
+-- LINE_MESH:set uploads its vertex buffer. Selection changes only styles,
+-- selected markers, and the gizmo; the other contours keep their geometry.
+refreshSurfaceControlOverlay=function(selectionOnly)
     local overlay=state.surfaceControlOverlay
     if not state.mesh or not state.topology then
         for _,object in pairs(overlay.lines or {}) do object.visible=false end
@@ -1628,61 +1642,69 @@ refreshSurfaceControlOverlay=function()
         for _,object in pairs(state.surfacePointGizmo.axes) do object.visible=false end
         state.surfacePointGizmo.origin=nil
         overlay.dirty=false
+        overlay.selectionDirty=false
+        overlay.styledGroupIndex=nil
         return
     end
     local groups=state.project.facialMasks or {}
     local visible=overlay.visible and state.workspace=='landmarks'
-    local activeLines={}
+    local activeLines,emptyControls=not selectionOnly and {} or nil,{}
     for groupIndex,group in ipairs(groups) do
-        local groupColor=group.color or {r=1,g=1,b=1,a=1}
-        for _,controlId in ipairs(group.controlIds or {}) do
+        local updateGroup=not selectionOnly or groupIndex==state.selectedFacialMask or
+            groupIndex==overlay.styledGroupIndex
+        for _,controlId in ipairs(updateGroup and group.controlIds or emptyControls) do
             local control=tFacialActionTemplates.controlById(state.project,controlId)
             if control then
-                tSurfaceControlEditor.ensure(control)
-                local points=tFacialPolygon.resolvePoints(control,state.topology)
-                local edgePaths={}
-                local edgeCount=control.closed and #points or math.max(0,#points-1)
-                for index=1,edgeCount do
-                    local nextIndex=index%#points+1
-                    local first=tFacialPolygon.positionWithFaceDepth(points[index].position,control.depthOffset)
-                    local second=tFacialPolygon.positionWithFaceDepth(points[nextIndex].position,control.depthOffset)
-                    edgePaths[#edgePaths+1]={first.x,first.y,first.z,second.x,second.y,second.z}
-                end
                 local object=overlay.lines[control.id]
-                if #edgePaths==0 then
-                    if object then dpCall(function() object:destroy() end); overlay.lines[control.id]=nil end
-                else
-                    if object and object.pathCount~=#edgePaths then
-                        dpCall(function() object:destroy() end)
+                if not selectionOnly then
+                    tSurfaceControlEditor.ensure(control)
+                    local points=tFacialPolygon.resolvePoints(control,state.topology)
+                    local path={}
+                    for _,point in ipairs(points) do
+                        local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
+                        path[#path+1]=position.x
+                        path[#path+1]=position.y
+                        path[#path+1]=position.z
+                    end
+                    if control.closed and #points>1 then
+                        path[#path+1]=path[1]
+                        path[#path+1]=path[2]
+                        path[#path+1]=path[3]
+                    end
+                    if #points<2 then
+                        if object then dpCall(function() object:destroy() end) end
                         object=nil
-                    end
-                    if not object then
-                        object=line:new('3d',0,0,0)
-                        object.alwaysOnTop=true
-                        object.alwaysOnTopPriority=groupIndex==state.selectedFacialMask and 2 or 1
-                        object.alwaysRender=true
-                        object.pathCount=#edgePaths
-                        overlay.lines[control.id]=object
-                        for _,path in ipairs(edgePaths) do object:add(path) end
+                        overlay.lines[control.id]=nil
                     else
-                        for index,path in ipairs(edgePaths) do object:set(path,index) end
+                        if object and object.pathCount~=1 then
+                            dpCall(function() object:destroy() end)
+                            object=nil
+                        end
+                        if not object then
+                            object=line:new('3d',0,0,0)
+                            object.alwaysOnTop=true
+                            object.alwaysRender=true
+                            object.pathCount=1
+                            overlay.lines[control.id]=object
+                            object:add(path)
+                        else
+                            object:set(path,1)
+                        end
                     end
-                    object.alwaysOnTopPriority=groupIndex==state.selectedFacialMask and 2 or 1
-                    local color=tFacialActionTemplates.displayColor(group,control)
-                    object:setColor(color.r or groupColor.r,color.g or groupColor.g,
-                        color.b or groupColor.b,
-                        groupIndex==state.selectedFacialMask and (color.a or groupColor.a) or
-                            (color.a or groupColor.a)*0.45)
-                    object.visible=visible and group.enabled~=false
-                    activeLines[control.id]=true
+                end
+                if object then
+                    setSurfaceControlLineStyle(object,group,control,groupIndex,visible)
+                    if activeLines then activeLines[control.id]=true end
                 end
             end
         end
     end
-    for controlId,object in pairs(overlay.lines or {}) do
-        if not activeLines[controlId] then
-            dpCall(function() object:destroy() end)
-            overlay.lines[controlId]=nil
+    if activeLines then
+        for controlId,object in pairs(overlay.lines or {}) do
+            if not activeLines[controlId] then
+                dpCall(function() object:destroy() end)
+                overlay.lines[controlId]=nil
+            end
         end
     end
     local markerPaths={area={},action_line={},line_controller={},controller={}}
@@ -1709,12 +1731,9 @@ refreshSurfaceControlOverlay=function()
             local halfSize=size*(role=='controller' and 1.6 or
                 role=='line_controller' and 1.35 or 1)
             paths[#paths+1]={position.x-halfSize,position.y-halfSize,position.z,
-                position.x+halfSize,position.y-halfSize,position.z}
-            paths[#paths+1]={position.x+halfSize,position.y-halfSize,position.z,
-                position.x+halfSize,position.y+halfSize,position.z}
-            paths[#paths+1]={position.x+halfSize,position.y+halfSize,position.z,
-                position.x-halfSize,position.y+halfSize,position.z}
-            paths[#paths+1]={position.x-halfSize,position.y+halfSize,position.z,
+                position.x+halfSize,position.y-halfSize,position.z,
+                position.x+halfSize,position.y+halfSize,position.z,
+                position.x-halfSize,position.y+halfSize,position.z,
                 position.x-halfSize,position.y-halfSize,position.z}
             if role=='controller' or role=='line_controller' then
                 local crossSize=halfSize*0.5
@@ -1785,6 +1804,8 @@ refreshSurfaceControlOverlay=function()
         end
     end
     overlay.dirty=false
+    overlay.selectionDirty=false
+    overlay.styledGroupIndex=state.selectedFacialMask
 end
 
 ensureFacialActionTemplates=function()
@@ -4540,7 +4561,7 @@ local function showLandmarks()
             state.selectedFacialMask=index
             state.project.selectedFacialMask=index
             state.selectedSurfaceControlPoint=nil
-            state.surfaceControlOverlay.dirty=true
+            state.surfaceControlOverlay.selectionDirty=true
         end
         local selectedGroup=groups[state.selectedFacialMask]
         if selectedGroup then
@@ -4559,7 +4580,7 @@ local function showLandmarks()
                 state.selectedSurfaceControl=entries[1].index
                 state.project.selectedSurfaceControl=state.selectedSurfaceControl
                 state.selectedSurfaceControlPoint=nil
-                state.surfaceControlOverlay.dirty=true
+                state.surfaceControlOverlay.selectionDirty=true
             end
             if selectedControl then
                 tSurfaceControlEditor.ensure(selectedControl)
@@ -5685,7 +5706,11 @@ function onLoop(delta)
     drawTargetBrushScreenCursor()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
-    if state.surfaceControlOverlay.dirty then refreshSurfaceControlOverlay() end
+    if state.surfaceControlOverlay.dirty then
+        refreshSurfaceControlOverlay(false)
+    elseif state.surfaceControlOverlay.selectionDirty then
+        refreshSurfaceControlOverlay(true)
+    end
     if state.maskVisualization.building then
         stepMaskVisualizationBuild()
     elseif state.maskVisualization.dirty then
@@ -7206,7 +7231,7 @@ function onTouchDown(key,x,y)
                 state.selectedSurfaceControl=hit.entry.index
                 state.project.selectedSurfaceControl=hit.entry.index
                 state.selectedSurfaceControlPoint=hit.pointIndex
-                state.surfaceControlOverlay.dirty=true
+                state.surfaceControlOverlay.selectionDirty=true
                 return
             end
         end
