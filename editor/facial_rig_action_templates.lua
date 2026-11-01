@@ -21,11 +21,14 @@
 ]]--
 
 local M={}
+local tPointGizmo=require 'facial_surface_point_gizmo'
 
 local PREVIOUS_ACTION_LINE_COLORS={
     brow_left={r=0.78,g=0.48,b=1,a=1},
     brow_right={r=1,g=0.73,b=0.20,a=1}
 }
+local AREA_COLOR={r=0.15,g=0.85,b=1,a=1}
+local PREVIOUS_RIGHT_AREA_COLOR={r=1,g=0.35,b=0.75,a=1}
 local ACTION_LINE_COLOR={r=1,g=0.46,b=0.08,a=1}
 local CONTROLLER_COLOR={r=0.28,g=1,b=0.32,a=1}
 local LINE_CONTROLLER_COLOR={r=1,g=0.9,b=0.16,a=1}
@@ -33,7 +36,7 @@ local LINE_CONTROLLER_COLOR={r=1,g=0.9,b=0.16,a=1}
 local TEMPLATE_DEFINITIONS={
     {
         id='brow_left', nameKey='fre_facs_brow_left', actionUnits={'AU1','AU2','AU4'},
-        color={r=0.15,g=0.85,b=1,a=1}, mirrorSign=1,
+        color=AREA_COLOR, mirrorSign=1,
         shapes={
             {id='area',role='area',kind='polygon',closed=true,points={
                 {-0.105,0.275,-0.11},{-0.13,0.305,-0.11},{-0.17,0.322,-0.11},
@@ -52,7 +55,7 @@ local TEMPLATE_DEFINITIONS={
     },
     {
         id='brow_right', nameKey='fre_facs_brow_right', actionUnits={'AU1','AU2','AU4'},
-        color={r=1,g=0.35,b=0.75,a=1}, mirrorSign=-1,
+        color=AREA_COLOR, mirrorSign=-1,
         shapes={
             {id='area',role='area',kind='polygon',closed=true,points={
                 {0.105,0.275,-0.11},{0.13,0.305,-0.11},{0.17,0.322,-0.11},
@@ -79,17 +82,29 @@ local function sameRgb(left,right)
     return left and right and left.r==right.r and left.g==right.g and left.b==right.b
 end
 
+local function stockGroupColor(group)
+    if not group then return false end
+    return sameRgb(group.color,AREA_COLOR) or
+        group.templateId=='brow_right' and sameRgb(group.color,PREVIOUS_RIGHT_AREA_COLOR)
+end
+
 -- Older projects saved each shape with the same group color. Give their
 -- action lines and controller distinct display colors without rewriting the
 -- project. A separately authored shape color still takes precedence.
 function M.displayColor(group,control)
-    local groupColor=group and group.color or {r=1,g=1,b=1,a=1}
+    local groupColor=group and group.color or AREA_COLOR
     local color=control and control.color
     local role=control and control.role
-    if role=='area' or not role then return color or groupColor end
+    if role=='area' or not role then
+        local area=color or groupColor
+        if group and group.templateId=='brow_right' and
+                sameRgb(area,PREVIOUS_RIGHT_AREA_COLOR) then return AREA_COLOR end
+        return area
+    end
     if role=='action_line' then
         local previous=PREVIOUS_ACTION_LINE_COLORS[group and group.templateId]
-        if not color or sameRgb(color,groupColor) or sameRgb(color,previous) then
+        if not color or sameRgb(color,previous) or
+                stockGroupColor(group) and sameRgb(color,groupColor) then
             return ACTION_LINE_COLOR
         end
         return color
@@ -98,6 +113,94 @@ function M.displayColor(group,control)
     if role=='controller' then return CONTROLLER_COLOR end
     if role=='line_controller' then return LINE_CONTROLLER_COLOR end
     return color or groupColor
+end
+
+-- Only replace colors that came from older stock templates. Explicitly
+-- authored colors remain untouched when a saved project is opened.
+function M.standardizeColors(project)
+    local changed=false
+    for _,group in ipairs(project and project.facialMasks or {}) do
+        local previousGroupColor=group.color
+        if group.templateId=='brow_right' and sameRgb(group.color,PREVIOUS_RIGHT_AREA_COLOR) then
+            group.color=copyColor(AREA_COLOR)
+            changed=true
+        end
+        for _,controlId in ipairs(group.controlIds or {}) do
+            local control=M.controlById(project,controlId)
+            if control and control.role=='area' and group.templateId=='brow_right' and
+                    sameRgb(control.color,PREVIOUS_RIGHT_AREA_COLOR) then
+                control.color=copyColor(AREA_COLOR)
+                changed=true
+            elseif control and control.role=='action_line' then
+                local oldAccent=PREVIOUS_ACTION_LINE_COLORS[group.templateId]
+                if sameRgb(control.color,oldAccent) or
+                        (sameRgb(previousGroupColor,AREA_COLOR) or
+                            group.templateId=='brow_right' and
+                            sameRgb(previousGroupColor,PREVIOUS_RIGHT_AREA_COLOR)) and
+                        sameRgb(control.color,previousGroupColor) then
+                    control.color=copyColor(ACTION_LINE_COLOR)
+                    changed=true
+                end
+            end
+        end
+    end
+    return changed
+end
+
+local function oppositeTemplateId(templateId)
+    if type(templateId)~='string' then return nil end
+    if templateId:sub(-5)=='_left' then return templateId:sub(1,-6)..'_right' end
+    if templateId:sub(-6)=='_right' then return templateId:sub(1,-7)..'_left' end
+    return nil
+end
+
+-- Mirror only positions. The target keeps its own mesh anchors and authored
+-- colors; per-point offsets represent the mirrored world-space positions.
+function M.mirrorGroup(project,topology,sourceGroup,centerX)
+    if not project or not topology or not sourceGroup then return false end
+    centerX=tonumber(centerX) or 0
+    local sourceId=sourceGroup.templateId
+    local targetId=oppositeTemplateId(sourceId)
+    if not targetId then return false end
+    local targetGroup
+    for _,group in ipairs(project.facialMasks or {}) do
+        if group.templateId==targetId then targetGroup=group; break end
+    end
+    if not targetGroup then return false end
+    local targetIds={}
+    for _,id in ipairs(targetGroup.controlIds or {}) do targetIds[id]=true end
+    local prepared,changed={},false
+    local prefix=sourceId..'_'
+    for _,sourceControlId in ipairs(sourceGroup.controlIds or {}) do
+        if sourceControlId:sub(1,#prefix)==prefix then
+            local sourceControl=M.controlById(project,sourceControlId)
+            local oppositeId=targetId..sourceControlId:sub(#sourceId+1)
+            local targetControl=targetIds[oppositeId] and M.controlById(project,oppositeId) or nil
+            if sourceControl and targetControl then
+                if #sourceControl.points~=#targetControl.points then return false end
+                for index=1,#sourceControl.points do
+                    local source=tPointGizmo.position(sourceControl,index,topology)
+                    local targetAnchor=targetControl.points[index]
+                    local base=targetAnchor and topology.vertices[targetAnchor.index]
+                    if not source or not base then return false end
+                    local offset={x=2*centerX-source.x-base.x,y=source.y-base.y,
+                        z=source.z-base.z-(targetControl.depthOffset or 0)}
+                    local old=targetAnchor.offset or {}
+                    if math.abs(offset.x-(old.x or 0))>1e-6 or
+                            math.abs(offset.y-(old.y or 0))>1e-6 or
+                            math.abs(offset.z-(old.z or 0))>1e-6 then changed=true end
+                    prepared[#prepared+1]={control=targetControl,index=index,offset=offset}
+                end
+            end
+        end
+    end
+    if changed then
+        for _,item in ipairs(prepared) do
+            item.control.points[item.index].offset=item.offset
+            item.control.topologySignature=topology.signature or ''
+        end
+    end
+    return changed
 end
 
 local function nearestVertex(topology,target,used,faceSubset)

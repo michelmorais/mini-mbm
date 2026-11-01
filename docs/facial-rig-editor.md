@@ -41,6 +41,13 @@ and axes) is a landmark placement reference, not a vertex mask. It appears in **
 and can be shown on demand with **Show landmark guide** in **Landmarks**; it starts hidden there
 so facial action shapes are clear.
 
+**Side editing mode** appears at the top of Landmarks. **Independent sides** edits each side
+separately. **Synchronized sides** mirrors paired brow shapes and side landmarks around the nose's
+X position, or the face origin until the nose is placed. Enabling synchronization uses the
+currently selected brow as the source. Subsequent gizmo drags, right drags, surface adjustments,
+and explicit template refits update the opposite brow. Mirroring changes its point offsets while
+keeping its mesh vertex references and colors; the operation participates in Undo.
+
 The author selects a pre-defined facial action mask and adapts its controls directly over the mesh:
 
 The templates are FACS-inspired authoring references, not an automatic FACS solver. FACS describes
@@ -69,9 +76,10 @@ Opening an older brow project adds only a missing action-line controller and its
 it is placed near the already edited action line. Existing contours, offsets, and the
 group-controller position are preserved.
 
-All mask outlines remain visible with group colors. The brow area uses its mask color; the action
-line defaults to orange on both brows (including projects with the previous template accents),
-while a separately authored color is retained. The group controller is a larger green square
+All mask outlines remain visible. The shared default palette uses cyan for influence areas and
+orange for action lines on both sides and for future facial templates. Previously saved stock
+right-brow pink and older action-line accents are upgraded on load; custom colors are preserved.
+The group controller is a larger green square
 with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
 displays square anchors for editing.
 In the viewport, left drag on empty space orbits the camera. Clicking a square anchor or an outline

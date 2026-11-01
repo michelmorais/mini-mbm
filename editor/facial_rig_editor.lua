@@ -2935,6 +2935,8 @@ local function loadMesh(path, preserveProject)
     if not preserveProject or state.project.meshTopologySignature=='' then
         tFacialProject.setTopology(state.project,topology)
     end
+    local standardizedColors=preserveProject and
+        tFacialActionTemplates.standardizeColors(state.project) or false
     local addedLineControllers=preserveProject and tFacialActionTemplates.ensureLineControllers(
         state.project,topology,state.project.faceOrigin,state.project.faceOrigin.scale) or false
     state.selectedRole=state.project.selectedRole or 1
@@ -2944,7 +2946,7 @@ local function loadMesh(path, preserveProject)
     state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
-    state.modified=embeddedTargetEdits or addedLineControllers or
+    state.modified=embeddedTargetEdits or standardizedColors or addedLineControllers or
         (preserveProject and state.modified or true)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
@@ -4356,6 +4358,14 @@ local function synchronizeLandmarkSides()
     return changed
 end
 
+local function mirrorFacialMaskSides(group)
+    if state.landmarkEditMode~=2 or not state.topology then return false end
+    local changed=tFacialActionTemplates.mirrorGroup(state.project,state.topology,
+        group,landmarkMirrorCenterX())
+    if changed then state.surfaceControlOverlay.dirty=true end
+    return changed
+end
+
 local function setLandmarkPosition(landmark,position,vertexIndex)
     if not landmark or not position then return end
     pushUndoSnapshot()
@@ -4476,6 +4486,34 @@ end
 
 local function showLandmarks()
     tImGui.Separator()
+    tImGui.Text(tLang.L('fre_landmark_edit_mode'))
+    local editMode=state.landmarkEditMode
+    editMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_async'),editMode,1)
+    tImGui.SameLine()
+    editMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_sync'),editMode,2)
+    if editMode~=state.landmarkEditMode then
+        pushUndoSnapshot()
+        state.landmarkEditMode=editMode
+        state.project.landmarkEditMode=editMode
+        if editMode==2 then
+            if synchronizeLandmarkSides() then
+                markLandmarkMarkersDirty()
+                markFaceGuideDirty()
+            end
+            local group=state.project.facialMasks[state.selectedFacialMask] or
+                state.project.facialMasks[1]
+            mirrorFacialMaskSides(group)
+        end
+        markModified()
+    end
+    if state.landmarkEditMode==2 then
+        tImGui.TextWrapped(tLang.L('fre_landmark_sync_help'))
+        local nose=findLandmark('nose_tip') or findLandmark('nose_bridge')
+        if not nose or not nose.placed then
+            tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
+        end
+    end
+    tImGui.Separator()
     tImGui.Text(tLang.L('fre_facs_masks'))
     tImGui.TextWrapped(tLang.L('fre_facs_masks_help'))
     local groups=state.project.facialMasks or {}
@@ -4539,6 +4577,7 @@ local function showLandmarks()
                     else
                         pushUndoSnapshot()
                         tSurfacePointGizmo.applySurfaceSnap(selectedControl,plan)
+                        mirrorFacialMaskSides(selectedGroup)
                         commitSurfaceControl(selectedControl)
                         setStatus(tLang.L('fre_facs_surface_snapped'),false)
                     end
@@ -4552,6 +4591,7 @@ local function showLandmarks()
                     pushUndoSnapshot()
                     if tFacialActionTemplates.refit(state.project,state.topology,
                             state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
+                        mirrorFacialMaskSides(selectedGroup)
                         state.surfaceControlOverlay.dirty=true
                         state.selectedSurfaceControlPoint=nil
                         markModified()
@@ -4581,28 +4621,6 @@ local function showLandmarks()
     end
     local landmarks=state.project.landmarks
     tImGui.PushItemWidth(220)
-    tImGui.Text(tLang.L('fre_landmark_edit_mode'))
-    local previousEditMode=state.landmarkEditMode
-    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_async'),state.landmarkEditMode,1)
-    tImGui.SameLine()
-    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_sync'),state.landmarkEditMode,2)
-    if previousEditMode~=2 and state.landmarkEditMode==2 then
-        pushUndoSnapshot()
-        if synchronizeLandmarkSides() then
-            markModified()
-            markLandmarkMarkersDirty()
-            markFaceGuideDirty()
-        else
-            table.remove(state.undoStack)
-        end
-    end
-    if state.landmarkEditMode==2 then
-        tImGui.TextWrapped(tLang.L('fre_landmark_sync_help'))
-        local nose=findLandmark('nose_tip') or findLandmark('nose_bridge')
-        if not nose or not nose.placed then
-            tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
-        end
-    end
     local names={}
     for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
     local option=math.max(1,math.min(#names,state.selectedLandmark))
@@ -7230,6 +7248,7 @@ function onTouchDown(key,x,y)
             end,
             pushUndo=pushUndoSnapshot,commit=commitSurfaceControl,refresh=function()
                 state.surfaceControlOverlay.dirty=true
+                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
             end})
         return
     end
@@ -7312,6 +7331,7 @@ function onTouchMove(key,x,y)
                 tSurfacePointGizmo.translate(pointDrag.snapshot,state.topology,
                     {x=pointDrag.axis.x*amount,y=pointDrag.axis.y*amount,z=pointDrag.axis.z*amount})
                 state.surfaceControlOverlay.dirty=true
+                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
             end
         end
         return

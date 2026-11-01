@@ -53,6 +53,9 @@ controller as one editable group.
 All other masks remain visible as colored outlines, while only the selected mask exposes clickable
 square anchors. The group controller moves its area and action lines together; the action-line
 controller moves only its action lines.
+The editor offers independent and synchronized side editing for paired facial masks; synchronized
+editing mirrors the authored positions while retaining each side's mesh anchors. Stock influence
+areas share one cyan color and stock action lines share one orange color across sides.
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
 

@@ -183,15 +183,18 @@ assert(math.abs(curvedFirst.z-0.3)<1e-5 and math.abs(curvedSecond.z-0.5)<1e-5 an
     math.abs(curvedFirst.x-0.2)<1e-5 and math.abs(curvedSecond.x-0.6)<1e-5,
     'surface snap must solve a different Z at each point of a curved action line')
 offsetProject.surfaceControls[1].points[1].offset={x=0.125,y=-0.25,z=0.5}
+offsetProject.landmarkEditMode=2
 mbm={setColor=function() end}
 tImGui={}
 timer={new=function() return {} end}
 local editorUtils=require 'editor_utils'
 local offsetPath='/tmp/facial-rig-point-offset-smoke.lua'
 assert(Project.save(offsetProject,offsetPath,editorUtils.save))
-local restoredOffset=assert(Project.load(offsetPath)).surfaceControls[1].points[1].offset
-assert(restoredOffset.x==0.125 and restoredOffset.y==-0.25 and restoredOffset.z==0.5,
-    'the editor serializer must round-trip each point displacement')
+local restoredProject=assert(Project.load(offsetPath))
+local restoredOffset=restoredProject.surfaceControls[1].points[1].offset
+assert(restoredOffset.x==0.125 and restoredOffset.y==-0.25 and restoredOffset.z==0.5 and
+    restoredProject.landmarkEditMode==2,
+    'the editor serializer must preserve point displacement and synchronized-side mode')
 os.remove(offsetPath)
 local templateProject=Project.new()
 assert(ActionTemplates.instantiate(templateProject,surface,
@@ -202,6 +205,7 @@ assert(#templateProject.surfaceControls[4].relationships==3 and
     templateProject.surfaceControls[3].relationships[1].controlId=='brow_left_action_line',
     'group and line controllers must link only to their intended controls')
 local templateGroup=templateProject.facialMasks[1]
+local rightGroup=templateProject.facialMasks[2]
 local areaColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[1])
 local actionColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
 local controllerColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[4])
@@ -209,6 +213,12 @@ local lineControllerColor=ActionTemplates.displayColor(templateGroup,templatePro
 assert(actionColor.r~=areaColor.r and controllerColor.g~=areaColor.g and
     lineControllerColor.g~=controllerColor.g,
     'area, action line, line controller and group controller must be visually distinct')
+local rightAreaColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[5])
+local rightActionColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[6])
+assert(areaColor.r==rightAreaColor.r and areaColor.g==rightAreaColor.g and
+    areaColor.b==rightAreaColor.b and actionColor.r==rightActionColor.r and
+    actionColor.g==rightActionColor.g and actionColor.b==rightActionColor.b,
+    'new left and right brows must share the same area and action-line palette')
 templateProject.surfaceControls[2].color=templateGroup.color
 assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2]).r==actionColor.r and
     actionColor.r~=templateGroup.color.r,
@@ -219,12 +229,29 @@ assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControl
     'an authored action-line color must remain intact')
 templateProject.surfaceControls[2].color={r=0.78,g=0.48,b=1,a=1}
 local leftOrange=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
-local rightGroup=templateProject.facialMasks[2]
 templateProject.surfaceControls[6].color={r=1,g=0.73,b=0.20,a=1}
 local rightOrange=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[6])
 assert(leftOrange.r==1 and leftOrange.g==rightOrange.g and leftOrange.b==rightOrange.b and
     leftOrange.g>leftOrange.b,
     'previously saved left/right action-line accents must both display as orange')
+rightGroup.color={r=1,g=0.35,b=0.75,a=1}
+templateProject.surfaceControls[5].color={r=1,g=0.35,b=0.75,a=1}
+assert(ActionTemplates.standardizeColors(templateProject))
+assert(not ActionTemplates.standardizeColors(templateProject) and
+    templateProject.surfaceControls[5].color.r==areaColor.r and
+    templateProject.surfaceControls[6].color.g==actionColor.g and
+    rightGroup.color.b==areaColor.b,
+    'old stock colors must migrate once to the shared facial palette')
+local customAreaColor={r=0.37,g=0.12,b=0.64,a=1}
+templateProject.surfaceControls[5].color=customAreaColor
+assert(not ActionTemplates.standardizeColors(templateProject) and
+    ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[5])==customAreaColor,
+    'an authored area color must survive the stock-color migration')
+rightGroup.color=customAreaColor
+templateProject.surfaceControls[6].color=customAreaColor
+assert(not ActionTemplates.standardizeColors(templateProject) and
+    ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[6])==customAreaColor,
+    'a custom group and action-line color must not be mistaken for stock colors')
 local faceTopology={vertices={},refs={},signature='template-face'}
 for _,definition in ipairs(ActionTemplates.templates()) do
     for _,shape in ipairs(definition.shapes) do
@@ -258,6 +285,23 @@ assert(fittedArea.points[1].index<=faceVertexCount and fittedArea.depthOffset==0
     'refitting must restore the brow contour while preserving its depth setting')
 assert(fittedProject.surfaceControls[5].points[1].index==otherBrowIndex,
     'refitting one brow must preserve the other brow')
+local leftArea=fittedProject.surfaceControls[1]
+local rightArea=fittedProject.surfaceControls[5]
+local savedRightAnchor=rightArea.points[1].index
+leftArea.points[1].offset={x=0.04,y=0.03,z=0.02}
+assert(ActionTemplates.mirrorGroup(fittedProject,faceTopology,fittedProject.facialMasks[1],0))
+local leftWorld=PointGizmo.position(leftArea,1,faceTopology)
+local rightWorld=PointGizmo.position(rightArea,1,faceTopology)
+assert(math.abs(leftWorld.x+rightWorld.x)<1e-5 and
+    math.abs(leftWorld.y-rightWorld.y)<1e-5 and
+    math.abs(leftWorld.z-rightWorld.z)<1e-5 and rightArea.points[1].index==savedRightAnchor,
+    'synchronized FACS shapes must mirror positions without changing target mesh anchors')
+rightArea.points[1].offset.x=rightArea.points[1].offset.x+0.02
+assert(ActionTemplates.mirrorGroup(fittedProject,faceTopology,fittedProject.facialMasks[2],0))
+leftWorld=PointGizmo.position(leftArea,1,faceTopology)
+rightWorld=PointGizmo.position(rightArea,1,faceTopology)
+assert(math.abs(leftWorld.x+rightWorld.x)<1e-5,
+    'editing the right brow in synchronized mode must update the left brow')
 local savedAreaIndex=fittedArea.points[2].index
 fittedArea.points[2].offset={x=0.123,y=0.045,z=0.02}
 local savedActionLine=ActionTemplates.controlById(fittedProject,'brow_left_action_line')
