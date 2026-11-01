@@ -61,11 +61,13 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | polyline | Line of action, such as a lip border, furrow, or wrinkle | Open surface line with editable points and depth-adjustable anchors |
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
-The stock catalog contains paired masks for brows (AU1, AU2, AU4), eyes (AU5, AU7), cheeks (AU6),
-and mouth corners (AU12, AU15), plus separate upper-lip (AU10) and lower-lip (AU16) masks. These
-AU labels identify related actions; a mask does not solve or generate those movements. The
+The stock catalog contains paired masks for brows (AU1, AU2, AU4), eyes (AU5, AU7, AU41-AU46),
+cheeks (AU6), mouth corners (AU12, AU15), and nasolabial folds (AU11). It also has upper-lip
+(AU10), lower-lip (AU16), chin (AU17), jaw (AU26, AU27, AU29-AU31), and nose/nostril
+(AU9, AU38, AU39) masks. These AU labels identify related actions; a mask does not solve or
+generate those movements. The
 [Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
-is the naming reference. Each mask has an area polygon, an action-line polyline, a group
+is the naming reference. Each mask has an area polygon, one or more action-line polylines, a group
 controller, and a separate action-line controller. The brow masks start with 12 contour anchors
 and five action-line anchors; the other masks provide their own pre-authored contours. All are adapted to the
 current mesh after the face origin is placed. Initial fitting uses the mesh subset containing the
@@ -74,10 +76,12 @@ points to a separate hair subset and reduces jumps toward the eyelid. The green 
 moves the complete mask. The yellow action-line controller moves only the action lines and itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
-New projects load all ten masks when the face origin is placed. Saved projects keep their
-authored mask catalog and are not expanded automatically. **Refit selected mask to face** replaces
-only the selected mask's points with its current template; it is undoable and never runs
-automatically on existing edits.
+New projects load all 15 masks when the face origin is placed. Saved projects keep their authored
+mask catalog and are not expanded automatically. The point landmark list already includes the
+chin and both jaw hinges; they are optional rig references and do not create surface masks. The
+jaw polygon is a separate influence region. **Refit selected mask to face** replaces only the
+selected mask's points with its current template; it is undoable. Refitting an older eye template
+also adds its new lower-eyelid action line. Refit never runs automatically on existing edits.
 Opening an older brow project adds only a missing action-line controller and its relationships;
 it is placed near the already edited action line. Existing contours, offsets, and the
 group-controller position are preserved.

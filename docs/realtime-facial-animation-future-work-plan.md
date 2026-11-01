@@ -58,10 +58,12 @@ editing mirrors the authored positions while retaining each side's mesh anchors.
 areas share one cyan color and stock action lines share one orange color across sides.
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
-The current catalog now includes paired brows, eyes, cheeks, and mouth corners, plus upper- and
-lower-lip masks. New facial projects receive all ten masks after face-origin placement. Saved
-projects retain their authored catalog without automatic additions. AU labels on these templates
-are semantic hints. The editor now
+The current catalog includes paired brows, eyes, cheeks, mouth corners, and nasolabial folds, plus
+upper-lip, lower-lip, chin, jaw, and nose masks. Eye templates also expose an upper and lower
+eyelid action line. New facial projects receive all 15 masks after face-origin placement. Saved
+projects retain their authored catalog without automatic additions. Chin and jaw-hinge point
+landmarks already exist as optional rig references; their surface influence masks are separate.
+AU labels on these templates are semantic hints. The editor now
 derives binary front-surface regions explicitly from closed area polygons, tracks source edits and
 topology changes, and can copy a current region into an independent Morph Target selection mask.
 Surface falloff, rig-weight application, Blender transport, and AU-to-target profiles remain
@@ -99,9 +101,9 @@ Acceptance:
 - a new project loads a facial-action template in the Landmarks worktree after the face origin is placed;
 - a brow template contains a pre-authored polygon, action-line polyline, group controller, and
   action-line controller;
-- paired eye, cheek, and mouth-corner templates use the same controls, palette, and synchronized
-  side-editing behavior; upper and lower lip templates have separate area and action-line controls;
-  saved projects retain their authored masks;
+- paired eye, cheek, mouth-corner, and nasolabial templates use the same controls, palette, and
+  synchronized side-editing behavior; lip, chin, jaw, and nose templates have editable area and
+  action lines; saved projects retain their authored masks;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and can control multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;

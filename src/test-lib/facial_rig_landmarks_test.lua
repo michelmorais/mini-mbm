@@ -200,14 +200,16 @@ os.remove(offsetPath)
 local templateProject=Project.new()
 assert(ActionTemplates.instantiate(templateProject,surface,
     {placed=true,position={x=0,y=0,z=0},scale=1},1))
-assert(#templateProject.facialMasks==10 and #templateProject.surfaceControls==40,
-    'a new project must receive paired facial templates and separate upper/lower lip templates')
+assert(#templateProject.facialMasks==15 and #templateProject.surfaceControls==64,
+    'a new project must receive the paired and midline facial action templates')
 local expectedNewGroups={eye_left='AU5',eye_right='AU5',cheek_left='AU6',
     cheek_right='AU6',mouth_corner_left='AU12',mouth_corner_right='AU12'}
 for _,group in ipairs(templateProject.facialMasks) do
     if expectedNewGroups[group.templateId] then
-        assert(group.actionUnits[1]==expectedNewGroups[group.templateId] and #group.controlIds==4,
-            'new facial masks must expose AU metadata and four editable controls')
+        local expectedControls=(group.templateId=='eye_left' or group.templateId=='eye_right') and 5 or 4
+        assert(group.actionUnits[1]==expectedNewGroups[group.templateId] and
+            #group.controlIds==expectedControls,
+            'new facial masks must expose AU metadata and their editable controls')
         local entries=ActionTemplates.groupControls(templateProject,group)
         assert(entries[1].control.kind=='polygon' and entries[2].control.kind=='polyline' and
             entries[3].control.role=='line_controller' and entries[4].control.role=='controller',
@@ -309,7 +311,7 @@ assert(not ActionTemplates.instantiate(savedBrowProject,surface,
 local catalogPath='/tmp/facial-rig-catalog-smoke.lua'
 assert(Project.save(templateProject,catalogPath,editorUtils.save))
 local restoredCatalog=assert(Project.load(catalogPath))
-assert(#restoredCatalog.facialMasks==10 and #restoredCatalog.surfaceControls==40,
+assert(#restoredCatalog.facialMasks==15 and #restoredCatalog.surfaceControls==64,
     'the full new-project template catalog must survive save and reload')
 os.remove(catalogPath)
 local regionTopology={signature='front-face',vertices={

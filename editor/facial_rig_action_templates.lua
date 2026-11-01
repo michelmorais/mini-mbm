@@ -78,7 +78,8 @@ local TEMPLATE_DEFINITIONS={
 -- FACS-related regions, not individual AU deformations or muscle simulations.
 local MORE_LEFT_TEMPLATES={
     {
-        id='eye_left',nameKey='fre_facs_eye_left',actionUnits={'AU5','AU7'},
+        id='eye_left',nameKey='fre_facs_eye_left',
+        actionUnits={'AU5','AU7','AU41','AU42','AU43','AU44','AU45','AU46'},
         color=AREA_COLOR,mirrorSign=1,
         shapes={
             {id='area',role='area',kind='polygon',closed=true,points={
@@ -94,7 +95,11 @@ local MORE_LEFT_TEMPLATES={
             {id='line_controller',role='line_controller',kind='point',closed=false,
                 points={{-0.205,0.245,-0.10}}},
             {id='controller',role='controller',kind='point',closed=false,
-                points={{-0.20,0.17,-0.11}}}
+                points={{-0.20,0.17,-0.11}}},
+            {id='lower_lid_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.12,0.16,-0.10},{-0.15,0.137,-0.10},{-0.19,0.13,-0.10},
+                {-0.23,0.135,-0.10},{-0.26,0.15,-0.10},{-0.275,0.17,-0.10}
+            }}
         }
     },
     {
@@ -135,6 +140,26 @@ local MORE_LEFT_TEMPLATES={
                 points={{-0.205,-0.085,-0.07}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{-0.16,-0.20,-0.08}}}
+        }
+    },
+    {
+        id='nasolabial_left',nameKey='fre_facs_nasolabial_left',actionUnits={'AU11'},
+        color=AREA_COLOR,mirrorSign=1,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.08,0.045,-0.10},{-0.105,0.015,-0.10},{-0.115,-0.03,-0.10},
+                {-0.135,-0.08,-0.10},{-0.165,-0.13,-0.10},{-0.195,-0.17,-0.10},
+                {-0.205,-0.19,-0.10},{-0.18,-0.195,-0.10},{-0.15,-0.16,-0.10},
+                {-0.125,-0.11,-0.10},{-0.105,-0.055,-0.10},{-0.09,-0.005,-0.10}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.085,0.04,-0.10},{-0.105,-0.005,-0.10},{-0.125,-0.05,-0.10},
+                {-0.15,-0.105,-0.10},{-0.185,-0.16,-0.10}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{-0.085,-0.015,-0.10}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{-0.15,-0.105,-0.10}}}
         }
     }
 }
@@ -208,6 +233,82 @@ local LIP_TEMPLATES={
     }
 }
 for _,definition in ipairs(LIP_TEMPLATES) do
+    TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=definition
+end
+
+local ANATOMICAL_TEMPLATES={
+    {
+        id='chin',nameKey='fre_facs_chin',actionUnits={'AU17'},color=AREA_COLOR,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.10,-0.27,-0.09},{-0.06,-0.28,-0.09},{0,-0.29,-0.09},
+                {0.06,-0.28,-0.09},{0.10,-0.27,-0.09},{0.14,-0.31,-0.09},
+                {0.15,-0.36,-0.09},{0.12,-0.42,-0.09},{0.08,-0.46,-0.09},
+                {0,-0.48,-0.09},{-0.08,-0.46,-0.09},{-0.12,-0.42,-0.09},
+                {-0.15,-0.36,-0.09},{-0.14,-0.31,-0.09}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.09,-0.275,-0.09},{-0.045,-0.285,-0.09},{0,-0.288,-0.09},
+                {0.045,-0.285,-0.09},{0.09,-0.275,-0.09}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0,-0.245,-0.09}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{0,-0.37,-0.09}}
+        }
+    },
+    {
+        id='jaw',nameKey='fre_facs_jaw',actionUnits={'AU26','AU27','AU29','AU30','AU31'},
+        color=AREA_COLOR,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.19,-0.18,-0.09},{-0.25,-0.22,-0.09},{-0.30,-0.28,-0.09},
+                {-0.32,-0.34,-0.09},{-0.29,-0.40,-0.09},{-0.23,-0.44,-0.09},
+                {-0.15,-0.47,-0.09},{0,-0.49,-0.09},{0.15,-0.47,-0.09},
+                {0.23,-0.44,-0.09},{0.29,-0.40,-0.09},{0.32,-0.34,-0.09},
+                {0.30,-0.28,-0.09},{0.25,-0.22,-0.09},{0.19,-0.18,-0.09},
+                {0.13,-0.23,-0.09},{0,-0.25,-0.09},{-0.13,-0.23,-0.09}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.30,-0.32,-0.09},{-0.28,-0.38,-0.09},{-0.22,-0.43,-0.09},
+                {-0.14,-0.465,-0.09},{0,-0.485,-0.09},{0.14,-0.465,-0.09},
+                {0.22,-0.43,-0.09},{0.28,-0.38,-0.09},{0.30,-0.32,-0.09}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0,-0.53,-0.09}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{0,-0.37,-0.09}}
+        }
+    },
+    {
+        id='nose',nameKey='fre_facs_nose',actionUnits={'AU9','AU38','AU39'},color=AREA_COLOR,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.04,0.13,-0.09},{-0.06,0.10,-0.09},{-0.065,0.06,-0.09},
+                {-0.075,0.03,-0.09},{-0.10,0.005,-0.09},{-0.095,-0.02,-0.09},
+                {-0.075,-0.045,-0.09},{-0.04,-0.055,-0.09},{0,-0.06,-0.09},
+                {0.04,-0.055,-0.09},{0.075,-0.045,-0.09},{0.095,-0.02,-0.09},
+                {0.10,0.005,-0.09},{0.075,0.03,-0.09},{0.065,0.06,-0.09},
+                {0.06,0.10,-0.09},{0.04,0.13,-0.09}
+            }},
+            {id='bridge_wrinkle',role='action_line',kind='polyline',closed=false,points={
+                {-0.045,0.075,-0.09},{-0.025,0.07,-0.09},{0,0.068,-0.09},
+                {0.025,0.07,-0.09},{0.045,0.075,-0.09}
+            }},
+            {id='left_alar_fold',role='action_line',kind='polyline',closed=false,points={
+                {-0.045,0.005,-0.09},{-0.065,-0.005,-0.09},{-0.085,-0.015,-0.09}
+            }},
+            {id='right_alar_fold',role='action_line',kind='polyline',closed=false,points={
+                {0.045,0.005,-0.09},{0.065,-0.005,-0.09},{0.085,-0.015,-0.09}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0,0.16,-0.09}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{0,0.015,-0.09}}
+        }
+    }
+}
+for _,definition in ipairs(ANATOMICAL_TEMPLATES) do
     TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=definition
 end
 
@@ -544,17 +645,36 @@ function M.refit(project,topology,faceOrigin,scale,group)
         if candidate.id==group.templateId then definition=candidate break end
     end
     if not definition then return false end
-    local controls={}
+    local controls,additions={},{}
     for _,shape in ipairs(definition.shapes) do
         local id=definition.id..'_'..shape.id
         local control=M.controlById(project,id)
-        if not control or control.groupId~=group.id then return false end
+        if control then
+            if control.groupId~=group.id then return false end
+        else
+            if shape.role~='action_line' then return false end
+            control={id=id,name=id,groupId=group.id,role=shape.role,kind=shape.kind,
+                closed=shape.closed==true,points={},topologySignature=topology.signature or '',
+                depthOffset=0,color=copyColor(M.displayColor(group,{role=shape.role})),
+                relationships={},enabled=true}
+            additions[#additions+1]=control
+        end
         controls[#controls+1]={control=control,shape=shape}
     end
     local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
     for _,entry in ipairs(controls) do
         fitPoints(entry.control,entry.shape,topology,faceOrigin,actualScale)
     end
+    if #additions>0 then group.controlIds=group.controlIds or {} end
+    for _,control in ipairs(additions) do
+        project.surfaceControls[#project.surfaceControls+1]=control
+        group.controlIds[#group.controlIds+1]=control.id
+    end
+    group.actionUnits={}
+    for _,actionUnit in ipairs(definition.actionUnits) do
+        group.actionUnits[#group.actionUnits+1]=actionUnit
+    end
+    linkControllers(project,group)
     return true
 end
 
