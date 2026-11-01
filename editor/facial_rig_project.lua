@@ -84,7 +84,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=10,
+        schemaVersion=11,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -124,7 +124,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(10,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(11,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -220,11 +220,13 @@ function M.normalize(project)
     end
     for index, mask in ipairs(project.masks) do
         if type(mask) ~= 'table' then
-            project.masks[index]={name='region_' .. index,roleIndex=1,vertices={},topologySignature='',enabled=true}
+            project.masks[index]={name='region_' .. index,roleIndex=1,representation='vertex',
+                vertices={},topologySignature='',enabled=true}
         else
             mask.name=type(mask.name)=='string' and mask.name~='' and mask.name or ('region_' .. index)
             mask.roleIndex=math.max(1,math.floor(tonumber(mask.roleIndex) or 1))
             mask.purpose=mask.purpose=='target' and 'target' or 'rig'
+            mask.representation=mask.representation=='polygon' and 'polygon' or 'vertex'
             -- Normalize the serialized list before any read-only review runs. Older
             -- editor versions could leave boolean set-members in this array while
             -- calculating a binding review; discard those malformed values and keep
@@ -241,6 +243,16 @@ function M.normalize(project)
             mask.vertices=normalizedVertices
             mask.topologySignature=type(mask.topologySignature)=='string' and mask.topologySignature or ''
             mask.enabled=mask.enabled ~= false
+            if type(mask.polygon)=='table' or mask.representation=='polygon' then
+                if type(mask.polygon)~='table' then mask.polygon={} end
+                if type(mask.polygon.points)~='table' then mask.polygon.points={} end
+                mask.polygon.closed=mask.polygon.closed==true
+                mask.polygon.topologySignature=type(mask.polygon.topologySignature)=='string' and
+                    mask.polygon.topologySignature or mask.topologySignature
+                if type(mask.polygon.derivedVertexWeights)~='table' then
+                    mask.polygon.derivedVertexWeights={}
+                end
+            end
         end
     end
     for index, landmark in ipairs(project.landmarks) do
@@ -293,7 +305,7 @@ function M.addMask(project, name, roleIndex)
             end
         end
     end
-    local mask = {name=uniqueName, roleIndex=roleIndex or 1,purpose='rig',
+    local mask = {name=uniqueName, roleIndex=roleIndex or 1,purpose='rig',representation='vertex',
         vertices={}, topologySignature=project.meshTopologySignature or '', enabled=true}
     project.masks[#project.masks + 1] = mask
     return mask
@@ -307,6 +319,14 @@ end
 
 function M.isRigMask(mask)
     return mask and mask.purpose~='target'
+end
+
+function M.isPolygonMask(mask)
+    return type(mask)=='table' and mask.representation=='polygon'
+end
+
+function M.maskRepresentation(mask)
+    return M.isPolygonMask(mask) and 'polygon' or 'vertex'
 end
 
 function M.sourceObjects(project)
@@ -489,7 +509,12 @@ function M.bindingDescription(project, topology)
     for index,mask in ipairs(project.masks or {}) do
         if M.isRigMask(mask) then
             local vertices=type(mask.vertices)=='table' and mask.vertices or {}
+            if M.isPolygonMask(mask) and type(mask.polygon)=='table' then
+                vertices=type(mask.polygon.derivedVertexWeights)=='table' and
+                    mask.polygon.derivedVertexWeights or {}
+            end
             description.masks[#description.masks + 1]={index=index,name=mask.name,
+                representation=M.maskRepresentation(mask),
                 roleIndex=mask.roleIndex or 1,vertexCount=#vertices,
                 topologySignature=mask.topologySignature or ''}
         end

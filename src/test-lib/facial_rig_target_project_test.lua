@@ -97,6 +97,11 @@ rigMask.vertices={1}
 local jawMask=Project.addTargetMask(project,'jaw_lower')
 jawMask.vertices={2,3}
 assert(jawMask.purpose=='target' and jawMask.enabled and not Project.isRigMask(jawMask))
+local polygonMask=Project.addTargetMask(project,'brow_left')
+polygonMask.representation='polygon'
+polygonMask.polygon={closed=true,topologySignature='same-topology',points={},
+    derivedVertexWeights={{index=1,weight=1.0},{index=2,weight=0.5}}}
+assert(Project.isPolygonMask(polygonMask) and Project.maskRepresentation(polygonMask)=='polygon')
 local topology={signature='same-topology',vertexCount=3}
 local review=Project.bindingReview(project,topology)
 assert(review.roles[1].maskCount==1 and review.roles[1].vertexCount==1 and
@@ -106,6 +111,8 @@ assert(#binding.masks==1 and binding.masks[1].name=='main_face_region')
 local rig=Project.rigDescription(project,topology)
 assert(#rig.roleBindings[1].maskIndices==1 and rig.roleBindings[1].maskIndices[1]==1)
 assert(#Targets.maskIndices(jawMask,3,'same-topology')==2)
+local polygonIndices=Targets.maskIndices(polygonMask,3,'same-topology')
+assert(#polygonIndices==2 and polygonIndices[2]==2)
 project.morphTargetEdits=patch
 project.morphTargetPreview={targetId='0000000000000002',weight=0}
 assert(Gizmo.setPivot(project,'0000000000000002',vec(1,2,3)))
@@ -114,8 +121,11 @@ assert(Project.save(project,path,serialize))
 local restoredProject=assert(Project.load(path))
 os.remove(path)
 assert(restoredProject.morphTargetPreview.weight==0)
-assert(restoredProject.masks[2].purpose=='target' and
+assert(restoredProject.masks[2].purpose=='target' and restoredProject.masks[2].representation=='vertex' and
     #Targets.maskIndices(restoredProject.masks[2],3,'same-topology')==2)
+assert(restoredProject.masks[3].representation=='polygon' and
+    #Targets.maskIndices(restoredProject.masks[3],3,'same-topology')==2,
+    'polygon mask representation must survive project round-trip')
 assert(Project.bindingReview(restoredProject,topology).roles[1].vertexCount==1)
 local targetSelection=Targets.selectionSet({selectionMode=4},restoredProject.masks,3,'same-topology')
 assert(targetSelection[2] and targetSelection[3] and not targetSelection[1])

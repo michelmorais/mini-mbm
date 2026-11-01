@@ -3571,8 +3571,9 @@ local function showMasks()
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
-    if tImGui.BeginTable('freMasks',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+    if tImGui.BeginTable('freMasks',4,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
         tImGui.TableSetupColumn(tLang.L('fre_mask_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_mask_representation'))
         tImGui.TableSetupColumn(tLang.L('fre_role_column'))
         tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'))
         tImGui.TableHeadersRow()
@@ -3587,11 +3588,14 @@ local function showMasks()
                 if maskMode==3 then startMaskVisualizationBuild() end
             end
             tImGui.TableSetColumnIndex(1)
+            tImGui.Text(tLang.L(mask.representation=='polygon' and
+                'fre_mask_representation_polygon' or 'fre_mask_representation_legacy'))
+            tImGui.TableSetColumnIndex(2)
             local rigMask=tFacialProject.isRigMask(mask)
             local role=rigMask and state.project.roles[mask.roleIndex or 1]
             tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
                 tLang.L('fre_target_mask_scope'))
-            tImGui.TableSetColumnIndex(2)
+            tImGui.TableSetColumnIndex(3)
             tImGui.Text(tostring(#(mask.vertices or {})))
         end
         tImGui.EndTable()
@@ -3660,9 +3664,49 @@ local function showMasks()
                 markMaskVisualizationDirty()
                 markModified()
             end
+            tImGui.Text(tLang.L('fre_mask_representation'))
+            local previousRepresentation=selectedMask.representation=='polygon' and 2 or 1
+            local representation=previousRepresentation
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freMaskRepresentationLegacy',representation,1)
+            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+            tImGui.SameLine()
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freMaskRepresentationPolygon',representation,2)
+            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+            if representation~=previousRepresentation then
+                pushUndoSnapshot()
+                selectedMask.representation=representation==2 and 'polygon' or 'vertex'
+                if selectedMask.representation=='polygon' and type(selectedMask.polygon)~='table' then
+                    selectedMask.polygon={points={},closed=false,topologySignature=''}
+                end
+                markMaskVisualizationDirty()
+                markModified()
+            end
             tImGui.Separator()
         end
         if maskMode==3 then
+            local representation=selectedMask.representation=='polygon' and 2 or 1
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freMaskEditRepresentationLegacy',representation,1)
+            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+            tImGui.SameLine()
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freMaskEditRepresentationPolygon',representation,2)
+            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+            if (representation==2 and selectedMask.representation~='polygon') or
+                    (representation==1 and selectedMask.representation~='vertex') then
+                pushUndoSnapshot()
+                selectedMask.representation=representation==2 and 'polygon' or 'vertex'
+                if selectedMask.representation=='polygon' and type(selectedMask.polygon)~='table' then
+                    selectedMask.polygon={points={},closed=false,topologySignature=''}
+                end
+                markMaskVisualizationDirty()
+                markModified()
+            end
+            if selectedMask.representation=='polygon' then
+                tImGui.TextWrapped(tLang.L('fre_mask_polygon_pending'))
+            else
             tImGui.BeginDisabled(not visualizationReady)
             if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_help')) end
             tImGui.Text(tLang.L('fre_mask_edit_mode'))
@@ -3708,11 +3752,19 @@ local function showMasks()
             tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
                 state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
             tImGui.EndDisabled()
+            end
         end
         if maskMode==2 then
             if tImGui.Button(tLang.L('fre_mask_clear')) then
                 pushUndoSnapshot()
-                selectedMask.vertices={}
+                if selectedMask.representation=='polygon' then
+                    selectedMask.polygon=selectedMask.polygon or {}
+                    selectedMask.polygon.points={}
+                    selectedMask.polygon.derivedVertexWeights={}
+                    selectedMask.polygon.closed=false
+                else
+                    selectedMask.vertices={}
+                end
                 markMaskVisualizationDirty()
                 markModified()
             end
@@ -6307,7 +6359,7 @@ end
 
 local function beginMaskBrush(x,y)
     local mask=state.project.masks and state.project.masks[state.selectedMask]
-    if not mask or state.maskVisualization.building or
+    if not mask or mask.representation=='polygon' or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return false end
     local present={}
     for _,rawIndex in ipairs(mask.vertices or {}) do
@@ -6344,7 +6396,7 @@ local function finishMaskBrush()
         return
     end
     local mask=state.project.masks and state.project.masks[state.selectedMask]
-    if not mask then return end
+    if not mask or mask.representation=='polygon' then return end
     mask.vertices={}
     for index in pairs(brush.present) do mask.vertices[#mask.vertices+1]=index end
     table.sort(mask.vertices)
@@ -6356,7 +6408,7 @@ end
 local function selectMaskBoundaryLoop(x,y)
     local mask=state.project.masks and state.project.masks[state.selectedMask]
     local topology=state.topology
-    if not mask or not topology or state.maskVisualization.building or
+    if not mask or mask.representation=='polygon' or not topology or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return end
     local hit=maskBrushSurfaceHit(x,y)
     if not hit then

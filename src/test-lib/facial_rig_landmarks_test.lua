@@ -27,7 +27,7 @@ local surfaceHit=Landmarks.intersectRaySurface(surface,{x=0.2,y=0.2,z=2},{x=0,y=
 assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
     'surface snapping must intersect the selected triangle')
 local project=Project.new()
-assert(project.schemaVersion==10 and project.landmarkEditMode==1)
+assert(project.schemaVersion==11 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -46,6 +46,9 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
     'legacy facial projects must default to independent side editing')
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
+local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
+assert(legacyProject.schemaVersion==11 and legacyProject.masks[1].representation=='vertex',
+    'legacy masks must normalize to the vertex representation')
 project.expressions=Expressions.syncCatalog(project.expressions,
     {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
 local expression=Expressions.addPose(project.expressions,'smile')
@@ -84,6 +87,7 @@ assert(Project.setFaceOrigin(project,{x=0,y=0,z=0},1,1))
 assert(project.faceOrigin.placed and project.faceOrigin.vertexIndex==1)
 assert(not project.landmarks[1].placed, 'placing the face origin must not place landmarks')
 local mask=Project.addMask(project,'face',1)
+assert(mask.representation=='vertex' and Project.maskRepresentation(mask)=='vertex')
 mask.vertices={1,2}
 project.landmarks[1].placed=true
 project.landmarks[1].position={x=-1,y=0,z=0}
