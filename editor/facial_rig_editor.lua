@@ -70,7 +70,7 @@ local state = {
     selectedFacialMask=1,
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
     surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
-    surfaceControlNameDraft='', surfaceControlKind=1, surfaceControlDepthUndo=false,
+    surfaceControlNameDraft='', surfaceControlKind=1,
     maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskPolygonDrag=nil, maskPolygonSelectedPoint=nil,
@@ -772,7 +772,6 @@ local function restoreHistorySnapshot(snapshot)
     state.project.selectedFacialMask=state.selectedFacialMask
     state.project.selectedSurfaceControl=state.selectedSurfaceControl
     state.project.landmarkEditMode=state.landmarkEditMode
-    state.surfaceControlDepthUndo=false
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
     state.surfaceControlOverlay.dirty=true
@@ -1686,7 +1685,7 @@ refreshSurfaceControlOverlay=function()
             overlay.lines[controlId]=nil
         end
     end
-    local markerPaths={area={},action_line={},controller={}}
+    local markerPaths={area={},action_line={},line_controller={},controller={}}
     local markerColors={}
     local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
     local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
@@ -1707,7 +1706,8 @@ refreshSurfaceControlOverlay=function()
         markerColors[role]=tFacialActionTemplates.displayColor(selectedGroup,control)
         for _,point in ipairs(points) do
             local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
-            local halfSize=size*(role=='controller' and 1.6 or 1)
+            local halfSize=size*(role=='controller' and 1.6 or
+                role=='line_controller' and 1.35 or 1)
             paths[#paths+1]={position.x-halfSize,position.y-halfSize,position.z,
                 position.x+halfSize,position.y-halfSize,position.z}
             paths[#paths+1]={position.x+halfSize,position.y-halfSize,position.z,
@@ -1716,7 +1716,7 @@ refreshSurfaceControlOverlay=function()
                 position.x-halfSize,position.y+halfSize,position.z}
             paths[#paths+1]={position.x-halfSize,position.y+halfSize,position.z,
                 position.x-halfSize,position.y-halfSize,position.z}
-            if role=='controller' then
+            if role=='controller' or role=='line_controller' then
                 local crossSize=halfSize*0.5
                 paths[#paths+1]={position.x-crossSize,position.y,position.z,
                     position.x+crossSize,position.y,position.z}
@@ -1736,7 +1736,7 @@ refreshSurfaceControlOverlay=function()
             if not object then
                 object=line:new('3d',0,0,0)
                 object.alwaysOnTop=true
-                object.alwaysOnTopPriority=role=='controller' and 4 or 3
+                object.alwaysOnTopPriority=(role=='controller' or role=='line_controller') and 4 or 3
                 object.alwaysRender=true
                 object.pathCount=#paths
                 overlay.markers[role]=object
@@ -2935,6 +2935,8 @@ local function loadMesh(path, preserveProject)
     if not preserveProject or state.project.meshTopologySignature=='' then
         tFacialProject.setTopology(state.project,topology)
     end
+    local addedLineControllers=preserveProject and tFacialActionTemplates.ensureLineControllers(
+        state.project,topology,state.project.faceOrigin,state.project.faceOrigin.scale) or false
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
@@ -2942,7 +2944,8 @@ local function loadMesh(path, preserveProject)
     state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
-    state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
+    state.modified=embeddedTargetEdits or addedLineControllers or
+        (preserveProject and state.modified or true)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
@@ -3013,7 +3016,6 @@ local function newProject()
     state.selectedSurfaceControlPoint=nil
     state.surfaceControlNameDraft=''
     state.surfaceControlKind=1
-    state.surfaceControlDepthUndo=false
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     markLandmarkMarkersDirty()
@@ -3083,7 +3085,6 @@ local function openProject()
     state.selectedSurfaceControl=project.selectedSurfaceControl or 1
     state.selectedSurfaceControlPoint=nil
     state.surfacePointGizmo.drag=nil
-    state.surfaceControlDepthUndo=false
     state.landmarkEditMode=project.landmarkEditMode or 1
     clearHistory()
     if projectNeedsSync then
@@ -4508,55 +4509,26 @@ local function showLandmarks()
             local actionUnits=table.concat(selectedGroup.actionUnits or {},', ')
             tImGui.Text(string.format(tLang.L('fre_facs_action_units_fmt'),actionUnits))
             local entries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
-            local shapeNames={}
-            local shapeIndices={}
+            local selectedControl
             for _,entry in ipairs(entries) do
-                local roleKey=entry.control.role=='action_line' and 'fre_facs_action_line' or
-                    entry.control.role=='controller' and 'fre_facs_controller' or 'fre_facs_area'
-                shapeNames[#shapeNames+1]=tLang.L(roleKey)
-                shapeIndices[#shapeIndices+1]=entry.index
-            end
-            local selectedShape=1
-            for index,controlIndex in ipairs(shapeIndices) do
-                if controlIndex==state.selectedSurfaceControl then selectedShape=index; break end
-            end
-            if shapeIndices[selectedShape] then
-                state.selectedSurfaceControl=shapeIndices[selectedShape]
-                state.project.selectedSurfaceControl=state.selectedSurfaceControl
-            end
-            if #shapeNames>0 then
-                tImGui.SetNextItemWidth(300)
-                local shapeChanged,newShape=tImGui.Combo(tLang.L('fre_facs_edit_shape') ..
-                    '##freFacsEditShape',selectedShape,shapeNames)
-                if shapeChanged then
-                    selectedShape=newShape
-                    state.selectedSurfaceControl=shapeIndices[newShape]
-                    state.project.selectedSurfaceControl=state.selectedSurfaceControl
-                    state.selectedSurfaceControlPoint=nil
-                    state.surfaceControlOverlay.dirty=true
+                if entry.index==state.selectedSurfaceControl then
+                    selectedControl=entry.control
+                    break
                 end
             end
-            local selectedControl=tFacialActionTemplates.controlById(state.project,
-                selectedGroup.controlIds and selectedGroup.controlIds[selectedShape])
+            if not selectedControl and entries[1] then
+                selectedControl=entries[1].control
+                state.selectedSurfaceControl=entries[1].index
+                state.project.selectedSurfaceControl=state.selectedSurfaceControl
+                state.selectedSurfaceControlPoint=nil
+                state.surfaceControlOverlay.dirty=true
+            end
             if selectedControl then
                 tSurfaceControlEditor.ensure(selectedControl)
                 tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
                 tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
-                local depthStep=math.max(faceGuideScale(state.meshBounds)*0.01,0.0001)
-                local depthChanged,depth=tImGui.DragFloat(tLang.L('fre_surface_control_depth'),
-                    selectedControl.depthOffset or 0,depthStep,-depthStep*100,depthStep*100,'%.4f',0)
-                showHelpTooltip(tLang.L('fre_facs_depth_help'))
-                if depthChanged then
-                    if not state.surfaceControlDepthUndo then
-                        pushUndoSnapshot()
-                        state.surfaceControlDepthUndo=true
-                    end
-                    selectedControl.depthOffset=depth
-                    commitSurfaceControl(selectedControl)
-                elseif not tImGui.IsItemActive() then
-                    state.surfaceControlDepthUndo=false
-                end
-                tImGui.BeginDisabled(not state.topology or #selectedControl.points==0)
+                tImGui.BeginDisabled(not state.topology or #selectedControl.points==0 or
+                    not state.selectedSurfaceControlPoint)
                 if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
                     local plan=tSurfacePointGizmo.planSurfaceSnap(selectedControl,state.topology,
                         state.meshBounds,tFacialLandmarks.intersectRaySurface)

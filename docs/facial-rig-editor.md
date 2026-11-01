@@ -55,39 +55,44 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
 The first template slice contains left and right brow masks. Each brow mask has an area polygon,
-an action-line polyline, and a controller point. The templates are initialized with
+an action-line polyline, a group controller, and a separate action-line controller. The templates are initialized with
 12 contour anchors for the brow area and five anchors for the action line, then adapted to the
 current mesh after the face origin is placed. Initial fitting uses the mesh subset containing the
 face origin and prioritizes the front view contour over guessed depth. This avoids snapping brow
-points to a separate hair subset and reduces jumps toward the eyelid. The controller moves the
-complete mask group.
+points to a separate hair subset and reduces jumps toward the eyelid. The green group controller
+moves the complete mask. The yellow action-line controller moves only the action lines and itself;
+individual area and line anchors still move one point at a time. The action-line controller is
+placed above the line so its pick target stays distinct from the line anchors.
 In a previously saved project, **Refit selected brow to face** replaces that brow's points with
 the current template; the operation is undoable and never runs automatically on existing edits.
+Opening an older brow project adds only a missing action-line controller and its relationships;
+it is placed near the already edited action line. Existing contours, offsets, and the
+group-controller position are preserved.
 
 All mask outlines remain visible with group colors. The brow area uses its mask color; the action
 line defaults to orange on both brows (including projects with the previous template accents),
-while a separately authored color is retained. The controller is
-a larger green square with a cross. Only the selected mask displays square anchors for editing.
+while a separately authored color is retained. The group controller is a larger green square
+with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
+displays square anchors for editing.
 In the viewport, left drag on empty space orbits the camera. Clicking a square anchor or an outline
 selects its point (a segment selects its nearer endpoint) and displays a 3D translation gizmo.
-Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the controller's
-gizmo moves every point in its mask group by the same world-space displacement. Right drag still
-snaps an anchor, or the controller's whole group, to mesh vertices. The editor should extend this
+Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the green
+controller's gizmo moves every point in its mask group by the same world-space displacement;
+dragging the yellow controller moves only the action lines and itself. Right drag still snaps an
+anchor or the corresponding controller's set of points to mesh vertices. The editor should extend this
 template catalog to the remaining FACS-inspired facial actions without requiring the user to create
 each shape from an empty control.
 
 The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
-The polygon, polyline, and controller are selected as shapes within the chosen mask; the user does
-not create empty controls in this facial workflow. The depth offset is editable per shape and shown
-in the viewport. For these facial masks, it moves every point along the shared front-facing Z axis
-of the face reference, preserving the X/Y contour even at larger offsets. Previously saved point
-positions and depth values remain unchanged; the new colors and depth display apply when reopened.
-Each anchor keeps its mesh vertex index and an optional 3D offset, which is saved in the project
-and can be undone. The depth slider still moves the selected shape along face Z.
-**Snap selected shape to face surface**, beside the FACS depth control, projects the selected
-polygon, action line, or controller onto its mesh subset along face Z. It preserves each point's
-X/Y placement, adjusts only depth, and can be undone. The other shapes in the group remain
-unchanged. The separate
+The user selects a shape by clicking its points or outline in the viewport. The **Edit shape**
+selector and **Depth** slider are no longer shown; the gizmo edits X, Y, and Z directly. Previously
+saved depth offsets remain visible and are retained until the selected shape is adjusted to the
+surface. Each anchor keeps its mesh vertex index and an optional 3D offset, which is saved in the
+project and can be undone.
+**Snap selected shape to face surface** projects every point of the shape selected in the viewport
+along face Z, using the mesh subset of that point. It solves the surface Z independently for each
+point, preserves each X/Y position, and applies the shape only when all points can be projected.
+The operation is undoable; the other shapes in the mask remain unchanged. The separate
 landmark button below continues to raycast a selected individual landmark onto the surface.
 
 **Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and

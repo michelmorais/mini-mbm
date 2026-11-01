@@ -48,9 +48,11 @@ the visible mesh:
 
 The user must be able to select an action mask, drag its pre-authored surface anchors, adjust their
 depth, edit contours, and inspect the related action lines in the same facial-mark authoring view.
-The selected mask exposes its polygon, action-line polyline, and controller as one editable group.
+The selected mask exposes its polygon, action-line polyline, group controller, and action-line
+controller as one editable group.
 All other masks remain visible as colored outlines, while only the selected mask exposes clickable
-square anchors. A controller drag moves its related polygon and action lines together.
+square anchors. The group controller moves its area and action lines together; the action-line
+controller moves only its action lines.
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
 
@@ -84,7 +86,8 @@ Acceptance:
 
 - old facial projects load and save without changing legacy mask semantics;
 - a new project loads a facial-action template in the Landmarks worktree after the face origin is placed;
-- a brow template contains a pre-authored polygon, action-line polyline, and controller group;
+- a brow template contains a pre-authored polygon, action-line polyline, group controller, and
+  action-line controller;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and can control multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;

@@ -28,6 +28,7 @@ local PREVIOUS_ACTION_LINE_COLORS={
 }
 local ACTION_LINE_COLOR={r=1,g=0.46,b=0.08,a=1}
 local CONTROLLER_COLOR={r=0.28,g=1,b=0.32,a=1}
+local LINE_CONTROLLER_COLOR={r=1,g=0.9,b=0.16,a=1}
 
 local TEMPLATE_DEFINITIONS={
     {
@@ -44,6 +45,8 @@ local TEMPLATE_DEFINITIONS={
                 {-0.12,0.38,-0.09},{-0.16,0.40,-0.09},{-0.21,0.41,-0.09},
                 {-0.26,0.40,-0.09},{-0.29,0.37,-0.09}
             }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{-0.21,0.46,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,points={{-0.20,0.29,-0.12}}}
         }
     },
@@ -61,6 +64,8 @@ local TEMPLATE_DEFINITIONS={
                 {0.12,0.38,-0.09},{0.16,0.40,-0.09},{0.21,0.41,-0.09},
                 {0.26,0.40,-0.09},{0.29,0.37,-0.09}
             }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0.21,0.46,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,points={{0.20,0.29,-0.12}}}
         }
     }
@@ -91,6 +96,7 @@ function M.displayColor(group,control)
     end
     if color and not sameRgb(color,groupColor) then return color end
     if role=='controller' then return CONTROLLER_COLOR end
+    if role=='line_controller' then return LINE_CONTROLLER_COLOR end
     return color or groupColor
 end
 
@@ -124,11 +130,73 @@ local function fitPoints(control,shape,topology,faceOrigin,scale)
         local index=nearestVertex(topology,target,used,faceSubset)
         if index then
             used[index]=true
-            points[#points+1]={index=index}
+            local anchor={index=index}
+            if shape.role=='line_controller' then
+                local vertex=topology.vertices[index]
+                anchor.offset={x=target.x-vertex.x,y=target.y-vertex.y,z=0}
+            end
+            points[#points+1]=anchor
         end
     end
     control.points=points
     control.topologySignature=topology.signature or ''
+end
+
+local function addRelationship(controller,targetId)
+    controller.relationships=controller.relationships or {}
+    for _,relation in ipairs(controller.relationships) do
+        if relation.controlId==targetId then return false end
+    end
+    controller.relationships[#controller.relationships+1]={controlId=targetId,weight=1}
+    return true
+end
+
+local function linkControllers(project,group,onlyNew)
+    local controls={}
+    local changed=false
+    for _,controlId in ipairs(group.controlIds or {}) do
+        controls[controlId]=M.controlById(project,controlId)
+    end
+    local prefix=group.templateId and group.templateId~='' and group.templateId or group.id
+    local groupController=controls[prefix..'_controller']
+    local lineController=controls[prefix..'_line_controller']
+    for _,controlId in ipairs(group.controlIds or {}) do
+        local target=controls[controlId]
+        if groupController and target and target~=groupController and
+                (not onlyNew or target==lineController) then
+            if addRelationship(groupController,controlId) then changed=true end
+        end
+        if lineController and target and target.role=='action_line' then
+            if addRelationship(lineController,controlId) then changed=true end
+        end
+    end
+    return changed
+end
+
+local function fitLineControllerToExistingAction(control,project,group,topology,scale)
+    local x,y,z,count,anchorIndex=0,0,0,0,nil
+    for _,controlId in ipairs(group.controlIds or {}) do
+        local action=M.controlById(project,controlId)
+        if action and action.role=='action_line' and #(action.points or {})>0 then
+            local raw=action.points[math.ceil(#action.points*0.5)]
+            local index=type(raw)=='table' and raw.index or raw
+            local vertex=topology.vertices[index]
+            if vertex then
+                local offset=type(raw)=='table' and raw.offset or nil
+                x=x+vertex.x+(offset and offset.x or 0)
+                y=y+vertex.y+(offset and offset.y or 0)
+                z=z+vertex.z+(offset and offset.z or 0)+(action.depthOffset or 0)
+                count=count+1
+                anchorIndex=anchorIndex or index
+            end
+        end
+    end
+    if count==0 then return false end
+    local vertex=topology.vertices[anchorIndex]
+    control.points={{index=anchorIndex,offset={x=x/count-vertex.x,
+        y=y/count+scale*0.05-vertex.y,z=z/count-vertex.z}}}
+    control.topologySignature=topology.signature or ''
+    return true
 end
 
 function M.templates()
@@ -162,27 +230,62 @@ function M.instantiate(project,topology,faceOrigin,scale)
             project.surfaceControls[#project.surfaceControls+1]=control
             group.controlIds[#group.controlIds+1]=control.id
         end
-        local controllerId=definition.id..'_controller'
-        local controller
-        for _,controlId in ipairs(group.controlIds) do
-            if controlId==controllerId then controller=controlId; break end
-        end
-        if controller then
-            local controllerControl
-            for _,control in ipairs(project.surfaceControls) do
-                if control.id==controller then controllerControl=control; break end
-            end
-            if controllerControl then
-                for _,controlId in ipairs(group.controlIds) do
-                    if controlId~=controller then
-                        controllerControl.relationships[#controllerControl.relationships+1]={controlId=controlId,weight=1}
-                    end
-                end
-            end
-        end
+        linkControllers(project,group)
         project.facialMasks[#project.facialMasks+1]=group
     end
     return true
+end
+
+-- Add only the missing line controller to saved brow projects. Existing
+-- contours, offsets, and group-controller placement remain authored data.
+function M.ensureLineControllers(project,topology,faceOrigin,scale)
+    if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
+            not faceOrigin.placed or #(topology.vertices or {})==0 then return false end
+    local changed=false
+    local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
+    for _,group in ipairs(project.facialMasks or {}) do
+        local definition
+        for _,candidate in ipairs(TEMPLATE_DEFINITIONS) do
+            if candidate.id==group.templateId then definition=candidate; break end
+        end
+        if definition then
+            local hasAction=false
+            for _,controlId in ipairs(group.controlIds or {}) do
+                local control=M.controlById(project,controlId)
+                if control and control.role=='action_line' then hasAction=true; break end
+            end
+            local id=definition.id..'_line_controller'
+            local controller=M.controlById(project,id)
+            if hasAction and not controller then
+                local shape
+                for _,candidate in ipairs(definition.shapes) do
+                    if candidate.role=='line_controller' then shape=candidate; break end
+                end
+                if shape then
+                    controller={id=id,name=id,groupId=group.id,role='line_controller',kind='point',
+                        closed=false,points={},topologySignature=topology.signature or '',depthOffset=0,
+                        color=copyColor(LINE_CONTROLLER_COLOR),relationships={},enabled=true}
+                    if not fitLineControllerToExistingAction(controller,project,group,topology,actualScale) then
+                        fitPoints(controller,shape,topology,faceOrigin,actualScale)
+                    end
+                    project.surfaceControls[#project.surfaceControls+1]=controller
+                    changed=true
+                end
+            end
+            if hasAction and controller then
+                local listed=false
+                for _,controlId in ipairs(group.controlIds or {}) do
+                    if controlId==id then listed=true; break end
+                end
+                if not listed then
+                    group.controlIds[#group.controlIds+1]=id
+                    changed=true
+                end
+                if linkControllers(project,group,true) then changed=true end
+            end
+        end
+    end
+    return changed
 end
 
 -- Refit only an explicitly selected stock template. Callers should take an

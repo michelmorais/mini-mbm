@@ -21,6 +21,7 @@
 ]]--
 
 local tSurface=require 'facial_rig_polygon'
+local tPointGizmo=require 'facial_surface_point_gizmo'
 local M={}
 
 function M.ensure(control)
@@ -74,8 +75,8 @@ local function snapshotEntries(entries,topology)
         local points={}
         for index,point in ipairs(control.points or {}) do
             local vertexIndex=type(point)=='table' and tonumber(point.index) or tonumber(point)
-            local position=vertexIndex and topology.vertices[vertexIndex]
-            if position then points[#points+1]={pointIndex=index,index=vertexIndex,position=copyPosition(position)} end
+            local position=tPointGizmo.position(control,index,topology)
+            if position then points[#points+1]={pointIndex=index,index=vertexIndex,position=position} end
         end
         result[#result+1]={control=control,index=entry.index,points=points}
     end
@@ -93,11 +94,13 @@ function M.begin(state,x,y,api)
     state.selectedSurfaceControl=candidate.entry.index
     state.selectedSurfaceControlPoint=candidate.pointIndex
     api.pushUndo()
-    if control.role=='controller' then
+    if control.role=='controller' or control.role=='line_controller' then
+        local members=tPointGizmo.dragEntries(control,candidate.pointIndex,entries)
+        local origin,direction=api.pickRay(x,y)
+        local startVertex=origin and api.nearestVertex(state.topology,origin,direction)
         state.surfaceControlDrag={mode='group',controller=control,controllerPoint=candidate.pointIndex,
-            baseControllerIndex=control.points[candidate.pointIndex].index,
-            baseControllerPosition=copyPosition(state.topology.vertices[control.points[candidate.pointIndex].index]),
-            members=snapshotEntries(entries,state.topology),changed=false}
+            startSurfacePoint=copyPosition(startVertex and startVertex.point or hit.point),
+            members=snapshotEntries(members,state.topology),changed=false}
     else
         state.surfaceControlDrag={mode='point',control=control,pointIndex=candidate.pointIndex,changed=false}
     end
@@ -111,8 +114,8 @@ function M.update(state,x,y,api)
     local hit=origin and api.nearestVertex(state.topology,origin,direction)
     if not hit then return false end
     if drag.mode=='group' then
-        local delta={x=hit.point.x-drag.baseControllerPosition.x,
-            y=hit.point.y-drag.baseControllerPosition.y,z=hit.point.z-drag.baseControllerPosition.z}
+        local delta={x=hit.point.x-drag.startSurfacePoint.x,
+            y=hit.point.y-drag.startSurfacePoint.y,z=hit.point.z-drag.startSurfacePoint.z}
         for _,member in ipairs(drag.members or {}) do
             local used={}
             for _,basePoint in ipairs(member.points) do
@@ -121,8 +124,15 @@ function M.update(state,x,y,api)
                 local index=nearestVertexToPosition(state.topology,target,used,basePoint.index)
                 if index then
                     used[index]=true
-                    member.control.points[basePoint.pointIndex].index=index
-                    member.control.points[basePoint.pointIndex].offset=nil
+                    local point=member.control.points[basePoint.pointIndex]
+                    point.index=index
+                    if member.control.kind=='point' then
+                        local vertex=state.topology.vertices[index]
+                        point.offset={x=target.x-vertex.x,y=target.y-vertex.y,
+                            z=target.z-vertex.z-(member.control.depthOffset or 0)}
+                    else
+                        point.offset=nil
+                    end
                 end
             end
         end

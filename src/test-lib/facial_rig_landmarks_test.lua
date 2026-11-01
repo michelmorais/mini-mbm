@@ -8,6 +8,7 @@ local Clips=require 'facial_rig_clips'
 local Polygon=require 'facial_rig_polygon'
 local ActionTemplates=require 'facial_rig_action_templates'
 local PointGizmo=require 'facial_surface_point_gizmo'
+local SurfaceEditor=require 'facial_surface_control_editor'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -40,7 +41,7 @@ assert(shiftedA.x==browPointA.x and shiftedA.y==browPointA.y and shiftedA.z==6 a
     shiftedB.x==browPointB.x and shiftedB.y==browPointB.y and shiftedB.z==4,
     'face depth must preserve the front-view contour at large offsets')
 local project=Project.new()
-assert(project.schemaVersion==14 and project.landmarkEditMode==1)
+assert(project.schemaVersion==15 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -60,7 +61,7 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
 local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
-assert(legacyProject.schemaVersion==14 and legacyProject.masks[1].representation=='vertex',
+assert(legacyProject.schemaVersion==15 and legacyProject.masks[1].representation=='vertex',
     'legacy masks must normalize to the vertex representation')
 local polygon=Project.addSurfaceControl(project,'brow_left','polygon')
 assert(polygon.kind=='polygon' and not polygon.closed and #polygon.points==0)
@@ -104,6 +105,45 @@ PointGizmo.translate(lineDrag,gizmoTopology,{x=0,y=0.25,z=0})
 assert(PointGizmo.position(actionLine,1,gizmoTopology).y==0.25 and
     PointGizmo.position(actionLine,2,gizmoTopology).y==0,
     'moving an action-line anchor must leave its other anchor still')
+local lineController={kind='point',role='line_controller',points={{index=3}},depthOffset=0}
+local secondActionLine={kind='polyline',role='action_line',points={{index=2}},depthOffset=0}
+local lineGroup={{control=gizmoArea},{control=actionLine},{control=secondActionLine},
+    {control=lineController},{control=gizmoController}}
+local lineGroupDrag=PointGizmo.snapshot(PointGizmo.dragEntries(lineController,1,lineGroup),gizmoTopology)
+assert(#lineGroupDrag==3 and lineGroupDrag[1].control==actionLine and
+    lineGroupDrag[2].control==secondActionLine and lineGroupDrag[3].control==lineController,
+    'the line controller must capture action lines and itself, but not the brow area')
+PointGizmo.translate(lineGroupDrag,gizmoTopology,{x=0.2,y=0,z=0})
+assert(PointGizmo.position(actionLine,1,gizmoTopology).x==0.2 and
+    math.abs(PointGizmo.position(secondActionLine,1,gizmoTopology).x-1.2)<1e-5 and
+    PointGizmo.position(lineController,1,gizmoTopology).x==0.2 and
+    PointGizmo.position(gizmoArea,1,gizmoTopology).x==0 and
+    PointGizmo.position(gizmoController,1,gizmoTopology).x==0,
+    'moving the line controller must leave the area and green controller still')
+local snapTopology={vertices={{x=0,y=-1,z=0},{x=0,y=0,z=0},{x=0,y=1,z=0},
+    {x=1,y=0,z=0},{x=1,y=1,z=0},{x=1,y=-1,z=0}}}
+local snapArea={kind='polygon',role='area',points={{index=1}}}
+local snapLine={kind='polyline',role='action_line',points={{index=2}}}
+local snapLineController={kind='point',role='line_controller',points={{index=3,
+    offset={x=0,y=0.2,z=0}}}}
+local snapEntries={{control=snapArea,index=1},{control=snapLine,index=2},
+    {control=snapLineController,index=3}}
+local snapState={topology=snapTopology,undoStack={}}
+local surfaceVertex=3
+local snapApi={surfaceHit=function() return {point={x=0,y=1.2,z=0}} end,
+    controlEntries=function() return snapEntries end,radius=function() return 0.1 end,
+    pickRay=function() return {x=0,y=0,z=2},{x=0,y=0,z=-1} end,
+    nearestVertex=function() return {index=surfaceVertex,point=snapTopology.vertices[surfaceVertex]} end,
+    pushUndo=function() snapState.undoStack[#snapState.undoStack+1]=true end,
+    refresh=function() end,commit=function() return true end}
+assert(SurfaceEditor.begin(snapState,0,0,snapApi))
+surfaceVertex=5
+assert(SurfaceEditor.update(snapState,1,0,snapApi))
+assert(snapLine.points[1].index==4 and snapArea.points[1].index==1 and
+    snapLineController.points[1].index==5 and
+    math.abs(snapLineController.points[1].offset.y-0.2)<1e-5,
+    'right dragging the line controller must move only lines and keep its offset above them')
+assert(SurfaceEditor.finish(snapState,snapApi))
 local snapshot=PointGizmo.snapshot(PointGizmo.dragEntries(gizmoController,1,entries),gizmoTopology)
 assert(#snapshot==2 and #snapshot[1].points==2,
     'only the green controller may capture every point in the mask group')
@@ -130,6 +170,18 @@ local missedControl={points={{index=1,offset={x=2,y=2,z=0.5}}},depthOffset=0}
 assert(not PointGizmo.planSurfaceSnap(missedControl,gizmoTopology,gizmoTopology.bounds,
     Landmarks.intersectRaySurface) and missedControl.points[1].offset.z==0.5,
     'a failed surface projection must leave the shape unchanged')
+local curvedTopology={vertices={{x=0,y=0,z=0},{x=1,y=0,z=0.5},{x=0,y=1,z=1}},
+    triangles={{1,2,3}},bounds={minZ=0,maxZ=1}}
+local curvedLine={points={{index=1,offset={x=0.2,y=0.2,z=0.8}},
+    {index=2,offset={x=-0.4,y=0.2,z=0.8}}},depthOffset=0.3}
+local curvedPlan=assert(PointGizmo.planSurfaceSnap(curvedLine,curvedTopology,
+    curvedTopology.bounds,Landmarks.intersectRaySurface))
+PointGizmo.applySurfaceSnap(curvedLine,curvedPlan)
+local curvedFirst=PointGizmo.position(curvedLine,1,curvedTopology)
+local curvedSecond=PointGizmo.position(curvedLine,2,curvedTopology)
+assert(math.abs(curvedFirst.z-0.3)<1e-5 and math.abs(curvedSecond.z-0.5)<1e-5 and
+    math.abs(curvedFirst.x-0.2)<1e-5 and math.abs(curvedSecond.x-0.6)<1e-5,
+    'surface snap must solve a different Z at each point of a curved action line')
 offsetProject.surfaceControls[1].points[1].offset={x=0.125,y=-0.25,z=0.5}
 mbm={setColor=function() end}
 tImGui={}
@@ -144,15 +196,19 @@ os.remove(offsetPath)
 local templateProject=Project.new()
 assert(ActionTemplates.instantiate(templateProject,surface,
     {placed=true,position={x=0,y=0,z=0},scale=1},1))
-assert(#templateProject.facialMasks==2 and #templateProject.surfaceControls==6)
-assert(#templateProject.surfaceControls[3].relationships==2,
-    'a facial template controller must link its area and action line')
+assert(#templateProject.facialMasks==2 and #templateProject.surfaceControls==8)
+assert(#templateProject.surfaceControls[4].relationships==3 and
+    #templateProject.surfaceControls[3].relationships==1 and
+    templateProject.surfaceControls[3].relationships[1].controlId=='brow_left_action_line',
+    'group and line controllers must link only to their intended controls')
 local templateGroup=templateProject.facialMasks[1]
 local areaColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[1])
 local actionColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
-local controllerColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[3])
-assert(actionColor.r~=areaColor.r and controllerColor.g~=areaColor.g,
-    'area, action line and group controller must have distinct colors')
+local controllerColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[4])
+local lineControllerColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[3])
+assert(actionColor.r~=areaColor.r and controllerColor.g~=areaColor.g and
+    lineControllerColor.g~=controllerColor.g,
+    'area, action line, line controller and group controller must be visually distinct')
 templateProject.surfaceControls[2].color=templateGroup.color
 assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2]).r==actionColor.r and
     actionColor.r~=templateGroup.color.r,
@@ -164,8 +220,8 @@ assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControl
 templateProject.surfaceControls[2].color={r=0.78,g=0.48,b=1,a=1}
 local leftOrange=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
 local rightGroup=templateProject.facialMasks[2]
-templateProject.surfaceControls[5].color={r=1,g=0.73,b=0.20,a=1}
-local rightOrange=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[5])
+templateProject.surfaceControls[6].color={r=1,g=0.73,b=0.20,a=1}
+local rightOrange=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[6])
 assert(leftOrange.r==1 and leftOrange.g==rightOrange.g and leftOrange.b==rightOrange.b and
     leftOrange.g>leftOrange.b,
     'previously saved left/right action-line accents must both display as orange')
@@ -194,14 +250,54 @@ for _,control in ipairs(fittedProject.surfaceControls) do
         assert(anchor.index<=faceVertexCount,'template anchor must stay on the face subset')
     end
 end
-local otherBrowIndex=fittedProject.surfaceControls[4].points[1].index
+local otherBrowIndex=fittedProject.surfaceControls[5].points[1].index
 fittedArea.points[1].index=faceVertexCount+1
 fittedArea.depthOffset=0.3
 assert(ActionTemplates.refit(fittedProject,faceTopology,fittedOrigin,1,fittedProject.facialMasks[1]))
 assert(fittedArea.points[1].index<=faceVertexCount and fittedArea.depthOffset==0.3,
     'refitting must restore the brow contour while preserving its depth setting')
-assert(fittedProject.surfaceControls[4].points[1].index==otherBrowIndex,
+assert(fittedProject.surfaceControls[5].points[1].index==otherBrowIndex,
     'refitting one brow must preserve the other brow')
+local savedAreaIndex=fittedArea.points[2].index
+fittedArea.points[2].offset={x=0.123,y=0.045,z=0.02}
+local savedActionLine=ActionTemplates.controlById(fittedProject,'brow_left_action_line')
+savedActionLine.points[3].offset={x=0,y=0.12,z=0.03}
+local expectedLinePosition=PointGizmo.position(savedActionLine,3,faceTopology)
+local groupController=ActionTemplates.controlById(fittedProject,'brow_left_controller')
+local savedGroupIndex=groupController.points[1].index
+local oldLineController=ActionTemplates.controlById(fittedProject,'brow_left_line_controller')
+for index,control in ipairs(fittedProject.surfaceControls) do
+    if control==oldLineController then table.remove(fittedProject.surfaceControls,index); break end
+end
+for index,id in ipairs(fittedProject.facialMasks[1].controlIds) do
+    if id=='brow_left_line_controller' then
+        table.remove(fittedProject.facialMasks[1].controlIds,index)
+        break
+    end
+end
+fittedProject.schemaVersion=14
+Project.normalize(fittedProject)
+assert(ActionTemplates.ensureLineControllers(fittedProject,faceTopology,fittedOrigin,1))
+assert(not ActionTemplates.ensureLineControllers(fittedProject,faceTopology,fittedOrigin,1),
+    'line-controller migration must be idempotent')
+local addedLineController=ActionTemplates.controlById(fittedProject,'brow_left_line_controller')
+assert(addedLineController and #addedLineController.points==1 and
+    fittedArea.points[2].index==savedAreaIndex and fittedArea.points[2].offset.x==0.123 and
+    groupController.points[1].index==savedGroupIndex,
+    'adding a line controller to an old project must preserve authored shapes')
+local migratedLinePosition=PointGizmo.position(addedLineController,1,faceTopology)
+assert(math.abs(migratedLinePosition.y-expectedLinePosition.y-0.05)<1e-5 and
+    math.abs(migratedLinePosition.x-expectedLinePosition.x)<1e-5,
+    'the migrated controller must be placed near the already edited action line')
+local migratedPath='/tmp/facial-rig-line-controller-smoke.lua'
+assert(Project.save(fittedProject,migratedPath,editorUtils.save))
+local reopened=assert(Project.load(migratedPath))
+os.remove(migratedPath)
+local reopenedLineController=ActionTemplates.controlById(reopened,'brow_left_line_controller')
+assert(reopenedLineController and reopenedLineController.role=='line_controller' and
+    reopenedLineController.relationships[1].controlId=='brow_left_action_line' and
+    not ActionTemplates.ensureLineControllers(reopened,faceTopology,fittedOrigin,1),
+    'saved line controllers must reopen without duplicating or losing their action-line links')
 project.expressions=Expressions.syncCatalog(project.expressions,
     {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
 local expression=Expressions.addPose(project.expressions,'smile')

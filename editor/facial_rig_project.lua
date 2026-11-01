@@ -89,7 +89,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=14,
+        schemaVersion=15,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -133,7 +133,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(14,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(15,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -344,6 +344,7 @@ function M.normalize(project)
             control.enabled=control.enabled~=false
             control.groupId=type(control.groupId)=='string' and control.groupId or ''
             control.role=control.role=='action_line' and 'action_line' or
+                control.role=='line_controller' and 'line_controller' or
                 control.role=='controller' and 'controller' or 'area'
             control.color=copyColor(control.color)
             control.relationships=type(control.relationships)=='table' and control.relationships or {}

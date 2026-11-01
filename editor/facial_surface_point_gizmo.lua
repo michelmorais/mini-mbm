@@ -126,6 +126,15 @@ function M.dragEntries(control,pointIndex,groupEntries)
     if control.kind=='point' and control.role=='controller' then
         return groupEntries or {}
     end
+    if control.kind=='point' and control.role=='line_controller' then
+        local result={}
+        for _,entry in ipairs(groupEntries or {}) do
+            if entry.control==control or entry.control.role=='action_line' then
+                result[#result+1]=entry
+            end
+        end
+        return result
+    end
     return {{control=control,pointIndex=pointIndex}}
 end
 
@@ -163,17 +172,7 @@ end
 -- intersections to the anchor's mesh subset to avoid hair and eye surfaces.
 function M.planSurfaceSnap(control,topology,bounds,intersect)
     if not control or not topology or not topology.vertices or not bounds then return nil end
-    local first=control.points and control.points[1]
-    local firstIndex=type(first)=='table' and first.index or first
-    local firstRef=topology.refs and topology.refs[firstIndex]
-    local subset=firstRef and firstRef.subset
-    local allowed
-    if subset then
-        allowed={}
-        for index,ref in ipairs(topology.refs) do
-            if ref.subset==subset then allowed[index]=true end
-        end
-    end
+    local allowedBySubset={}
     local extent=math.max(bounds.maxZ-bounds.minZ,1)
     local front=bounds.maxZ+extent*2
     local plan={offsets={},changed=math.abs(control.depthOffset or 0)>1e-8}
@@ -181,6 +180,16 @@ function M.planSurfaceSnap(control,topology,bounds,intersect)
         local vertex=topology.vertices[raw.index]
         local world=position(control,index,topology)
         if not vertex or not world then return nil end
+        local ref=topology.refs and topology.refs[raw.index]
+        local subset=ref and ref.subset
+        local allowed=subset and allowedBySubset[subset] or nil
+        if subset and not allowed then
+            allowed={}
+            for vertexIndex,candidate in ipairs(topology.refs) do
+                if candidate.subset==subset then allowed[vertexIndex]=true end
+            end
+            allowedBySubset[subset]=allowed
+        end
         local old=raw.offset or {}
         local x,y=old.x or 0,old.y or 0
         local hit=intersect(topology,{x=world.x,y=world.y,z=front},
