@@ -48,10 +48,13 @@ local function nearestCandidate(entries,topology,point,maxDistance)
     return best
 end
 
-local function nearestVertexToPosition(topology,target,used)
+local function nearestVertexToPosition(topology,target,used,sourceIndex)
     local bestIndex,bestDistance=nil,math.huge
+    local sourceRef=topology.refs and topology.refs[sourceIndex]
+    local sourceSubset=sourceRef and sourceRef.subset
     for index,vertex in ipairs(topology.vertices or {}) do
-        if not used[index] then
+        local ref=topology.refs and topology.refs[index]
+        if not used[index] and (not sourceSubset or ref and ref.subset==sourceSubset) then
             local dx,dy,dz=vertex.x-target.x,vertex.y-target.y,vertex.z-target.z
             local distance=dx*dx+dy*dy+dz*dz
             if distance<bestDistance then bestIndex,bestDistance=index,distance end
@@ -115,7 +118,7 @@ function M.update(state,x,y,api)
             for _,basePoint in ipairs(member.points) do
                 local target={x=basePoint.position.x+delta.x,y=basePoint.position.y+delta.y,
                     z=basePoint.position.z+delta.z}
-                local index=nearestVertexToPosition(state.topology,target,used)
+                local index=nearestVertexToPosition(state.topology,target,used,basePoint.index)
                 if index then
                     used[index]=true
                     member.control.points[basePoint.pointIndex].index=index

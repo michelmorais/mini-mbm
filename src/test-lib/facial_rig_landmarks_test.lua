@@ -71,6 +71,39 @@ assert(ActionTemplates.instantiate(templateProject,surface,
 assert(#templateProject.facialMasks==2 and #templateProject.surfaceControls==6)
 assert(#templateProject.surfaceControls[3].relationships==2,
     'a facial template controller must link its area and action line')
+local faceTopology={vertices={},refs={},signature='template-face'}
+for _,definition in ipairs(ActionTemplates.templates()) do
+    for _,shape in ipairs(definition.shapes) do
+        for _,coords in ipairs(shape.points) do
+            faceTopology.vertices[#faceTopology.vertices+1]={x=coords[1],y=coords[2],z=coords[3]+0.2}
+            faceTopology.refs[#faceTopology.refs+1]={subset=1,vertex=#faceTopology.vertices}
+        end
+    end
+end
+local faceVertexCount=#faceTopology.vertices
+for index=1,faceVertexCount do
+    local vertex=faceTopology.vertices[index]
+    faceTopology.vertices[#faceTopology.vertices+1]={x=vertex.x,y=vertex.y,z=vertex.z-0.2}
+    faceTopology.refs[#faceTopology.refs+1]={subset=2,vertex=index}
+end
+local fittedProject=Project.new()
+local fittedOrigin={placed=true,vertexIndex=1,position={x=0,y=0,z=0},scale=1}
+assert(ActionTemplates.instantiate(fittedProject,faceTopology,fittedOrigin,1))
+local fittedArea=fittedProject.surfaceControls[1]
+assert(#fittedArea.points==12,'brow template should have a tapered 12-point outline')
+for _,control in ipairs(fittedProject.surfaceControls) do
+    for _,anchor in ipairs(control.points) do
+        assert(anchor.index<=faceVertexCount,'template anchor must stay on the face subset')
+    end
+end
+local otherBrowIndex=fittedProject.surfaceControls[4].points[1].index
+fittedArea.points[1].index=faceVertexCount+1
+fittedArea.depthOffset=0.3
+assert(ActionTemplates.refit(fittedProject,faceTopology,fittedOrigin,1,fittedProject.facialMasks[1]))
+assert(fittedArea.points[1].index<=faceVertexCount and fittedArea.depthOffset==0.3,
+    'refitting must restore the brow contour while preserving its depth setting')
+assert(fittedProject.surfaceControls[4].points[1].index==otherBrowIndex,
+    'refitting one brow must preserve the other brow')
 project.expressions=Expressions.syncCatalog(project.expressions,
     {{name='eye.L',convention='ARKit'},{name='eye.R',convention='ARKit'},{name='jawOpen'}})
 local expression=Expressions.addPose(project.expressions,'smile')

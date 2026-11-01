@@ -91,7 +91,8 @@ local state = {
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
-    faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
+    faceGuideDirty=true, showLandmarkGuide=false,
+    faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
     rigReview={dirty=true,data=nil},
@@ -1110,7 +1111,8 @@ end
 local function refreshFaceGuide()
     local guide=state.faceGuide
     local origin=state.project and state.project.faceOrigin
-    if (state.workspace~='face_position' and state.workspace~='landmarks') or
+    if (state.workspace~='face_position' and
+            (state.workspace~='landmarks' or not state.showLandmarkGuide)) or
             not state.mesh or not origin or not origin.placed then
         hideFaceGuide()
         state.faceGuideDirty=false
@@ -1560,7 +1562,8 @@ local function refreshLandmarkMarkers()
             for pathIndex,path in ipairs(markerPaths) do marker:set(path,pathIndex) end
         end
         local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
-        local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position and not originPlaced
+        local visible=state.workspace=='landmarks' and state.showLandmarkGuide and
+            state.mesh.visible and landmark.placed and landmark.position and not originPlaced
         marker.visible=visible and true or false
         if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
         if index==state.selectedLandmark then marker:setColor(1,0.8,0.1,1)
@@ -1742,6 +1745,7 @@ ensureFacialActionTemplates=function()
     state.selectedSurfaceControl=firstIndex or 1
     state.project.selectedSurfaceControl=state.selectedSurfaceControl
     state.surfaceControlOverlay.dirty=true
+    markFaceGuideDirty()
     markModified()
     setStatus(tLang.L('fre_facs_templates_loaded'),false)
     return true
@@ -4493,10 +4497,34 @@ local function showLandmarks()
                     state.surfaceControlDepthUndo=false
                 end
             end
+            if selectedGroup.templateId and selectedGroup.templateId~='' then
+                tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)
+                if tImGui.Button(tLang.L('fre_facs_refit_mask') .. '##freFacsRefitMask') then
+                    pushUndoSnapshot()
+                    if tFacialActionTemplates.refit(state.project,state.topology,
+                            state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
+                        state.surfaceControlOverlay.dirty=true
+                        state.selectedSurfaceControlPoint=nil
+                        markModified()
+                        setStatus(tLang.L('fre_facs_refit_done'),false)
+                    else
+                        table.remove(state.undoStack)
+                        setStatus(tLang.L('fre_facs_refit_failed'),true)
+                    end
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_facs_refit_help'))
+            end
             tImGui.TextWrapped(tLang.L('fre_facs_selected_mask_help'))
         end
     end
     tImGui.Separator()
+    local showGuide=tImGui.Checkbox(tLang.L('fre_facs_show_landmark_guide'),state.showLandmarkGuide)
+    if showGuide~=state.showLandmarkGuide then
+        state.showLandmarkGuide=showGuide
+        markFaceGuideDirty()
+        markLandmarkMarkersDirty()
+    end
     tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))

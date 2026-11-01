@@ -36,9 +36,10 @@ position, and the match radius.
 
 ## Facial landmarks, surface controls, and regions
 
-The facial authoring flow starts in **Landmarks**. The face guide shown there is a visual reference
-for placing the face origin and landmarks; it is not a legacy mask and is not persisted as a vertex
-selection.
+The facial authoring flow starts in **Landmarks**. The older cyan face guide (outline, crosses,
+and axes) is a landmark placement reference, not a vertex mask. It appears in **Face Position**
+and can be shown on demand with **Show landmark guide** in **Landmarks**; it starts hidden there
+so facial action shapes are clear.
 
 The author selects a pre-defined facial action mask and adapts its controls directly over the mesh:
 
@@ -54,9 +55,14 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
 The first template slice contains left and right brow masks. Each brow mask has an area polygon,
-an action-line polyline, and a controller point. The templates are initialized with approximately
-ten contour anchors for the brow area and several anchors for the action line, then adapted to the
-current mesh after the face origin is placed. The controller moves the complete mask group.
+an action-line polyline, and a controller point. The templates are initialized with
+12 contour anchors for the brow area and five anchors for the action line, then adapted to the
+current mesh after the face origin is placed. Initial fitting uses the mesh subset containing the
+face origin and prioritizes the front view contour over guessed depth. This avoids snapping brow
+points to a separate hair subset and reduces jumps toward the eyelid. The controller moves the
+complete mask group.
+In a previously saved project, **Refit selected brow to face** replaces that brow's points with
+the current template; the operation is undoable and never runs automatically on existing edits.
 
 All mask outlines remain visible with group colors. Only the selected mask displays square anchors
 for editing; these anchors use the selected mask color and are deliberately small enough not to
