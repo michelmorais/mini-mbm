@@ -68,7 +68,6 @@ local state = {
     status='', statusError=false,
     selectedMask=1, maskCreationRepresentation=2, maskRepresentationChangePending=nil,
     selectedFacialMask=1,
-    facsTemplateCache={project=nil,groupCount=-1,controlCount=-1,missing=0},
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
     surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
     surfaceControlNameDraft='', surfaceControlKind=1,
@@ -4529,39 +4528,6 @@ local function showLandmarks()
             end
         end
     else
-        local templateCache=state.facsTemplateCache
-        local controlCount=#(state.project.surfaceControls or {})
-        if templateCache.project~=state.project or templateCache.groupCount~=#groups or
-                templateCache.controlCount~=controlCount then
-            templateCache.project=state.project
-            templateCache.groupCount=#groups
-            templateCache.controlCount=controlCount
-            templateCache.missing=tFacialActionTemplates.missingTemplateCount(state.project)
-        end
-        if state.topology and state.project.faceOrigin and state.project.faceOrigin.placed and
-                templateCache.missing>0 then
-            if tImGui.Button(tLang.L('fre_facs_add_missing_templates') .. '##freFacsAddMissing') then
-                pushUndoSnapshot()
-                local added,firstIndex=tFacialActionTemplates.addMissing(state.project,state.topology,
-                    state.project.faceOrigin,state.project.faceOrigin.scale)
-                if added>0 then
-                    state.selectedFacialMask=firstIndex
-                    state.project.selectedFacialMask=firstIndex
-                    local group=state.project.facialMasks[firstIndex]
-                    local _,controlIndex=tFacialActionTemplates.controlById(state.project,
-                        group.controlIds[1])
-                    state.selectedSurfaceControl=controlIndex or 1
-                    state.project.selectedSurfaceControl=state.selectedSurfaceControl
-                    state.selectedSurfaceControlPoint=nil
-                    state.surfaceControlOverlay.dirty=true
-                    markModified()
-                    setStatus(string.format(tLang.L('fre_facs_missing_templates_added_fmt'),added),false)
-                else
-                    table.remove(state.undoStack)
-                end
-            end
-            showHelpTooltip(tLang.L('fre_facs_add_missing_templates_help'))
-        end
         local names={}
         for _,group in ipairs(groups) do
             names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or

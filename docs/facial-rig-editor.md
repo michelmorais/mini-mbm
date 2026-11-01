@@ -73,10 +73,9 @@ points to a separate hair subset and reduces jumps toward the eyelid. The green 
 moves the complete mask. The yellow action-line controller moves only the action lines and itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
-New projects load all eight masks when the face origin is placed. A saved project with only brow
-masks offers **Add missing facial templates** in Landmarks. This explicit action appends only absent
-templates, keeps existing contours and offsets, and can be undone. **Refit selected mask to face**
-replaces only the selected mask's points with its current template; it is undoable and never runs
+New projects load all eight masks when the face origin is placed. Saved projects keep their
+authored mask catalog and are not expanded automatically. **Refit selected mask to face** replaces
+only the selected mask's points with its current template; it is undoable and never runs
 automatically on existing edits.
 Opening an older brow project adds only a missing action-line controller and its relationships;
 it is placed near the already edited action line. Existing contours, offsets, and the

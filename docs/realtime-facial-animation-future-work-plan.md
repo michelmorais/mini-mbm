@@ -59,8 +59,8 @@ areas share one cyan color and stock action lines share one orange color across 
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
 The current catalog now includes paired brows, eyes, cheeks, and mouth corners. New facial projects
-receive all eight masks after face-origin placement. Older projects can explicitly append missing
-stock masks without replacing edited controls. AU labels on these templates are semantic hints;
+receive all eight masks after face-origin placement. Saved projects retain their authored catalog
+without automatic additions. AU labels on these templates are semantic hints;
 deriving regions and authoring AU-to-target profiles are still separate future milestones.
 
 The initial point-controller model is explicit: a controller lists the controls it affects, with
@@ -96,7 +96,7 @@ Acceptance:
 - a brow template contains a pre-authored polygon, action-line polyline, group controller, and
   action-line controller;
 - paired eye, cheek, and mouth-corner templates use the same controls, palette, and synchronized
-  side-editing behavior; older projects can add them explicitly without losing brow edits;
+  side-editing behavior; saved projects retain their authored masks;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and can control multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;

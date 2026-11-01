@@ -199,8 +199,7 @@ os.remove(offsetPath)
 local templateProject=Project.new()
 assert(ActionTemplates.instantiate(templateProject,surface,
     {placed=true,position={x=0,y=0,z=0},scale=1},1))
-assert(#templateProject.facialMasks==8 and #templateProject.surfaceControls==32 and
-    ActionTemplates.missingTemplateCount(templateProject)==0,
+assert(#templateProject.facialMasks==8 and #templateProject.surfaceControls==32,
     'a new project must receive both sides of the brow, eye, cheek and mouth-corner templates')
 local expectedNewGroups={eye_left='AU5',eye_right='AU5',cheek_left='AU6',
     cheek_right='AU6',mouth_corner_left='AU12',mouth_corner_right='AU12'}
@@ -302,22 +301,16 @@ assert(ActionTemplates.instantiate(savedBrowProject,surface,
 for index=#savedBrowProject.facialMasks,3,-1 do table.remove(savedBrowProject.facialMasks,index) end
 for index=#savedBrowProject.surfaceControls,9,-1 do table.remove(savedBrowProject.surfaceControls,index) end
 savedBrowProject.surfaceControls[1].points[1].offset={x=0.037,y=0,z=0}
-assert(ActionTemplates.missingTemplateCount(savedBrowProject)==6)
-local added,firstAdded=ActionTemplates.addMissing(savedBrowProject,surface,
-    {placed=true,position={x=0,y=0,z=0},scale=1},1)
-assert(added==6 and firstAdded==3 and #savedBrowProject.facialMasks==8 and
-    savedBrowProject.surfaceControls[1].points[1].offset.x==0.037 and
-    ActionTemplates.missingTemplateCount(savedBrowProject)==0 and
-    ActionTemplates.addMissing(savedBrowProject,surface,
-        {placed=true,position={x=0,y=0,z=0},scale=1},1)==0,
-    'adding missing templates must preserve existing brow edits and be idempotent')
-local expandedPath='/tmp/facial-rig-expanded-templates-smoke.lua'
-assert(Project.save(savedBrowProject,expandedPath,editorUtils.save))
-local restoredExpanded=assert(Project.load(expandedPath))
-assert(#restoredExpanded.facialMasks==8 and #restoredExpanded.surfaceControls==32 and
-    restoredExpanded.surfaceControls[1].points[1].offset.x==0.037,
-    'new templates and existing edits must survive project save and reload')
-os.remove(expandedPath)
+assert(not ActionTemplates.instantiate(savedBrowProject,surface,
+    {placed=true,position={x=0,y=0,z=0},scale=1},1) and
+    #savedBrowProject.facialMasks==2 and savedBrowProject.surfaceControls[1].points[1].offset.x==0.037,
+    'opening an authored brow project must not inject new templates or overwrite edits')
+local catalogPath='/tmp/facial-rig-catalog-smoke.lua'
+assert(Project.save(templateProject,catalogPath,editorUtils.save))
+local restoredCatalog=assert(Project.load(catalogPath))
+assert(#restoredCatalog.facialMasks==8 and #restoredCatalog.surfaceControls==32,
+    'the full new-project template catalog must survive save and reload')
+os.remove(catalogPath)
 local faceTopology={vertices={},refs={},signature='template-face'}
 for _,definition in ipairs(ActionTemplates.templates()) do
     for _,shape in ipairs(definition.shapes) do

@@ -404,62 +404,33 @@ function M.names(groups)
     return result
 end
 
-local function templateAbsent(project,definition)
-    for _,group in ipairs(project.facialMasks or {}) do
-        if group.templateId==definition.id or group.id==definition.id then return false end
-    end
-    for _,shape in ipairs(definition.shapes) do
-        if M.controlById(project,definition.id..'_'..shape.id) then return false end
-    end
-    return true
-end
-
-function M.missingTemplateCount(project)
-    if type(project)~='table' then return 0 end
-    local count=0
-    for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
-        if templateAbsent(project,definition) then count=count+1 end
-    end
-    return count
-end
-
--- An explicit addition path keeps authored shapes in saved projects intact.
-function M.addMissing(project,topology,faceOrigin,scale)
+function M.instantiate(project,topology,faceOrigin,scale)
     if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
-            not faceOrigin.placed or #(topology.vertices or {})==0 then return 0 end
+            not faceOrigin.placed or #(project.facialMasks or {})>0 or
+            #(topology.vertices or {})==0 then return false end
     project.facialMasks=project.facialMasks or {}
     project.surfaceControls=project.surfaceControls or {}
     local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
-    local added,firstIndex=0,nil
     for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
-        if templateAbsent(project,definition) then
-            local group={id=definition.id,name=definition.id,nameKey=definition.nameKey,
-                templateId=definition.id,actionUnits={},color=copyColor(definition.color),
-                controlIds={},enabled=true}
-            for _,actionUnit in ipairs(definition.actionUnits) do
-                group.actionUnits[#group.actionUnits+1]=actionUnit
-            end
-            for _,shape in ipairs(definition.shapes) do
-                local control={id=definition.id..'_'..shape.id,name=definition.id..'_'..shape.id,
-                    groupId=definition.id,role=shape.role,kind=shape.kind,closed=shape.closed==true,
-                    points={},topologySignature=topology.signature or '',depthOffset=0,
-                    color=copyColor(M.displayColor(group,{role=shape.role})),relationships={},enabled=true}
-                fitPoints(control,shape,topology,faceOrigin,actualScale)
-                project.surfaceControls[#project.surfaceControls+1]=control
-                group.controlIds[#group.controlIds+1]=control.id
-            end
-            linkControllers(project,group)
-            project.facialMasks[#project.facialMasks+1]=group
-            added=added+1
-            firstIndex=firstIndex or #project.facialMasks
+        local group={id=definition.id,name=definition.id,nameKey=definition.nameKey,
+            templateId=definition.id,actionUnits={},color=copyColor(definition.color),
+            controlIds={},enabled=true}
+        for _,actionUnit in ipairs(definition.actionUnits) do
+            group.actionUnits[#group.actionUnits+1]=actionUnit
         end
+        for _,shape in ipairs(definition.shapes) do
+            local control={id=definition.id..'_'..shape.id,name=definition.id..'_'..shape.id,
+                groupId=definition.id,role=shape.role,kind=shape.kind,closed=shape.closed==true,
+                points={},topologySignature=topology.signature or '',depthOffset=0,
+                color=copyColor(M.displayColor(group,{role=shape.role})),relationships={},enabled=true}
+            fitPoints(control,shape,topology,faceOrigin,actualScale)
+            project.surfaceControls[#project.surfaceControls+1]=control
+            group.controlIds[#group.controlIds+1]=control.id
+        end
+        linkControllers(project,group)
+        project.facialMasks[#project.facialMasks+1]=group
     end
-    return added,firstIndex
-end
-
-function M.instantiate(project,topology,faceOrigin,scale)
-    if type(project)~='table' or #(project.facialMasks or {})>0 then return false end
-    return M.addMissing(project,topology,faceOrigin,scale)>0
+    return true
 end
 
 -- Add only a missing line controller to saved stock-template projects. Existing
