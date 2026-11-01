@@ -49,10 +49,10 @@ authoritative representation and an explicit type. Existing legacy masks load as
 
 The polygon path should support the following initial operations:
 
-- create a polygon by placing points on the visible mesh surface;
+- create a polygon by placing canonical vertex points on the visible mesh surface;
 - drag existing points, insert a point on an edge, remove a point, and close the polygon;
-- preview the polygon boundary and its derived influence on the mesh;
-- apply binary or soft vertex weights using a documented falloff;
+- preview the polygon boundary and its derived binary influence on the mesh;
+- apply binary vertex weights using the initial projected-plane rule; soft weights remain future work;
 - invalidate the derived weights when the polygon or source topology changes;
 - undo and redo the complete polygon edit as one authoring operation where appropriate.
 

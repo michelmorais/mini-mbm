@@ -252,6 +252,27 @@ function M.normalize(project)
                 if type(mask.polygon.derivedVertexWeights)~='table' then
                     mask.polygon.derivedVertexWeights={}
                 end
+                local normalizedPoints,seenPoints={},{}
+                for _,rawPoint in ipairs(mask.polygon.points) do
+                    local pointIndex=type(rawPoint)=='table' and tonumber(rawPoint.index) or tonumber(rawPoint)
+                    pointIndex=pointIndex and math.floor(pointIndex) or nil
+                    if pointIndex and pointIndex>=1 and not seenPoints[pointIndex] then
+                        seenPoints[pointIndex]=true
+                        normalizedPoints[#normalizedPoints+1]={index=pointIndex}
+                    end
+                end
+                mask.polygon.points=normalizedPoints
+                local normalizedWeights,seenWeights={},{}
+                for _,rawWeight in ipairs(mask.polygon.derivedVertexWeights) do
+                    local pointIndex=type(rawWeight)=='table' and tonumber(rawWeight.index) or tonumber(rawWeight)
+                    local weight=type(rawWeight)=='table' and tonumber(rawWeight.weight) or 1
+                    pointIndex=pointIndex and math.floor(pointIndex) or nil
+                    if pointIndex and pointIndex>=1 and not seenWeights[pointIndex] then
+                        seenWeights[pointIndex]=true
+                        normalizedWeights[#normalizedWeights+1]={index=pointIndex,weight=weight or 1}
+                    end
+                end
+                mask.polygon.derivedVertexWeights=normalizedWeights
             end
         end
     end
@@ -476,6 +497,28 @@ function M.validate(project, meshLoaded, topology)
             end
             seen[index]=true
         end
+        if M.isPolygonMask(mask) then
+            local polygon=mask.polygon
+            local polygonSignature=type(polygon)=='table' and polygon.topologySignature or ''
+            if type(polygon)~='table' then
+                report.ok=false
+                report.errors[#report.errors + 1]='polygon mask has no polygon data: ' .. tostring(mask.name)
+            elseif topology and polygonSignature~='' and polygonSignature~=topology.signature then
+                report.ok=false
+                report.errors[#report.errors + 1]='polygon topology is stale: ' .. tostring(mask.name)
+            elseif polygon.closed and #(polygon.points or {})<3 then
+                report.ok=false
+                report.errors[#report.errors + 1]='polygon mask has fewer than three points: ' .. tostring(mask.name)
+            end
+            for _,rawWeight in ipairs(type(polygon)=='table' and polygon.derivedVertexWeights or {}) do
+                local index=type(rawWeight)=='table' and tonumber(rawWeight.index) or tonumber(rawWeight)
+                if not index or index<1 or index%1~=0 or topology and index>topology.vertexCount then
+                    report.ok=false
+                    report.errors[#report.errors + 1]='polygon mask has an invalid derived vertex: ' .. tostring(mask.name)
+                    break
+                end
+            end
+        end
     end
     for _, landmark in ipairs(project.landmarks or {}) do
         report.landmarkCount=report.landmarkCount+1
@@ -560,12 +603,21 @@ function M.bindingReview(project, topology)
                 if M.isRigMask(mask) and mask.enabled ~= false and (mask.roleIndex or 1)==roleIndex then
                     item.maskCount=item.maskCount+1
                     local rawMaskVertices=type(mask.vertices)=='table' and mask.vertices or {}
+                    if M.isPolygonMask(mask) and type(mask.polygon)=='table' then
+                        rawMaskVertices=mask.polygon.derivedVertexWeights or {}
+                    end
                     if topology and (mask.topologySignature or '')~='' and mask.topologySignature~=topology.signature then
                         item.issues[#item.issues+1]='stale mask: ' .. tostring(mask.name or maskIndex)
                     end
                     local seen={}
+                    if M.isPolygonMask(mask) and type(mask.polygon)=='table' and topology and
+                            (mask.polygon.topologySignature or '')~='' and
+                            mask.polygon.topologySignature~=topology.signature then
+                        item.issues[#item.issues+1]='stale polygon: ' .. tostring(mask.name or maskIndex)
+                    end
                     for _,rawIndex in ipairs(rawMaskVertices) do
-                        local index=tonumber(rawIndex)
+                        local index=M.isPolygonMask(mask) and type(rawIndex)=='table' and
+                            tonumber(rawIndex.index) or tonumber(rawIndex)
                         if not index or index<1 or index%1~=0 or
                                 topology and index>topology.vertexCount or seen[index] then
                             item.issues[#item.issues+1]='invalid mask vertex: ' .. tostring(mask.name or maskIndex)

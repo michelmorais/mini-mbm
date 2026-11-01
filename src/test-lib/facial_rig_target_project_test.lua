@@ -24,6 +24,7 @@ local TargetProject=require 'facial_rig_target_project'
 local Targets=require 'facial_rig_targets'
 local Project=require 'facial_rig_project'
 local Gizmo=require 'facial_rig_target_gizmo'
+local Polygon=require 'facial_rig_polygon'
 
 local function vec(x,y,z) return {x=x,y=y,z=z} end
 local function target(id,name,positions)
@@ -102,6 +103,20 @@ polygonMask.representation='polygon'
 polygonMask.polygon={closed=true,topologySignature='same-topology',points={},
     derivedVertexWeights={{index=1,weight=1.0},{index=2,weight=0.5}}}
 assert(Project.isPolygonMask(polygonMask) and Project.maskRepresentation(polygonMask)=='polygon')
+local polygonTopology={signature='polygon-topology',vertices={
+    vec(-1,-1,0),vec(1,-1,0),vec(1,1,0),vec(-1,1,0),vec(0,0,0),vec(0,0,1)},
+    triangles={{1,2,5},{2,3,5},{3,4,5},{4,1,5}},vertexCount=6}
+local authoredPolygon={closed=true,points={{index=1},{index=2},{index=3},{index=4}}}
+assert(Polygon.rebuild(authoredPolygon,polygonTopology))
+assert(#authoredPolygon.points==4 and authoredPolygon.topologySignature=='polygon-topology')
+local derivedIndices={}
+for _,entry in ipairs(authoredPolygon.derivedVertexWeights) do derivedIndices[entry.index]=entry.weight end
+assert(derivedIndices[1] and derivedIndices[2] and derivedIndices[3] and derivedIndices[4] and derivedIndices[5]==1,
+    'closed polygon must derive the interior vertex')
+assert(not derivedIndices[6],'polygon projection must reject a vertex outside the surface plane')
+local polygonPoints=Polygon.resolvePoints(authoredPolygon,polygonTopology)
+assert(Polygon.nearestPoint(polygonPoints,vec(-1,-1,0),0.01)==1)
+assert(Polygon.nearestEdge(polygonPoints,vec(0,-1,0),true,0.01)==1)
 local topology={signature='same-topology',vertexCount=3}
 local review=Project.bindingReview(project,topology)
 assert(review.roles[1].maskCount==1 and review.roles[1].vertexCount==1 and

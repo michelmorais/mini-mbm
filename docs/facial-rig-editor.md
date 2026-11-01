@@ -46,9 +46,14 @@ The editor now keeps two explicit authoring representations in this worktree: a
 mask**, which edits a closed polygon anchored to the assigned mesh surface. A radio button selects
 which representation is being edited. Existing masks remain legacy masks; selecting the polygon mode
 does not silently convert them. The polygon representation is currently persisted and protected from
-legacy vertex painting; point editing and derived influence generation are the next Phase 1 slice.
-Polygon-derived vertex weights are rebuildable data and are invalid when the source topology
-signature changes. See the [facial animation expansion plan](realtime-facial-animation-future-work-plan.md#phase-1---dual-mask-authoring-in-the-facial-rig-editor).
+legacy vertex painting. In **Masks / Regions > Edit selection**, right click adds a canonical surface
+point, right drag moves an existing point, right click near a closed edge inserts a point, and the
+controls can remove, clear, close, or reopen the polygon. Closed polygons currently derive binary
+vertex weights by projecting the polygon onto its local plane; the derived result is rebuildable and
+invalid when the source topology signature changes. Soft falloff and triangle/barycentric anchors
+remain future work. See the [facial animation expansion plan](realtime-facial-animation-future-work-plan.md#phase-1---dual-mask-authoring-in-the-facial-rig-editor).
+The representation selector is also mirrored in **Landmarks**, so the facial-mark authoring workflow
+can choose the mask representation without changing worktrees.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and
