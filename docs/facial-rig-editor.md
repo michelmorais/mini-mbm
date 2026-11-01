@@ -62,8 +62,9 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
 
 The stock catalog contains paired masks for brows (AU1, AU2, AU4), eyes (AU5, AU7), cheeks (AU6),
-and mouth corners (AU12, AU15). These AU labels identify related actions; a mask does not solve
-or generate those movements. The [Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
+and mouth corners (AU12, AU15), plus separate upper-lip (AU10) and lower-lip (AU16) masks. These
+AU labels identify related actions; a mask does not solve or generate those movements. The
+[Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
 is the naming reference. Each mask has an area polygon, an action-line polyline, a group
 controller, and a separate action-line controller. The brow masks start with 12 contour anchors
 and five action-line anchors; the other masks provide their own pre-authored contours. All are adapted to the
@@ -73,7 +74,7 @@ points to a separate hair subset and reduces jumps toward the eyelid. The green 
 moves the complete mask. The yellow action-line controller moves only the action lines and itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
-New projects load all eight masks when the face origin is placed. Saved projects keep their
+New projects load all ten masks when the face origin is placed. Saved projects keep their
 authored mask catalog and are not expanded automatically. **Refit selected mask to face** replaces
 only the selected mask's points with its current template; it is undoable and never runs
 automatically on existing edits.

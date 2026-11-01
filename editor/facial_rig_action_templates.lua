@@ -162,6 +162,55 @@ for _,left in ipairs(MORE_LEFT_TEMPLATES) do
     TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=mirroredTemplate(left)
 end
 
+local LIP_TEMPLATES={
+    {
+        id='upper_lip',nameKey='fre_facs_upper_lip',actionUnits={'AU10'},color=AREA_COLOR,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.17,-0.18,-0.08},{-0.145,-0.155,-0.08},{-0.11,-0.14,-0.08},
+                {-0.075,-0.137,-0.08},{-0.045,-0.15,-0.08},{0,-0.162,-0.08},
+                {0.045,-0.15,-0.08},{0.075,-0.137,-0.08},{0.11,-0.14,-0.08},
+                {0.145,-0.155,-0.08},{0.17,-0.18,-0.08},{0.14,-0.19,-0.08},
+                {0.09,-0.195,-0.08},{0,-0.19,-0.08},{-0.09,-0.195,-0.08},
+                {-0.14,-0.19,-0.08}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.17,-0.18,-0.08},{-0.14,-0.155,-0.08},{-0.10,-0.142,-0.08},
+                {-0.055,-0.15,-0.08},{0,-0.165,-0.08},{0.055,-0.15,-0.08},
+                {0.10,-0.142,-0.08},{0.14,-0.155,-0.08},{0.17,-0.18,-0.08}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0,-0.105,-0.08}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{0,-0.175,-0.08}}}
+        }
+    },
+    {
+        id='lower_lip',nameKey='fre_facs_lower_lip',actionUnits={'AU16'},color=AREA_COLOR,
+        shapes={
+            {id='area',role='area',kind='polygon',closed=true,points={
+                {-0.17,-0.18,-0.08},{-0.14,-0.19,-0.08},{-0.09,-0.195,-0.08},
+                {0,-0.19,-0.08},{0.09,-0.195,-0.08},{0.14,-0.19,-0.08},
+                {0.17,-0.18,-0.08},{0.15,-0.21,-0.08},{0.12,-0.23,-0.08},
+                {0.07,-0.245,-0.08},{0,-0.25,-0.08},{-0.07,-0.245,-0.08},
+                {-0.12,-0.23,-0.08},{-0.15,-0.21,-0.08}
+            }},
+            {id='action_line',role='action_line',kind='polyline',closed=false,points={
+                {-0.17,-0.18,-0.08},{-0.14,-0.205,-0.08},{-0.10,-0.23,-0.08},
+                {-0.05,-0.245,-0.08},{0,-0.25,-0.08},{0.05,-0.245,-0.08},
+                {0.10,-0.23,-0.08},{0.14,-0.205,-0.08},{0.17,-0.18,-0.08}
+            }},
+            {id='line_controller',role='line_controller',kind='point',closed=false,
+                points={{0,-0.30,-0.08}}},
+            {id='controller',role='controller',kind='point',closed=false,
+                points={{0,-0.22,-0.08}}}
+        }
+    }
+}
+for _,definition in ipairs(LIP_TEMPLATES) do
+    TEMPLATE_DEFINITIONS[#TEMPLATE_DEFINITIONS+1]=definition
+end
+
 local function copyColor(color)
     return {r=color.r,g=color.g,b=color.b,a=color.a}
 end
