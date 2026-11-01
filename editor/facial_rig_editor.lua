@@ -7319,6 +7319,28 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if state.cameraPan then
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
+        local c=state.camera
+        local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
+        local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
+        local vx,vz=c.fx-px,c.fz-pz
+        local viewLength=math.sqrt(vx*vx+vz*vz)
+        if viewLength>0 then vx,vz=vx/viewLength,vz/viewLength end
+        -- Pan the camera in screen axes without changing the mesh or authored points.
+        local rx,rz=vz,-vx
+        local rightLength=math.sqrt(rx*rx+rz*rz)
+        if rightLength>0 then rx,rz=rx/rightLength,rz/rightLength end
+        local scale=c.distance*0.001
+        local dx=(state.cameraPan.x-x)*scale
+        c.fx=c.fx+rx*dx
+        c.fy=c.fy+(y-state.cameraPan.y)*scale
+        c.fz=c.fz+rz*dx
+        state.cameraPan={x=x,y=y}
+        applyCamera()
+        return
+    end
     local pointDrag=state.surfacePointGizmo.drag
     if pointDrag then
         local origin,direction=viewportPickRay(x,y)
@@ -7407,29 +7429,6 @@ function onTouchMove(key,x,y)
             not state.cameraDrag and not state.cameraPan then
         state.maskBrushHover.pendingX=x
         state.maskBrushHover.pendingY=y
-    end
-    if state.cameraPan then
-        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
-        if state.workspace=='targets' then setTargetOverlayVisible(false) end
-        local c=state.camera
-        local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
-        local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
-        local vx,vz=c.fx-px,c.fz-pz
-        local viewLength=math.sqrt(vx*vx+vz*vz)
-        if viewLength>0 then vx,vz=vx/viewLength,vz/viewLength end
-        -- Match MeshDebug: horizontal movement follows camera-right and vertical movement
-        -- follows the screen/world Y axis while keeping the orbit orientation unchanged.
-        local rx,rz=vz,-vx
-        local rightLength=math.sqrt(rx*rx+rz*rz)
-        if rightLength>0 then rx,rz=rx/rightLength,rz/rightLength end
-        local scale=c.distance*0.001
-        local dx=(state.cameraPan.x-x)*scale
-        c.fx=c.fx+rx*dx
-        c.fy=c.fy+(y-state.cameraPan.y)*scale
-        c.fz=c.fz+rz*dx
-        state.cameraPan={x=x,y=y}
-        applyCamera()
-        return
     end
     if not state.cameraDrag then return end
     if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end

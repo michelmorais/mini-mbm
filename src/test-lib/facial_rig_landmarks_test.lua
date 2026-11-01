@@ -215,10 +215,13 @@ assert(actionColor.r~=areaColor.r and controllerColor.g~=areaColor.g and
     'area, action line, line controller and group controller must be visually distinct')
 local rightAreaColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[5])
 local rightActionColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[6])
+local rightControllerColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[8])
 assert(areaColor.r==rightAreaColor.r and areaColor.g==rightAreaColor.g and
     areaColor.b==rightAreaColor.b and actionColor.r==rightActionColor.r and
-    actionColor.g==rightActionColor.g and actionColor.b==rightActionColor.b,
-    'new left and right brows must share the same area and action-line palette')
+    actionColor.g==rightActionColor.g and actionColor.b==rightActionColor.b and
+    controllerColor.r==rightControllerColor.r and controllerColor.g==rightControllerColor.g and
+    controllerColor.b==rightControllerColor.b,
+    'new left and right brows must share the same area, action-line and controller palette')
 templateProject.surfaceControls[2].color=templateGroup.color
 assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2]).r==actionColor.r and
     actionColor.r~=templateGroup.color.r,
@@ -236,10 +239,16 @@ assert(leftOrange.r==1 and leftOrange.g==rightOrange.g and leftOrange.b==rightOr
     'previously saved left/right action-line accents must both display as orange')
 rightGroup.color={r=1,g=0.35,b=0.75,a=1}
 templateProject.surfaceControls[5].color={r=1,g=0.35,b=0.75,a=1}
+templateProject.surfaceControls[8].color={r=1,g=0.35,b=0.75,a=1}
+rightControllerColor=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[8])
+assert(rightControllerColor.r==controllerColor.r and rightControllerColor.g==controllerColor.g and
+    rightControllerColor.b==controllerColor.b,
+    'saved right-brow controller pink must display as green before migration')
 assert(ActionTemplates.standardizeColors(templateProject))
 assert(not ActionTemplates.standardizeColors(templateProject) and
     templateProject.surfaceControls[5].color.r==areaColor.r and
     templateProject.surfaceControls[6].color.g==actionColor.g and
+    templateProject.surfaceControls[8].color.g==controllerColor.g and
     rightGroup.color.b==areaColor.b,
     'old stock colors must migrate once to the shared facial palette')
 local customAreaColor={r=0.37,g=0.12,b=0.64,a=1}

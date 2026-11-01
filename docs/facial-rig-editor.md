@@ -78,7 +78,8 @@ group-controller position are preserved.
 
 All mask outlines remain visible. The shared default palette uses cyan for influence areas and
 orange for action lines on both sides and for future facial templates. Previously saved stock
-right-brow pink and older action-line accents are upgraded on load; custom colors are preserved.
+right-brow pink and older action-line accents are upgraded on load; custom area and action-line
+colors are preserved. Every group controller is green, including those in older projects.
 The group controller is a larger green square
 with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
 displays square anchors for editing.
@@ -90,6 +91,7 @@ dragging the yellow controller moves only the action lines and itself. Right dra
 anchor or the corresponding controller's set of points to mesh vertices. The editor should extend this
 template catalog to the remaining FACS-inspired facial actions without requiring the user to create
 each shape from an empty control.
+Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
 
 The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
 The user selects a shape by clicking its points or outline in the viewport. The **Edit shape**

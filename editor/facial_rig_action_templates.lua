@@ -109,8 +109,8 @@ function M.displayColor(group,control)
         end
         return color
     end
-    if color and not sameRgb(color,groupColor) then return color end
     if role=='controller' then return CONTROLLER_COLOR end
+    if color and not sameRgb(color,groupColor) then return color end
     if role=='line_controller' then return LINE_CONTROLLER_COLOR end
     return color or groupColor
 end
@@ -127,7 +127,11 @@ function M.standardizeColors(project)
         end
         for _,controlId in ipairs(group.controlIds or {}) do
             local control=M.controlById(project,controlId)
-            if control and control.role=='area' and group.templateId=='brow_right' and
+            if control and control.role=='controller' and
+                    (not sameRgb(control.color,CONTROLLER_COLOR) or control.color.a~=CONTROLLER_COLOR.a) then
+                control.color=copyColor(CONTROLLER_COLOR)
+                changed=true
+            elseif control and control.role=='area' and group.templateId=='brow_right' and
                     sameRgb(control.color,PREVIOUS_RIGHT_AREA_COLOR) then
                 control.color=copyColor(AREA_COLOR)
                 changed=true
