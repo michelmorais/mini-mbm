@@ -38,6 +38,13 @@ tFacialReferences = require "facial_rig_references"
 tTargetGizmo = require "facial_rig_target_gizmo"
 tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
+tFacialPolygon = require "facial_rig_polygon"
+tGeneratedRegions = require "facial_rig_generated_regions"
+tFacialPolygonEditor = require "facial_rig_polygon_editor"
+tFacialMaskRepresentation = require "facial_rig_mask_representation"
+tFacialActionTemplates = require "facial_rig_action_templates"
+tSurfaceControlEditor = require "facial_surface_control_editor"
+tSurfacePointGizmo = require "facial_surface_point_gizmo"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 tMeshImporter = require "blender_mesh_importer"
@@ -60,8 +67,14 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
+    selectedMask=1, maskCreationRepresentation=2, maskRepresentationChangePending=nil,
+    selectedFacialMask=1,
+    selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
+    surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
+    surfaceControlNameDraft='', surfaceControlKind=1,
+    maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
+    maskPolygonDrag=nil, maskPolygonSelectedPoint=nil,
     maskBrushRadius=0.045,
     maskBrushReference={key=nil,extent=nil},
     maskBrushSpatial={key=nil,cellSize=nil,cells=nil},
@@ -70,14 +83,20 @@ local state = {
         lastTime=0,lastHit=nil,forceSurfaceHit=true},
     maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
         buildSelected=nil,buildSurfaceCoords=nil,buildSurfaceUvs=nil,buildSurfaceIndices=nil,
-        visible=true,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
+        -- The legacy mask remains loadable/editable for compatibility, but its
+        -- viewport overlay starts disabled so it cannot be confused with the
+        -- FACS-inspired facial action masks in the Landmarks workspace.
+        visible=false,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
         surfaceUvDirty=false,surfaceUvCallbackArmed=false,surfaceUvChanges={},
         meshHidden=false,meshWasVisible=true,keepSurfaceWhileDirty=false},
+    surfaceControlOverlay={dirty=true,selectionDirty=false,styledGroupIndex=nil,
+        lines={},markers={},visible=true},
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
-    faceGuideDirty=true, faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
+    faceGuideDirty=true, showLandmarkGuide=false,
+    faceGuide={wireframe=nil,markers={},axes={},worldPoints={},origin=nil,length=nil},
     faceGizmoDrag=nil, windowMove=false, leftPanelRight=560,
     rigPreview={dirty=true,objects={},descriptor=nil},
     rigReview={dirty=true,data=nil},
@@ -106,6 +125,9 @@ local state = {
 }
 
 local refreshMaskVisualization
+local refreshMaskPolygonOverlay
+local refreshSurfaceControlOverlay
+local destroySurfaceControlOverlay
 local startMaskVisualizationBuild
 local stepMaskVisualizationBuild
 local updateMaskBrushHover
@@ -671,7 +693,9 @@ end
 local function historySnapshot()
     return {project=tUtil.deepCopyTable(state.project),modified=state.modified,
         selectedRole=state.selectedRole,selectedLandmark=state.selectedLandmark,
-        selectedMask=state.selectedMask,landmarkEditMode=state.landmarkEditMode,
+        selectedMask=state.selectedMask,selectedFacialMask=state.selectedFacialMask,
+        selectedSurfaceControl=state.selectedSurfaceControl,
+        landmarkEditMode=state.landmarkEditMode,
         selectedExpressionTarget=state.expressions.selectedTarget,
         selectedExpressionPose=state.expressions.selectedPose,
         selectedClip=state.clipEditor.selectedClip,keySelected=state.clipEditor.keySelected,
@@ -684,6 +708,45 @@ local function pushUndoSnapshot()
     state.redoStack={}
 end
 
+requestMaskRepresentationChange=function(mask,index,representation)
+    if not mask or mask.representation==representation then return false end
+    if tFacialMaskRepresentation.hasAuthoredData(mask) then
+        state.maskRepresentationChangePending={mask=mask,index=index,representation=representation}
+        return false
+    end
+    pushUndoSnapshot()
+    tFacialMaskRepresentation.apply(mask,representation)
+    state.maskRepresentationChangePending=nil
+    markMaskVisualizationDirty()
+    markModified()
+    return true
+end
+
+showMaskRepresentationWarning=function()
+    local pending=state.maskRepresentationChangePending
+    if not pending then return end
+    local mask=state.project.masks and state.project.masks[pending.index]
+    if mask~=pending.mask then
+        state.maskRepresentationChangePending=nil
+        return
+    end
+    local targetLabel=tLang.L(pending.representation=='polygon' and
+        'fre_mask_representation_polygon' or 'fre_mask_representation_legacy')
+    tImGui.Separator()
+    tImGui.TextWrapped(string.format(tLang.L('fre_mask_representation_warning_fmt'),mask.name or '',targetLabel))
+    if tImGui.Button(tLang.L('fre_mask_representation_confirm')..'##freMaskRepresentationConfirm') then
+        pushUndoSnapshot()
+        tFacialMaskRepresentation.apply(mask,pending.representation)
+        state.maskRepresentationChangePending=nil
+        markMaskVisualizationDirty()
+        markModified()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_mask_representation_cancel')..'##freMaskRepresentationCancel') then
+        state.maskRepresentationChangePending=nil
+    end
+end
+
 local function restoreHistorySnapshot(snapshot)
     if not snapshot or not snapshot.project then return false end
     state.project=tUtil.deepCopyTable(snapshot.project)
@@ -691,6 +754,10 @@ local function restoreHistorySnapshot(snapshot)
     state.selectedRole=snapshot.selectedRole or state.project.selectedRole or 1
     state.selectedLandmark=snapshot.selectedLandmark or state.project.selectedLandmark or 1
     state.selectedMask=snapshot.selectedMask or state.project.selectedMask or 1
+    state.selectedFacialMask=snapshot.selectedFacialMask or state.project.selectedFacialMask or 1
+    state.selectedSurfaceControl=snapshot.selectedSurfaceControl or state.project.selectedSurfaceControl or 1
+    state.selectedSurfaceControlPoint=nil
+    state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=snapshot.landmarkEditMode or state.project.landmarkEditMode or 1
     state.expressions.selectedTarget=snapshot.selectedExpressionTarget or 1
     state.expressions.selectedPose=snapshot.selectedExpressionPose or 1
@@ -704,9 +771,12 @@ local function restoreHistorySnapshot(snapshot)
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
+    state.project.selectedFacialMask=state.selectedFacialMask
+    state.project.selectedSurfaceControl=state.selectedSurfaceControl
     state.project.landmarkEditMode=state.landmarkEditMode
     state.landmarkMarkersDirty=true
     state.faceGuideDirty=true
+    state.surfaceControlOverlay.dirty=true
     state.targetGizmo.dirty=true
     markMaskVisualizationDirty()
     state.rigPreview.dirty=true
@@ -771,7 +841,7 @@ local function destroyMaskVisualization()
     end
     state.maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
         buildSelected=nil,buildSurfaceCoords=nil,buildSurfaceUvs=nil,buildSurfaceIndices=nil,
-        visible=true,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
+        visible=false,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
         meshHidden=false,meshWasVisible=true,keepSurfaceWhileDirty=false}
     state.maskBrushHover={cursor=nil,lastX=nil,lastY=nil,pendingX=nil,pendingY=nil,
@@ -811,6 +881,7 @@ local function destroyPreview()
     destroyMirrorGuide()
     destroyRigPreview()
     destroyMaskVisualization()
+    destroySurfaceControlOverlay()
     destroyTargetOverlay()
     local targetGizmo=state.targetGizmo
     for _,object in pairs(targetGizmo.rings) do dpCall(function() object:destroy() end) end
@@ -1045,7 +1116,8 @@ end
 local function refreshFaceGuide()
     local guide=state.faceGuide
     local origin=state.project and state.project.faceOrigin
-    if (state.workspace~='face_position' and state.workspace~='landmarks') or
+    if (state.workspace~='face_position' and
+            (state.workspace~='landmarks' or not state.showLandmarkGuide)) or
             not state.mesh or not origin or not origin.placed then
         hideFaceGuide()
         state.faceGuideDirty=false
@@ -1495,7 +1567,8 @@ local function refreshLandmarkMarkers()
             for pathIndex,path in ipairs(markerPaths) do marker:set(path,pathIndex) end
         end
         local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
-        local visible=state.workspace=='landmarks' and state.mesh.visible and landmark.placed and landmark.position and not originPlaced
+        local visible=state.workspace=='landmarks' and state.showLandmarkGuide and
+            state.mesh.visible and landmark.placed and landmark.position and not originPlaced
         marker.visible=visible and true or false
         if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
         if index==state.selectedLandmark then marker:setColor(1,0.8,0.1,1)
@@ -1511,6 +1584,250 @@ end
 
 local function markFaceGuideDirty()
     state.faceGuideDirty=true
+end
+
+destroySurfaceControlOverlay=function()
+    local overlay=state.surfaceControlOverlay
+    for _,object in pairs(overlay.lines or {}) do dpCall(function() object:destroy() end) end
+    for _,object in pairs(overlay.markers or {}) do dpCall(function() object:destroy() end) end
+    for _,object in pairs(state.surfacePointGizmo.axes) do dpCall(function() object:destroy() end) end
+    state.surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil}
+    state.surfaceControlOverlay={dirty=true,lines={},markers={},visible=true}
+end
+
+setSurfaceControlOverlayVisible=function(visible)
+    local overlay=state.surfaceControlOverlay
+    overlay.visible=visible==true
+    for _,object in pairs(overlay.lines or {}) do
+        object.visible=overlay.visible and state.workspace=='landmarks'
+    end
+    for _,object in pairs(overlay.markers or {}) do
+        object.visible=overlay.visible and state.workspace=='landmarks'
+    end
+    for _,object in pairs(state.surfacePointGizmo.axes) do
+        object.visible=overlay.visible and state.workspace=='landmarks'
+    end
+end
+
+commitSurfaceControl=function(control)
+    if not control or not state.topology then return false end
+    tSurfaceControlEditor.ensure(control)
+    control.topologySignature=state.topology.signature or ''
+    if control.kind=='point' and #control.points>1 then
+        control.points={control.points[1]}
+    end
+    state.project.selectedSurfaceControl=state.selectedSurfaceControl
+    state.surfaceControlOverlay.dirty=true
+    markModified()
+    return true
+end
+
+local function setSurfaceControlLineStyle(object,group,control,groupIndex,visible)
+    local groupColor=group.color or {r=1,g=1,b=1,a=1}
+    local selected=groupIndex==state.selectedFacialMask
+    object.alwaysOnTopPriority=selected and 2 or 1
+    local color=tFacialActionTemplates.displayColor(group,control)
+    object:setColor(color.r or groupColor.r,color.g or groupColor.g,
+        color.b or groupColor.b,selected and (color.a or groupColor.a) or
+            (color.a or groupColor.a)*0.45)
+    object.visible=visible and group.enabled~=false
+end
+
+-- LINE_MESH:set uploads its vertex buffer. Selection changes only styles,
+-- selected markers, and the gizmo; the other contours keep their geometry.
+refreshSurfaceControlOverlay=function(selectionOnly)
+    local overlay=state.surfaceControlOverlay
+    if not state.mesh or not state.topology then
+        for _,object in pairs(overlay.lines or {}) do object.visible=false end
+        for _,object in pairs(overlay.markers or {}) do object.visible=false end
+        for _,object in pairs(state.surfacePointGizmo.axes) do object.visible=false end
+        state.surfacePointGizmo.origin=nil
+        overlay.dirty=false
+        overlay.selectionDirty=false
+        overlay.styledGroupIndex=nil
+        return
+    end
+    local groups=state.project.facialMasks or {}
+    local visible=overlay.visible and state.workspace=='landmarks'
+    local activeLines,emptyControls=not selectionOnly and {} or nil,{}
+    for groupIndex,group in ipairs(groups) do
+        local updateGroup=not selectionOnly or groupIndex==state.selectedFacialMask or
+            groupIndex==overlay.styledGroupIndex
+        for _,controlId in ipairs(updateGroup and group.controlIds or emptyControls) do
+            local control=tFacialActionTemplates.controlById(state.project,controlId)
+            if control then
+                local object=overlay.lines[control.id]
+                if not selectionOnly then
+                    tSurfaceControlEditor.ensure(control)
+                    local points=tFacialPolygon.resolvePoints(control,state.topology)
+                    local path={}
+                    for _,point in ipairs(points) do
+                        local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
+                        path[#path+1]=position.x
+                        path[#path+1]=position.y
+                        path[#path+1]=position.z
+                    end
+                    if control.closed and #points>1 then
+                        path[#path+1]=path[1]
+                        path[#path+1]=path[2]
+                        path[#path+1]=path[3]
+                    end
+                    if #points<2 then
+                        if object then dpCall(function() object:destroy() end) end
+                        object=nil
+                        overlay.lines[control.id]=nil
+                    else
+                        if object and object.pathCount~=1 then
+                            dpCall(function() object:destroy() end)
+                            object=nil
+                        end
+                        if not object then
+                            object=line:new('3d',0,0,0)
+                            object.alwaysOnTop=true
+                            object.alwaysRender=true
+                            object.pathCount=1
+                            overlay.lines[control.id]=object
+                            object:add(path)
+                        else
+                            object:set(path,1)
+                        end
+                    end
+                end
+                if object then
+                    setSurfaceControlLineStyle(object,group,control,groupIndex,visible)
+                    if activeLines then activeLines[control.id]=true end
+                end
+            end
+        end
+    end
+    if activeLines then
+        for controlId,object in pairs(overlay.lines or {}) do
+            if not activeLines[controlId] then
+                dpCall(function() object:destroy() end)
+                overlay.lines[controlId]=nil
+            end
+        end
+    end
+    local markerPaths={area={},action_line={},line_controller={},controller={}}
+    local markerColors={}
+    local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
+    local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
+        (bounds.maxZ-bounds.minZ)^2)
+    local origin=state.project.faceOrigin
+    local faceScale=origin and origin.placed and tonumber(origin.scale) or nil
+    -- The previous size used the complete mesh bounds. On a head-and-body
+    -- mesh that made each editable anchor look like a large yellow rectangle.
+    -- Anchors belong to the face reference, so size them from faceScale and
+    -- retain a small bounds fallback for old projects without an origin.
+    local size=math.max(faceScale and faceScale*0.006 or extent*0.0015,0.001)
+    local selectedGroup=groups[state.selectedFacialMask]
+    for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,selectedGroup)) do
+        local control=entry.control
+        local points=tFacialPolygon.resolvePoints(control,state.topology)
+        local role=markerPaths[control.role] and control.role or 'area'
+        local paths=markerPaths[role]
+        markerColors[role]=tFacialActionTemplates.displayColor(selectedGroup,control)
+        for _,point in ipairs(points) do
+            local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
+            local halfSize=size*(role=='controller' and 1.6 or
+                role=='line_controller' and 1.35 or 1)
+            paths[#paths+1]={position.x-halfSize,position.y-halfSize,position.z,
+                position.x+halfSize,position.y-halfSize,position.z,
+                position.x+halfSize,position.y+halfSize,position.z,
+                position.x-halfSize,position.y+halfSize,position.z,
+                position.x-halfSize,position.y-halfSize,position.z}
+            if role=='controller' or role=='line_controller' then
+                local crossSize=halfSize*0.5
+                paths[#paths+1]={position.x-crossSize,position.y,position.z,
+                    position.x+crossSize,position.y,position.z}
+                paths[#paths+1]={position.x,position.y-crossSize,position.z,
+                    position.x,position.y+crossSize,position.z}
+            end
+        end
+    end
+    for role,paths in pairs(markerPaths) do
+        local object=overlay.markers[role]
+        if #paths==0 or (object and object.pathCount~=#paths) then
+            if object then dpCall(function() object:destroy() end) end
+            object=nil
+            overlay.markers[role]=nil
+        end
+        if #paths>0 then
+            if not object then
+                object=line:new('3d',0,0,0)
+                object.alwaysOnTop=true
+                object.alwaysOnTopPriority=(role=='controller' or role=='line_controller') and 4 or 3
+                object.alwaysRender=true
+                object.pathCount=#paths
+                overlay.markers[role]=object
+                for _,path in ipairs(paths) do object:add(path) end
+            else
+                for index,path in ipairs(paths) do object:set(path,index) end
+            end
+            local color=markerColors[role]
+            object:setColor(color.r or 1,color.g or 1,color.b or 1,color.a or 1)
+            object.visible=visible and selectedGroup.enabled~=false
+        end
+    end
+    local gizmo=state.surfacePointGizmo
+    local selectedControl=state.project.surfaceControls[state.selectedSurfaceControl]
+    local selectedPoint=selectedGroup and selectedGroup.enabled~=false and selectedControl and
+        state.selectedSurfaceControlPoint and
+        tSurfacePointGizmo.position(selectedControl,state.selectedSurfaceControlPoint,state.topology)
+    local selectedInGroup=false
+    for _,controlId in ipairs(selectedGroup and selectedGroup.controlIds or {}) do
+        if selectedControl and selectedControl.id==controlId then selectedInGroup=true; break end
+    end
+    if not selectedInGroup then selectedPoint=nil end
+    gizmo.origin=selectedPoint
+    gizmo.length=selectedPoint and math.max(faceScale and faceScale*0.09 or extent*0.025,0.02) or nil
+    for name,axis in pairs(tSurfacePointGizmo.axes) do
+        local object=gizmo.axes[name]
+        if selectedPoint and visible then
+            local path={selectedPoint.x,selectedPoint.y,selectedPoint.z,
+                selectedPoint.x+axis.x*gizmo.length,
+                selectedPoint.y+axis.y*gizmo.length,
+                selectedPoint.z+axis.z*gizmo.length}
+            if not object then
+                object=line:new('3d',0,0,0)
+                object:add(path)
+                object.alwaysOnTop=true
+                object.alwaysRender=true
+                object.alwaysOnTopPriority=5
+                gizmo.axes[name]=object
+            else
+                object:set(path,1)
+            end
+            object:setColor(table.unpack(axis.color))
+            object.visible=true
+        elseif object then
+            object.visible=false
+        end
+    end
+    overlay.dirty=false
+    overlay.selectionDirty=false
+    overlay.styledGroupIndex=state.selectedFacialMask
+end
+
+ensureFacialActionTemplates=function()
+    local origin=state.project and state.project.faceOrigin
+    if not state.topology or not origin or not origin.placed or
+            #(state.project.facialMasks or {})>0 then return false end
+    if not tFacialActionTemplates.instantiate(state.project,state.topology,origin,origin.scale) then return false end
+    state.maskVisualization.visible=false
+    setMaskVisualizationViewportVisible(false)
+    state.selectedFacialMask=1
+    state.project.selectedFacialMask=1
+    local group=state.project.facialMasks[1]
+    local firstId=group and group.controlIds and group.controlIds[1]
+    local _,firstIndex=tFacialActionTemplates.controlById(state.project,firstId)
+    state.selectedSurfaceControl=firstIndex or 1
+    state.project.selectedSurfaceControl=state.selectedSurfaceControl
+    state.surfaceControlOverlay.dirty=true
+    markFaceGuideDirty()
+    markModified()
+    setStatus(tLang.L('fre_facs_templates_loaded'),false)
+    return true
 end
 
 local function refreshFacialTargetCatalog()
@@ -2640,12 +2957,19 @@ local function loadMesh(path, preserveProject)
     if not preserveProject or state.project.meshTopologySignature=='' then
         tFacialProject.setTopology(state.project,topology)
     end
+    local standardizedColors=preserveProject and
+        tFacialActionTemplates.standardizeColors(state.project) or false
+    local addedLineControllers=preserveProject and tFacialActionTemplates.ensureLineControllers(
+        state.project,topology,state.project.faceOrigin,state.project.faceOrigin.scale) or false
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
+    state.selectedFacialMask=state.project.selectedFacialMask or 1
+    state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
-    state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
+    state.modified=embeddedTargetEdits or standardizedColors or addedLineControllers or
+        (preserveProject and state.modified or true)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
@@ -2709,6 +3033,13 @@ local function newProject()
     state.selectedRole=1
     state.selectedLandmark=1
     state.selectedMask=1
+    state.selectedFacialMask=1
+    state.maskCreationRepresentation=2
+    state.maskRepresentationChangePending=nil
+    state.selectedSurfaceControl=1
+    state.selectedSurfaceControlPoint=nil
+    state.surfaceControlNameDraft=''
+    state.surfaceControlKind=1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     markLandmarkMarkersDirty()
@@ -2774,6 +3105,10 @@ local function openProject()
         startedAt=0,phase='',detail='',progress=0}
     state.selectedRole=project.selectedRole or 1
     state.selectedLandmark=project.selectedLandmark or 1
+    state.selectedFacialMask=project.selectedFacialMask or 1
+    state.selectedSurfaceControl=project.selectedSurfaceControl or 1
+    state.selectedSurfaceControlPoint=nil
+    state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
     clearHistory()
     if projectNeedsSync then
@@ -2789,6 +3124,8 @@ local function saveProject(path)
     state.project.selectedRole=state.selectedRole
     state.project.selectedLandmark=state.selectedLandmark
     state.project.selectedMask=state.selectedMask
+    state.project.selectedFacialMask=state.selectedFacialMask
+    state.project.selectedSurfaceControl=state.selectedSurfaceControl
     state.project.landmarkEditMode=state.landmarkEditMode
     state.project.expressions=state.project.expressions or tFacialExpressions.new()
     state.project.expressions.selectedTarget=state.expressions.selectedTarget or 1
@@ -3360,6 +3697,13 @@ local function selectWorkspace(workspace)
         state.targetAuthoring.mirrorPlan=nil
     end
     state.workspace=nextWorkspace
+    setSurfaceControlOverlayVisible(state.workspace=='landmarks')
+    if state.workspace~='masks' then
+        -- Legacy mask geometry is a compatibility view. Keep it out of every
+        -- other workspace, especially Landmarks where FACS action templates
+        -- are authored and reviewed.
+        state.maskVisualization.visible=false
+    end
     if nextWorkspace=='targets' and state.targetAuthoring.mode==4 then
         updateTargetPreviewWeights()
     end
@@ -3385,6 +3729,7 @@ local function selectWorkspace(workspace)
     end
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
+    state.surfaceControlOverlay.dirty=true
     state.maskVisualization.dirty=true
 end
 
@@ -3416,6 +3761,7 @@ local function deleteSelectedMask()
     if not masks[index] then return false end
     pushUndoSnapshot()
     table.remove(masks,index)
+    state.maskRepresentationChangePending=nil
     if #masks==0 then
         state.selectedMask=1
     else
@@ -3429,10 +3775,98 @@ local function deleteSelectedMask()
     return true
 end
 
+local function polygonCommit(mask)
+    local polygon=tFacialPolygonEditor.ensure(mask)
+    if not polygon or not state.topology then return false end
+    if not tFacialPolygon.rebuild(polygon,state.topology) then return false end
+    mask.topologySignature=state.topology.signature
+    markMaskVisualizationDirty(true)
+    if state.workspace=='masks' and state.maskWorkspaceMode==3 and startMaskVisualizationBuild then
+        startMaskVisualizationBuild()
+    end
+    markModified()
+    return true
+end
+
 local function showMasks()
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
+    end
+    tImGui.Text(tLang.L('fre_generated_regions'))
+    local groups=state.project.facialMasks or {}
+    if #groups==0 then
+        tImGui.TextDisabled(tLang.L('fre_generated_regions_need_shapes'))
+        tImGui.Separator()
+    else
+        local language=tLang.getLanguage()
+        local cache=state.generatedRegionNamesCache
+        if not cache or cache.groups~=groups or cache.count~=#groups or cache.language~=language then
+            local names={}
+            for _,group in ipairs(groups) do
+                names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
+                    (group.name or group.id or '')
+            end
+            cache={groups=groups,count=#groups,language=language,names=names}
+            state.generatedRegionNamesCache=cache
+        end
+        local selected=math.max(1,math.min(#groups,state.selectedFacialMask or 1))
+        tImGui.SetNextItemWidth(300)
+        local changed,index=tImGui.Combo(tLang.L('fre_generated_region_source')..'##freRegionSource',
+            selected,cache.names)
+        if changed then
+            selected=index
+            state.selectedFacialMask=index
+            state.project.selectedFacialMask=index
+            state.selectedSurfaceControlPoint=nil
+            state.surfaceControlOverlay.selectionDirty=true
+        end
+        local group=groups[selected]
+        local region=tGeneratedRegions.regionForGroup(state.project,group)
+        local status=tGeneratedRegions.status(state.project,state.topology,region)
+        local statusKey='fre_generated_region_status_'..status
+        tImGui.TextWrapped(tLang.L(statusKey))
+        if region then
+            tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
+                #(region.vertexWeights or {})))
+        end
+        local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
+        if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
+            pushUndoSnapshot()
+            local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
+            if generated then
+                markModified()
+                setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
+                    #generated.vertexWeights),false)
+            else
+                table.remove(state.undoStack)
+                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+            end
+        end
+        showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
+        tImGui.SameLine()
+        tImGui.BeginDisabled(status~='ready')
+        if tImGui.Button(tLang.L('fre_generated_region_copy_target')..'##freRegionCopyTarget') then
+            local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
+            if not vertices then
+                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+            else
+                pushUndoSnapshot()
+                local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
+                mask.vertices=vertices
+                mask.topologySignature=region.topologySignature
+                state.selectedMask=#state.project.masks
+                state.project.selectedMask=state.selectedMask
+                state.maskWorkspaceMode=3
+                markMaskVisualizationDirty()
+                markModified()
+                startMaskVisualizationBuild()
+                setStatus(tLang.L('fre_generated_region_copied'),false)
+            end
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_generated_region_copy_help'))
+        tImGui.Separator()
     end
     local maskMode=state.maskWorkspaceMode or 2
     if #(state.project.masks or {})==0 and maskMode==3 then maskMode=2 end
@@ -3455,16 +3889,28 @@ local function showMasks()
     end
     tImGui.TextWrapped(tLang.L(maskMode==1 and 'fre_masks_roles_purpose' or
         maskMode==2 and 'fre_masks_manage_purpose' or 'fre_masks_edit_purpose'))
+    showMaskRepresentationWarning()
     tImGui.Separator()
     if maskMode==2 then
         tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
+        tImGui.Text(tLang.L('fre_new_mask_representation'))
+        tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
+        local creationRepresentation=state.maskCreationRepresentation or 1
+        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+            '##freNewTargetMaskRepresentationLegacy',creationRepresentation,1)
+        tImGui.SameLine()
+        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+            '##freNewTargetMaskRepresentationPolygon',creationRepresentation,2)
+        state.maskCreationRepresentation=creationRepresentation
         tImGui.SetNextItemWidth(250)
         local nameChanged,targetMaskName=tImGui.InputText(
             tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
         if nameChanged then state.targetMaskNameDraft=targetMaskName end
         if tImGui.Button(tLang.L('fre_target_mask_create')) then
             pushUndoSnapshot()
-            tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            local createdMask=tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            tFacialMaskRepresentation.apply(createdMask,
+                state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
             state.selectedMask=#state.project.masks
             state.project.selectedMask=state.selectedMask
             state.targetMaskNameDraft=''
@@ -3552,9 +3998,20 @@ local function showMasks()
                 selected.enabled=enabled
                 markModified()
             end
+            tImGui.Text(tLang.L('fre_new_mask_representation'))
+            tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
+            local creationRepresentation=state.maskCreationRepresentation or 1
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freNewRigMaskRepresentationLegacy',creationRepresentation,1)
+            tImGui.SameLine()
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freNewRigMaskRepresentationPolygon',creationRepresentation,2)
+            state.maskCreationRepresentation=creationRepresentation
             if tImGui.Button(tLang.L('fre_add_mask')) then
                 pushUndoSnapshot()
-                tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                local createdMask=tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                tFacialMaskRepresentation.apply(createdMask,
+                    state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
                 state.selectedMask=#state.project.masks
                 state.project.selectedMask=state.selectedMask
                 state.maskWorkspaceMode=2
@@ -3571,8 +4028,9 @@ local function showMasks()
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
-    if tImGui.BeginTable('freMasks',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+    if tImGui.BeginTable('freMasks',4,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
         tImGui.TableSetupColumn(tLang.L('fre_mask_column'))
+        tImGui.TableSetupColumn(tLang.L('fre_mask_representation'))
         tImGui.TableSetupColumn(tLang.L('fre_role_column'))
         tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'))
         tImGui.TableHeadersRow()
@@ -3582,16 +4040,21 @@ local function showMasks()
             local maskLabel=(mask.name or tLang.L('fre_unassigned')) .. '##freMaskRow' .. index
             if tImGui.Selectable(maskLabel,index==state.selectedMask) then
                 state.selectedMask=index
+                state.maskPolygonSelectedPoint=nil
+                state.maskRepresentationChangePending=nil
                 state.maskDeletePending=nil
                 markMaskVisualizationDirty()
                 if maskMode==3 then startMaskVisualizationBuild() end
             end
             tImGui.TableSetColumnIndex(1)
+            tImGui.Text(tLang.L(mask.representation=='polygon' and
+                'fre_mask_representation_polygon' or 'fre_mask_representation_legacy'))
+            tImGui.TableSetColumnIndex(2)
             local rigMask=tFacialProject.isRigMask(mask)
             local role=rigMask and state.project.roles[mask.roleIndex or 1]
             tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
                 tLang.L('fre_target_mask_scope'))
-            tImGui.TableSetColumnIndex(2)
+            tImGui.TableSetColumnIndex(3)
             tImGui.Text(tostring(#(mask.vertices or {})))
         end
         tImGui.EndTable()
@@ -3660,9 +4123,83 @@ local function showMasks()
                 markMaskVisualizationDirty()
                 markModified()
             end
+            tImGui.Text(tLang.L('fre_mask_representation'))
+            tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
+            local previousRepresentation=selectedMask.representation=='polygon' and 2 or 1
+            local representation=previousRepresentation
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freMaskRepresentationLegacy',representation,1)
+            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+            tImGui.SameLine()
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freMaskRepresentationPolygon',representation,2)
+            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+            if representation~=previousRepresentation then
+                requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                    representation==2 and 'polygon' or 'vertex')
+            end
             tImGui.Separator()
         end
         if maskMode==3 then
+            tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
+            local representation=selectedMask.representation=='polygon' and 2 or 1
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freMaskEditRepresentationLegacy',representation,1)
+            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+            tImGui.SameLine()
+            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freMaskEditRepresentationPolygon',representation,2)
+            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+            if (representation==2 and selectedMask.representation~='polygon') or
+                    (representation==1 and selectedMask.representation~='vertex') then
+                requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                    representation==2 and 'polygon' or 'vertex')
+            end
+            if selectedMask.representation=='polygon' then
+                local polygon=tFacialPolygonEditor.ensure(selectedMask)
+                tImGui.Text(string.format(tLang.L('fre_mask_polygon_points_fmt'),#polygon.points))
+                tImGui.TextWrapped(tLang.L('fre_mask_polygon_edit_help'))
+                local canClose=#polygon.points>=3 and not polygon.closed
+                tImGui.BeginDisabled(not canClose)
+                if tImGui.Button(tLang.L('fre_mask_polygon_close') .. '##freMaskPolygonClose') then
+                    pushUndoSnapshot()
+                    polygon.closed=true
+                    polygonCommit(selectedMask)
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_mask_polygon_close_tooltip'))
+                tImGui.SameLine()
+                tImGui.BeginDisabled(not polygon.closed)
+                if tImGui.Button(tLang.L('fre_mask_polygon_reopen') .. '##freMaskPolygonReopen') then
+                    pushUndoSnapshot()
+                    polygon.closed=false
+                    polygonCommit(selectedMask)
+                end
+                tImGui.EndDisabled()
+                tImGui.SameLine()
+                tImGui.BeginDisabled(not state.maskPolygonSelectedPoint)
+                if tImGui.Button(tLang.L('fre_mask_polygon_remove_point') .. '##freMaskPolygonRemove') then
+                    pushUndoSnapshot()
+                    table.remove(polygon.points,state.maskPolygonSelectedPoint)
+                    state.maskPolygonSelectedPoint=#polygon.points>0 and
+                        math.min(state.maskPolygonSelectedPoint,#polygon.points) or nil
+                    if #polygon.points<3 then polygon.closed=false end
+                    polygonCommit(selectedMask)
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_mask_polygon_remove_point_tooltip'))
+                if tImGui.Button(tLang.L('fre_mask_polygon_clear') .. '##freMaskPolygonClear') then
+                    pushUndoSnapshot()
+                    polygon.points={}
+                    polygon.closed=false
+                    polygon.derivedVertexWeights={}
+                    state.maskPolygonSelectedPoint=nil
+                    polygonCommit(selectedMask)
+                end
+                showHelpTooltip(tLang.L('fre_mask_polygon_clear_tooltip'))
+                tImGui.Text(string.format(tLang.L('fre_mask_polygon_weights_fmt'),
+                    #polygon.derivedVertexWeights))
+            else
             tImGui.BeginDisabled(not visualizationReady)
             if not state.maskLoopMode then tImGui.TextWrapped(tLang.L('fre_mask_edit_help')) end
             tImGui.Text(tLang.L('fre_mask_edit_mode'))
@@ -3708,11 +4245,20 @@ local function showMasks()
             tImGui.Text(string.format(tLang.L('fre_mask_visualization_stats_fmt'),
                 state.maskVisualization.vertexCount,state.maskVisualization.faceCount))
             tImGui.EndDisabled()
+            end
         end
         if maskMode==2 then
             if tImGui.Button(tLang.L('fre_mask_clear')) then
                 pushUndoSnapshot()
-                selectedMask.vertices={}
+                if selectedMask.representation=='polygon' then
+                    selectedMask.polygon=selectedMask.polygon or {}
+                    selectedMask.polygon.points={}
+                    selectedMask.polygon.derivedVertexWeights={}
+                    selectedMask.polygon.closed=false
+                    state.maskPolygonSelectedPoint=nil
+                else
+                    selectedMask.vertices={}
+                end
                 markMaskVisualizationDirty()
                 markModified()
             end
@@ -3909,6 +4455,14 @@ local function synchronizeLandmarkSides()
     return changed
 end
 
+local function mirrorFacialMaskSides(group)
+    if state.landmarkEditMode~=2 or not state.topology then return false end
+    local changed=tFacialActionTemplates.mirrorGroup(state.project,state.topology,
+        group,landmarkMirrorCenterX())
+    if changed then state.surfaceControlOverlay.dirty=true end
+    return changed
+end
+
 local function setLandmarkPosition(landmark,position,vertexIndex)
     if not landmark or not position then return end
     pushUndoSnapshot()
@@ -4028,27 +4582,26 @@ local function snapSelectedLandmarkDepthToSurface()
 end
 
 local function showLandmarks()
-    tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
-    if not state.mesh then
-        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
-        return
-    end
-    local landmarks=state.project.landmarks
-    tImGui.PushItemWidth(220)
+    tImGui.Separator()
     tImGui.Text(tLang.L('fre_landmark_edit_mode'))
-    local previousEditMode=state.landmarkEditMode
-    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_async'),state.landmarkEditMode,1)
+    local editMode=state.landmarkEditMode
+    editMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_async'),editMode,1)
     tImGui.SameLine()
-    state.landmarkEditMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_sync'),state.landmarkEditMode,2)
-    if previousEditMode~=2 and state.landmarkEditMode==2 then
+    editMode=tImGui.RadioButton(tLang.L('fre_landmark_mode_sync'),editMode,2)
+    if editMode~=state.landmarkEditMode then
         pushUndoSnapshot()
-        if synchronizeLandmarkSides() then
-            markModified()
-            markLandmarkMarkersDirty()
-            markFaceGuideDirty()
-        else
-            table.remove(state.undoStack)
+        state.landmarkEditMode=editMode
+        state.project.landmarkEditMode=editMode
+        if editMode==2 then
+            if synchronizeLandmarkSides() then
+                markLandmarkMarkersDirty()
+                markFaceGuideDirty()
+            end
+            local group=state.project.facialMasks[state.selectedFacialMask] or
+                state.project.facialMasks[1]
+            mirrorFacialMaskSides(group)
         end
+        markModified()
     end
     if state.landmarkEditMode==2 then
         tImGui.TextWrapped(tLang.L('fre_landmark_sync_help'))
@@ -4057,6 +4610,114 @@ local function showLandmarks()
             tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
         end
     end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_facs_masks'))
+    tImGui.TextWrapped(tLang.L('fre_facs_masks_help'))
+    local groups=state.project.facialMasks or {}
+    if #groups==0 then
+        if not state.mesh then
+            tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+        elseif not state.project.faceOrigin or not state.project.faceOrigin.placed then
+            tImGui.TextDisabled(tLang.L('fre_facs_masks_need_origin'))
+        else
+            if tImGui.Button(tLang.L('fre_facs_load_templates') .. '##freFacsLoadTemplates') then
+                ensureFacialActionTemplates()
+            end
+        end
+    else
+        local names={}
+        for _,group in ipairs(groups) do
+            names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
+                (group.name or group.id or '')
+        end
+        local selected=math.max(1,math.min(#names,state.selectedFacialMask or 1))
+        tImGui.SetNextItemWidth(300)
+        local changed,index=tImGui.Combo(tLang.L('fre_facs_select_mask') .. '##freFacsSelectMask',selected,names)
+        if changed then
+            state.selectedFacialMask=index
+            state.project.selectedFacialMask=index
+            state.selectedSurfaceControlPoint=nil
+            state.surfaceControlOverlay.selectionDirty=true
+        end
+        local selectedGroup=groups[state.selectedFacialMask]
+        if selectedGroup then
+            local actionUnits=table.concat(selectedGroup.actionUnits or {},', ')
+            tImGui.Text(string.format(tLang.L('fre_facs_action_units_fmt'),actionUnits))
+            local entries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
+            local selectedControl
+            for _,entry in ipairs(entries) do
+                if entry.index==state.selectedSurfaceControl then
+                    selectedControl=entry.control
+                    break
+                end
+            end
+            if not selectedControl and entries[1] then
+                selectedControl=entries[1].control
+                state.selectedSurfaceControl=entries[1].index
+                state.project.selectedSurfaceControl=state.selectedSurfaceControl
+                state.selectedSurfaceControlPoint=nil
+                state.surfaceControlOverlay.selectionDirty=true
+            end
+            if selectedControl then
+                tSurfaceControlEditor.ensure(selectedControl)
+                tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
+                tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
+                tImGui.BeginDisabled(not state.topology or #selectedControl.points==0 or
+                    not state.selectedSurfaceControlPoint)
+                if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
+                    local plan=tSurfacePointGizmo.planSurfaceSnap(selectedControl,state.topology,
+                        state.meshBounds,tFacialLandmarks.intersectRaySurface)
+                    if not plan then
+                        setStatus(tLang.L('fre_facs_surface_snap_failed'),true)
+                    elseif not plan.changed then
+                        setStatus(tLang.L('fre_facs_surface_already_snapped'),false)
+                    else
+                        pushUndoSnapshot()
+                        tSurfacePointGizmo.applySurfaceSnap(selectedControl,plan)
+                        mirrorFacialMaskSides(selectedGroup)
+                        commitSurfaceControl(selectedControl)
+                        setStatus(tLang.L('fre_facs_surface_snapped'),false)
+                    end
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_facs_surface_snap_help'))
+            end
+            if selectedGroup.templateId and selectedGroup.templateId~='' then
+                tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)
+                if tImGui.Button(tLang.L('fre_facs_refit_mask') .. '##freFacsRefitMask') then
+                    pushUndoSnapshot()
+                    if tFacialActionTemplates.refit(state.project,state.topology,
+                            state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
+                        mirrorFacialMaskSides(selectedGroup)
+                        state.surfaceControlOverlay.dirty=true
+                        state.selectedSurfaceControlPoint=nil
+                        markModified()
+                        setStatus(tLang.L('fre_facs_refit_done'),false)
+                    else
+                        table.remove(state.undoStack)
+                        setStatus(tLang.L('fre_facs_refit_failed'),true)
+                    end
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_facs_refit_help'))
+            end
+            tImGui.TextWrapped(tLang.L('fre_facs_selected_mask_help'))
+        end
+    end
+    tImGui.Separator()
+    local showGuide=tImGui.Checkbox(tLang.L('fre_facs_show_landmark_guide'),state.showLandmarkGuide)
+    if showGuide~=state.showLandmarkGuide then
+        state.showLandmarkGuide=showGuide
+        markFaceGuideDirty()
+        markLandmarkMarkersDirty()
+    end
+    tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
+    if not state.mesh then
+        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+        return
+    end
+    local landmarks=state.project.landmarks
+    tImGui.PushItemWidth(220)
     local names={}
     for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
     local option=math.max(1,math.min(#names,state.selectedLandmark))
@@ -5095,6 +5756,7 @@ end
 function onLoop(delta)
     updateAutomatedFacialTargetGeneration()
     updateCameraKeyboard(delta)
+    ensureFacialActionTemplates()
     if state.targetAuthoring.previewDirty and
             (state.workspace=='targets' or state.targetAuthoring.projectRestorePending) then
         refreshTargetPreview()
@@ -5120,6 +5782,11 @@ function onLoop(delta)
     drawTargetBrushScreenCursor()
     if state.landmarkMarkersDirty then refreshLandmarkMarkers() end
     if state.faceGuideDirty then refreshFaceGuide() end
+    if state.surfaceControlOverlay.dirty then
+        refreshSurfaceControlOverlay(false)
+    elseif state.surfaceControlOverlay.selectionDirty then
+        refreshSurfaceControlOverlay(true)
+    end
     if state.maskVisualization.building then
         stepMaskVisualizationBuild()
     elseif state.maskVisualization.dirty then
@@ -5520,6 +6187,69 @@ local function ensureMaskOverlayShader()
     return ok and result~=false
 end
 
+refreshMaskPolygonOverlay=function()
+    local visualization=state.maskVisualization
+    if state.workspace~='masks' then
+        -- This is the compatibility overlay for vertex/polygon masks. Never
+        -- let a refresh triggered by loading or rebuilding leak it into the
+        -- FACS authoring workspace.
+        if visualization.faces then visualization.faces.visible=false end
+        if visualization.markers then visualization.markers.visible=false end
+        if visualization.surface then visualization.surface.visible=false end
+        return
+    end
+    local mask=state.project.masks and state.project.masks[state.selectedMask]
+    local polygon=mask and mask.representation=='polygon' and tFacialPolygonEditor.ensure(mask) or nil
+    local points=polygon and tFacialPolygon.resolvePoints(polygon,state.topology) or {}
+    local edgePaths={}
+    if #points>=2 then
+        local edgeCount=polygon.closed and #points or #points-1
+        for index=1,edgeCount do
+            local nextIndex=index%#points+1
+            local first,second=points[index].position,points[nextIndex].position
+            edgePaths[#edgePaths+1]={first.x,first.y,first.z,second.x,second.y,second.z}
+        end
+    end
+    local markerPaths={}
+    local bounds=state.meshBounds
+    local extent=bounds and math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
+        (bounds.maxZ-bounds.minZ)^2) or 1
+    local markerSize=math.max(extent*0.012,0.002)
+    for _,point in ipairs(points) do
+        local position=point.position
+        markerPaths[#markerPaths+1]={position.x-markerSize,position.y,position.z,
+            position.x+markerSize,position.y,position.z}
+        markerPaths[#markerPaths+1]={position.x,position.y-markerSize,position.z,
+            position.x,position.y+markerSize,position.z}
+        markerPaths[#markerPaths+1]={position.x,position.y,position.z-markerSize,
+            position.x,position.y,position.z+markerSize}
+    end
+    local function updateLine(current,paths,color,priority,pathCount)
+        if #paths==0 then
+            if current then dpCall(function() current:destroy() end) end
+            return nil,0
+        end
+        if not current or pathCount~=#paths then
+            if current then dpCall(function() current:destroy() end) end
+            current=line:new('3d',0,0,0)
+            for _,path in ipairs(paths) do current:add(path) end
+            current.alwaysOnTop=true
+            current.alwaysOnTopPriority=priority
+            current.alwaysRender=true
+            current:setColor(color[1],color[2],color[3],color[4])
+        else
+            for index,path in ipairs(paths) do current:set(path,index) end
+        end
+        return current,#paths
+    end
+    visualization.faces,visualization.polygonEdgePathCount=updateLine(visualization.faces,edgePaths,
+        {1,0.72,0.12,1},8,visualization.polygonEdgePathCount or 0)
+    visualization.markers,visualization.polygonMarkerPathCount=updateLine(visualization.markers,markerPaths,
+        {0.15,1,0.35,1},9,visualization.polygonMarkerPathCount or 0)
+    visualization.markerCount=#points
+    setMaskVisualizationViewportVisible(true)
+end
+
 -- Reuse the mask shader as a displacement heat map. The overlay replaces the
 -- preview mesh while visible, so the matching surfaces cannot fight for depth.
 setTargetOverlayVisible=function(visible)
@@ -5815,6 +6545,7 @@ local function finishMaskVisualizationBuild()
     visualization.dirty=false
     visualization.keepSurfaceWhileDirty=false
     setMaskVisualizationViewportVisible(true)
+    refreshMaskPolygonOverlay()
 end
 
 startMaskVisualizationBuild=function()
@@ -5835,8 +6566,13 @@ startMaskVisualizationBuild=function()
     visualization.markers=nil
     visualization.buildSelected={}
     local selected=visualization.buildSelected
-    for _,rawIndex in ipairs(mask.vertices or {}) do
-        local index=tonumber(rawIndex)
+    local source=mask.vertices or {}
+    if mask.representation=='polygon' then
+        local polygon=tFacialPolygonEditor.ensure(mask)
+        source=polygon.derivedVertexWeights or {}
+    end
+    for _,rawIndex in ipairs(source) do
+        local index=type(rawIndex)=='table' and tonumber(rawIndex.index) or tonumber(rawIndex)
         if index and state.topology.vertices[index] then selected[#selected+1]=index end
     end
     table.sort(selected)
@@ -6307,7 +7043,7 @@ end
 
 local function beginMaskBrush(x,y)
     local mask=state.project.masks and state.project.masks[state.selectedMask]
-    if not mask or state.maskVisualization.building or
+    if not mask or mask.representation=='polygon' or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return false end
     local present={}
     for _,rawIndex in ipairs(mask.vertices or {}) do
@@ -6344,7 +7080,7 @@ local function finishMaskBrush()
         return
     end
     local mask=state.project.masks and state.project.masks[state.selectedMask]
-    if not mask then return end
+    if not mask or mask.representation=='polygon' then return end
     mask.vertices={}
     for index in pairs(brush.present) do mask.vertices[#mask.vertices+1]=index end
     table.sort(mask.vertices)
@@ -6356,7 +7092,7 @@ end
 local function selectMaskBoundaryLoop(x,y)
     local mask=state.project.masks and state.project.masks[state.selectedMask]
     local topology=state.topology
-    if not mask or not topology or state.maskVisualization.building or
+    if not mask or mask.representation=='polygon' or not topology or state.maskVisualization.building or
             (state.maskVisualization.needsBuild and not state.maskVisualization.surface) then return end
     local hit=maskBrushSurfaceHit(x,y)
     if not hit then
@@ -6532,6 +7268,50 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and state.workspace=='landmarks' and not state.controlDown and state.topology then
+        local origin,direction=viewportPickRay(x,y)
+        if origin then
+            local gizmo=state.surfacePointGizmo
+            if gizmo.origin and gizmo.length then
+                local axisName=tSurfacePointGizmo.pickAxis(origin,direction,gizmo.origin,
+                    gizmo.length,math.max(gizmo.length*0.09,0.002))
+                local axis=axisName and tSurfacePointGizmo.axes[axisName]
+                local parameter=axis and tSurfacePointGizmo.axisParameter(origin,direction,gizmo.origin,axis)
+                if parameter then
+                    local selectedGroup=state.project.facialMasks[state.selectedFacialMask]
+                    local control=state.project.surfaceControls[state.selectedSurfaceControl]
+                    local groupEntries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
+                    local entries=tSurfacePointGizmo.dragEntries(control,
+                        state.selectedSurfaceControlPoint,groupEntries)
+                    gizmo.drag={axis=axis,origin={x=gizmo.origin.x,y=gizmo.origin.y,z=gizmo.origin.z},
+                        startParameter=parameter,
+                        snapshot=tSurfacePointGizmo.snapshot(entries,state.topology),moved=false}
+                    return
+                end
+            end
+            local entries={}
+            for groupIndex,group in ipairs(state.project.facialMasks or {}) do
+                if group.enabled~=false then
+                    for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,group)) do
+                        entries[#entries+1]={groupIndex=groupIndex,index=entry.index,
+                            control=entry.control}
+                    end
+                end
+            end
+            local scale=(state.project.faceOrigin and state.project.faceOrigin.scale) or 1
+            local hit=tSurfacePointGizmo.pick(entries,state.topology,origin,direction,
+                math.max(scale*0.018,0.002),math.max(scale*0.012,0.0015))
+            if hit then
+                state.selectedFacialMask=hit.entry.groupIndex
+                state.project.selectedFacialMask=hit.entry.groupIndex
+                state.selectedSurfaceControl=hit.entry.index
+                state.project.selectedSurfaceControl=hit.entry.index
+                state.selectedSurfaceControlPoint=hit.pointIndex
+                state.surfaceControlOverlay.selectionDirty=true
+                return
+            end
+        end
+    end
     if key==0 and state.workspace=='targets' and state.targetAuthoring.mode==2 and
             state.targetAuthoring.editMode==2 and beginTargetGizmoDrag(x,y) then return end
     if state.workspace=='targets' and key==1 then
@@ -6556,6 +7336,21 @@ function onTouchDown(key,x,y)
         elseif state.targetAuthoring.mode==3 then
             beginTargetBrush(x,y)
         end
+        return
+    end
+    if key==1 and state.workspace=='landmarks' and state.topology and
+            state.project.facialMasks and state.project.facialMasks[state.selectedFacialMask] then
+        tSurfaceControlEditor.begin(state,x,y,{surfaceHit=function(px,py) return maskBrushSurfaceHit(px,py) end,
+            pickRay=viewportPickRay,nearestVertex=tFacialLandmarks.nearestSurfaceVertex,
+            radius=function(currentState) return viewportPickRadius(0.035) end,
+            controlEntries=function()
+                return tFacialActionTemplates.groupControls(state.project,
+                    state.project.facialMasks[state.selectedFacialMask])
+            end,
+            pushUndo=pushUndoSnapshot,commit=commitSurfaceControl,refresh=function()
+                state.surfaceControlOverlay.dirty=true
+                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
+            end})
         return
     end
     if key==0 and state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
@@ -6599,8 +7394,16 @@ function onTouchDown(key,x,y)
         return
     end
     if key==1 and state.workspace=='masks' and state.maskWorkspaceMode==3 then
-        if state.maskLoopMode then selectMaskBoundaryLoop(x,y)
-        else beginMaskBrush(x,y) end
+        local mask=state.project.masks and state.project.masks[state.selectedMask]
+        if mask and mask.representation=='polygon' then
+            tFacialPolygonEditor.begin(state,x,y,{surfaceHit=maskBrushSurfaceHit,pickRay=viewportPickRay,
+                nearestVertex=tFacialLandmarks.nearestSurfaceVertex,pushUndo=pushUndoSnapshot,
+                commit=polygonCommit,refresh=refreshMaskPolygonOverlay})
+        elseif state.maskLoopMode then
+            selectMaskBoundaryLoop(x,y)
+        else
+            beginMaskBrush(x,y)
+        end
         return
     end
     if key==0 and state.controlDown and handleViewportAuthoringClick(x,y) then return end
@@ -6617,6 +7420,45 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if state.cameraPan then
+        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
+        if state.workspace=='targets' then setTargetOverlayVisible(false) end
+        local c=state.camera
+        local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
+        local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
+        local vx,vz=c.fx-px,c.fz-pz
+        local viewLength=math.sqrt(vx*vx+vz*vz)
+        if viewLength>0 then vx,vz=vx/viewLength,vz/viewLength end
+        -- Pan the camera in screen axes without changing the mesh or authored points.
+        local rx,rz=vz,-vx
+        local rightLength=math.sqrt(rx*rx+rz*rz)
+        if rightLength>0 then rx,rz=rx/rightLength,rz/rightLength end
+        local scale=c.distance*0.001
+        local dx=(state.cameraPan.x-x)*scale
+        c.fx=c.fx+rx*dx
+        c.fy=c.fy+(y-state.cameraPan.y)*scale
+        c.fz=c.fz+rz*dx
+        state.cameraPan={x=x,y=y}
+        applyCamera()
+        return
+    end
+    local pointDrag=state.surfacePointGizmo.drag
+    if pointDrag then
+        local origin,direction=viewportPickRay(x,y)
+        local parameter=origin and tSurfacePointGizmo.axisParameter(origin,direction,
+            pointDrag.origin,pointDrag.axis)
+        if parameter then
+            local amount=parameter-pointDrag.startParameter
+            if math.abs(amount)>1e-6 then
+                if not pointDrag.moved then pushUndoSnapshot(); pointDrag.moved=true end
+                tSurfacePointGizmo.translate(pointDrag.snapshot,state.topology,
+                    {x=pointDrag.axis.x*amount,y=pointDrag.axis.y*amount,z=pointDrag.axis.z*amount})
+                state.surfaceControlOverlay.dirty=true
+                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
+            end
+        end
+        return
+    end
     local gizmoDrag=state.targetGizmo.drag
     if gizmoDrag then
         local origin,direction=viewportPickRay(x,y)
@@ -6667,6 +7509,18 @@ function onTouchMove(key,x,y)
         state.maskBrushHover.pendingY=y
         return
     end
+    if state.maskPolygonDrag then
+        tFacialPolygonEditor.update(state,x,y,{pickRay=viewportPickRay,
+            nearestVertex=tFacialLandmarks.nearestSurfaceVertex,refresh=refreshMaskPolygonOverlay})
+        return
+    end
+    if state.workspace=='landmarks' and state.surfaceControlDrag then
+        tSurfaceControlEditor.update(state,x,y,{pickRay=viewportPickRay,
+            nearestVertex=tFacialLandmarks.nearestSurfaceVertex,refresh=function()
+                state.surfaceControlOverlay.dirty=true
+            end})
+        return
+    end
     if state.workspace=='targets' and state.targetAuthoring.mode==3 and
             not state.cameraDrag and not state.cameraPan then
         state.targetBrushHover.pendingX=x
@@ -6676,29 +7530,6 @@ function onTouchMove(key,x,y)
             not state.cameraDrag and not state.cameraPan then
         state.maskBrushHover.pendingX=x
         state.maskBrushHover.pendingY=y
-    end
-    if state.cameraPan then
-        if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
-        if state.workspace=='targets' then setTargetOverlayVisible(false) end
-        local c=state.camera
-        local px=c.fx+c.distance*math.cos(c.elevation)*math.sin(c.azimuth)
-        local pz=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
-        local vx,vz=c.fx-px,c.fz-pz
-        local viewLength=math.sqrt(vx*vx+vz*vz)
-        if viewLength>0 then vx,vz=vx/viewLength,vz/viewLength end
-        -- Match MeshDebug: horizontal movement follows camera-right and vertical movement
-        -- follows the screen/world Y axis while keeping the orbit orientation unchanged.
-        local rx,rz=vz,-vx
-        local rightLength=math.sqrt(rx*rx+rz*rz)
-        if rightLength>0 then rx,rz=rx/rightLength,rz/rightLength end
-        local scale=c.distance*0.001
-        local dx=(state.cameraPan.x-x)*scale
-        c.fx=c.fx+rx*dx
-        c.fy=c.fy+(y-state.cameraPan.y)*scale
-        c.fz=c.fz+rz*dx
-        state.cameraPan={x=x,y=y}
-        applyCamera()
-        return
     end
     if not state.cameraDrag then return end
     if state.workspace=='masks' then setMaskVisualizationViewportVisible(false) end
@@ -6717,6 +7548,15 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==0 and state.surfacePointGizmo.drag then
+        local drag=state.surfacePointGizmo.drag
+        state.surfacePointGizmo.drag=nil
+        if drag.moved then
+            for _,entry in ipairs(drag.snapshot) do commitSurfaceControl(entry.control) end
+        end
+        state.surfaceControlOverlay.dirty=true
+        return
+    end
     if key==0 and state.targetGizmo.drag then
         state.targetOverlay.bufferDirty=true
         state.targetOverlay.bufferForce=true
@@ -6746,6 +7586,17 @@ function onTouchUp(key,x,y)
             state.maskBrushHover.pendingY=y
         end
     elseif key==1 then
+        if state.workspace=='landmarks' and state.surfaceControlDrag then
+            tSurfaceControlEditor.finish(state,{commit=commitSurfaceControl})
+            state.surfaceControlOverlay.dirty=true
+            return
+        end
+        if state.workspace=='masks' and state.maskPolygonDrag then
+            tFacialPolygonEditor.finish(state,{commit=polygonCommit})
+            refreshMaskPolygonOverlay()
+            setMaskVisualizationViewportVisible(true)
+            return
+        end
         if state.workspace=='masks' and state.maskBrush then
             updateMaskBrush(x,y)
             finishMaskBrush()
