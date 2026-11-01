@@ -69,6 +69,14 @@ function M.positionWithDepth(topology,index,position,depth)
     return {x=point.x+normal.x*amount,y=point.y+normal.y*amount,z=point.z+normal.z*amount}
 end
 
+-- Facial masks share the face reference's forward (+Z) axis. A common depth
+-- direction preserves the authored X/Y contour even across curved skin; using
+-- each vertex normal made large offsets pull brow anchors sideways.
+function M.positionWithFaceDepth(position,depth)
+    if not position then return nil end
+    return {x=position.x,y=position.y,z=position.z+(tonumber(depth) or 0)}
+end
+
 local function copyPoint(point)
     return {x=tonumber(point and point.x) or 0,y=tonumber(point and point.y) or 0,
         z=tonumber(point and point.z) or 0}

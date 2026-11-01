@@ -31,6 +31,13 @@ assert(surfaceHit and math.abs(surfaceHit.point.z)<0.0001,
 local offsetPoint=Polygon.positionWithDepth(surface,1,surface.vertices[1],0.25)
 assert(math.abs(offsetPoint.z-0.25)<0.0001,
     'surface controls must expose a normal-based depth offset')
+local browPointA={x=1,y=2,z=3}
+local browPointB={x=4,y=5,z=1}
+local shiftedA=Polygon.positionWithFaceDepth(browPointA,3)
+local shiftedB=Polygon.positionWithFaceDepth(browPointB,3)
+assert(shiftedA.x==browPointA.x and shiftedA.y==browPointA.y and shiftedA.z==6 and
+    shiftedB.x==browPointB.x and shiftedB.y==browPointB.y and shiftedB.z==4,
+    'face depth must preserve the front-view contour at large offsets')
 local project=Project.new()
 assert(project.schemaVersion==13 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
@@ -71,6 +78,28 @@ assert(ActionTemplates.instantiate(templateProject,surface,
 assert(#templateProject.facialMasks==2 and #templateProject.surfaceControls==6)
 assert(#templateProject.surfaceControls[3].relationships==2,
     'a facial template controller must link its area and action line')
+local templateGroup=templateProject.facialMasks[1]
+local areaColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[1])
+local actionColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
+local controllerColor=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[3])
+assert(actionColor.r~=areaColor.r and controllerColor.g~=areaColor.g,
+    'area, action line and group controller must have distinct colors')
+templateProject.surfaceControls[2].color=templateGroup.color
+assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2]).r==actionColor.r and
+    actionColor.r~=templateGroup.color.r,
+    'an older project with one color per group must show the new action-line accent')
+local customActionColor={r=0.1,g=0.2,b=0.3,a=1}
+templateProject.surfaceControls[2].color=customActionColor
+assert(ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])==customActionColor,
+    'an authored action-line color must remain intact')
+templateProject.surfaceControls[2].color={r=0.78,g=0.48,b=1,a=1}
+local leftOrange=ActionTemplates.displayColor(templateGroup,templateProject.surfaceControls[2])
+local rightGroup=templateProject.facialMasks[2]
+templateProject.surfaceControls[5].color={r=1,g=0.73,b=0.20,a=1}
+local rightOrange=ActionTemplates.displayColor(rightGroup,templateProject.surfaceControls[5])
+assert(leftOrange.r==1 and leftOrange.g==rightOrange.g and leftOrange.b==rightOrange.b and
+    leftOrange.g>leftOrange.b,
+    'previously saved left/right action-line accents must both display as orange')
 local faceTopology={vertices={},refs={},signature='template-face'}
 for _,definition in ipairs(ActionTemplates.templates()) do
     for _,shape in ipairs(definition.shapes) do

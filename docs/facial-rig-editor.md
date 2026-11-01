@@ -64,17 +64,25 @@ complete mask group.
 In a previously saved project, **Refit selected brow to face** replaces that brow's points with
 the current template; the operation is undoable and never runs automatically on existing edits.
 
-All mask outlines remain visible with group colors. Only the selected mask displays square anchors
-for editing; these anchors use the selected mask color and are deliberately small enough not to
-obscure the face. The selected polygon, action line, or controller can be adapted with right-drag in the
-viewport; the controller moves the polygon and action line together. The editor should extend this
+All mask outlines remain visible with group colors. The brow area uses its mask color; the action
+line defaults to orange on both brows (including projects with the previous template accents),
+while a separately authored color is retained. The controller is
+a larger green square with a cross. Only the selected mask displays square anchors for editing.
+The selected polygon, action line, or controller can be adapted with right-drag in the viewport;
+dragging the controller moves the polygon and action line together. The editor should extend this
 template catalog to the remaining FACS-inspired facial actions without requiring the user to create
 each shape from an empty control.
 
 The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
 The polygon, polyline, and controller are selected as shapes within the chosen mask; the user does
 not create empty controls in this facial workflow. The depth offset is editable per shape and shown
-in the viewport.
+in the viewport. For these facial masks, it moves every point along the shared front-facing Z axis
+of the face reference, preserving the X/Y contour even at larger offsets. Previously saved point
+positions and depth values remain unchanged; the new colors and depth display apply when reopened.
+**Snap selected shape to face surface**, beside the FACS depth control, resets only the selected
+polygon, action line, or controller's depth offset to zero. Its anchors already reference mesh
+vertices, so their X/Y placement and the other shapes in the group remain unchanged. The separate
+landmark button below continues to raycast a selected individual landmark onto the surface.
 
 **Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and
 vertex weights from the selected polygon, polyline, or point relationships. Generated regions retain

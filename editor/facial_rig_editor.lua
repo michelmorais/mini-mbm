@@ -87,7 +87,7 @@ local state = {
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
         surfaceUvDirty=false,surfaceUvCallbackArmed=false,surfaceUvChanges={},
         meshHidden=false,meshWasVisible=true,keepSurfaceWhileDirty=false},
-    surfaceControlOverlay={dirty=true,lines={},markers=nil,markerPathCount=0,visible=true},
+    surfaceControlOverlay={dirty=true,lines={},markers={},visible=true},
     sourceObjectDraft='',
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0,elevation=0.15},
     cameraDrag=nil, cameraPan=nil, controlDown=false, shiftDown=false,
@@ -1584,8 +1584,8 @@ end
 destroySurfaceControlOverlay=function()
     local overlay=state.surfaceControlOverlay
     for _,object in pairs(overlay.lines or {}) do dpCall(function() object:destroy() end) end
-    if overlay.markers then dpCall(function() overlay.markers:destroy() end) end
-    state.surfaceControlOverlay={dirty=true,lines={},markers=nil,markerPathCount=0,visible=true}
+    for _,object in pairs(overlay.markers or {}) do dpCall(function() object:destroy() end) end
+    state.surfaceControlOverlay={dirty=true,lines={},markers={},visible=true}
 end
 
 setSurfaceControlOverlayVisible=function(visible)
@@ -1594,7 +1594,9 @@ setSurfaceControlOverlayVisible=function(visible)
     for _,object in pairs(overlay.lines or {}) do
         object.visible=overlay.visible and state.workspace=='landmarks'
     end
-    if overlay.markers then overlay.markers.visible=overlay.visible and state.workspace=='landmarks' end
+    for _,object in pairs(overlay.markers or {}) do
+        object.visible=overlay.visible and state.workspace=='landmarks'
+    end
 end
 
 commitSurfaceControl=function(control)
@@ -1614,7 +1616,7 @@ refreshSurfaceControlOverlay=function()
     local overlay=state.surfaceControlOverlay
     if not state.mesh or not state.topology then
         for _,object in pairs(overlay.lines or {}) do object.visible=false end
-        if overlay.markers then overlay.markers.visible=false end
+        for _,object in pairs(overlay.markers or {}) do object.visible=false end
         overlay.dirty=false
         return
     end
@@ -1632,10 +1634,8 @@ refreshSurfaceControlOverlay=function()
                 local edgeCount=control.closed and #points or math.max(0,#points-1)
                 for index=1,edgeCount do
                     local nextIndex=index%#points+1
-                    local first=tFacialPolygon.positionWithDepth(state.topology,points[index].index,
-                        points[index].position,control.depthOffset)
-                    local second=tFacialPolygon.positionWithDepth(state.topology,points[nextIndex].index,
-                        points[nextIndex].position,control.depthOffset)
+                    local first=tFacialPolygon.positionWithFaceDepth(points[index].position,control.depthOffset)
+                    local second=tFacialPolygon.positionWithFaceDepth(points[nextIndex].position,control.depthOffset)
                     edgePaths[#edgePaths+1]={first.x,first.y,first.z,second.x,second.y,second.z}
                 end
                 local object=overlay.lines[control.id]
@@ -1657,7 +1657,8 @@ refreshSurfaceControlOverlay=function()
                     else
                         for index,path in ipairs(edgePaths) do object:set(path,index) end
                     end
-                    local color=control.color or groupColor
+                    object.alwaysOnTopPriority=groupIndex==state.selectedFacialMask and 2 or 1
+                    local color=tFacialActionTemplates.displayColor(group,control)
                     object:setColor(color.r or groupColor.r,color.g or groupColor.g,
                         color.b or groupColor.b,
                         groupIndex==state.selectedFacialMask and (color.a or groupColor.a) or
@@ -1674,7 +1675,8 @@ refreshSurfaceControlOverlay=function()
             overlay.lines[controlId]=nil
         end
     end
-    local markerPaths={}
+    local markerPaths={area={},action_line={},controller={}}
+    local markerColors={}
     local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
     local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
         (bounds.maxZ-bounds.minZ)^2)
@@ -1689,44 +1691,53 @@ refreshSurfaceControlOverlay=function()
     for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,selectedGroup)) do
         local control=entry.control
         local points=tFacialPolygon.resolvePoints(control,state.topology)
+        local role=markerPaths[control.role] and control.role or 'area'
+        local paths=markerPaths[role]
+        markerColors[role]=tFacialActionTemplates.displayColor(selectedGroup,control)
         for _,point in ipairs(points) do
-            local position=tFacialPolygon.positionWithDepth(state.topology,point.index,point.position,control.depthOffset)
-            local halfSize=size*(control.role=='controller' and 1.35 or 1)
-            markerPaths[#markerPaths+1]={position.x-halfSize,position.y-halfSize,position.z,
+            local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
+            local halfSize=size*(role=='controller' and 1.6 or 1)
+            paths[#paths+1]={position.x-halfSize,position.y-halfSize,position.z,
                 position.x+halfSize,position.y-halfSize,position.z}
-            markerPaths[#markerPaths+1]={position.x+halfSize,position.y-halfSize,position.z,
+            paths[#paths+1]={position.x+halfSize,position.y-halfSize,position.z,
                 position.x+halfSize,position.y+halfSize,position.z}
-            markerPaths[#markerPaths+1]={position.x+halfSize,position.y+halfSize,position.z,
+            paths[#paths+1]={position.x+halfSize,position.y+halfSize,position.z,
                 position.x-halfSize,position.y+halfSize,position.z}
-            markerPaths[#markerPaths+1]={position.x-halfSize,position.y+halfSize,position.z,
+            paths[#paths+1]={position.x-halfSize,position.y+halfSize,position.z,
                 position.x-halfSize,position.y-halfSize,position.z}
+            if role=='controller' then
+                local crossSize=halfSize*0.5
+                paths[#paths+1]={position.x-crossSize,position.y,position.z,
+                    position.x+crossSize,position.y,position.z}
+                paths[#paths+1]={position.x,position.y-crossSize,position.z,
+                    position.x,position.y+crossSize,position.z}
+            end
         end
     end
-    if overlay.markers and overlay.markerPathCount~=#markerPaths then
-        dpCall(function() overlay.markers:destroy() end)
-        overlay.markers=nil
-        overlay.markerPathCount=0
-    end
-    if #markerPaths>0 then
-        if not overlay.markers then
-            overlay.markers=line:new('3d',0,0,0)
-            overlay.markers.alwaysOnTop=true
-            overlay.markers.alwaysOnTopPriority=3
-            overlay.markers.alwaysRender=true
-            overlay.markerPathCount=#markerPaths
-            for _,path in ipairs(markerPaths) do overlay.markers:add(path) end
-        else
-            for index,path in ipairs(markerPaths) do overlay.markers:set(path,index) end
+    for role,paths in pairs(markerPaths) do
+        local object=overlay.markers[role]
+        if #paths==0 or (object and object.pathCount~=#paths) then
+            if object then dpCall(function() object:destroy() end) end
+            object=nil
+            overlay.markers[role]=nil
         end
-        local markerColor=selectedGroup and selectedGroup.color or {r=1,g=1,b=1,a=1}
-        overlay.markers:setColor(markerColor.r or 1,markerColor.g or 1,markerColor.b or 1,
-            markerColor.a or 1)
-    elseif overlay.markers then
-        dpCall(function() overlay.markers:destroy() end)
-        overlay.markers=nil
-        overlay.markerPathCount=0
+        if #paths>0 then
+            if not object then
+                object=line:new('3d',0,0,0)
+                object.alwaysOnTop=true
+                object.alwaysOnTopPriority=role=='controller' and 4 or 3
+                object.alwaysRender=true
+                object.pathCount=#paths
+                overlay.markers[role]=object
+                for _,path in ipairs(paths) do object:add(path) end
+            else
+                for index,path in ipairs(paths) do object:set(path,index) end
+            end
+            local color=markerColors[role]
+            object:setColor(color.r or 1,color.g or 1,color.b or 1,color.a or 1)
+            object.visible=visible and selectedGroup.enabled~=false
+        end
     end
-    if overlay.markers then overlay.markers.visible=visible end
     overlay.dirty=false
 end
 
@@ -4486,6 +4497,7 @@ local function showLandmarks()
                 local depthStep=math.max(faceGuideScale(state.meshBounds)*0.01,0.0001)
                 local depthChanged,depth=tImGui.DragFloat(tLang.L('fre_surface_control_depth'),
                     selectedControl.depthOffset or 0,depthStep,-depthStep*100,depthStep*100,'%.4f',0)
+                showHelpTooltip(tLang.L('fre_facs_depth_help'))
                 if depthChanged then
                     if not state.surfaceControlDepthUndo then
                         pushUndoSnapshot()
@@ -4496,6 +4508,22 @@ local function showLandmarks()
                 elseif not tImGui.IsItemActive() then
                     state.surfaceControlDepthUndo=false
                 end
+                tImGui.BeginDisabled(not state.topology or #selectedControl.points==0)
+                if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
+                    local resolved=tFacialPolygon.resolvePoints(selectedControl,state.topology)
+                    if #resolved~=#selectedControl.points then
+                        setStatus(tLang.L('fre_facs_surface_snap_failed'),true)
+                    elseif (selectedControl.depthOffset or 0)==0 then
+                        setStatus(tLang.L('fre_facs_surface_already_snapped'),false)
+                    else
+                        pushUndoSnapshot()
+                        selectedControl.depthOffset=0
+                        commitSurfaceControl(selectedControl)
+                        setStatus(tLang.L('fre_facs_surface_snapped'),false)
+                    end
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_facs_surface_snap_help'))
             end
             if selectedGroup.templateId and selectedGroup.templateId~='' then
                 tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)

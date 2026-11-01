@@ -22,6 +22,13 @@
 
 local M={}
 
+local PREVIOUS_ACTION_LINE_COLORS={
+    brow_left={r=0.78,g=0.48,b=1,a=1},
+    brow_right={r=1,g=0.73,b=0.20,a=1}
+}
+local ACTION_LINE_COLOR={r=1,g=0.46,b=0.08,a=1}
+local CONTROLLER_COLOR={r=0.28,g=1,b=0.32,a=1}
+
 local TEMPLATE_DEFINITIONS={
     {
         id='brow_left', nameKey='fre_facs_brow_left', actionUnits={'AU1','AU2','AU4'},
@@ -61,6 +68,30 @@ local TEMPLATE_DEFINITIONS={
 
 local function copyColor(color)
     return {r=color.r,g=color.g,b=color.b,a=color.a}
+end
+
+local function sameRgb(left,right)
+    return left and right and left.r==right.r and left.g==right.g and left.b==right.b
+end
+
+-- Older projects saved each shape with the same group color. Give their
+-- action lines and controller distinct display colors without rewriting the
+-- project. A separately authored shape color still takes precedence.
+function M.displayColor(group,control)
+    local groupColor=group and group.color or {r=1,g=1,b=1,a=1}
+    local color=control and control.color
+    local role=control and control.role
+    if role=='area' or not role then return color or groupColor end
+    if role=='action_line' then
+        local previous=PREVIOUS_ACTION_LINE_COLORS[group and group.templateId]
+        if not color or sameRgb(color,groupColor) or sameRgb(color,previous) then
+            return ACTION_LINE_COLOR
+        end
+        return color
+    end
+    if color and not sameRgb(color,groupColor) then return color end
+    if role=='controller' then return CONTROLLER_COLOR end
+    return color or groupColor
 end
 
 local function nearestVertex(topology,target,used,faceSubset)
@@ -126,7 +157,7 @@ function M.instantiate(project,topology,faceOrigin,scale)
             local control={id=definition.id..'_'..shape.id,name=definition.id..'_'..shape.id,
                 groupId=definition.id,role=shape.role,kind=shape.kind,closed=shape.closed==true,
                 points={},topologySignature=topology.signature or '',depthOffset=0,
-                color=copyColor(definition.color),relationships={},enabled=true}
+                color=copyColor(M.displayColor(group,{role=shape.role})),relationships={},enabled=true}
             fitPoints(control,shape,topology,faceOrigin,actualScale)
             project.surfaceControls[#project.surfaceControls+1]=control
             group.controlIds[#group.controlIds+1]=control.id
