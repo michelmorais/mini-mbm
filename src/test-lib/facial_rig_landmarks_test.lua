@@ -7,6 +7,7 @@ local Expressions=require 'facial_rig_expressions'
 local Clips=require 'facial_rig_clips'
 local Polygon=require 'facial_rig_polygon'
 local ActionTemplates=require 'facial_rig_action_templates'
+local GeneratedRegions=require 'facial_rig_generated_regions'
 local PointGizmo=require 'facial_surface_point_gizmo'
 local SurfaceEditor=require 'facial_surface_control_editor'
 
@@ -41,7 +42,7 @@ assert(shiftedA.x==browPointA.x and shiftedA.y==browPointA.y and shiftedA.z==6 a
     shiftedB.x==browPointB.x and shiftedB.y==browPointB.y and shiftedB.z==4,
     'face depth must preserve the front-view contour at large offsets')
 local project=Project.new()
-assert(project.schemaVersion==15 and project.landmarkEditMode==1)
+assert(project.schemaVersion==16 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -61,7 +62,7 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
 local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
-assert(legacyProject.schemaVersion==15 and legacyProject.masks[1].representation=='vertex',
+assert(legacyProject.schemaVersion==16 and legacyProject.masks[1].representation=='vertex',
     'legacy masks must normalize to the vertex representation')
 local polygon=Project.addSurfaceControl(project,'brow_left','polygon')
 assert(polygon.kind=='polygon' and not polygon.closed and #polygon.points==0)
@@ -311,6 +312,74 @@ local restoredCatalog=assert(Project.load(catalogPath))
 assert(#restoredCatalog.facialMasks==8 and #restoredCatalog.surfaceControls==32,
     'the full new-project template catalog must survive save and reload')
 os.remove(catalogPath)
+local regionTopology={signature='front-face',vertices={
+    {x=0,y=0,z=0},{x=1,y=0,z=0},{x=1,y=1,z=0},{x=0,y=1,z=0},
+    {x=0.5,y=0.5,z=0},{x=0.5,y=0.5,z=-1},
+    {x=0.5,y=0.5,z=0},{x=2,y=2,z=0}},refs={}}
+for index=1,#regionTopology.vertices do
+    regionTopology.refs[index]={subset=index==7 and 2 or 1}
+end
+local regionProject=Project.new()
+regionProject.faceOrigin.scale=1
+regionProject.surfaceControls={{id='test_area',role='area',kind='polygon',closed=true,
+    topologySignature='front-face',depthOffset=0,
+    points={{index=1},{index=2},{index=3},{index=4}}}}
+regionProject.facialMasks={{id='test_mask',name='test_mask',controlIds={'test_area'}}}
+local generated=assert(GeneratedRegions.generate(regionProject,regionTopology,
+    regionProject.facialMasks[1]))
+assert(#generated.vertexWeights==5 and generated.vertexWeights[5].index==5 and
+    GeneratedRegions.status(regionProject,regionTopology,generated)=='ready',
+    'a generated region must select the front face and exclude back, other subset and outside vertices')
+local copied=assert(GeneratedRegions.copyVertices(regionProject,regionTopology,generated))
+assert(#copied==5 and copied[1]==1 and copied[5]==5,
+    'copying a current region must preserve its selected mesh vertices')
+generated.vertexWeights[1].index=999
+local invalidCopy,invalidReason=GeneratedRegions.copyVertices(regionProject,regionTopology,generated)
+assert(not invalidCopy and invalidReason=='invalid_vertices',
+    'an invalid stored vertex must never be copied into a Morph Target mask')
+generated.vertexWeights[1].index=1
+regionProject.facialMasks[1].controlIds={}
+assert(GeneratedRegions.status(regionProject,regionTopology,generated)=='stale',
+    'a region must become stale when its mask no longer references the source area')
+regionProject.facialMasks[1].controlIds={'test_area'}
+regionProject.surfaceControls[1].points[1].offset={x=0.1,y=0,z=0}
+assert(GeneratedRegions.status(regionProject,regionTopology,generated)=='stale' and
+    #generated.vertexWeights==5 and
+    not GeneratedRegions.copyVertices(regionProject,regionTopology,generated),
+    'editing a source anchor must mark stored weights stale without changing them')
+assert(GeneratedRegions.generate(regionProject,regionTopology,regionProject.facialMasks[1])==generated and
+    GeneratedRegions.status(regionProject,regionTopology,generated)=='ready',
+    'regeneration must refresh the same region after an authored edit')
+regionProject.surfaceControls[1].depthOffset=3
+assert(GeneratedRegions.status(regionProject,regionTopology,generated)=='stale')
+assert(GeneratedRegions.generate(regionProject,regionTopology,regionProject.facialMasks[1])==generated and
+    #generated.vertexWeights==5,
+    'lifting an authoring contour in Z must not select the back of the mesh or discard the skin')
+regionProject.faceOrigin.scale=2
+assert(GeneratedRegions.status(regionProject,regionTopology,generated)=='stale',
+    'changing the depth-band scale must invalidate generated weights')
+assert(GeneratedRegions.generate(regionProject,regionTopology,regionProject.facialMasks[1])==generated)
+local regionPath='/tmp/facial-rig-generated-region-smoke.lua'
+assert(Project.save(regionProject,regionPath,editorUtils.save))
+local loadedRegionProject=assert(Project.load(regionPath))
+assert(#loadedRegionProject.generatedRegions==1 and
+    GeneratedRegions.status(loadedRegionProject,regionTopology,
+        loadedRegionProject.generatedRegions[1])=='ready',
+    'generated region source and weights must survive project save and reload')
+os.remove(regionPath)
+local changedTopology={signature='other-face',vertices=regionTopology.vertices,refs=regionTopology.refs}
+assert(GeneratedRegions.status(regionProject,changedTopology,generated)=='topology_mismatch' and
+    not GeneratedRegions.generate(regionProject,changedTopology,regionProject.facialMasks[1]),
+    'a topology change must block reuse and generation from stale source anchors')
+local contourProject=Project.new()
+contourProject.surfaceControls={{id='flat_area',role='area',kind='polygon',closed=true,
+    topologySignature='front-face',points={{index=1},{index=5},{index=3}}}}
+contourProject.facialMasks={{id='flat_mask',controlIds={'flat_area'}}}
+local invalidRegion,contourError=GeneratedRegions.generate(contourProject,regionTopology,
+    contourProject.facialMasks[1])
+assert(not invalidRegion and contourError=='invalid_contour' and
+    #contourProject.generatedRegions==0,
+    'a degenerate polygon must not create a region')
 local faceTopology={vertices={},refs={},signature='template-face'}
 for _,definition in ipairs(ActionTemplates.templates()) do
     for _,shape in ipairs(definition.shapes) do
@@ -329,6 +398,11 @@ end
 local fittedProject=Project.new()
 local fittedOrigin={placed=true,vertexIndex=1,position={x=0,y=0,z=0},scale=1}
 assert(ActionTemplates.instantiate(fittedProject,faceTopology,fittedOrigin,1))
+for _,group in ipairs(fittedProject.facialMasks) do
+    local templateRegion,templateError=GeneratedRegions.generate(fittedProject,faceTopology,group)
+    assert(templateRegion and #templateRegion.vertexWeights>=3,
+        'a fitted facial template must produce a region: '..tostring(group.id)..' '..tostring(templateError))
+end
 local fittedArea=fittedProject.surfaceControls[1]
 assert(#fittedArea.points==12,'brow template should have a tapered 12-point outline')
 for _,control in ipairs(fittedProject.surfaceControls) do

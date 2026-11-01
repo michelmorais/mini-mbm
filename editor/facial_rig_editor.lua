@@ -39,6 +39,7 @@ tTargetGizmo = require "facial_rig_target_gizmo"
 tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
 tFacialPolygon = require "facial_rig_polygon"
+tGeneratedRegions = require "facial_rig_generated_regions"
 tFacialPolygonEditor = require "facial_rig_polygon_editor"
 tFacialMaskRepresentation = require "facial_rig_mask_representation"
 tFacialActionTemplates = require "facial_rig_action_templates"
@@ -3791,6 +3792,81 @@ local function showMasks()
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
+    end
+    tImGui.Text(tLang.L('fre_generated_regions'))
+    local groups=state.project.facialMasks or {}
+    if #groups==0 then
+        tImGui.TextDisabled(tLang.L('fre_generated_regions_need_shapes'))
+        tImGui.Separator()
+    else
+        local language=tLang.getLanguage()
+        local cache=state.generatedRegionNamesCache
+        if not cache or cache.groups~=groups or cache.count~=#groups or cache.language~=language then
+            local names={}
+            for _,group in ipairs(groups) do
+                names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
+                    (group.name or group.id or '')
+            end
+            cache={groups=groups,count=#groups,language=language,names=names}
+            state.generatedRegionNamesCache=cache
+        end
+        local selected=math.max(1,math.min(#groups,state.selectedFacialMask or 1))
+        tImGui.SetNextItemWidth(300)
+        local changed,index=tImGui.Combo(tLang.L('fre_generated_region_source')..'##freRegionSource',
+            selected,cache.names)
+        if changed then
+            selected=index
+            state.selectedFacialMask=index
+            state.project.selectedFacialMask=index
+            state.selectedSurfaceControlPoint=nil
+            state.surfaceControlOverlay.selectionDirty=true
+        end
+        local group=groups[selected]
+        local region=tGeneratedRegions.regionForGroup(state.project,group)
+        local status=tGeneratedRegions.status(state.project,state.topology,region)
+        local statusKey='fre_generated_region_status_'..status
+        tImGui.TextWrapped(tLang.L(statusKey))
+        if region then
+            tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
+                #(region.vertexWeights or {})))
+        end
+        local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
+        if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
+            pushUndoSnapshot()
+            local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
+            if generated then
+                markModified()
+                setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
+                    #generated.vertexWeights),false)
+            else
+                table.remove(state.undoStack)
+                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+            end
+        end
+        showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
+        tImGui.SameLine()
+        tImGui.BeginDisabled(status~='ready')
+        if tImGui.Button(tLang.L('fre_generated_region_copy_target')..'##freRegionCopyTarget') then
+            local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
+            if not vertices then
+                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+            else
+                pushUndoSnapshot()
+                local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
+                mask.vertices=vertices
+                mask.topologySignature=region.topologySignature
+                state.selectedMask=#state.project.masks
+                state.project.selectedMask=state.selectedMask
+                state.maskWorkspaceMode=3
+                markMaskVisualizationDirty()
+                markModified()
+                startMaskVisualizationBuild()
+                setStatus(tLang.L('fre_generated_region_copied'),false)
+            end
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_generated_region_copy_help'))
+        tImGui.Separator()
     end
     local maskMode=state.maskWorkspaceMode or 2
     if #(state.project.masks or {})==0 and maskMode==3 then maskMode=2 end

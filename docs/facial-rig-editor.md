@@ -109,9 +109,19 @@ point, preserves each X/Y position, and applies the shape only when all points c
 The operation is undoable; the other shapes in the mask remain unchanged. The separate
 landmark button below continues to raycast a selected individual landmark onto the surface.
 
-**Masks / Regions** will consume the authored controls in a later milestone. Region generation,
-vertex weights, source-control identity, topology tracking, and explicit regeneration remain
-planned work; the current workspace still exposes the legacy and interim polygon-mask editors.
+**Masks / Regions** now generates a named region from the selected facial mask's closed area
+polygon. Generation is explicit and preserves the source points. It projects the outline in face
+X/Y, selects vertices from the source mesh subset within a local front-surface depth band based
+on the anchor vertices (so lifting the contour in Z does not switch mesh layers), and
+stores binary vertex weights. The stored region records its source group, source control,
+source fingerprint (including the face scale used for the depth band), and mesh topology
+signature. Changing an anchor, face scale, or topology makes it
+stale; the editor reports that state and requires explicit regeneration before the region can be
+used. **Copy to Morph Target mask** creates an independent, editable snapshot of a current
+region's selected vertices and opens it for visual review. The copy does not remain linked to the
+source. The existing legacy and interim polygon-mask editors remain available. Surface falloff,
+automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
+work.
 
 Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
 They are not the authoring surface for the new facial workflow, and the editor must not silently
@@ -127,9 +137,9 @@ without discarding the selected weight. Viewport mesh visibility controls the se
 
 ## Project and MSH persistence
 
-Saving the facial project stores editor metadata, facial action masks and their surface controls, legacy compatibility masks,
-expressions, clips, target selection, and preview weight. Generated-region metadata will be added
-when the derivation stage is implemented. Target edits
+Saving the facial project stores editor metadata, facial action masks and their surface controls,
+generated regions, legacy compatibility masks, expressions, clips, target selection, and preview
+weight. Target edits
 are stored as sparse changes relative to the assigned source MSH.
 Reopening validates source target identity and topology before applying those changes. If the
 assigned MSH already contains the exact edited target set and deltas, the editor treats the project

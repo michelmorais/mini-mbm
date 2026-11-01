@@ -22,6 +22,7 @@
 
 local M = {}
 local tTargetGizmo = require 'facial_rig_target_gizmo'
+local tGeneratedRegions = require 'facial_rig_generated_regions'
 
 local ROLE_NAMES = {
     'main_face', 'left_eye', 'right_eye', 'upper_teeth', 'lower_teeth',
@@ -89,7 +90,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=15,
+        schemaVersion=16,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -101,6 +102,7 @@ function M.new()
         landmarks=defaultLandmarks(),
         facialMasks={},
         surfaceControls={},
+        generatedRegions={},
         faceOrigin=defaultFaceOrigin(),
         selectedRole=1,
         selectedLandmark=1,
@@ -133,7 +135,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(15,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(16,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -417,6 +419,7 @@ function M.normalize(project)
     end
     project.selectedFacialMask=math.min(project.selectedFacialMask,math.max(1,#project.facialMasks))
     project.selectedSurfaceControl=math.min(project.selectedSurfaceControl,math.max(1,#project.surfaceControls))
+    tGeneratedRegions.normalize(project)
     return project
 end
 

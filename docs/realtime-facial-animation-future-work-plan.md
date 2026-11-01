@@ -60,8 +60,11 @@ The face guide remains a placement aid and must not be confused with an authored
 legacy vertex mask.
 The current catalog now includes paired brows, eyes, cheeks, and mouth corners. New facial projects
 receive all eight masks after face-origin placement. Saved projects retain their authored catalog
-without automatic additions. AU labels on these templates are semantic hints;
-deriving regions and authoring AU-to-target profiles are still separate future milestones.
+without automatic additions. AU labels on these templates are semantic hints. The editor now
+derives binary front-surface regions explicitly from closed area polygons, tracks source edits and
+topology changes, and can copy a current region into an independent Morph Target selection mask.
+Surface falloff, rig-weight application, Blender transport, and AU-to-target profiles remain
+future milestones.
 
 The initial point-controller model is explicit: a controller lists the controls it affects, with
 optional per-control contribution values. An optional spatial-inference command may later suggest
@@ -78,9 +81,9 @@ Legacy vertex masks remain loadable and editable for old projects. They are not 
 automatically into polygons, polylines, or points. New projects start with surface-control
 authoring; a legacy mask is an explicit compatibility choice.
 
-The current implementation contains an interim polygon-mask editor under **Masks / Regions**. It is
-not the source of the facial-action templates; it remains only as a compatibility path until the
-derivation stage replaces it with generated regions.
+The interim polygon-mask editor remains under **Masks / Regions** for compatibility. Generated
+regions are stored separately from these masks, and copying one into a target-selection mask is
+explicit; no automatic conversion or weight application occurs.
 
 The first surface-anchor implementation may use canonical mesh vertices. A later extension may
 anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.
