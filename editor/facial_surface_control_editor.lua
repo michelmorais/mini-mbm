@@ -122,14 +122,16 @@ function M.update(state,x,y,api)
                 if index then
                     used[index]=true
                     member.control.points[basePoint.pointIndex].index=index
+                    member.control.points[basePoint.pointIndex].offset=nil
                 end
             end
         end
     else
         local control=drag.control
         local point=control.points[drag.pointIndex]
-        if not point or tonumber(point.index)==hit.index then return false end
+        if not point or tonumber(point.index)==hit.index and not point.offset then return false end
         point.index=hit.index
+        point.offset=nil
     end
     drag.changed=true
     state.selectedSurfaceControlPoint=drag.controllerPoint or drag.pointIndex

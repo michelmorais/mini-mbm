@@ -91,7 +91,14 @@ function M.resolvePoints(polygon,topology)
         local point=index and topology.vertices[index]
         if point and not seen[index] then
             seen[index]=true
-            result[#result+1]={index=index,position=copyPoint(point)}
+            local position=copyPoint(point)
+            local offset=type(rawPoint)=='table' and rawPoint.offset or nil
+            if type(offset)=='table' then
+                position.x=position.x+(tonumber(offset.x) or 0)
+                position.y=position.y+(tonumber(offset.y) or 0)
+                position.z=position.z+(tonumber(offset.z) or 0)
+            end
+            result[#result+1]={index=index,position=position}
         end
     end
     return result
@@ -214,8 +221,16 @@ end
 function M.rebuild(polygon,topology)
     if type(polygon)~='table' then return false end
     local points=M.resolvePoints(polygon,topology)
+    local offsets={}
+    for _,candidate in ipairs(polygon.points or {}) do
+        if type(candidate)=='table' and candidate.offset then
+            offsets[candidate.index]=candidate.offset
+        end
+    end
     polygon.points={}
-    for _,point in ipairs(points) do polygon.points[#polygon.points+1]={index=point.index} end
+    for _,point in ipairs(points) do
+        polygon.points[#polygon.points+1]={index=point.index,offset=offsets[point.index]}
+    end
     polygon.derivedVertexWeights=M.deriveVertexWeights(topology,points,polygon.closed==true)
     polygon.topologySignature=topology and topology.signature or ''
     return true

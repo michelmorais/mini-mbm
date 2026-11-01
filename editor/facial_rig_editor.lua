@@ -43,6 +43,7 @@ tFacialPolygonEditor = require "facial_rig_polygon_editor"
 tFacialMaskRepresentation = require "facial_rig_mask_representation"
 tFacialActionTemplates = require "facial_rig_action_templates"
 tSurfaceControlEditor = require "facial_surface_control_editor"
+tSurfacePointGizmo = require "facial_surface_point_gizmo"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 tMeshImporter = require "blender_mesh_importer"
@@ -68,6 +69,7 @@ local state = {
     selectedMask=1, maskCreationRepresentation=2, maskRepresentationChangePending=nil,
     selectedFacialMask=1,
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
+    surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
     surfaceControlNameDraft='', surfaceControlKind=1, surfaceControlDepthUndo=false,
     maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
@@ -752,6 +754,8 @@ local function restoreHistorySnapshot(snapshot)
     state.selectedMask=snapshot.selectedMask or state.project.selectedMask or 1
     state.selectedFacialMask=snapshot.selectedFacialMask or state.project.selectedFacialMask or 1
     state.selectedSurfaceControl=snapshot.selectedSurfaceControl or state.project.selectedSurfaceControl or 1
+    state.selectedSurfaceControlPoint=nil
+    state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=snapshot.landmarkEditMode or state.project.landmarkEditMode or 1
     state.expressions.selectedTarget=snapshot.selectedExpressionTarget or 1
     state.expressions.selectedPose=snapshot.selectedExpressionPose or 1
@@ -1585,6 +1589,8 @@ destroySurfaceControlOverlay=function()
     local overlay=state.surfaceControlOverlay
     for _,object in pairs(overlay.lines or {}) do dpCall(function() object:destroy() end) end
     for _,object in pairs(overlay.markers or {}) do dpCall(function() object:destroy() end) end
+    for _,object in pairs(state.surfacePointGizmo.axes) do dpCall(function() object:destroy() end) end
+    state.surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil}
     state.surfaceControlOverlay={dirty=true,lines={},markers={},visible=true}
 end
 
@@ -1595,6 +1601,9 @@ setSurfaceControlOverlayVisible=function(visible)
         object.visible=overlay.visible and state.workspace=='landmarks'
     end
     for _,object in pairs(overlay.markers or {}) do
+        object.visible=overlay.visible and state.workspace=='landmarks'
+    end
+    for _,object in pairs(state.surfacePointGizmo.axes) do
         object.visible=overlay.visible and state.workspace=='landmarks'
     end
 end
@@ -1617,6 +1626,8 @@ refreshSurfaceControlOverlay=function()
     if not state.mesh or not state.topology then
         for _,object in pairs(overlay.lines or {}) do object.visible=false end
         for _,object in pairs(overlay.markers or {}) do object.visible=false end
+        for _,object in pairs(state.surfacePointGizmo.axes) do object.visible=false end
+        state.surfacePointGizmo.origin=nil
         overlay.dirty=false
         return
     end
@@ -1736,6 +1747,41 @@ refreshSurfaceControlOverlay=function()
             local color=markerColors[role]
             object:setColor(color.r or 1,color.g or 1,color.b or 1,color.a or 1)
             object.visible=visible and selectedGroup.enabled~=false
+        end
+    end
+    local gizmo=state.surfacePointGizmo
+    local selectedControl=state.project.surfaceControls[state.selectedSurfaceControl]
+    local selectedPoint=selectedGroup and selectedGroup.enabled~=false and selectedControl and
+        state.selectedSurfaceControlPoint and
+        tSurfacePointGizmo.position(selectedControl,state.selectedSurfaceControlPoint,state.topology)
+    local selectedInGroup=false
+    for _,controlId in ipairs(selectedGroup and selectedGroup.controlIds or {}) do
+        if selectedControl and selectedControl.id==controlId then selectedInGroup=true; break end
+    end
+    if not selectedInGroup then selectedPoint=nil end
+    gizmo.origin=selectedPoint
+    gizmo.length=selectedPoint and math.max(faceScale and faceScale*0.09 or extent*0.025,0.02) or nil
+    for name,axis in pairs(tSurfacePointGizmo.axes) do
+        local object=gizmo.axes[name]
+        if selectedPoint and visible then
+            local path={selectedPoint.x,selectedPoint.y,selectedPoint.z,
+                selectedPoint.x+axis.x*gizmo.length,
+                selectedPoint.y+axis.y*gizmo.length,
+                selectedPoint.z+axis.z*gizmo.length}
+            if not object then
+                object=line:new('3d',0,0,0)
+                object:add(path)
+                object.alwaysOnTop=true
+                object.alwaysRender=true
+                object.alwaysOnTopPriority=5
+                gizmo.axes[name]=object
+            else
+                object:set(path,1)
+            end
+            object:setColor(table.unpack(axis.color))
+            object.visible=true
+        elseif object then
+            object.visible=false
         end
     end
     overlay.dirty=false
@@ -3035,6 +3081,8 @@ local function openProject()
     state.selectedLandmark=project.selectedLandmark or 1
     state.selectedFacialMask=project.selectedFacialMask or 1
     state.selectedSurfaceControl=project.selectedSurfaceControl or 1
+    state.selectedSurfaceControlPoint=nil
+    state.surfacePointGizmo.drag=nil
     state.surfaceControlDepthUndo=false
     state.landmarkEditMode=project.landmarkEditMode or 1
     clearHistory()
@@ -4510,14 +4558,15 @@ local function showLandmarks()
                 end
                 tImGui.BeginDisabled(not state.topology or #selectedControl.points==0)
                 if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
-                    local resolved=tFacialPolygon.resolvePoints(selectedControl,state.topology)
-                    if #resolved~=#selectedControl.points then
+                    local plan=tSurfacePointGizmo.planSurfaceSnap(selectedControl,state.topology,
+                        state.meshBounds,tFacialLandmarks.intersectRaySurface)
+                    if not plan then
                         setStatus(tLang.L('fre_facs_surface_snap_failed'),true)
-                    elseif (selectedControl.depthOffset or 0)==0 then
+                    elseif not plan.changed then
                         setStatus(tLang.L('fre_facs_surface_already_snapped'),false)
                     else
                         pushUndoSnapshot()
-                        selectedControl.depthOffset=0
+                        tSurfacePointGizmo.applySurfaceSnap(selectedControl,plan)
                         commitSurfaceControl(selectedControl)
                         setStatus(tLang.L('fre_facs_surface_snapped'),false)
                     end
@@ -7128,6 +7177,50 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and state.workspace=='landmarks' and not state.controlDown and state.topology then
+        local origin,direction=viewportPickRay(x,y)
+        if origin then
+            local gizmo=state.surfacePointGizmo
+            if gizmo.origin and gizmo.length then
+                local axisName=tSurfacePointGizmo.pickAxis(origin,direction,gizmo.origin,
+                    gizmo.length,math.max(gizmo.length*0.09,0.002))
+                local axis=axisName and tSurfacePointGizmo.axes[axisName]
+                local parameter=axis and tSurfacePointGizmo.axisParameter(origin,direction,gizmo.origin,axis)
+                if parameter then
+                    local selectedGroup=state.project.facialMasks[state.selectedFacialMask]
+                    local control=state.project.surfaceControls[state.selectedSurfaceControl]
+                    local groupEntries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
+                    local entries=tSurfacePointGizmo.dragEntries(control,
+                        state.selectedSurfaceControlPoint,groupEntries)
+                    gizmo.drag={axis=axis,origin={x=gizmo.origin.x,y=gizmo.origin.y,z=gizmo.origin.z},
+                        startParameter=parameter,
+                        snapshot=tSurfacePointGizmo.snapshot(entries,state.topology),moved=false}
+                    return
+                end
+            end
+            local entries={}
+            for groupIndex,group in ipairs(state.project.facialMasks or {}) do
+                if group.enabled~=false then
+                    for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,group)) do
+                        entries[#entries+1]={groupIndex=groupIndex,index=entry.index,
+                            control=entry.control}
+                    end
+                end
+            end
+            local scale=(state.project.faceOrigin and state.project.faceOrigin.scale) or 1
+            local hit=tSurfacePointGizmo.pick(entries,state.topology,origin,direction,
+                math.max(scale*0.018,0.002),math.max(scale*0.012,0.0015))
+            if hit then
+                state.selectedFacialMask=hit.entry.groupIndex
+                state.project.selectedFacialMask=hit.entry.groupIndex
+                state.selectedSurfaceControl=hit.entry.index
+                state.project.selectedSurfaceControl=hit.entry.index
+                state.selectedSurfaceControlPoint=hit.pointIndex
+                state.surfaceControlOverlay.dirty=true
+                return
+            end
+        end
+    end
     if key==0 and state.workspace=='targets' and state.targetAuthoring.mode==2 and
             state.targetAuthoring.editMode==2 and beginTargetGizmoDrag(x,y) then return end
     if state.workspace=='targets' and key==1 then
@@ -7235,6 +7328,22 @@ end
 
 function onTouchMove(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    local pointDrag=state.surfacePointGizmo.drag
+    if pointDrag then
+        local origin,direction=viewportPickRay(x,y)
+        local parameter=origin and tSurfacePointGizmo.axisParameter(origin,direction,
+            pointDrag.origin,pointDrag.axis)
+        if parameter then
+            local amount=parameter-pointDrag.startParameter
+            if math.abs(amount)>1e-6 then
+                if not pointDrag.moved then pushUndoSnapshot(); pointDrag.moved=true end
+                tSurfacePointGizmo.translate(pointDrag.snapshot,state.topology,
+                    {x=pointDrag.axis.x*amount,y=pointDrag.axis.y*amount,z=pointDrag.axis.z*amount})
+                state.surfaceControlOverlay.dirty=true
+            end
+        end
+        return
+    end
     local gizmoDrag=state.targetGizmo.drag
     if gizmoDrag then
         local origin,direction=viewportPickRay(x,y)
@@ -7347,6 +7456,15 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==0 and state.surfacePointGizmo.drag then
+        local drag=state.surfacePointGizmo.drag
+        state.surfacePointGizmo.drag=nil
+        if drag.moved then
+            for _,entry in ipairs(drag.snapshot) do commitSurfaceControl(entry.control) end
+        end
+        state.surfaceControlOverlay.dirty=true
+        return
+    end
     if key==0 and state.targetGizmo.drag then
         state.targetOverlay.bufferDirty=true
         state.targetOverlay.bufferForce=true

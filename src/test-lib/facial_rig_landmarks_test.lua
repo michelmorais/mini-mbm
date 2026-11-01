@@ -7,6 +7,7 @@ local Expressions=require 'facial_rig_expressions'
 local Clips=require 'facial_rig_clips'
 local Polygon=require 'facial_rig_polygon'
 local ActionTemplates=require 'facial_rig_action_templates'
+local PointGizmo=require 'facial_surface_point_gizmo'
 
 local points={
     [1]={{x=-1,y=0,z=0},{x=1,y=0,z=0}},
@@ -39,7 +40,7 @@ assert(shiftedA.x==browPointA.x and shiftedA.y==browPointA.y and shiftedA.z==6 a
     shiftedB.x==browPointB.x and shiftedB.y==browPointB.y and shiftedB.z==4,
     'face depth must preserve the front-view contour at large offsets')
 local project=Project.new()
-assert(project.schemaVersion==13 and project.landmarkEditMode==1)
+assert(project.schemaVersion==14 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -59,7 +60,7 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
 local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
-assert(legacyProject.schemaVersion==13 and legacyProject.masks[1].representation=='vertex',
+assert(legacyProject.schemaVersion==14 and legacyProject.masks[1].representation=='vertex',
     'legacy masks must normalize to the vertex representation')
 local polygon=Project.addSurfaceControl(project,'brow_left','polygon')
 assert(polygon.kind=='polygon' and not polygon.closed and #polygon.points==0)
@@ -72,6 +73,74 @@ Project.normalize(project)
 assert(#project.surfaceControls[3].relationships==2 and
     project.surfaceControls[3].relationships[1].weight==0.75)
 assert(#project.surfaceControls==3 and project.surfaceControls[1].name=='brow_left')
+local gizmoTopology={vertices={{x=0,y=0,z=0},{x=1,y=0,z=0},{x=0,y=1,z=0}},
+    triangles={{1,2,3}},bounds={minZ=0,maxZ=0}}
+local gizmoArea={kind='polyline',points={{index=1},{index=2}},depthOffset=0}
+local gizmoController={kind='point',role='controller',points={{index=3}},depthOffset=0}
+local entries={{control=gizmoArea,index=1},{control=gizmoController,index=2}}
+local rayOrigin={x=0.7,y=0,z=5}
+local rayDirection={x=0,y=0,z=-1}
+local lineHit=PointGizmo.pick(entries,gizmoTopology,rayOrigin,rayDirection,0.05,0.05)
+assert(lineHit and lineHit.entry.index==1 and lineHit.pointIndex==2,
+    'clicking an outline must select the nearer editable endpoint')
+local pointHit=PointGizmo.pick(entries,gizmoTopology,{x=0,y=1,z=5},rayDirection,0.05,0.05)
+assert(pointHit and pointHit.entry.index==2 and pointHit.pointIndex==1,
+    'clicking the controller must select its own anchor')
+local axis=PointGizmo.pickAxis({x=0.7,y=1,z=5},rayDirection,{x=0,y=1,z=0},1,0.05)
+assert(axis=='x' and math.abs(PointGizmo.axisParameter({x=0.7,y=1,z=5},rayDirection,
+    {x=0,y=1,z=0},PointGizmo.axes.x)-0.7)<1e-8,
+    'the X gizmo must be selectable and measure displacement along X')
+local areaDrag=PointGizmo.snapshot(PointGizmo.dragEntries(gizmoArea,2,entries),gizmoTopology)
+assert(#areaDrag==1 and #areaDrag[1].points==1 and areaDrag[1].points[1].index==2,
+    'a brow contour drag must capture only the clicked anchor')
+PointGizmo.translate(areaDrag,gizmoTopology,{x=0.3,y=0,z=0.4})
+assert(PointGizmo.position(gizmoArea,1,gizmoTopology).x==0 and
+    math.abs(PointGizmo.position(gizmoArea,2,gizmoTopology).x-1.3)<1e-8 and
+    PointGizmo.position(gizmoController,1,gizmoTopology).x==0,
+    'moving a brow contour anchor must leave its neighbors and controller still')
+local actionLine={kind='polyline',role='action_line',points={{index=1},{index=2}},depthOffset=0}
+local lineDrag=PointGizmo.snapshot(PointGizmo.dragEntries(actionLine,1,entries),gizmoTopology)
+PointGizmo.translate(lineDrag,gizmoTopology,{x=0,y=0.25,z=0})
+assert(PointGizmo.position(actionLine,1,gizmoTopology).y==0.25 and
+    PointGizmo.position(actionLine,2,gizmoTopology).y==0,
+    'moving an action-line anchor must leave its other anchor still')
+local snapshot=PointGizmo.snapshot(PointGizmo.dragEntries(gizmoController,1,entries),gizmoTopology)
+assert(#snapshot==2 and #snapshot[1].points==2,
+    'only the green controller may capture every point in the mask group')
+PointGizmo.translate(snapshot,gizmoTopology,{x=0.3,y=0,z=0.4})
+assert(math.abs(PointGizmo.position(gizmoArea,1,gizmoTopology).x-0.3)<1e-8 and
+    math.abs(PointGizmo.position(gizmoController,1,gizmoTopology).z-0.4)<1e-8,
+    'controller translation must preserve the group shape using per-point offsets')
+local offsetProject=Project.new()
+offsetProject.surfaceControls={gizmoArea,gizmoController}
+Project.normalize(offsetProject)
+assert(offsetProject.surfaceControls[1].points[1].offset.x==0.3 and
+    math.abs(Polygon.resolvePoints(offsetProject.surfaceControls[1],gizmoTopology)[1].position.z-0.4)<1e-8,
+    'normalization and point resolution must preserve authored 3D offsets')
+local snapControl={points={{index=1,offset={x=0.25,y=0.25,z=0.5}}},depthOffset=0.2}
+local snapPlan=PointGizmo.planSurfaceSnap(snapControl,gizmoTopology,gizmoTopology.bounds,
+    Landmarks.intersectRaySurface)
+assert(snapPlan and snapPlan.changed,'surface snap must find the face at the edited X/Y')
+PointGizmo.applySurfaceSnap(snapControl,snapPlan)
+local snapped=PointGizmo.position(snapControl,1,gizmoTopology)
+assert(snapped.x==0.25 and snapped.y==0.25 and math.abs(snapped.z)<1e-8 and
+    snapControl.depthOffset==0,
+    'surface snap must adjust depth without losing the authored X/Y placement')
+local missedControl={points={{index=1,offset={x=2,y=2,z=0.5}}},depthOffset=0}
+assert(not PointGizmo.planSurfaceSnap(missedControl,gizmoTopology,gizmoTopology.bounds,
+    Landmarks.intersectRaySurface) and missedControl.points[1].offset.z==0.5,
+    'a failed surface projection must leave the shape unchanged')
+offsetProject.surfaceControls[1].points[1].offset={x=0.125,y=-0.25,z=0.5}
+mbm={setColor=function() end}
+tImGui={}
+timer={new=function() return {} end}
+local editorUtils=require 'editor_utils'
+local offsetPath='/tmp/facial-rig-point-offset-smoke.lua'
+assert(Project.save(offsetProject,offsetPath,editorUtils.save))
+local restoredOffset=assert(Project.load(offsetPath)).surfaceControls[1].points[1].offset
+assert(restoredOffset.x==0.125 and restoredOffset.y==-0.25 and restoredOffset.z==0.5,
+    'the editor serializer must round-trip each point displacement')
+os.remove(offsetPath)
 local templateProject=Project.new()
 assert(ActionTemplates.instantiate(templateProject,surface,
     {placed=true,position={x=0,y=0,z=0},scale=1},1))

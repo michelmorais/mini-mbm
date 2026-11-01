@@ -89,7 +89,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=13,
+        schemaVersion=14,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -133,7 +133,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(13,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(14,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -365,7 +365,17 @@ function M.normalize(project)
                 pointIndex=pointIndex and math.floor(pointIndex) or nil
                 if pointIndex and pointIndex>=1 and not seenPoints[pointIndex] then
                     seenPoints[pointIndex]=true
-                    normalizedPoints[#normalizedPoints+1]={index=pointIndex}
+                    local offset=type(rawPoint)=='table' and rawPoint.offset or nil
+                    local normalized={index=pointIndex}
+                    if type(offset)=='table' then
+                        local x,y,z=tonumber(offset.x),tonumber(offset.y),tonumber(offset.z)
+                        if x and y and z and x==x and y==y and z==z and
+                                math.abs(x)<math.huge and math.abs(y)<math.huge and
+                                math.abs(z)<math.huge then
+                            normalized.offset={x=x,y=y,z=z}
+                        end
+                    end
+                    normalizedPoints[#normalizedPoints+1]=normalized
                 end
             end
             control.points=normalizedPoints

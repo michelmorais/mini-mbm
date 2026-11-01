@@ -68,8 +68,11 @@ All mask outlines remain visible with group colors. The brow area uses its mask 
 line defaults to orange on both brows (including projects with the previous template accents),
 while a separately authored color is retained. The controller is
 a larger green square with a cross. Only the selected mask displays square anchors for editing.
-The selected polygon, action line, or controller can be adapted with right-drag in the viewport;
-dragging the controller moves the polygon and action line together. The editor should extend this
+In the viewport, left drag on empty space orbits the camera. Clicking a square anchor or an outline
+selects its point (a segment selects its nearer endpoint) and displays a 3D translation gizmo.
+Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the controller's
+gizmo moves every point in its mask group by the same world-space displacement. Right drag still
+snaps an anchor, or the controller's whole group, to mesh vertices. The editor should extend this
 template catalog to the remaining FACS-inspired facial actions without requiring the user to create
 each shape from an empty control.
 
@@ -79,9 +82,12 @@ not create empty controls in this facial workflow. The depth offset is editable 
 in the viewport. For these facial masks, it moves every point along the shared front-facing Z axis
 of the face reference, preserving the X/Y contour even at larger offsets. Previously saved point
 positions and depth values remain unchanged; the new colors and depth display apply when reopened.
-**Snap selected shape to face surface**, beside the FACS depth control, resets only the selected
-polygon, action line, or controller's depth offset to zero. Its anchors already reference mesh
-vertices, so their X/Y placement and the other shapes in the group remain unchanged. The separate
+Each anchor keeps its mesh vertex index and an optional 3D offset, which is saved in the project
+and can be undone. The depth slider still moves the selected shape along face Z.
+**Snap selected shape to face surface**, beside the FACS depth control, projects the selected
+polygon, action line, or controller onto its mesh subset along face Z. It preserves each point's
+X/Y placement, adjusts only depth, and can be undone. The other shapes in the group remain
+unchanged. The separate
 landmark button below continues to raycast a selected individual landmark onto the surface.
 
 **Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and
