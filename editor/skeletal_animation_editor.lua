@@ -8994,6 +8994,17 @@ local function showSkeletalTimelineWindow()
             '##swlTimelineSpeed',playback.speed,0.05,0.05,4,'%.2fx')
         tImGui.PopItemWidth()
         if speedChanged then playback.speed=math.max(0.05,math.min(4,speed)) end
+        tImGui.PushItemWidth(-1)
+        local poseTimeChanged,poseTime=tImGui.SliderFloat('##swlTimelinePoseTime',
+            state.authoringTime or 0,0,math.max(clipDuration,0.0001),'%.3f s')
+        tImGui.PopItemWidth()
+        showItemTooltip(tLang.L('swl_animation_pose_time_help'),false,400)
+        if poseTimeChanged then
+            if playback.playing then playback.paused=true end
+            state.authoringTime=math.max(0,math.min(clipDuration,poseTime))
+            clearAuthoringOverride()
+            refreshAuthoringPose(state.animationTimelineClip)
+        end
         showSkeletalTimeline(state.animationTimelineClip)
     end
     tImGui.End()

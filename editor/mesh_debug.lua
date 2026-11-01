@@ -3708,9 +3708,11 @@ end
 
 -- Load selected mesh for preview. When mesh has unsaved changes, saves to temp and loads from there
 -- so animation/transform edits are visible at runtime without saving to file.
-local function configureFacialMeshPreview(object, meshD)
-    local ok, targetCount = dpCall(function() return meshD:getTotalFacialTargets() end)
-    if ok and (tonumber(targetCount) or 0) > 0 then
+local function configureMeshPreviewSkinning(object, meshD)
+    local okClips, skeletalClips = dpCall(function() return meshD:getSkeletalAnimationReport() end)
+    local okTargets, facialTargetCount = dpCall(function() return meshD:getTotalFacialTargets() end)
+    if (okClips and type(skeletalClips) == 'table' and #skeletalClips > 0) or
+            (okTargets and (tonumber(facialTargetCount) or 0) > 0) then
         object:setSkeletalSkinningMethod('auto')
     end
 end
@@ -3750,7 +3752,7 @@ function updatePreviewMesh()
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
-        configureFacialMeshPreview(tPreviewMesh, meshD)
+        configureMeshPreviewSkinning(tPreviewMesh, meshD)
         ok = meshDebug:loadMeshPreview(tPreviewMesh,loadPath)
         -- Force the preview's position back to the origin immediately after load, overriding
         -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,

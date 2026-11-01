@@ -78,6 +78,12 @@ loop advances progress and completion; `job:cancel()` writes the exporter cancel
 Direct MSH output is first flushed to a temporary sibling and atomically renamed; the shared job
 therefore treats appearance of the final output path as completion even if Blender does not flush
 its trailing `done` log line.
+The exporter preserves the Blender Armature object transform while extracting canonical skinning
+data. This matters for FBX files with a common unit-conversion scale such as
+`(0.01, 0.01, 0.01)`: applying that transform directly to the Armature can change the animation
+referential and displace the evaluated skinned mesh. At runtime, the automatic LBS/DQS resolver
+accepts a positive uniform root conversion scale when every effective skin matrix remains rigid;
+real non-uniform bone or animation scales still resolve to LBS.
 Mesh Debug initializes this workflow with V inversion, an X-axis rotation of
 -90 degrees, and a 600-second inactivity timeout; users may still override these
 values in its import configuration.

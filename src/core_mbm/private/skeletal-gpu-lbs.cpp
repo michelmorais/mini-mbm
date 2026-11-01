@@ -24,24 +24,69 @@
 
 namespace mbm::skeletal
 {
-    DQS_COMPATIBILITY_STATUS getDqsCompatibility(const CANONICAL_SKELETON &skeleton,
-                                                  const CANONICAL_ANIMATIONS &animations) noexcept
+    namespace
     {
-        const auto isUnitScale = [](const VEC3 &scale) noexcept
+        bool isUnitScale(const VEC3 &scale) noexcept
         {
             return std::fabs(scale.x - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(scale.y - 1.0f) <= MATRIX_TOLERANCE &&
                    std::fabs(scale.z - 1.0f) <= MATRIX_TOLERANCE;
-        };
+        }
+
+        bool isPositiveUniformScale(const VEC3 &scale) noexcept
+        {
+            return scale.x > 0.0f && scale.y > 0.0f && scale.z > 0.0f &&
+                   std::fabs(scale.x - scale.y) <= MATRIX_TOLERANCE &&
+                   std::fabs(scale.x - scale.z) <= MATRIX_TOLERANCE;
+        }
+
+        bool isAllowedLocalScale(const CANONICAL_BONE &bone, const VEC3 &scale) noexcept
+        {
+            if (isUnitScale(scale))
+                return true;
+            return bone.parentBoneId == 0 && isPositiveUniformScale(scale);
+        }
+
+        bool sameScale(const VEC3 &left, const VEC3 &right) noexcept
+        {
+            return std::fabs(left.x - right.x) <= MATRIX_TOLERANCE &&
+                   std::fabs(left.y - right.y) <= MATRIX_TOLERANCE &&
+                   std::fabs(left.z - right.z) <= MATRIX_TOLERANCE;
+        }
+    }
+
+    DQS_COMPATIBILITY_STATUS getDqsCompatibility(const CANONICAL_SKELETON &skeleton,
+                                                  const CANONICAL_ANIMATIONS &animations) noexcept
+    {
+        if (skeleton.skeletonId == 0 || skeleton.compiled.bones.size() != skeleton.sourceBones.size())
+            return DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE;
+
         for (const CANONICAL_BONE &bone : skeleton.sourceBones)
-            if (!isUnitScale(bone.localBind.scale))
+            if (!isAllowedLocalScale(bone, bone.localBind.scale))
                 return DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE;
+
+        SKELETAL_POSE bindPose;
+        bindPose.globalTransforms.reserve(skeleton.compiled.bones.size());
+        for (const COMPILED_BONE &bone : skeleton.compiled.bones)
+            bindPose.globalTransforms.push_back(bone.globalBindMatrix);
+        std::vector<float> palette;
+        if (buildDqsPalette(skeleton, bindPose, palette) != DQS_PALETTE_STATUS::READY)
+            return DQS_COMPATIBILITY_STATUS::BIND_CONTAINS_SCALE;
+
         for (const SKELETAL_CLIP &clip : animations.clips)
             for (const SKELETAL_TRACK &track : clip.tracks)
                 if ((track.channelMask & SKELETAL_CHANNEL_SCALE) != 0)
+                {
+                    const auto boneIndex = skeleton.compiled.indexById.find(track.boneId);
+                    if (boneIndex == skeleton.compiled.indexById.end())
+                        return DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE;
+                    const CANONICAL_BONE &bone = skeleton.sourceBones[
+                        skeleton.compiled.bones[static_cast<size_t>(boneIndex->second)].sourceIndex];
                     for (const SKELETAL_KEY &key : track.keys)
-                        if (!isUnitScale(key.local.scale))
+                        if (!isAllowedLocalScale(bone, key.local.scale) ||
+                            (bone.parentBoneId == 0 && !sameScale(key.local.scale, bone.localBind.scale)))
                             return DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE;
+                }
         return DQS_COMPATIBILITY_STATUS::RIGID;
     }
 

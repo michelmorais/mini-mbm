@@ -1872,9 +1872,12 @@ namespace
                "auto skinning must select LBS when bind contains scale");
         skeleton.sourceBones[1].localBind.scale = VEC3(1.0f, 1.0f, 1.0f);
         SKELETAL_CLIP scaledClip;
+        scaledClip.clipId = 200; scaledClip.name = "scaled"; scaledClip.duration = 1.0f;
         SKELETAL_TRACK scaledTrack;
+        scaledTrack.boneId = 20;
         scaledTrack.channelMask = SKELETAL_CHANNEL_SCALE;
         SKELETAL_KEY scaledKey;
+        scaledKey.time = 0.0f;
         scaledKey.local.scale = VEC3(1.0f, 1.25f, 1.0f);
         scaledTrack.keys.push_back(scaledKey);
         scaledClip.tracks.push_back(scaledTrack);
@@ -1882,6 +1885,34 @@ namespace
         expect(getDqsCompatibility(skeleton, rigidAnimations) ==
                    DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE,
                "auto skinning must select LBS when any clip contains scale");
+
+        skeleton.sourceBones[0].localBind.scale = VEC3(0.01f, 0.01f, 0.01f);
+        compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled);
+        CANONICAL_ANIMATIONS uniformRootScaleAnimations;
+        uniformRootScaleAnimations.skeletonId = skeleton.skeletonId;
+        SKELETAL_CLIP uniformRootScaleClip;
+        uniformRootScaleClip.clipId = 201;
+        uniformRootScaleClip.name = "uniform-root-scale";
+        uniformRootScaleClip.duration = 1.0f;
+        SKELETAL_TRACK uniformRootScaleTrack;
+        uniformRootScaleTrack.boneId = 10;
+        uniformRootScaleTrack.channelMask = SKELETAL_CHANNEL_SCALE;
+        SKELETAL_KEY uniformRootScaleKey;
+        uniformRootScaleKey.time = 0.0f;
+        uniformRootScaleKey.local.scale = VEC3(0.01f, 0.01f, 0.01f);
+        uniformRootScaleTrack.keys.push_back(uniformRootScaleKey);
+        uniformRootScaleClip.tracks.push_back(uniformRootScaleTrack);
+        uniformRootScaleAnimations.clips.push_back(uniformRootScaleClip);
+        expect(getDqsCompatibility(skeleton, uniformRootScaleAnimations) ==
+                   DQS_COMPATIBILITY_STATUS::RIGID,
+               "auto skinning must accept a uniform root conversion scale when skin matrices stay rigid");
+        uniformRootScaleAnimations.clips[0].tracks[0].keys[0].local.scale =
+            VEC3(0.02f, 0.02f, 0.02f);
+        expect(getDqsCompatibility(skeleton, uniformRootScaleAnimations) ==
+                   DQS_COMPATIBILITY_STATUS::CLIP_CONTAINS_SCALE,
+               "auto skinning must reject a root scale animation that changes the conversion scale");
+        skeleton.sourceBones[0].localBind.scale = VEC3(1.0f, 1.0f, 1.0f);
+        compileCanonicalSkeleton(skeleton.sourceBones, skeleton.compiled);
 
         SKELETAL_POSE pose;
         pose.localTransforms = {root.localBind, child.localBind};
