@@ -1,8 +1,9 @@
 # Facial Rig Editor
 
-The Lua Facial Rig Editor authors facial masks, morph targets, named expressions, and facial clips
-for an assigned MSH. The editor can create and sculpt targets without Blender. Faceit is a workflow
-reference; its add-on and SDK are not required to edit or export an MSH.
+The Lua Facial Rig Editor authors facial surface controls, generated regions, morph targets, named
+expressions, and facial clips for an assigned MSH. The editor can create and sculpt targets without
+Blender. Faceit is a workflow reference; its add-on and SDK are not required to edit or export an
+MSH.
 
 ## Morph Targets
 
@@ -33,30 +34,36 @@ match requires explicit opt-in and visual inspection. Create mirrored target com
 the source target is retained. Optional viewport guides show the chosen source vertex, its reflected
 position, and the match radius.
 
-## Masks and viewport
+## Facial landmarks, surface controls, and regions
 
-**Masks / Regions** separates rig roles, mask management, and selection editing. A target selection
-mask limits sculpt operations; a rig-role mask serves rig assignment. In selection editing, right
-click paints the current mask, and the open-boundary-loop option selects a connected boundary loop
-near the cursor. The mask overlay updates after edits. A mask selects vertex indices and does not
-split shared vertices or alter source topology.
+The facial authoring flow starts in **Landmarks**. The face guide shown there is a visual reference
+for placing the face origin and landmarks; it is not a legacy mask and is not persisted as a vertex
+selection.
 
-The editor now keeps two explicit authoring representations in this worktree: a
-**Legacy vertex mask**, which edits the current canonical vertex-index list, and a **Surface polygon
-mask**, which edits a closed polygon anchored to the assigned mesh surface. A radio button selects
-which representation is being edited. Existing masks remain legacy masks; selecting the polygon mode
-does not silently convert them. The polygon representation is currently persisted and protected from
-legacy vertex painting. In **Masks / Regions > Edit selection**, right click adds a canonical surface
-point, right drag moves an existing point, right click near a closed edge inserts a point, and the
-controls can remove, clear, close, or reopen the polygon. Closed polygons currently derive binary
-vertex weights by projecting the polygon onto its local plane; the derived result is rebuildable and
-invalid when the source topology signature changes. Soft falloff and triangle/barycentric anchors
-remain future work. See the [facial animation expansion plan](realtime-facial-animation-future-work-plan.md#phase-1---dual-mask-authoring-in-the-facial-rig-editor).
-When creating a new mask in **Masks / Regions**, choose its representation before clicking the create
-button. The representation selector is also mirrored in **Landmarks**, so the facial-mark authoring
-workflow can choose the representation of an existing mask without changing worktrees. With no mask
-in a new project, the Landmarks selector chooses the initial representation and offers creation of the
-main face mask.
+The author creates surface controls directly over the mesh:
+
+| Kind | Meaning | Initial authoring behavior |
+| --- | --- | --- |
+| polygon | Area of influence, such as a brow or cheek region | Closed surface shape with editable contour and depth-adjustable anchors |
+| polyline | Line of action, such as a lip border, furrow, or wrinkle | Open surface line with editable points and depth-adjustable anchors |
+| point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
+
+The first point-controller implementation uses explicit references to related controls. A later
+optional operation may infer related controls from spatial proximity, but the user must request and
+confirm that inference; it must never silently replace explicit relationships.
+
+**Masks / Regions** consumes the authored controls. It generates or refreshes derived regions and
+vertex weights from the selected polygon, polyline, or point relationships. Generated regions retain
+the source-control identity and topology signature, and become stale when the authored control or
+source topology changes. The user must explicitly regenerate and review them.
+
+Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
+They are not the authoring surface for the new facial workflow, and the editor must not silently
+convert a legacy mask into a surface control.
+
+The current code still contains an interim polygon-mask prototype under **Masks / Regions > Edit
+selection**. That prototype is not the target workflow described here; it must be relocated to
+**Landmarks** before the polygon/polyline/point authoring milestone is considered complete.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and
@@ -65,8 +72,9 @@ without discarding the selected weight. Viewport mesh visibility controls the se
 
 ## Project and MSH persistence
 
-Saving the facial project stores editor metadata, masks, expressions, clips, target selection and
-preview weight. Target edits are stored as sparse changes relative to the assigned source MSH.
+Saving the facial project stores editor metadata, surface controls, generated-region metadata,
+legacy compatibility masks, expressions, clips, target selection, and preview weight. Target edits
+are stored as sparse changes relative to the assigned source MSH.
 Reopening validates source target identity and topology before applying those changes. If the
 assigned MSH already contains the exact edited target set and deltas, the editor treats the project
 patch as incorporated and can save the project without the redundant patch. Other source mismatches

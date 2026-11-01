@@ -63,7 +63,7 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskCreationRepresentation=1, maskRepresentationChangePending=nil,
+    selectedMask=1, maskCreationRepresentation=2, maskRepresentationChangePending=nil,
     maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskPolygonDrag=nil, maskPolygonSelectedPoint=nil,
@@ -2754,7 +2754,7 @@ local function newProject()
     state.selectedRole=1
     state.selectedLandmark=1
     state.selectedMask=1
-    state.maskCreationRepresentation=1
+    state.maskCreationRepresentation=2
     state.maskRepresentationChangePending=nil
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()

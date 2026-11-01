@@ -26,7 +26,7 @@ muscle anatomy or automatically generates deformation.
 The generic deformation model is:
 
 ```text
-surface region -> authored morph target -> FACS Action Unit -> expression or clip
+surface control -> generated region -> authored morph target -> FACS Action Unit -> expression or clip
 ```
 
 The existing MSH facial target and clip payload is already geometrically generic: it stores vertex
@@ -34,51 +34,56 @@ deltas and target weights, not facial anatomy. The first generic-morph milestone
 payload and existing runtime APIs while the editor-facing naming and project modules are extracted
 from the facial-only workflow.
 
-## Phase 1 - dual mask authoring in the Facial Rig Editor
+## Phase 1 - facial surface-control authoring and region generation
 
-The current facial editor will initially support two mask editing modes selected by a radio button:
+The authoring source is **Landmarks**, not **Masks / Regions**. After the face origin is positioned,
+the user creates and edits surface controls directly on the visible mesh:
 
-| Mode | Authoring representation | Compatibility |
+| Kind | Intended use | Initial semantics |
 | --- | --- | --- |
-| Legacy vertex mask | Explicit list of canonical frame-0 vertex indices | Existing projects and existing rig/target workflows remain valid |
-| Surface polygon mask | Editable closed polygon with draggable points anchored to the assigned mesh surface | New authoring path; derived vertex weights are generated from the polygon |
+| polygon | Area influence, such as a brow, cheek, eyelid, or jaw area | Closed ordered surface anchors with editable contour and depth |
+| polyline | Line of action, such as a lip border, furrow, or wrinkle | Open ordered surface anchors with editable contour and depth |
+| point | Landmark or controller for a localized action | Explicit references to the polygons/polylines it controls |
 
-The radio button selects which representation is edited. It must not silently convert a legacy mask
-to a polygon or a polygon to a legacy mask. A project may contain both types, but each mask has one
-authoritative representation and an explicit type. Existing legacy masks load as legacy masks.
-When creating a new mask in the Masks / Regions worktree, the same representation choice is made
-before creation so a new project can start with either representation. The Landmarks worktree also
-offers creation of the initial main-face mask, so the authoring flow does not require a detour through
-another worktree.
+The user must be able to select a control, place and drag its surface anchors, adjust their depth,
+edit contours, and inspect the related expression lines in the same facial-mark authoring view.
+The face guide remains a placement aid and must not be confused with an authored control or a
+legacy vertex mask.
 
-The polygon path should support the following initial operations:
+The initial point-controller model is explicit: a point lists the controls it affects, with optional
+per-control contribution values. An optional spatial-inference command may later suggest related
+controls based on proximity, but the user must explicitly invoke and confirm it. Inference must
+produce inspectable relationships and must not overwrite explicit links silently.
 
-- create a polygon by placing canonical vertex points on the visible mesh surface;
-- drag existing points, insert a point on an edge, remove a point, and close the polygon;
-- preview the polygon boundary and its derived binary influence on the mesh;
-- apply binary vertex weights using the initial projected-plane rule; soft weights remain future work;
-- invalidate the derived weights when the polygon or source topology changes;
-- undo and redo the complete polygon edit as one authoring operation where appropriate.
+**Masks / Regions** is the derivation stage. It consumes authored controls and generates named
+regions, vertex weights, and any legacy-compatible selections required by existing rig or target
+workflows. A generated region records its source-control identity, source topology signature, and
+generation state. Editing a source control marks dependent regions stale; regeneration is explicit
+and must be reviewed before export or weight application.
 
-For the first implementation, polygon points may be anchored to canonical mesh vertices. A later
-extension may anchor a point to a triangle plus barycentric coordinates when a point must lie
-between existing vertices. The serialized polygon must retain the source topology signature and
-the derived weights must be treated as rebuildable data, not as the primary authoring source.
+Legacy vertex masks remain loadable and editable for old projects. They are not converted
+automatically into polygons, polylines, or points. New projects start with surface-control
+authoring; a legacy mask is an explicit compatibility choice.
 
-The bridge to Blender must carry the complete polygon definition and its derived vertex weights.
-For parity, it should also carry the explicit vertex list when a legacy mask is exported as a
-region. The current binding description only reports mask counts, so the bridge schema must be
-extended before Blender can consume either representation as a precise region. Existing editor and
-rig-binding behavior for legacy vertex masks must remain unchanged during that extension.
+The current implementation contains an interim polygon-mask editor under **Masks / Regions**. It is
+not the target workflow and should be relocated or replaced before this phase is accepted.
+
+The first surface-anchor implementation may use canonical mesh vertices. A later extension may
+anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.
+Derived weights are rebuildable data and are never the primary authoring source.
+
+The bridge to Blender must eventually carry surface controls, generated regions, and their topology
+identity. Existing legacy vertex lists remain available for compatibility exports.
 
 Acceptance:
 
 - old facial projects load and save without changing legacy mask semantics;
-- the radio button clearly identifies the active mask representation;
-- editing one representation does not mutate the other representation implicitly;
-- a polygon can be used as a target-selection region and as a Blender authoring region;
-- stale topology produces an actionable diagnostic and never applies weights silently;
-- a polygon's preview and derived weights are idle-cached and rebuilt only after an input change.
+- a new project can author a polygon, polyline, and point in the Landmarks worktree;
+- polygon and polyline anchors can be edited with visible depth and contour feedback;
+- point relationships are explicit, inspectable, and can control multiple surface controls;
+- Masks / Regions can generate and refresh dependent regions without replacing the source controls;
+- stale generated regions produce an actionable diagnostic and never apply weights silently;
+- an explicit inference command can suggest point relationships without overwriting authored links.
 
 ## Phase 2 - generic surface regions and Morph Editor
 
