@@ -40,6 +40,7 @@ tFacialTargetProject = require "facial_rig_target_project"
 tFacialClips = require "facial_rig_clips"
 tFacialPolygon = require "facial_rig_polygon"
 tFacialPolygonEditor = require "facial_rig_polygon_editor"
+tFacialMaskRepresentation = require "facial_rig_mask_representation"
 tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 tMeshImporter = require "blender_mesh_importer"
@@ -62,7 +63,8 @@ local state = {
     landmarkSurfaceAutoOffset=true, landmarkSurfaceAxis=3,
     landmarkReferenceLarge=false, landmarkReferenceOpenRequested=false,
     status='', statusError=false,
-    selectedMask=1, maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
+    selectedMask=1, maskCreationRepresentation=1, maskRepresentationChangePending=nil,
+    maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
     maskBrush=nil,
     maskPolygonDrag=nil, maskPolygonSelectedPoint=nil,
     maskBrushRadius=0.045,
@@ -686,6 +688,45 @@ local function pushUndoSnapshot()
     state.undoStack[#state.undoStack+1]=historySnapshot()
     while #state.undoStack>(state.historyLimit or 50) do table.remove(state.undoStack,1) end
     state.redoStack={}
+end
+
+requestMaskRepresentationChange=function(mask,index,representation)
+    if not mask or mask.representation==representation then return false end
+    if tFacialMaskRepresentation.hasAuthoredData(mask) then
+        state.maskRepresentationChangePending={mask=mask,index=index,representation=representation}
+        return false
+    end
+    pushUndoSnapshot()
+    tFacialMaskRepresentation.apply(mask,representation)
+    state.maskRepresentationChangePending=nil
+    markMaskVisualizationDirty()
+    markModified()
+    return true
+end
+
+showMaskRepresentationWarning=function()
+    local pending=state.maskRepresentationChangePending
+    if not pending then return end
+    local mask=state.project.masks and state.project.masks[pending.index]
+    if mask~=pending.mask then
+        state.maskRepresentationChangePending=nil
+        return
+    end
+    local targetLabel=tLang.L(pending.representation=='polygon' and
+        'fre_mask_representation_polygon' or 'fre_mask_representation_legacy')
+    tImGui.Separator()
+    tImGui.TextWrapped(string.format(tLang.L('fre_mask_representation_warning_fmt'),mask.name or '',targetLabel))
+    if tImGui.Button(tLang.L('fre_mask_representation_confirm')..'##freMaskRepresentationConfirm') then
+        pushUndoSnapshot()
+        tFacialMaskRepresentation.apply(mask,pending.representation)
+        state.maskRepresentationChangePending=nil
+        markMaskVisualizationDirty()
+        markModified()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('fre_mask_representation_cancel')..'##freMaskRepresentationCancel') then
+        state.maskRepresentationChangePending=nil
+    end
 end
 
 local function restoreHistorySnapshot(snapshot)
@@ -2713,6 +2754,8 @@ local function newProject()
     state.selectedRole=1
     state.selectedLandmark=1
     state.selectedMask=1
+    state.maskCreationRepresentation=1
+    state.maskRepresentationChangePending=nil
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     markLandmarkMarkersDirty()
@@ -3420,6 +3463,7 @@ local function deleteSelectedMask()
     if not masks[index] then return false end
     pushUndoSnapshot()
     table.remove(masks,index)
+    state.maskRepresentationChangePending=nil
     if #masks==0 then
         state.selectedMask=1
     else
@@ -3472,16 +3516,28 @@ local function showMasks()
     end
     tImGui.TextWrapped(tLang.L(maskMode==1 and 'fre_masks_roles_purpose' or
         maskMode==2 and 'fre_masks_manage_purpose' or 'fre_masks_edit_purpose'))
+    showMaskRepresentationWarning()
     tImGui.Separator()
     if maskMode==2 then
         tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
+        tImGui.Text(tLang.L('fre_new_mask_representation'))
+        tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
+        local creationRepresentation=state.maskCreationRepresentation or 1
+        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+            '##freNewTargetMaskRepresentationLegacy',creationRepresentation,1)
+        tImGui.SameLine()
+        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+            '##freNewTargetMaskRepresentationPolygon',creationRepresentation,2)
+        state.maskCreationRepresentation=creationRepresentation
         tImGui.SetNextItemWidth(250)
         local nameChanged,targetMaskName=tImGui.InputText(
             tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
         if nameChanged then state.targetMaskNameDraft=targetMaskName end
         if tImGui.Button(tLang.L('fre_target_mask_create')) then
             pushUndoSnapshot()
-            tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            local createdMask=tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
+            tFacialMaskRepresentation.apply(createdMask,
+                state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
             state.selectedMask=#state.project.masks
             state.project.selectedMask=state.selectedMask
             state.targetMaskNameDraft=''
@@ -3569,9 +3625,20 @@ local function showMasks()
                 selected.enabled=enabled
                 markModified()
             end
+            tImGui.Text(tLang.L('fre_new_mask_representation'))
+            tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
+            local creationRepresentation=state.maskCreationRepresentation or 1
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freNewRigMaskRepresentationLegacy',creationRepresentation,1)
+            tImGui.SameLine()
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freNewRigMaskRepresentationPolygon',creationRepresentation,2)
+            state.maskCreationRepresentation=creationRepresentation
             if tImGui.Button(tLang.L('fre_add_mask')) then
                 pushUndoSnapshot()
-                tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                local createdMask=tFacialProject.addMask(state.project,selected.name,state.selectedRole)
+                tFacialMaskRepresentation.apply(createdMask,
+                    state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
                 state.selectedMask=#state.project.masks
                 state.project.selectedMask=state.selectedMask
                 state.maskWorkspaceMode=2
@@ -3601,6 +3668,7 @@ local function showMasks()
             if tImGui.Selectable(maskLabel,index==state.selectedMask) then
                 state.selectedMask=index
                 state.maskPolygonSelectedPoint=nil
+                state.maskRepresentationChangePending=nil
                 state.maskDeletePending=nil
                 markMaskVisualizationDirty()
                 if maskMode==3 then startMaskVisualizationBuild() end
@@ -3694,13 +3762,8 @@ local function showMasks()
                 '##freMaskRepresentationPolygon',representation,2)
             showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
             if representation~=previousRepresentation then
-                pushUndoSnapshot()
-                selectedMask.representation=representation==2 and 'polygon' or 'vertex'
-                if selectedMask.representation=='polygon' and type(selectedMask.polygon)~='table' then
-                    selectedMask.polygon={points={},closed=false,topologySignature=''}
-                end
-                markMaskVisualizationDirty()
-                markModified()
+                requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                    representation==2 and 'polygon' or 'vertex')
             end
             tImGui.Separator()
         end
@@ -3716,13 +3779,8 @@ local function showMasks()
             showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
             if (representation==2 and selectedMask.representation~='polygon') or
                     (representation==1 and selectedMask.representation~='vertex') then
-                pushUndoSnapshot()
-                selectedMask.representation=representation==2 and 'polygon' or 'vertex'
-                if selectedMask.representation=='polygon' and type(selectedMask.polygon)~='table' then
-                    selectedMask.polygon={points={},closed=false,topologySignature=''}
-                end
-                markMaskVisualizationDirty()
-                markModified()
+                requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                    representation==2 and 'polygon' or 'vertex')
             end
             if selectedMask.representation=='polygon' then
                 local polygon=tFacialPolygonEditor.ensure(selectedMask)
@@ -4148,15 +4206,26 @@ local function showLandmarks()
     tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
     local masks=state.project.masks or {}
     if #masks==0 then
-        local representation=1
-        tImGui.BeginDisabled(true)
-        tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+        local representation=state.maskCreationRepresentation or 1
+        representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
             '##freLandmarkMaskRepresentationLegacyEmpty',representation,1)
         tImGui.SameLine()
-        tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+        representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
             '##freLandmarkMaskRepresentationPolygonEmpty',representation,2)
-        tImGui.EndDisabled()
+        state.maskCreationRepresentation=representation
         tImGui.TextDisabled(tLang.L('fre_mask_representation_no_masks'))
+        if tImGui.Button(tLang.L('fre_mask_create_from_landmarks')) then
+            pushUndoSnapshot()
+            local createdMask=tFacialProject.addMask(state.project,'main_face',1)
+            tFacialMaskRepresentation.apply(createdMask,
+                state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
+            state.selectedMask=#state.project.masks
+            state.project.selectedMask=state.selectedMask
+            state.maskWorkspaceMode=2
+            markMaskVisualizationDirty()
+            markModified()
+        end
+        showHelpTooltip(tLang.L('fre_mask_create_from_landmarks_tooltip'))
     else
         local maskNames={}
         for index,mask in ipairs(masks) do
@@ -4182,19 +4251,15 @@ local function showLandmarks()
                 '##freLandmarkMaskRepresentationPolygon',representation,2)
             showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
             if representation~=previousRepresentation then
-                pushUndoSnapshot()
-                selectedMask.representation=representation==2 and 'polygon' or 'vertex'
-                if selectedMask.representation=='polygon' and type(selectedMask.polygon)~='table' then
-                    selectedMask.polygon={points={},closed=false,topologySignature=''}
-                end
-                markMaskVisualizationDirty()
-                markModified()
+                requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                    representation==2 and 'polygon' or 'vertex')
             end
             if selectedMask.representation=='polygon' then
                 tImGui.TextWrapped(tLang.L('fre_mask_polygon_pending'))
             end
         end
     end
+    showMaskRepresentationWarning()
     tImGui.Separator()
     tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
     if not state.mesh then

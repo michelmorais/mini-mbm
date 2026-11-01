@@ -46,6 +46,10 @@ The current facial editor will initially support two mask editing modes selected
 The radio button selects which representation is edited. It must not silently convert a legacy mask
 to a polygon or a polygon to a legacy mask. A project may contain both types, but each mask has one
 authoritative representation and an explicit type. Existing legacy masks load as legacy masks.
+When creating a new mask in the Masks / Regions worktree, the same representation choice is made
+before creation so a new project can start with either representation. The Landmarks worktree also
+offers creation of the initial main-face mask, so the authoring flow does not require a detour through
+another worktree.
 
 The polygon path should support the following initial operations:
 

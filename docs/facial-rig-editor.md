@@ -52,8 +52,11 @@ controls can remove, clear, close, or reopen the polygon. Closed polygons curren
 vertex weights by projecting the polygon onto its local plane; the derived result is rebuildable and
 invalid when the source topology signature changes. Soft falloff and triangle/barycentric anchors
 remain future work. See the [facial animation expansion plan](realtime-facial-animation-future-work-plan.md#phase-1---dual-mask-authoring-in-the-facial-rig-editor).
-The representation selector is also mirrored in **Landmarks**, so the facial-mark authoring workflow
-can choose the mask representation without changing worktrees.
+When creating a new mask in **Masks / Regions**, choose its representation before clicking the create
+button. The representation selector is also mirrored in **Landmarks**, so the facial-mark authoring
+workflow can choose the representation of an existing mask without changing worktrees. With no mask
+in a new project, the Landmarks selector chooses the initial representation and offers creation of the
+main face mask.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and

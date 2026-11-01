@@ -25,6 +25,7 @@ local Targets=require 'facial_rig_targets'
 local Project=require 'facial_rig_project'
 local Gizmo=require 'facial_rig_target_gizmo'
 local Polygon=require 'facial_rig_polygon'
+local MaskRepresentation=require 'facial_rig_mask_representation'
 
 local function vec(x,y,z) return {x=x,y=y,z=z} end
 local function target(id,name,positions)
@@ -117,6 +118,10 @@ assert(not derivedIndices[6],'polygon projection must reject a vertex outside th
 local polygonPoints=Polygon.resolvePoints(authoredPolygon,polygonTopology)
 assert(Polygon.nearestPoint(polygonPoints,vec(-1,-1,0),0.01)==1)
 assert(Polygon.nearestEdge(polygonPoints,vec(0,-1,0),true,0.01)==1)
+local representationMask={representation='vertex',vertices={1,2}}
+assert(MaskRepresentation.hasAuthoredData(representationMask))
+assert(MaskRepresentation.apply(representationMask,'polygon') and representationMask.representation=='polygon' and
+    #representationMask.vertices==2 and type(representationMask.polygon)=='table')
 local topology={signature='same-topology',vertexCount=3}
 local review=Project.bindingReview(project,topology)
 assert(review.roles[1].maskCount==1 and review.roles[1].vertexCount==1 and
