@@ -6,6 +6,9 @@ without a face origin, facial landmarks, facial roles, or FACS data. The launche
 Its topology, polygon geometry, and region data come from `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, and `morph_surface_regions.lua`.
 Linux and macOS builds with Lua also create the `morph_editor` shell alias in `shortcuts.sh`.
+On launch the editor opens to an empty workspace. Choose **File > Open Mesh** or **File > Open
+Project** when ready; no file dialog appears automatically. **File > Quit** exits the editor, and
+**Options > Language** switches between English and Portuguese (Brazil).
 
 ## Current scope
 

@@ -218,6 +218,8 @@ local function performPending()
         loadMesh(action.path,false)
     elseif action.kind=='project' then
         loadProject(action.path)
+    elseif action.kind=='quit' then
+        mbm.quit()
     end
 end
 
@@ -438,17 +440,29 @@ local function drawConfirmPopup()
     end
 end
 
+local function showMenu()
+    if not tImGui.BeginMainMenuBar() then return end
+    if tImGui.BeginMenu(tLang.L('menu_file')) then
+        if tImGui.MenuItem(L('open_mesh')) then openMeshDialog() end
+        if tImGui.MenuItem(L('open_project')) then openProjectDialog() end
+        tImGui.Separator()
+        if tImGui.MenuItem(L('save'),nil,false,E.modified) then
+            if E.projectPath then saveProject(E.projectPath) else saveProjectAs() end
+        end
+        if tImGui.MenuItem(L('save_as'),nil,false,true) then saveProjectAs() end
+        tImGui.Separator()
+        if tImGui.MenuItem(tLang.L('menu_quit')) then requestAction('quit') end
+        tImGui.EndMenu()
+    end
+    if tImGui.BeginMenu(tLang.L('menu_options')) then
+        tLang.renderLanguageSubmenu()
+        tImGui.EndMenu()
+    end
+    tImGui.EndMainMenuBar()
+end
+
 local function drawControls()
     tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
-    if tImGui.Button(L('open_mesh')) then openMeshDialog() end
-    tImGui.SameLine()
-    if tImGui.Button(L('open_project')) then openProjectDialog() end
-    tImGui.SameLine()
-    if tImGui.Button(L('save')) then
-        if E.projectPath then saveProject(E.projectPath) else saveProjectAs() end
-    end
-    tImGui.SameLine()
-    if tImGui.Button(L('save_as')) then saveProjectAs() end
     if E.mesh then
         tImGui.Text(string.format(L('mesh_info'),E.project.meshPath,E.topology.vertexCount))
     else
@@ -504,8 +518,7 @@ function onInitScene()
     local camera=mbm.getCamera('3d')
     camera:setFar(9999999)
     tUtil.setInitialWindowPositionLeft('MorphRegionEditor',0,25,390)
-    local path=mbm.openFile('','*.msh')
-    if path and path~='' then loadMesh(path,false) end
+    tUtil.sMessageOverlay=false
 end
 
 function onLoop()
@@ -522,6 +535,7 @@ function onLoop()
         end
         E.overlayDirty=false
     end
+    showMenu()
     drawControls()
     tUtil.showOverlayMessage()
 end
