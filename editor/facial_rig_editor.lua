@@ -70,6 +70,7 @@ local state = {
     status='', statusError=false,
     selectedMask=1,
     selectedFacialMask=1,
+    generatedRegionTargetChoice={},
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
     relationshipReview=nil,
     surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
@@ -2987,6 +2988,7 @@ local function loadMesh(path, preserveProject)
     state.selectedFacialMask=state.project.selectedFacialMask or 1
     state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
     state.relationshipReview=nil
+    state.generatedRegionTargetChoice={}
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
@@ -3062,6 +3064,7 @@ local function newProject()
     state.selectedSurfaceControl=1
     state.selectedSurfaceControlPoint=nil
     state.relationshipReview=nil
+    state.generatedRegionTargetChoice={}
     state.surfaceControlNameDraft=''
     state.surfaceControlKind=1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
@@ -3142,6 +3145,7 @@ local function openProject()
     state.selectedSurfaceControl=project.selectedSurfaceControl or 1
     state.selectedSurfaceControlPoint=nil
     state.relationshipReview=nil
+    state.generatedRegionTargetChoice={}
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
     state.showLandmarkGuide=project.authoringWorkflow=='regions'
@@ -3915,7 +3919,7 @@ local function showMasks()
             showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
             tImGui.SameLine()
             tImGui.BeginDisabled(status~='ready')
-            if tImGui.Button(tLang.L('fre_generated_region_copy_target')..'##freRegionCopyTarget') then
+            if tImGui.Button(tLang.L('fre_generated_region_create_target')..'##freRegionCreateTarget') then
                 local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
                 if not vertices then
                     setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
@@ -3930,11 +3934,56 @@ local function showMasks()
                     markMaskVisualizationDirty()
                     markModified()
                     startMaskVisualizationBuild()
-                    setStatus(tLang.L('fre_generated_region_copied'),false)
+                    setStatus(tLang.L('fre_generated_region_created_target'),false)
                 end
             end
             tImGui.EndDisabled()
-            showHelpTooltip(tLang.L('fre_generated_region_copy_help'))
+            showHelpTooltip(tLang.L('fre_generated_region_create_target_help'))
+            local targetMaskIndices,targetMaskNames={},{}
+            local preferredTargetChoice=nil
+            for maskIndex,mask in ipairs(masks) do
+                if mask.purpose=='target' then
+                    targetMaskIndices[#targetMaskIndices+1]=maskIndex
+                    targetMaskNames[#targetMaskNames+1]=mask.name or ('#'..tostring(maskIndex))
+                    if region and mask.name==((region.name or group.name or group.id or '')..'_target') then
+                        preferredTargetChoice=#targetMaskNames
+                    end
+                end
+            end
+            if #targetMaskIndices>0 then
+                local choices=state.generatedRegionTargetChoice
+                local targetChoice=choices[group.id] or preferredTargetChoice or 1
+                targetChoice=math.max(1,math.min(#targetMaskIndices,targetChoice))
+                tImGui.SetNextItemWidth(300)
+                local targetChanged,targetIndex=tImGui.Combo(
+                    tLang.L('fre_generated_region_target_select')..'##freRegionTargetSelect',
+                    targetChoice,targetMaskNames)
+                if targetChanged then choices[group.id]=targetIndex end
+                targetChoice=targetChanged and targetIndex or targetChoice
+                tImGui.SameLine()
+                tImGui.BeginDisabled(status~='ready')
+                if tImGui.Button(tLang.L('fre_generated_region_update_target')..
+                        '##freRegionUpdateTarget') then
+                    local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
+                    if not vertices then
+                        setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+                    else
+                        local targetMask=masks[targetMaskIndices[targetChoice]]
+                        pushUndoSnapshot()
+                        targetMask.vertices=vertices
+                        targetMask.topologySignature=region.topologySignature
+                        state.selectedMask=targetMaskIndices[targetChoice]
+                        state.project.selectedMask=state.selectedMask
+                        state.maskWorkspaceMode=3
+                        markMaskVisualizationDirty()
+                        markModified()
+                        startMaskVisualizationBuild()
+                        setStatus(tLang.L('fre_generated_region_updated_target'),false)
+                    end
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_generated_region_update_target_help'))
+            end
             tImGui.Separator()
         end
     end
