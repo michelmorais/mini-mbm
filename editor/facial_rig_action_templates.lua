@@ -548,6 +548,25 @@ function M.templates()
     return TEMPLATE_DEFINITIONS
 end
 
+function M.actionUnits()
+    local result,seen={},{}
+    for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
+        for _,actionUnit in ipairs(definition.actionUnits or {}) do
+            if not seen[actionUnit] then
+                seen[actionUnit]=true
+                result[#result+1]=actionUnit
+            end
+        end
+    end
+    table.sort(result,function(left,right)
+        local leftNumber=tonumber(left:match('^AU(%d+)$')) or math.huge
+        local rightNumber=tonumber(right:match('^AU(%d+)$')) or math.huge
+        if leftNumber==rightNumber then return left<right end
+        return leftNumber<rightNumber
+    end)
+    return result
+end
+
 function M.names(groups)
     local result={}
     for _,group in ipairs(groups or {}) do result[#result+1]=group.name or group.id or '' end

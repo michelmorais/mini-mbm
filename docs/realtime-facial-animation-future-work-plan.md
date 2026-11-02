@@ -8,8 +8,9 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 - [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1)
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
-The native morph-target authoring workflow is available. The items below are the remaining work;
-they are independent extensions unless a dependency is stated explicitly.
+The Facial Rig Editor can author facial morph targets. The generic Morph Editor remains partial;
+the current project priority is to complete the facial FACS authoring workflow first. Generic region
+and project modules, along with facial compatibility wrappers, remain in place for later work.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -159,11 +160,13 @@ The generic implementation is split across `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, and `morph_surface_regions.lua`; the facial modules retain
 compatibility wrappers for facial-only callers.
 
-**Milestone 2.2 - non-facial polygon authoring (implemented).** The generic Morph Editor loads an
-MSH-backed object, lets the user create and adapt polygon regions on its surface, rebuilds the
-derived vertex selection, and saves a `.morph.lua` project without requiring a face origin,
-landmarks, or FACS data. See [Morph Editor](morph-editor.md). Selections are currently binary;
-falloff and morph-target editing remain for milestone 2.3.
+**Milestone 2.2 - non-facial polygon authoring (partial; paused while FACS work continues).** The
+generic Morph Editor and its compatibility modules exist, but the worktree does not yet meet the
+authoring feedback expected from this milestone. The current editor is missing the requested camera
+orientation gizmo, and creating a region does not provide the visible region result expected in the
+viewport. Keep the generic modules and facial compatibility wrappers in place; resume this milestone
+after the facial FACS workflow is complete. See [Morph Editor](morph-editor.md). Selection data is
+currently binary; falloff and morph-target editing remain for milestone 2.3.
 
 **Milestone 2.3 - morph workflow integration.** Connect generic regions to target selection,
 painting, smoothing, transforms, mirroring, MSH export, and reload. Keep derived selections
@@ -174,14 +177,40 @@ using the same region tools, without requiring face origin, facial landmarks, or
 
 ## Phase 3 - FACS authoring profiles
 
-Add an editor catalog for Action Units and authorable profiles. An Action Unit profile should define:
+**Milestone 3.1 - project Action Unit profiles (implemented; runtime use still needs visual
+verification).** The Facial Rig Editor now has a FACS Profiles workspace persisted in facial project
+schema 19. A profile defines:
 
 - semantic name and optional left/right side;
+- an Action Unit chosen from the unique codes present in the editor's facial-action templates;
 - normalized intensity range;
 - one or more output target references;
 - per-output weight, response curve, and optional clamp;
 - optional secondary contributions for neighboring facial regions;
-- diagnostics when a referenced target or region is missing.
+- diagnostics when a referenced target is missing or a saved Action Unit is outside the current
+  template catalog.
+
+The workspace lets the user create and edit profiles, map outputs to the current mesh's facial
+targets, set each profile's normalized input range and preview intensity, and choose additive
+saturation or maximum contribution when profiles share a target. The optional secondary flag
+records which output is a neighboring-region contribution; it does not change the weight formula.
+Missing target references block preview and expression capture. Applying the composition writes
+ordinary target weights to the current mesh, and a composed-target table shows each final weight
+and its primary/secondary role. **Capture as expression** stores those weights in the existing
+expression model, which can then be used by the existing clip and MSH export workflows.
+The FACS profile metadata remains in the editor project; no new runtime or MSH payload was added.
+
+The current profile evaluator intentionally maps explicitly authored Action Units to existing
+targets. It does not infer mappings from facial polygons or action lines and does not simulate
+muscle anatomy. Profiles can be authored without a loaded mesh, but target mapping and evaluation
+require one. The Action Unit picker is limited to codes used by the facial-action templates. Older
+profiles with other text values remain saved, but must be reassigned to a supported AU before they
+can pass validation or participate in preview and expression capture.
+
+The workspace tree is an inventory of tools, not a mandatory linear sequence. For the morph-only
+path, adapt FACS masks, generate regions if needed, create or import morph targets, map those targets
+to Action Units in profiles, capture an expression, and use it in clips. The Rig workspace is
+optional for this path and is used for bone and weight workflows.
 
 Example:
 
@@ -199,14 +228,16 @@ actionUnits = {
 ```
 
 FACS profiles are evaluated into ordinary target weights before expression or clip export. The
-first implementation must preserve the existing runtime composition and MSH format. If multiple
-profiles affect the same target, the project must define the composition rule explicitly (for
-example additive with saturation, maximum, or priority); it must not rely on accidental floating
-point accumulation.
+implementation preserves the existing runtime composition and MSH format. If multiple profiles
+affect the same target, the project defines the composition rule explicitly; evaluation follows
+profile and output list order for additive saturation and uses maximum contribution for the
+alternative rule.
 
-Acceptance: an artist can author a brow, eye, or mouth Action Unit, inspect its primary and
-secondary target effects, combine it with another Action Unit, and export the result as the existing
-named target/clip data. Missing references block export with an actionable diagnostic.
+Phase completion acceptance: an artist can author a brow, eye, or mouth Action Unit, inspect its
+primary and secondary target effects, combine it with another Action Unit, and carry the result
+through the existing expression/clip and MSH export workflow. Missing references block preview or
+export with an actionable diagnostic. Runtime visual verification of the new workspace remains
+pending; this phase is not considered closed until that review is complete.
 
 ## Phase 4 - open capture adapters
 

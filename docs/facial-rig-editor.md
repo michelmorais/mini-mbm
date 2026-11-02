@@ -177,11 +177,47 @@ right drag applies the selected brush in Paint Target. The selected target has a
 an optional displacement overlay. The overlay is a visual aid; the textured mesh can be shown again
 without discarding the selected weight. Viewport mesh visibility controls the selected surface.
 
+## FACS Action Unit profiles
+
+The **FACS Action Unit Profiles** workspace maps semantic Action Units to facial targets already
+present in the loaded MSH. A profile has a name, AU identifier, side (`bilateral`, `left`, or
+`right`), normalized input range, preview intensity, and one or more target outputs. Each output
+stores its contribution weight, response curve, optional per-output clamp, and a secondary
+contribution marker for neighboring regions. The secondary marker is descriptive metadata; it
+does not change the weight calculation.
+
+An Action Unit (AU) is a standardized label for an observable facial movement. For example, AU1
+describes raising the inner brow. The profile's AU identifies the facial action; the mapped target
+outputs define which deformations the mesh receives. The Action Unit combo is populated from the
+unique AU codes in the editor's facial-action templates. It does not accept arbitrary text. Saved
+profiles with an AU outside that catalog are retained, shown with a warning, and must be assigned a
+supported AU before validation, preview, or expression capture can succeed.
+
+The workspace does not infer target mappings from facial polygons or action lines. The user
+chooses each target explicitly. Multiple enabled profiles can be composed with **Add, clamp at 1**
+or **Maximum contribution**. Missing target references are reported and block preview or expression
+capture. Applying the composed preview writes the resulting weights to the mesh; targets without
+an output in the composition are set to zero. The composed-target table shows the resulting weight
+and whether each mapped target has primary, secondary, or both contribution types.
+
+**Capture as expression** stores the composed weights in the existing named-expression model. That
+expression can be used in the existing facial clip editor and MSH export workflow. AU profiles are
+saved in the facial project (schema 19); they do not add a runtime or MSH data section. The profile
+authoring layer does not model muscle anatomy or provide live capture input.
+
+The workspace list is a toolbox, not a required checklist. A FACS profile requires facial targets
+to exist first. For a morph-only flow, adapt templates in **Landmarks**, generate **Regions** when
+reusable vertex selections are needed, create or import targets in **Morph Targets**, then create a
+profile here, select its AU and side, and map its target outputs. Adjust the profile intensities,
+apply the composed preview or capture it as an expression, then use that expression in **Clips**.
+**Rig** is optional and belongs to bone and weight workflows. Profile edits, including **Include in
+preview**, take effect after clicking **Apply profile details**.
+
 ## Project and MSH persistence
 
 Saving the facial project stores editor metadata, facial action masks and their surface controls,
-generated regions, legacy compatibility masks, expressions, clips, target selection, and preview
-weight. Target edits
+generated regions, legacy compatibility masks, FACS Action Unit profiles, expressions, clips, target
+selection, and preview weight. Target edits
 are stored as sparse changes relative to the assigned source MSH.
 Reopening validates source target identity and topology before applying those changes. If the
 assigned MSH already contains the exact edited target set and deltas, the editor treats the project

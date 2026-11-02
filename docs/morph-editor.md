@@ -10,6 +10,12 @@ On launch the editor opens to an empty workspace. Choose **File > Open Mesh** or
 Project** when ready; no file dialog appears automatically. **File > Quit** exits the editor, and
 **Options > Language** switches between English and Portuguese (Brazil).
 
+**Status: partial and paused while facial FACS authoring is prioritized.** The current worktree is
+not yet accepted as a complete generic region editor: the requested camera orientation gizmo is
+missing, and creating a region does not show the expected region result in the viewport. Keep its
+generic geometry and project modules, plus the facial compatibility wrappers, available for the
+later continuation.
+
 ## Current scope
 
 - Open a mesh and create named polygon regions on its surface.

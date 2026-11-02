@@ -32,6 +32,7 @@ tFacialBindingPlan = require "facial_rig_binding_plan"
 tFacialSkeletonBinding = require "facial_rig_skeleton_binding"
 tFacialWeightAssignment = require "facial_rig_weight_assignment"
 tFacialExpressions = require "facial_rig_expressions"
+tFacialFACSProfiles = require "facial_rig_facs_profiles"
 tFacialTargets = require "facial_rig_targets"
 tFacialMirror = require "facial_rig_mirror"
 tFacialReferences = require "facial_rig_references"
@@ -116,6 +117,15 @@ local state = {
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
+    facsProfileEditor={nameDraft='',actionUnitDraft='AU1',sideDraft=1,
+        outputTarget=1,expressionNameDraft='',draftProfileId=nil,profileNames={},profileNamesDirty=true,
+        actionUnitValues=nil,actionUnitLabels=nil,detailName='',detailActionUnit='',detailActionUnitIndex=1,
+        detailSide=1,detailMin=0,detailMax=1,
+        detailIntensity=0,detailEnabled=true,validationDirty=true,validation=nil,
+        targetNames={},targetNamesDirty=true,language=nil,sideOptions=nil,sideValues=nil,
+        compositionOptions=nil,responseNames=nil,responseValues=nil,
+        pendingOutputEdits={},outputEdits={},previewDirty=true,previewWeights={},
+        previewTargetRows={},previewReport=nil},
     clipEditor={selectedClip=1,keySelected=1,time=0,playing=false,nameDraft='',renameDraft='',dirty=true,sourceInitialized=false,timelineVisible=true},
     preview={selectedPose=1,facialPlayback=nil,skeletalDirty=true,skeletalAnimations={},selectedSkeletal=1,
         authoredClipSelected=1,authoredClipTime=0,authoredClipPlaying=false,authoredClipInitialized=false},
@@ -752,6 +762,10 @@ end
 local function restoreHistorySnapshot(snapshot)
     if not snapshot or not snapshot.project then return false end
     state.project=tUtil.deepCopyTable(snapshot.project)
+    state.facsProfileEditor.profileNamesDirty=true
+    state.facsProfileEditor.draftProfileId=nil
+    state.facsProfileEditor.validationDirty=true
+    state.facsProfileEditor.previewDirty=true
     state.modified=snapshot.modified == true
     state.selectedRole=snapshot.selectedRole or state.project.selectedRole or 1
     state.selectedLandmark=snapshot.selectedLandmark or state.project.selectedLandmark or 1
@@ -1881,6 +1895,9 @@ local function markFacialTargetAuthoringModified()
     state.project.expressions=tFacialExpressions.syncCatalog(state.project.expressions,state.expressions.catalog)
     state.expressions.selectedTarget=math.max(1,math.min(state.expressions.selectedTarget,#state.expressions.catalog>0 and #state.expressions.catalog or 1))
     state.expressions.catalogDirty=false
+    state.facsProfileEditor.targetNamesDirty=true
+    state.facsProfileEditor.validationDirty=true
+    state.facsProfileEditor.previewDirty=true
     state.modified=true
 end
 
@@ -2248,12 +2265,16 @@ local function showTargets()
         if selected and authoring.referenceReport then
             local report=authoring.referenceReport
             tImGui.TextWrapped(string.format(tLang.L('fre_target_references_summary_fmt'),
-                #report.poses,#report.clips,report.keyCount))
+                #report.poses,#report.clips,report.keyCount,#report.profiles))
             for _,name in ipairs(report.poses) do
                 tImGui.BulletText(string.format(tLang.L('fre_target_reference_pose_fmt'),name))
             end
             for _,clip in ipairs(report.clips) do
                 tImGui.BulletText(string.format(tLang.L('fre_target_reference_clip_fmt'),clip.name,clip.count))
+            end
+            for _,profile in ipairs(report.profiles) do
+                tImGui.BulletText(string.format(tLang.L('fre_target_reference_facs_profile_fmt'),
+                    profile.name,profile.count))
             end
         end
     end
@@ -2538,7 +2559,7 @@ local function showTargets()
                 tLang.L('fre_target_delete_confirm') or tLang.L('fre_target_delete')) then
             local references=tFacialReferences.inspect(state.project,selected.name)
             if authoring.deletePendingId~=selected.id and
-                    (#references.poses>0 or #references.clips>0) then
+                    (#references.poses>0 or #references.clips>0 or #references.profiles>0) then
                 authoring.deletePendingId=selected.id
                 authoring.referenceReport=references
                 setStatus(tLang.L('fre_target_delete_references_warning'),true)
@@ -2963,7 +2984,13 @@ local function loadMesh(path, preserveProject)
     -- `alwaysRender` is the engine's no-frustum-culling flag; `alwaysOnTop`
     -- would change depth ordering and is therefore not appropriate here.
     state.mesh.alwaysRender=true
-    if not preserveProject then state.project=tFacialProject.new() end
+    if not preserveProject then
+        state.project=tFacialProject.new()
+        state.facsProfileEditor.profileNamesDirty=true
+        state.facsProfileEditor.draftProfileId=nil
+        state.facsProfileEditor.validationDirty=true
+        state.facsProfileEditor.previewDirty=true
+    end
     if preserveProject and next(restoredIds) then
         state.project.morphTargetPivots=tTargetGizmo.remapPivots(
             state.project.morphTargetPivots,restoredIds)
@@ -3039,6 +3066,10 @@ end
 local function newProject()
     destroyPreview()
     state.project=tFacialProject.new()
+    state.facsProfileEditor.profileNamesDirty=true
+    state.facsProfileEditor.draftProfileId=nil
+    state.facsProfileEditor.validationDirty=true
+    state.facsProfileEditor.previewDirty=true
     state.projectPath=nil
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
@@ -3092,6 +3123,10 @@ local function openProject()
     local previousLanguage=tLang.getLanguage()
     if project.language then tLang.setLanguage(project.language) end
     state.project=project
+    state.facsProfileEditor.profileNamesDirty=true
+    state.facsProfileEditor.draftProfileId=nil
+    state.facsProfileEditor.validationDirty=true
+    state.facsProfileEditor.previewDirty=true
     state.projectPath=path
     state.modified=false
     local projectNeedsSync=false
@@ -3099,6 +3134,10 @@ local function openProject()
         local loaded,embeddedTargetEdits=loadMesh(project.meshPath,true)
         if not loaded then
             state.project=previousProject
+            state.facsProfileEditor.profileNamesDirty=true
+            state.facsProfileEditor.draftProfileId=nil
+            state.facsProfileEditor.validationDirty=true
+            state.facsProfileEditor.previewDirty=true
             state.projectPath=previousPath
             state.modified=previousModified
             tLang.setLanguage(previousLanguage)
@@ -4919,6 +4958,464 @@ local function showLandmarks()
     end
 end
 
+-- The editor uses Lua's full 200-slot top-level local budget; keep this workspace callback global.
+showFACSProfiles=function()
+    local editor=state.facsProfileEditor
+    local data=state.project.facsProfiles
+    if type(data)~='table' then
+        data=tFacialFACSProfiles.new()
+        state.project.facsProfiles=data
+    end
+    if state.mesh and state.expressions.catalogDirty then
+        refreshExpressionCatalog()
+        editor.validationDirty=true
+        editor.targetNamesDirty=true
+        editor.previewDirty=true
+    elseif not state.mesh and #editor.targetNames>0 then
+        editor.targetNamesDirty=true
+        editor.previewDirty=true
+    end
+    local catalog=state.expressions.catalog or {}
+    if editor.targetNamesDirty then
+        editor.targetNames={}
+        if state.mesh then
+            for _,entry in ipairs(catalog) do editor.targetNames[#editor.targetNames+1]=entry.name end
+        end
+        editor.targetNamesDirty=false
+    end
+    local targetNames=editor.targetNames
+    local language=tLang.getLanguage()
+    if editor.language~=language then
+        editor.language=language
+        editor.sideOptions={tLang.L('fre_facs_profile_side_bilateral'),
+            tLang.L('fre_facs_profile_side_left'),tLang.L('fre_facs_profile_side_right')}
+        editor.sideValues={'bilateral','left','right'}
+        editor.compositionOptions={tLang.L('fre_facs_profile_composition_add'),
+            tLang.L('fre_facs_profile_composition_max')}
+        editor.responseNames={tLang.L('fre_facs_profile_curve_linear'),
+            tLang.L('fre_facs_profile_curve_smoothstep'),tLang.L('fre_facs_profile_curve_ease_in'),
+            tLang.L('fre_facs_profile_curve_ease_out')}
+        editor.responseValues={'linear','smoothstep','ease_in','ease_out'}
+    end
+    if not editor.actionUnitValues then
+        editor.actionUnitValues=tFacialActionTemplates.actionUnits()
+        editor.actionUnitLabels={}
+        for index,actionUnit in ipairs(editor.actionUnitValues) do
+            editor.actionUnitLabels[index]=actionUnit
+        end
+    end
+
+    tImGui.Text(tLang.L('fre_facs_profile_title'))
+    tImGui.TextWrapped(tLang.L('fre_facs_profile_help'))
+    tImGui.TextWrapped(tLang.L('fre_facs_profile_what_is_au'))
+    tImGui.TextWrapped(tLang.L('fre_facs_profile_workflow'))
+    if not state.mesh then tImGui.TextDisabled(tLang.L('fre_facs_profile_mesh_required')) end
+
+    tImGui.Separator()
+    tImGui.SetNextItemWidth(260)
+    local nameChanged,name=tImGui.InputText(tLang.L('fre_facs_profile_name')..'##freFACSNewName',editor.nameDraft or '')
+    if nameChanged then editor.nameDraft=name end
+    local actionUnitIndex=1
+    for index,actionUnit in ipairs(editor.actionUnitValues) do
+        if actionUnit==editor.actionUnitDraft then actionUnitIndex=index; break end
+    end
+    tImGui.SetNextItemWidth(180)
+    local actionChanged,actionIndex=tImGui.Combo(tLang.L('fre_facs_profile_au')..'##freFACSNewAU',
+        actionUnitIndex,editor.actionUnitLabels)
+    if actionChanged then editor.actionUnitDraft=editor.actionUnitValues[actionIndex] end
+    showHelpTooltip(tLang.L('fre_facs_profile_au_tooltip'))
+    tImGui.SetNextItemWidth(180)
+    local sideChanged,sideIndex=tImGui.Combo(tLang.L('fre_facs_profile_side')..'##freFACSNewSide',
+        editor.sideDraft or 1,editor.sideOptions)
+    if sideChanged then editor.sideDraft=sideIndex end
+    if tImGui.Button(tLang.L('fre_facs_profile_create')..'##freFACSCreateProfile',{x=250,y=0}) then
+        pushUndoSnapshot()
+        local profile,errorCode=tFacialFACSProfiles.addProfile(data,editor.nameDraft,
+            editor.actionUnitDraft,editor.sideValues[editor.sideDraft] or 'bilateral',editor.actionUnitValues)
+        if profile then
+            editor.nameDraft=''
+            editor.actionUnitDraft='AU1'
+            data.selectedProfile=#data.profiles
+            editor.profileNamesDirty=true
+            editor.draftProfileId=nil
+            editor.validationDirty=true
+            editor.previewDirty=true
+            markModified()
+            setStatus(tLang.L('fre_facs_profile_created'),false)
+        else
+            table.remove(state.undoStack)
+            local errorKey=errorCode=='empty_name' and 'fre_facs_profile_error_empty_name' or
+                errorCode=='empty_action_unit' and 'fre_facs_profile_error_empty_au' or
+                errorCode=='unsupported_action_unit' and 'fre_facs_profile_error_unsupported_au' or
+                errorCode=='duplicate_name' and 'fre_facs_profile_error_duplicate_name' or
+                'fre_facs_profile_error_duplicate_au_side'
+            setStatus(tLang.L(errorKey),true)
+        end
+    end
+
+    local profiles=data.profiles or {}
+    if editor.profileNamesDirty then
+        editor.profileNames={}
+        for _,profile in ipairs(profiles) do
+            editor.profileNames[#editor.profileNames+1]=profile.name..' ['..profile.actionUnit..' - '..profile.side..']'
+        end
+        editor.profileNamesDirty=false
+    end
+    if #profiles==0 then
+        tImGui.TextDisabled(tLang.L('fre_facs_profile_no_profiles'))
+    else
+        data.selectedProfile=math.max(1,math.min(data.selectedProfile,#profiles))
+        tImGui.SetNextItemWidth(320)
+        local profileChanged,profileIndex=tImGui.Combo(tLang.L('fre_facs_profile_select')..'##freFACSProfile',
+            data.selectedProfile,editor.profileNames)
+        if profileChanged then
+            data.selectedProfile=profileIndex
+            editor.draftProfileId=nil
+        end
+        local profile=profiles[data.selectedProfile]
+        if profile then
+            if editor.draftProfileId~=profile.id then
+                editor.draftProfileId=profile.id
+                editor.detailName=profile.name
+                editor.detailActionUnit=profile.actionUnit
+                editor.detailActionUnitIndex=0
+                for index,actionUnit in ipairs(editor.actionUnitValues) do
+                    if actionUnit==profile.actionUnit then editor.detailActionUnitIndex=index; break end
+                end
+                editor.detailSide=profile.side=='left' and 2 or profile.side=='right' and 3 or 1
+                editor.detailMin=profile.intensityMin
+                editor.detailMax=profile.intensityMax
+                editor.detailIntensity=profile.previewIntensity
+                editor.detailEnabled=profile.enabled
+            end
+            tImGui.Separator()
+            tImGui.SetNextItemWidth(260)
+            local detailNameChanged,detailName=tImGui.InputText(
+                tLang.L('fre_facs_profile_name')..'##freFACSDetailName',editor.detailName or '')
+            if detailNameChanged then editor.detailName=detailName end
+            if editor.detailActionUnitIndex==0 then
+                tImGui.TextDisabled(string.format(tLang.L('fre_facs_profile_unsupported_au_fmt'),
+                    editor.detailActionUnit or ''))
+            end
+            tImGui.SetNextItemWidth(180)
+            local detailAUChanged,detailAUIndex=tImGui.Combo(
+                tLang.L('fre_facs_profile_au')..'##freFACSDetailAU',editor.detailActionUnitIndex,
+                editor.actionUnitLabels)
+            if detailAUChanged then
+                editor.detailActionUnitIndex=detailAUIndex
+                editor.detailActionUnit=editor.actionUnitValues[detailAUIndex] or editor.detailActionUnit
+            end
+            showHelpTooltip(tLang.L('fre_facs_profile_au_tooltip'))
+            tImGui.SetNextItemWidth(180)
+            local detailSideChanged,detailSide=tImGui.Combo(
+                tLang.L('fre_facs_profile_side')..'##freFACSDetailSide',editor.detailSide,editor.sideOptions)
+            if detailSideChanged then editor.detailSide=detailSide end
+            local enabled=tImGui.Checkbox(
+                tLang.L('fre_facs_profile_enabled')..'##freFACSProfileEnabled',editor.detailEnabled)
+            if enabled~=editor.detailEnabled then editor.detailEnabled=enabled end
+            showHelpTooltip(tLang.L('fre_facs_profile_enabled_tooltip'))
+            tImGui.SetNextItemWidth(260)
+            local minChanged,minValue=tImGui.SliderFloat(
+                tLang.L('fre_facs_profile_min')..'##freFACSProfileMin',editor.detailMin,0,1,'%.3f')
+            if minChanged then editor.detailMin=minValue end
+            tImGui.SetNextItemWidth(260)
+            local maxChanged,maxValue=tImGui.SliderFloat(
+                tLang.L('fre_facs_profile_max')..'##freFACSProfileMax',editor.detailMax,0,1,'%.3f')
+            if maxChanged then editor.detailMax=maxValue end
+            tImGui.SetNextItemWidth(260)
+            local intensityLow=math.min(editor.detailMin,editor.detailMax)
+            local intensityHigh=math.max(editor.detailMin,editor.detailMax)
+            if intensityLow==intensityHigh then intensityLow,intensityHigh=0,1 end
+            local intensityChanged,intensity=tImGui.SliderFloat(
+                tLang.L('fre_facs_profile_intensity')..'##freFACSProfileIntensity',editor.detailIntensity,
+                intensityLow,intensityHigh,'%.3f')
+            if intensityChanged then editor.detailIntensity=intensity end
+            if tImGui.Button(tLang.L('fre_facs_profile_apply_details')..'##freFACSApplyDetails',{x=250,y=0}) then
+                pushUndoSnapshot()
+                local updated,errorCode=tFacialFACSProfiles.updateProfile(data,data.selectedProfile,{
+                    name=editor.detailName,actionUnit=editor.detailActionUnit,
+                    side=editor.sideValues[editor.detailSide] or 'bilateral',intensityMin=editor.detailMin,
+                    intensityMax=editor.detailMax,previewIntensity=editor.detailIntensity,
+                    enabled=editor.detailEnabled},editor.actionUnitValues)
+                if updated then
+                    editor.draftProfileId=nil
+                    editor.profileNamesDirty=true
+                    editor.validationDirty=true
+                    editor.previewDirty=true
+                    markModified()
+                    setStatus(tLang.L('fre_facs_profile_updated'),false)
+                else
+                    table.remove(state.undoStack)
+                    local errorKey=errorCode=='empty_name' and 'fre_facs_profile_error_empty_name' or
+                        errorCode=='empty_action_unit' and 'fre_facs_profile_error_empty_au' or
+                        errorCode=='unsupported_action_unit' and 'fre_facs_profile_error_unsupported_au' or
+                        errorCode=='duplicate_name' and 'fre_facs_profile_error_duplicate_name' or
+                        errorCode=='invalid_range' and 'fre_facs_profile_error_invalid_range' or
+                        'fre_facs_profile_error_duplicate_au_side'
+                    setStatus(tLang.L(errorKey),true)
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('fre_facs_profile_delete')..'##freFACSDeleteProfile',{x=200,y=0}) then
+                pushUndoSnapshot()
+                tFacialFACSProfiles.removeProfile(data,data.selectedProfile)
+                editor.profileNamesDirty=true
+                editor.draftProfileId=nil
+                editor.validationDirty=true
+                editor.previewDirty=true
+                markModified()
+                setStatus(tLang.L('fre_facs_profile_deleted'),false)
+                return
+            end
+
+            tImGui.Separator()
+            local compositionIndex=data.composition=='max' and 2 or 1
+            local compositionChanged,newComposition=tImGui.Combo(
+                tLang.L('fre_facs_profile_composition')..'##freFACSComposition',compositionIndex,
+                editor.compositionOptions)
+            if compositionChanged then
+                pushUndoSnapshot()
+                data.composition=newComposition==2 and 'max' or 'add_saturate'
+                editor.previewDirty=true
+                markModified()
+            end
+
+            tImGui.Separator()
+            tImGui.Text(tLang.L('fre_facs_profile_outputs'))
+            if #targetNames==0 then
+                tImGui.TextDisabled(tLang.L(state.mesh and
+                    'fre_facs_profile_no_targets' or 'fre_facs_profile_mesh_required'))
+            else
+                editor.outputTarget=math.max(1,math.min(editor.outputTarget,#targetNames))
+                tImGui.SetNextItemWidth(280)
+                local targetChanged,targetIndex=tImGui.Combo(
+                    tLang.L('fre_facs_profile_output_target')..'##freFACSOutputTarget',editor.outputTarget,targetNames)
+                if targetChanged then editor.outputTarget=targetIndex end
+                if tImGui.Button(tLang.L('fre_facs_profile_add_output')..'##freFACSAddOutput',{x=250,y=0}) then
+                    pushUndoSnapshot()
+                    local added,errorCode=tFacialFACSProfiles.addOutput(data,data.selectedProfile,
+                        targetNames[editor.outputTarget])
+                    if added then markModified()
+                    else
+                        table.remove(state.undoStack)
+                        setStatus(errorCode=='duplicate_target' and
+                            tLang.L('fre_facs_profile_error_duplicate_target') or
+                            tLang.L('fre_facs_profile_select_first'),true)
+                    end
+                    if added then
+                        editor.validationDirty=true
+                        editor.previewDirty=true
+                    end
+                end
+            end
+            local pendingOutputEdits=editor.pendingOutputEdits
+            for outputIndex in pairs(pendingOutputEdits) do pendingOutputEdits[outputIndex]=nil end
+            local removeOutputIndex=nil
+            for outputIndex,output in ipairs(profile.outputs) do
+                tImGui.Separator()
+                tImGui.Text(output.target)
+                tImGui.SameLine()
+                if tImGui.SmallButton(tLang.L('fre_facs_profile_output_remove')..
+                        '##freFACSRemoveOutput'..tostring(outputIndex)) then
+                    removeOutputIndex=outputIndex
+                end
+                local edit=editor.outputEdits[outputIndex]
+                if not edit then edit={}; editor.outputEdits[outputIndex]=edit end
+                edit.weight=nil; edit.response=nil; edit.secondary=nil
+                edit.clampEnabled=nil; edit.clamp=nil
+                tImGui.SetNextItemWidth(250)
+                local weightChanged,weight=tImGui.SliderFloat(
+                    tLang.L('fre_facs_profile_output_weight')..'##freFACSOutputWeight'..tostring(outputIndex),
+                    output.weight,0,1,'%.3f')
+                if weightChanged then edit.weight=weight end
+                local responseIndex=1
+                for index,value in ipairs(editor.responseValues) do if value==output.response then responseIndex=index end end
+                tImGui.SetNextItemWidth(250)
+                local responseChanged,newResponse=tImGui.Combo(
+                    tLang.L('fre_facs_profile_output_curve')..'##freFACSOutputCurve'..tostring(outputIndex),
+                    responseIndex,editor.responseNames)
+                if responseChanged then edit.response=editor.responseValues[newResponse] end
+                local secondary=tImGui.Checkbox(
+                    tLang.L('fre_facs_profile_output_secondary')..'##freFACSOutputSecondary'..tostring(outputIndex),
+                    output.secondary==true)
+                if secondary~=(output.secondary==true) then edit.secondary=secondary end
+                local clampEnabled=tImGui.Checkbox(
+                    tLang.L('fre_facs_profile_output_clamp')..'##freFACSOutputClamp'..tostring(outputIndex),
+                    output.clamp~=nil)
+                if clampEnabled~=(output.clamp~=nil) then edit.clampEnabled=clampEnabled end
+                if clampEnabled or output.clamp~=nil then
+                    tImGui.SetNextItemWidth(250)
+                    local valueChanged,clampValue=tImGui.SliderFloat(
+                        tLang.L('fre_facs_profile_output_clamp')..'##freFACSOutputClampValue'..tostring(outputIndex),
+                        output.clamp or 1,0,1,'%.3f')
+                    if valueChanged then edit.clamp=clampValue end
+                end
+                if next(edit) then pendingOutputEdits[outputIndex]=edit end
+            end
+            if next(pendingOutputEdits) then pushUndoSnapshot() end
+            for outputIndex=1,#profile.outputs do
+                local edit=pendingOutputEdits[outputIndex]
+                if edit then
+                    tFacialFACSProfiles.updateOutput(data,data.selectedProfile,outputIndex,edit)
+                end
+            end
+            if next(pendingOutputEdits) then
+                editor.previewDirty=true
+                markModified()
+            end
+            if removeOutputIndex then
+                pushUndoSnapshot()
+                tFacialFACSProfiles.removeOutput(data,data.selectedProfile,removeOutputIndex)
+                editor.validationDirty=true
+                editor.previewDirty=true
+                markModified()
+            end
+
+            local report
+            if state.mesh then
+                if editor.validationDirty then
+                    editor.validation=tFacialFACSProfiles.validate(
+                        data,targetNames,editor.actionUnitValues)
+                    editor.validationDirty=false
+                end
+                report=editor.validation or tFacialFACSProfiles.validate(
+                    data,targetNames,editor.actionUnitValues)
+            else
+                report={ok=false,errors={},warnings={},profileCount=#profiles,outputCount=0}
+            end
+            if report.ok then
+                tImGui.TextWrapped(string.format(tLang.L('fre_facs_profile_validation_ready_fmt'),
+                    report.profileCount,report.outputCount))
+            else
+                for _,diagnostic in ipairs(report.errors) do
+                    local message=diagnostic.code=='duplicate_name' and
+                        string.format(tLang.L('fre_facs_profile_diag_duplicate_name_fmt'),diagnostic.profile) or
+                        diagnostic.code=='missing_action_unit' and
+                        string.format(tLang.L('fre_facs_profile_diag_missing_au_fmt'),diagnostic.profile) or
+                        diagnostic.code=='unsupported_action_unit' and
+                        string.format(tLang.L('fre_facs_profile_diag_unsupported_au_fmt'),diagnostic.profile,
+                            diagnostic.actionUnit or '') or
+                        diagnostic.code=='duplicate_action_side' and
+                        string.format(tLang.L('fre_facs_profile_diag_duplicate_action_side_fmt'),diagnostic.profile) or
+                        string.format(tLang.L('fre_facs_profile_diag_missing_target_fmt'),
+                            diagnostic.profile,diagnostic.target or '')
+                    tImGui.BulletText(message)
+                end
+            end
+            for _,warning in ipairs(report.warnings) do
+                if warning.code=='no_outputs' then
+                    tImGui.BulletText(string.format(tLang.L('fre_facs_profile_diag_no_outputs_fmt'),warning.profile))
+                end
+            end
+            if editor.previewDirty then
+                editor.previewWeights={}
+                editor.previewTargetRows={}
+                editor.previewReport=nil
+                if state.mesh then
+                    local weights,evaluation=tFacialFACSProfiles.evaluate(
+                        data,targetNames,editor.actionUnitValues)
+                    editor.previewWeights=weights
+                    editor.previewReport=evaluation
+                    if evaluation.ok then
+                        local knownTargets={}
+                        local roles={}
+                        for _,targetName in ipairs(targetNames) do knownTargets[targetName]=true end
+                        for _,profileEntry in ipairs(data.profiles) do
+                            for _,output in ipairs(profileEntry.outputs) do
+                                if knownTargets[output.target] then
+                                    local role=roles[output.target]
+                                    if not role then role={primary=false,secondary=false}; roles[output.target]=role end
+                                    if output.secondary then role.secondary=true else role.primary=true end
+                                end
+                            end
+                        end
+                        for _,targetName in ipairs(targetNames) do
+                            local role=roles[targetName]
+                            if role then
+                                local roleKey=role.primary and role.secondary and
+                                    'fre_facs_profile_role_primary_secondary' or
+                                    role.secondary and 'fre_facs_profile_output_secondary' or
+                                    'fre_facs_profile_role_primary'
+                                editor.previewTargetRows[#editor.previewTargetRows+1]={
+                                    target=targetName,roleKey=roleKey}
+                            end
+                        end
+                    end
+                end
+                editor.previewDirty=false
+            end
+            if tImGui.TreeNode(tLang.L('fre_facs_profile_composed_targets')) then
+                tImGui.TextWrapped(tLang.L('fre_facs_profile_composed_targets_help'))
+                if #editor.previewTargetRows==0 then
+                    tImGui.TextDisabled(tLang.L('fre_facs_profile_no_composed_targets'))
+                elseif tImGui.BeginTable('freFACSComposedWeights',3,
+                        tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_target_column'))
+                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_role_column'))
+                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_preview_weight'))
+                    tImGui.TableHeadersRow()
+                    for _,row in ipairs(editor.previewTargetRows) do
+                        tImGui.TableNextRow()
+                        tImGui.TableSetColumnIndex(0); tImGui.Text(row.target)
+                        tImGui.TableSetColumnIndex(1); tImGui.Text(tLang.L(row.roleKey))
+                        tImGui.TableSetColumnIndex(2)
+                        tImGui.Text(string.format('%.3f',editor.previewWeights[row.target] or 0))
+                    end
+                    tImGui.EndTable()
+                end
+                tImGui.TreePop()
+            end
+            local canPreview=state.mesh~=nil and report.ok and #targetNames>0 and report.outputCount>0 and
+                editor.previewReport~=nil and editor.previewReport.ok
+            tImGui.BeginDisabled(not canPreview)
+            if tImGui.Button(tLang.L('fre_facs_profile_apply_preview')..'##freFACSApplyPreview',{x=330,y=0}) then
+                if applyFacialWeights(editor.previewWeights) then
+                    setStatus(tLang.L('fre_facs_profile_preview_applied'),false)
+                else
+                    setStatus(tLang.L('fre_facs_profile_preview_failed'),true)
+                end
+            end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_facs_profile_preview_tooltip'))
+            tImGui.SetNextItemWidth(280)
+            local expressionChanged,expressionName=tImGui.InputText(
+                tLang.L('fre_facs_profile_expression_name')..'##freFACSExpressionName',
+                editor.expressionNameDraft or '')
+            if expressionChanged then editor.expressionNameDraft=expressionName end
+            tImGui.BeginDisabled(not canPreview)
+            if tImGui.Button(tLang.L('fre_facs_profile_bake_expression')..'##freFACSCaptureExpression',{x=300,y=0}) then
+                local previousSelectedPose=state.project.expressions.selectedPose
+                pushUndoSnapshot()
+                local pose,errorMessage=tFacialExpressions.addPose(state.project.expressions,
+                    editor.expressionNameDraft)
+                if pose then
+                    if applyFacialWeights(editor.previewWeights) then
+                        tFacialExpressions.capturePose(state.project.expressions,pose,editor.previewWeights)
+                        state.expressions.selectedPose=#state.project.expressions.poses
+                        state.project.expressions.selectedPose=state.expressions.selectedPose
+                        editor.expressionNameDraft=''
+                        markModified()
+                        setStatus(tLang.L('fre_facs_profile_baked'),false)
+                    else
+                        tFacialExpressions.removePose(state.project.expressions,#state.project.expressions.poses)
+                        state.project.expressions.selectedPose=previousSelectedPose
+                        state.expressions.selectedPose=previousSelectedPose
+                        table.remove(state.undoStack)
+                        setStatus(tLang.L('fre_facs_profile_bake_failed'),true)
+                    end
+                else
+                    table.remove(state.undoStack)
+                    local errorKey=errorMessage=='expression name is empty' and
+                        'fre_facs_profile_error_empty_expression' or
+                        'fre_facs_profile_error_duplicate_expression'
+                    setStatus(tLang.L(errorKey),true)
+                end
+            end
+            tImGui.EndDisabled()
+        end
+    end
+end
+
 local function showExpressions()
     if state.expressions.catalogDirty then refreshExpressionCatalog() end
     local expressions=state.project.expressions or tFacialExpressions.new()
@@ -5767,7 +6264,9 @@ local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
     local workspaces={
         {'setup','fre_setup'}, {'face_position','fre_face_position'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
-        {'rig','fre_rig'}, {'targets','fre_targets'}, {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'}
+        {'targets','fre_targets'}, {'facs_profiles','fre_facs_profiles'},
+        {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'},
+        {'rig','fre_rig_optional'}
     }
     for _,entry in ipairs(workspaces) do
         local label=tLang.L(entry[2])
@@ -5783,6 +6282,7 @@ local function showWorkspaceTree()
                 elseif entry[1]=='landmarks' then showLandmarks()
                 elseif entry[1]=='rig' then showRig()
                 elseif entry[1]=='targets' then showTargets()
+                elseif entry[1]=='facs_profiles' then showFACSProfiles()
                 elseif entry[1]=='expressions' then showExpressions()
                 elseif entry[1]=='clips' then showClips()
                 elseif entry[1]=='preview' then showPreview() end
