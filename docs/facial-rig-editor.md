@@ -96,6 +96,8 @@ moves its linked mask controls at the stock weight of 1. The yellow action-line 
 its linked action lines at the stock weight of 1, along with itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
+Action-line polylines are authoring references only: they do not generate a region or contribute
+directly to a morph target or Action Unit profile.
 New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
 projects keep their authored mask catalog and are not expanded automatically. The point landmark
 list already includes the chin and both jaw hinges; they are optional rig references and do not create surface masks. The
@@ -125,9 +127,10 @@ can extend the catalog without requiring the user to create each shape from an e
 Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
 
 Selecting a green or yellow point controller exposes **Related controls** in the FACS mask panel.
-The list shows each linked control and its contribution weight. Weight 1 follows the controller's
-full displacement; weight 0 does not move that control. The user can adjust a weight, remove a
-link, or add links explicitly. **Suggest nearby** proposes currently unlinked polygons and
+The list shows each linked control and its movement-link weight. Weight 1 follows the controller's
+full displacement; weight 0 does not move that control. This weight affects editor control movement
+only; it is not an Action Unit or morph-target contribution. The user can adjust a weight, remove a
+link, or add links explicitly. **Suggest nearby links** proposes currently unlinked polygons and
 polylines based on their distance from the controller in face X/Y. The review list can be edited
 or cancelled; project links change only after **Apply selected links**. A controller moves only
 its direct links, so links to another controller do not recursively move that controller's links.
