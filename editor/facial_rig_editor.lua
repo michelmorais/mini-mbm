@@ -1422,7 +1422,27 @@ local function saveAssignedMesh()
     local suggested=replaceExtension(state.project.meshPath or 'facial-rig','-facial-weighted.msh')
     local path=mbm.saveFile(suggested,'msh')
     if not path then return false end
-    local callOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,false) end)
+    -- The facial runtime path does not accept normal-map batches. Keep the
+    -- editor's source asset untouched and remove only optional normal-map
+    -- material/tangent data from the exported copy. Vertex normals remain in
+    -- the mesh because they are used by facial normal-delta validation.
+    local sourcePath=tUtil.getTemporaryFilePath('_facial_export_source.msh')
+    local exportDebug
+    local function cleanup()
+        exportDebug=nil
+        dpCall(function() return meshDebug:fakeRelease(sourcePath) end)
+        os.remove(sourcePath)
+    end
+    local callOk,saved=dpCall(function()
+        local sourceSaved=state.meshDebug:save(sourcePath,false,false,true)
+        if sourceSaved~=true then return false end
+        exportDebug=meshDebug:new()
+        local loaded=exportDebug:load(sourcePath)
+        if loaded~=true then return false end
+        exportDebug:removeNormalMap()
+        return exportDebug:save(path,false,false,false)
+    end)
+    cleanup()
     if not callOk or saved~=true then
         setStatus(tLang.L('fre_weight_assignment_save_failed'),true)
         return false

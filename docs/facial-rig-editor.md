@@ -271,8 +271,11 @@ are reported as errors.
 Exporting an MSH is an explicit operation. The MSH stores dense target position deltas, optional
 normal deltas, convention and default weight, and facial clip data. The editor preview weight is a
 project preference, not an MSH target default. After exporting to a new path, save the project to
-retain the updated assigned MSH path. Mesh Debug and a runtime mesh instance can read the exported
-targets. A new project opened on an MSH that already has targets does not remove them.
+retain the updated assigned MSH path. Facial export removes optional 3D normal-map material and
+tangent batches from the exported copy because the current facial renderer does not accept normal
+mapping; geometric vertex normals remain available for facial normal deltas. Mesh Debug and a
+runtime mesh instance can read the exported targets. A new project opened on an MSH that already
+has targets does not remove them.
 
 The current format and runtime contracts are in [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1),
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md#facial-composition-on-the-same-mesh),
