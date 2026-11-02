@@ -20,7 +20,7 @@
    Generic surface-region data and polygon selection, independent of facial projects.
 ]]--
 
-local tSurfacePolygon=require 'facial_rig_polygon'
+local tSurfacePolygon=require 'morph_surface_polygon'
 local M={}
 
 local function finite(value)

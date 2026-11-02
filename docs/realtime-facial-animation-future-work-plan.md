@@ -3,6 +3,7 @@
 The current facial runtime, Mesh V11 format, Lua API, and native authoring workflow are described in:
 
 - [Facial Rig Editor](facial-rig-editor.md)
+- [Morph Editor](morph-editor.md)
 - [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md#facial-composition-on-the-same-mesh)
 - [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1)
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
@@ -154,10 +155,15 @@ can supply equivalent surface constraints. The reusable module is
 anchors and derived-weight field while retaining their face-specific source validation. At this
 stage, polygon selections remain binary; falloff settings are stored for the later target workflow
 but are not applied yet.
+The generic implementation is split across `morph_surface_topology.lua`,
+`morph_surface_polygon.lua`, and `morph_surface_regions.lua`; the facial modules retain
+compatibility wrappers for facial-only callers.
 
-**Milestone 2.2 - non-facial polygon authoring.** Add a generic Morph Editor entry point that loads
-any MSH-backed object, lets the user create and adapt polygon regions on its surface, and saves
-the generic region project without requiring a face origin or landmarks.
+**Milestone 2.2 - non-facial polygon authoring (implemented).** The generic Morph Editor loads an
+MSH-backed object, lets the user create and adapt polygon regions on its surface, rebuilds the
+derived vertex selection, and saves a `.morph.lua` project without requiring a face origin,
+landmarks, or FACS data. See [Morph Editor](morph-editor.md). Selections are currently binary;
+falloff and morph-target editing remain for milestone 2.3.
 
 **Milestone 2.3 - morph workflow integration.** Connect generic regions to target selection,
 painting, smoothing, transforms, mirroring, MSH export, and reload. Keep derived selections

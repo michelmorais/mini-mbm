@@ -1500,7 +1500,8 @@ local function faceRegionVertices()
     minX,maxX=minX-xMargin,maxX+xMargin
     minY,maxY=minY-yMargin,maxY+yMargin
     minZ,maxZ=minZ-zMargin,maxZ+zMargin
-    -- Use the topology snapshot that was produced by facial_rig_landmarks.inspect().
+    -- Use the topology snapshot produced by morph_surface_topology.inspect() through
+    -- the facial compatibility wrapper.
     -- Its order is the canonical global order used by project masks (subset-local
     -- vertex calls concatenated in subset order).  Re-reading ranges through the
     -- MeshDebug binding here used to make it possible for a malformed/partial Lua
