@@ -29,6 +29,7 @@ local ROLE_NAMES = {
     'main_face', 'left_eye', 'right_eye', 'upper_teeth', 'lower_teeth',
     'tongue', 'brows', 'nose', 'mouth', 'hair', 'accessory'
 }
+-- Bump this for serialized template-layout changes; other project schemas are rejected.
 local PROJECT_SCHEMA_VERSION=20
 
 local SOURCE_OBJECT_SUGGESTIONS = {

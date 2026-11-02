@@ -41,6 +41,11 @@ selection is fixed for the project; start a new project to choose the other work
 project schemas are not loaded by this editor version. The workspace tree then follows the selected
 path: **Rig** is available in Landmarks and regions, while **FACS Action Unit Profiles** is available
 in FACS mask. **Morph Targets**, **Expressions**, and **Clips** are shared.
+The Action Unit reference-table button appears in **Setup** only after selecting **FACS mask**; it is
+also available from **FACS Action Unit Profiles**.
+Loading a project with authored FACS controls does not upgrade, add, or recolor its template shapes.
+Templates are seeded only when the FACS catalog is empty. If a template change alters saved control
+data, bump the project schema; older schemas are rejected and must be recreated.
 
 **Landmarks and regions** is the classic workflow for placing facial landmarks and editing vertex
 masks. The cyan face guide (outline, crosses, and axes) is a landmark placement reference, not a
@@ -92,8 +97,7 @@ placed apart from the line so its pick target stays distinct from the line ancho
 New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
 projects keep their authored mask catalog and are not expanded automatically. The point landmark
 list already includes the chin and both jaw hinges; they are optional rig references and do not create surface masks. The
-jaw polygon is a separate influence region. **Refit selected mask to face** replaces the selected
-mask's controls with its complete current template; it is undoable and never runs automatically.
+jaw polygon is a separate influence region.
 
 All mask outlines remain visible. The shared default palette uses cyan for influence areas and
 orange for action lines on both sides and for future facial templates. New templates use green for

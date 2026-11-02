@@ -530,8 +530,10 @@ function M.names(groups)
 end
 
 function M.instantiate(project,topology,faceOrigin,scale)
+    -- Seed only an empty catalog; authored controls in a project are never reconciled.
     if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
             not faceOrigin.placed or #(project.facialMasks or {})>0 or
+            #(project.surfaceControls or {})>0 or
             #(topology.vertices or {})==0 then return false end
     project.facialMasks=project.facialMasks or {}
     project.surfaceControls=project.surfaceControls or {}
@@ -555,39 +557,6 @@ function M.instantiate(project,topology,faceOrigin,scale)
         linkControllers(project,group)
         project.facialMasks[#project.facialMasks+1]=group
     end
-    return true
-end
-
--- Refit only an explicitly selected stock template. Callers should take an
--- undo snapshot before using this on an already authored project.
-function M.refit(project,topology,faceOrigin,scale,group)
-    if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
-            not faceOrigin.placed or type(group)~='table' or #(topology.vertices or {})==0 then return false end
-    local definition
-    for _,candidate in ipairs(TEMPLATE_DEFINITIONS) do
-        if candidate.id==group.templateId then definition=candidate break end
-    end
-    if not definition then return false end
-    local controls={}
-    for _,shape in ipairs(definition.shapes) do
-        local id=definition.id..'_'..shape.id
-        local control=M.controlById(project,id)
-        if control then
-            if control.groupId~=group.id then return false end
-        else
-            return false
-        end
-        controls[#controls+1]={control=control,shape=shape}
-    end
-    local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
-    for _,entry in ipairs(controls) do
-        fitPoints(entry.control,entry.shape,topology,faceOrigin,actualScale)
-    end
-    group.actionUnits={}
-    for _,actionUnit in ipairs(definition.actionUnits) do
-        group.actionUnits[#group.actionUnits+1]=actionUnit
-    end
-    linkControllers(project,group)
     return true
 end
 

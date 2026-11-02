@@ -64,8 +64,11 @@ legacy vertex mask.
 The current catalog includes paired brows, eyes, cheeks, mouth corners, and nasolabial folds, plus
 upper-lip, lower-lip, chin, jaw, and nose masks. Eye templates also expose an upper and lower
 eyelid action line. New facial projects receive all 15 masks after face-origin placement. Saved
-projects retain their authored catalog without automatic additions. Chin and jaw-hinge point
-landmarks already exist as optional rig references; their surface influence masks are separate.
+projects retain their serialized controls: authored template shapes are not added, recolored, or
+reconciled on load. Templates are seeded only for an empty FACS catalog. Any future serialized
+template-layout change must bump the project schema; files with an older schema are rejected and
+must be recreated. Chin and jaw-hinge point landmarks already exist as optional rig references;
+their surface influence masks are separate.
 AU labels on these templates are semantic hints. The editor derives binary front-surface regions
 explicitly from closed area polygons, tracks source edits and topology changes, and can copy a
 current region into an independent Morph Target selection mask. Surface falloff, automatic
@@ -119,12 +122,13 @@ Acceptance:
 - a new project requires one workflow choice in Setup before saving or opening its workspaces;
 - a project keeps its selected workflow, shows Rig only in the classic path and FACS Profiles only
   in the FACS path, and filters Masks / Regions to that workflow;
+- the FACS Action Unit reference button appears in Setup only after the FACS workflow is selected;
 - a FACS project loads a facial-action template in the Landmarks worktree after the face origin is placed;
 - a brow template contains a pre-authored polygon, action-line polyline, group controller, and
   action-line controller;
 - paired eye, cheek, mouth-corner, and nasolabial templates use the same controls, palette, and
   synchronized side-editing behavior; lip, chin, jaw, and nose templates have editable area and
-  action lines; saved projects retain their authored masks;
+  action lines; loading a saved project does not upgrade its FACS templates;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and drive weighted movement of multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;

@@ -1847,7 +1847,8 @@ end
 ensureFacialActionTemplates=function()
     local origin=state.project and state.project.faceOrigin
     if state.project.authoringWorkflow~='facs' or not state.topology or not origin or
-            not origin.placed or #(state.project.facialMasks or {})>0 then return false end
+            not origin.placed or #(state.project.facialMasks or {})>0 or
+            #(state.project.surfaceControls or {})>0 then return false end
     if not tFacialActionTemplates.instantiate(state.project,state.topology,origin,origin.scale) then return false end
     state.maskVisualization.visible=false
     setMaskVisualizationViewportVisible(false)
@@ -3835,8 +3836,10 @@ local function showSetup()
             'fre_authoring_workflow_facs_help' or 'fre_authoring_workflow_regions_help'))
         tImGui.TextDisabled(tLang.L('fre_authoring_workflow_locked'))
     end
-    if tImGui.Button(tLang.L('fre_facs_au_reference_button')..'##freAUReferenceSetup') then
-        state.facsProfileEditor.actionUnitReferenceOpen=true
+    if state.project.authoringWorkflow=='facs' then
+        if tImGui.Button(tLang.L('fre_facs_au_reference_button')..'##freAUReferenceSetup') then
+            state.facsProfileEditor.actionUnitReferenceOpen=true
+        end
     end
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
@@ -4896,25 +4899,6 @@ local function showLandmarks()
                     end
                     tImGui.EndDisabled()
                     showHelpTooltip(tLang.L('fre_facs_surface_snap_help'))
-                end
-                if selectedGroup.templateId and selectedGroup.templateId~='' then
-                    tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)
-                    if tImGui.Button(tLang.L('fre_facs_refit_mask') .. '##freFacsRefitMask') then
-                        pushUndoSnapshot()
-                        if tFacialActionTemplates.refit(state.project,state.topology,
-                                state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
-                            mirrorFacialMaskSides(selectedGroup)
-                            state.surfaceControlOverlay.dirty=true
-                            state.selectedSurfaceControlPoint=nil
-                            markModified()
-                            setStatus(tLang.L('fre_facs_refit_done'),false)
-                        else
-                            table.remove(state.undoStack)
-                            setStatus(tLang.L('fre_facs_refit_failed'),true)
-                        end
-                    end
-                    tImGui.EndDisabled()
-                    showHelpTooltip(tLang.L('fre_facs_refit_help'))
                 end
                 tImGui.TextWrapped(tLang.L('fre_facs_selected_mask_help'))
             end
@@ -6390,6 +6374,9 @@ local function showMainPanel()
         showWorkspaceTree()
     end
     tImGui.End()
+    if state.project.authoringWorkflow~='facs' then
+        state.facsProfileEditor.actionUnitReferenceOpen=false
+    end
     if state.facsProfileEditor.actionUnitReferenceOpen then
         tImGui.SetNextWindowSize({x=720,y=560},tImGui.Flags('ImGuiCond_FirstUseEver'))
         tImGui.SetNextWindowSizeConstraints({x=520,y=360},{x=1000,y=900})
