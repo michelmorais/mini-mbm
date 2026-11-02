@@ -930,6 +930,9 @@ local function applyCamera()
     local z=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
     camera3d:setPos(x,y,z)
     camera3d:setFocus(c.fx,c.fy,c.fz)
+    if state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='facs' then
+        state.surfaceControlOverlay.selectionDirty=true
+    end
 end
 
 local function frameCamera(bounds)
@@ -1727,10 +1730,8 @@ refreshSurfaceControlOverlay=function(selectionOnly)
     -- retain a small bounds fallback for old projects without an origin.
     local size=math.max(faceScale and faceScale*0.006 or extent*0.0015,0.001)
     local selectedGroup=groups[state.selectedFacialMask]
-    if overlay.vertexNormalTopology~=state.topology then
-        overlay.vertexNormals=tSurfacePointGizmo.vertexNormals(state.topology)
-        overlay.vertexNormalTopology=state.topology
-    end
+    local markerRight,markerUp=tSurfacePointGizmo.cameraBasis(state.camera.azimuth,
+        state.camera.elevation)
     for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,selectedGroup)) do
         local control=entry.control
         local points=tFacialPolygon.resolvePoints(control,state.topology)
@@ -1741,23 +1742,14 @@ refreshSurfaceControlOverlay=function(selectionOnly)
             local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
             local halfSize=size*(role=='controller' and 1.6 or
                 role=='line_controller' and 1.35 or 1)
-            local corners,tangent,bitangent=tSurfacePointGizmo.markerFrame(position,
-                overlay.vertexNormals[point.index],halfSize)
-            paths[#paths+1]={corners[1].x,corners[1].y,corners[1].z,
-                corners[2].x,corners[2].y,corners[2].z,
-                corners[3].x,corners[3].y,corners[3].z,
-                corners[4].x,corners[4].y,corners[4].z,
-                corners[1].x,corners[1].y,corners[1].z}
+            paths[#paths+1]=tSurfacePointGizmo.markerSquarePath(position,markerRight,markerUp,
+                halfSize)
             if role=='controller' or role=='line_controller' then
                 local crossSize=halfSize*0.5
-                paths[#paths+1]={position.x-tangent.x*crossSize,
-                    position.y-tangent.y*crossSize,position.z-tangent.z*crossSize,
-                    position.x+tangent.x*crossSize,position.y+tangent.y*crossSize,
-                    position.z+tangent.z*crossSize}
-                paths[#paths+1]={position.x-bitangent.x*crossSize,
-                    position.y-bitangent.y*crossSize,position.z-bitangent.z*crossSize,
-                    position.x+bitangent.x*crossSize,position.y+bitangent.y*crossSize,
-                    position.z+bitangent.z*crossSize}
+                local first,second=tSurfacePointGizmo.markerCrossPaths(position,markerRight,
+                    markerUp,crossSize)
+                paths[#paths+1]=first
+                paths[#paths+1]=second
             end
         end
     end
@@ -1780,8 +1772,8 @@ refreshSurfaceControlOverlay=function(selectionOnly)
                 for index,path in ipairs(paths) do object:set(path,index) end
             end
             -- The engine clears depth between always-on-top priorities. Keep
-            -- anchors in the selected mask's contour layer so their Z matches
-            -- the visible shape instead of forcing every handle in front.
+            -- markers in the selected contour's layer so both use the same
+            -- depth buffer while their centers share the same 3D vertex.
             object.alwaysOnTopPriority=2
             local color=markerColors[role]
             object:setColor(color.r or 1,color.g or 1,color.b or 1,color.a or 1)
@@ -6566,9 +6558,8 @@ local function finishMaskVisualizationBuild()
     local surfaceUvs=visualization.buildSurfaceUvs or {}
     local surfaceIndices=visualization.buildSurfaceIndices or {}
     if #surfaceCoords>0 and #surfaceIndices>0 then
-        -- The vertices are absolute mesh coordinates. Keep the object off exact z=0
-        -- so DEVICE does not replace its position with the automatic 3D z-order.
-        local surface=shape:new('3d',0,0,0.0001)
+        -- The vertices are absolute mesh coordinates; the object stays at the origin.
+        local surface=shape:new('3d',0,0,0)
         local created=surface:createDynamicIndexed(surfaceCoords,surfaceIndices,surfaceUvs,
             'facial_mask_surface_'..tostring(maskVisualizationGeneration))
         if created then

@@ -28,11 +28,9 @@ namespace mbm
       public:
         ORDER_RENDER()noexcept;
         void reInit()noexcept;
-        float getNextZOrderControl3d()noexcept;
         float getNextZOrderControl2d(const bool is2dS, const bool isFont)noexcept;
         float getNextZOrderControl2dBackground()noexcept;
       private:
-        float nextZOrderControl3d;
         float nextZOrderControl2d;
         float nextZOrderControl2dBackground;
         float Z2dsFont, Z2ds, Z2dw;

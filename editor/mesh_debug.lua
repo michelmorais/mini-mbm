@@ -3754,19 +3754,8 @@ function updatePreviewMesh()
         tPreviewMesh = mesh:new(coordType)
         configureMeshPreviewSkinning(tPreviewMesh, meshD)
         ok = meshDebug:loadMeshPreview(tPreviewMesh,loadPath)
-        -- Force the preview's position back to the origin immediately after load, overriding
-        -- DEVICE::addRenderizable's z-order auto-assign (src/core_mbm/device-common.cpp:1173,
-        -- `if (position.z == 0.0f) position.z = getNextZOrderControl3d()`). Every freshly
-        -- constructed 3D mesh starts at z=0 and gets stamped with a small, globally-monotonic,
-        -- never-resetting z-order nudge the instant it's constructed. Since this function
-        -- recreates tPreviewMesh from scratch on every single edit (transform, frame removal,
-        -- etc. -- anything that sets iLastPreviewedIndex = 0), each recreation would otherwise
-        -- land at a different tiny nonzero Z depending on how many other 3D objects happened to be
-        -- created elsewhere in the session -- confirmed empirically and previously compounded by
-        -- MESH_MBM::load's now-removed additive "Default position" application (30 destroy+reload
-        -- cycles used to add 30 * 0.01 to Z, never converging back even when the edited field was
-        -- reverted). With that field gone, only this residual z-order nudge remains, so resetting
-        -- straight to the origin is the correct fix rather than reading any stored value.
+        -- Each regenerated preview starts at the origin, independently of the
+        -- previous preview's transform.
         if ok then
             tPreviewMesh:setPos(0, 0, 0)
             if bCameraMode3D and tEntry.cam3d.autoFit then
@@ -4435,9 +4424,7 @@ function refreshFrameFilterPreview(tEntry, index)
     end
 
     if ok and tPreviewMesh then
-        -- A freshly-created 3D mesh can receive an automatic device Z-order nudge when
-        -- registered. Frame/subset filter refreshes must not move the user's preview or the
-        -- apparent reference used by the split-capture cube.
+        -- Keep regenerated mesh previews at the same origin across frame/subset refreshes.
         if meshType == 'mesh' then tPreviewMesh:setPos(0, 0, 0) end
         tPreviewMesh.alwaysRender = true
         tPreviewMesh.visible = true
@@ -5198,9 +5185,9 @@ end
 -- Geometry helpers for subset and split-capture markers.
 -- ---------------------------------------------------------------------------
 
--- Prevent DEVICE's automatic Z-order nudge from moving markers centered at Z=0.
-local function dodgeAutoZOrder(z)
-    return (z == 0) and 0.0001 or z
+-- Only 2D markers need to avoid the automatic 2D Z-order at zero.
+local function dodgeAutoZOrder(z,coordType)
+    return coordType~='3d' and z==0 and 0.0001 or z
 end
 
 local function unitSphereVerts(latSegments, lonSegments)
@@ -5355,7 +5342,7 @@ function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, inde
     end
     if not tEntry.tTransformSubsetHoverMarker then
         tEntry.iTransformSubsetHoverGeneration = (tEntry.iTransformSubsetHoverGeneration or 0) + 1
-        local marker = shape:new(coordType, cx, cy, dodgeAutoZOrder(cz))
+        local marker = shape:new(coordType, cx, cy, dodgeAutoZOrder(cz,coordType))
         marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_subset_hover_' .. index .. '_' ..
             tEntry.iTransformSubsetHoverGeneration)
         marker:setColor(0.1, 1.0, 1.0, 0.95)
@@ -5364,7 +5351,7 @@ function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, inde
         tEntry.sTransformSubsetHoverCoordType = coordType
         tEntry.sTransformSubsetHoverOwner = owner
     else
-        tEntry.tTransformSubsetHoverMarker:setPos(cx, cy, dodgeAutoZOrder(cz))
+        tEntry.tTransformSubsetHoverMarker:setPos(cx, cy, dodgeAutoZOrder(cz,coordType))
     end
     tEntry.tTransformSubsetHoverMarker:setScale(markerSize, markerSize, markerSize)
     tEntry.tTransformSubsetHoverMarker.visible = true
@@ -7047,7 +7034,7 @@ function updateSplitCaptureIslandMarkers(tEntry, index, analysis, resolved)
     tEntry.iSplitCaptureIslandMarkerGeneration = (tEntry.iSplitCaptureIslandMarkerGeneration or 0) + 1
     for markerIndex, info in ipairs(resolved.islandMarkers or {}) do
         if showCenters then
-            local marker = shape:new('3d', info.x, info.y, dodgeAutoZOrder(info.z))
+            local marker = shape:new('3d', info.x, info.y, info.z)
             marker:create(unitSphereVerts(8, 12), nil, 'mesh_debug_capture_island_' .. index .. '_' ..
                 tEntry.iSplitCaptureIslandMarkerGeneration .. '_' .. markerIndex)
             if info.removed then marker:setColor(1.0, 0.45, 0.05, 0.95)

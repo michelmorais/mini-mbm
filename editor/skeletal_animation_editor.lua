@@ -746,10 +746,6 @@ local function orientedCylinderVerts(dx,dy,dz,radiusTop,radiusBottom,segments)
     return vertices
 end
 
-local function visualZ(z)
-    return z==0 and 0.0001 or z
-end
-
 local function destroySkeletonVisuals(preserveTranslationGizmo)
     for _,object in pairs(state.skeletonGizmo.spheres) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.bones) do destroyObject(object) end
@@ -1077,7 +1073,7 @@ local function nextSkeletonNickname(prefix)
 end
 
 local function createBoneShape(x,y,z,vertices,nickname,r,g,b,a)
-    local object=shape:new('3d',x,y,visualZ(z))
+    local object=shape:new('3d',x,y,z)
     object:create(vertices,nil,nextSkeletonNickname(nickname))
     object:setColor(r,g,b,a)
     object.visible=shouldShowSkeleton()
@@ -1369,10 +1365,9 @@ rebuildSkeletonVisuals=function()
                 'swl_explicit_reference_tail_',1,0,1,0.6)
             tail:setScale(radius,radius,radius)
             state.skeletonGizmo.referenceTails[bone.boneId]=tail
-            local headVisualZ,tailVisualZ=visualZ(head.z),visualZ(tailPoint.z)
-            local segment=line:new('3d',head.x,head.y,headVisualZ)
+            local segment=line:new('3d',head.x,head.y,head.z)
             segment:add({0,0,0,tailPoint.x-head.x,tailPoint.y-head.y,
-                tailVisualZ-headVisualZ})
+                tailPoint.z-head.z})
             segment:setColor(1,0,1,0.65)
             segment.visible=shouldShowSkeleton()
             segment.alwaysOnTop=state.skeletonAlwaysOnTop
@@ -1404,9 +1399,8 @@ rebuildSkeletonVisuals=function()
             if dx*dx+dy*dy+dz*dz>0.000001 then
                 local link
                 if state.workspace=='animation' or state.workspace=='runtime' then
-                    local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
-                    link=line:new('3d',parent.x,parent.y,parentVisualZ)
-                    link:add({0,0,0,dx,dy,boneVisualZ-parentVisualZ})
+                    link=line:new('3d',parent.x,parent.y,parent.z)
+                    link:add({0,0,0,dx,dy,dz})
                     link:setColor(1,0,1,0.9)
                     link.visible=shouldShowSkeleton()
                     link.alwaysOnTop=state.skeletonAlwaysOnTop
@@ -1438,25 +1432,23 @@ local function updateAnimationSkeletonVisuals()
     for _,bone in ipairs(bones) do
         local sphere=state.skeletonGizmo.spheres[bone.name]
         if not sphere then return false end
-        sphere:setPos(bone.x,bone.y,visualZ(bone.z))
+        sphere:setPos(bone.x,bone.y,bone.z)
         if bone.hasExplicitTail then
             local _,tailPoint=getBoneEditorEndpoints(bone,1)
             local tail=state.skeletonGizmo.referenceTails[bone.boneId]
             local segment=state.skeletonGizmo.referenceSegments[bone.boneId]
             if not tail or not segment then return false end
-            local headVisualZ,tailVisualZ=visualZ(bone.z),visualZ(tailPoint.z)
-            tail:setPos(tailPoint.x,tailPoint.y,tailVisualZ)
+            tail:setPos(tailPoint.x,tailPoint.y,tailPoint.z)
             segment:set({0,0,0,tailPoint.x-bone.x,tailPoint.y-bone.y,
-                tailVisualZ-headVisualZ},1)
-            segment:setPos(bone.x,bone.y,headVisualZ)
+                tailPoint.z-bone.z},1)
+            segment:setPos(bone.x,bone.y,bone.z)
         end
         if bone.parentName then
             local parent=byName[bone.parentName]
             local link=state.skeletonGizmo.bones[bone.boneId]
             if not parent or not link then return false end
-            local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
-            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,boneVisualZ-parentVisualZ},1)
-            link:setPos(parent.x,parent.y,parentVisualZ)
+            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,bone.z-parent.z},1)
+            link:setPos(parent.x,parent.y,parent.z)
         end
     end
     rebuildTranslationGizmo()
@@ -1479,14 +1471,13 @@ local function updateRuntimeSkeletonVisuals()
     for _,bone in ipairs(bones) do
         local sphere=state.skeletonGizmo.spheres[bone.name]
         if not sphere then return false end
-        sphere:setPos(bone.x,bone.y,visualZ(bone.z))
+        sphere:setPos(bone.x,bone.y,bone.z)
         if bone.parentName then
             local parent=byName[bone.parentName]
             local link=state.skeletonGizmo.bones[bone.boneId]
             if not parent or not link then return false end
-            local parentVisualZ,boneVisualZ=visualZ(parent.z),visualZ(bone.z)
-            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,boneVisualZ-parentVisualZ},1)
-            link:setPos(parent.x,parent.y,parentVisualZ)
+            link:set({0,0,0,bone.x-parent.x,bone.y-parent.y,bone.z-parent.z},1)
+            link:setPos(parent.x,parent.y,parent.z)
         end
     end
     applyWorkspaceVisibility()

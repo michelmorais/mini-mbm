@@ -197,9 +197,7 @@ function initCam3dFraming()
     if bSpriteBackedObject and tSpriteRef3d == nil then
         tSpriteRef3d = sprite:new('3d', 0, 0, 0)
         tSpriteRef3d:load(sLastEditorFileName)
-        -- DEVICE::addRenderizable auto-assigns an incrementing z-order to any 3D object
-        -- created at z==0 (a convenience for depth-unaware objects); force it back to the
-        -- physics shapes' own origin so the reference sprite lines up with them.
+        -- Keep the reference sprite at the physics shapes' origin.
         tSpriteRef3d:setPos(0, 0, 0)
 
         -- camera2d and camera3d composite into the same frame every tick -- there is no

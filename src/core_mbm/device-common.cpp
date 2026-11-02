@@ -1185,8 +1185,8 @@ namespace mbm
             const TYPE_CLASS typeClass = renderizable->getTypeClass();
             if (renderizable->is3DObject())
             {
-                if (position.z == 0.0f)
-                    position.z = impl->orderRender.getNextZOrderControl3d();
+                // In 3D, zero is a real world coordinate. Depth and overlay
+                // priority determine render order without moving the object.
                 impl->render3D.push_back(renderizable);
             }
             else if (is2dScreen)

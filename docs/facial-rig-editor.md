@@ -105,8 +105,11 @@ right-brow pink and older action-line accents are upgraded on load; custom area 
 colors are preserved. Every group controller is green, including those in older projects.
 The group controller is a larger green square
 with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
-displays square anchors for editing. The anchor squares and controller crosses follow the local
-mesh tangent, keeping them seated on the surface when the camera orbits.
+displays square anchors for editing. Each square faces the camera in the view plane through its
+polygon vertex, so its visible corners stay at the vertex's camera depth while the camera orbits.
+The controller crosses use the same plane, and the 3D gizmo starts at the exact vertex position.
+The engine preserves Z zero when registering 3D objects, so the contour and its
+handles receive no implicit creation-order displacement.
 In the viewport, left drag on empty space orbits the camera. Clicking a square anchor or an outline
 selects its point (a segment selects its nearer endpoint) and displays a 3D translation gizmo.
 Hold Ctrl while clicking to restrict the interaction to an axis on the currently selected point's
