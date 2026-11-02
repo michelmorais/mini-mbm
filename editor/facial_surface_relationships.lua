@@ -38,13 +38,7 @@ function M.labelId(controlId,translate)
     if not groupName then return controlId end
     local detailKeys={
         area='fre_facs_control_area',
-        action_line='fre_facs_control_action_line',
-        line_controller='fre_facs_control_line_controller',
-        controller='fre_facs_control_group_controller',
-        lower_lid_line='fre_facs_control_lower_lid_line',
-        bridge_wrinkle='fre_facs_control_bridge_wrinkle',
-        left_alar_fold='fre_facs_control_left_alar_fold',
-        right_alar_fold='fre_facs_control_right_alar_fold'
+        controller='fre_facs_control_group_controller'
     }
     local detailKey=detailKeys[detail]
     if not detailKey then return controlId end
@@ -74,8 +68,7 @@ end
 function M.dragEntries(control,pointIndex,entries)
     if not control or not pointIndex then return {} end
     local result={{control=control,pointIndex=pointIndex,weight=1}}
-    if control.kind~='point' or
-            (control.role~='controller' and control.role~='line_controller') then
+    if control.kind~='point' or control.role~='controller' then
         return result
     end
     local byId={}

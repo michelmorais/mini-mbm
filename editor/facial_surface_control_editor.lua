@@ -94,7 +94,7 @@ function M.begin(state,x,y,api)
     state.selectedSurfaceControl=candidate.entry.index
     state.selectedSurfaceControlPoint=candidate.pointIndex
     api.pushUndo()
-    if control.role=='controller' or control.role=='line_controller' then
+    if control.role=='controller' then
         local members=tPointGizmo.dragEntries(control,candidate.pointIndex,
             api.allEntries and api.allEntries(state) or entries)
         local origin,direction=api.pickRay(x,y)

@@ -46,24 +46,21 @@ retains classic landmark and vertex-mask authoring:
 | Kind | Intended use | Initial semantics |
 | --- | --- | --- |
 | polygon | Area influence, such as a brow, cheek, eyelid, or jaw area | Closed ordered surface anchors with editable contour and depth |
-| polyline | Line of action, such as a lip border, furrow, or wrinkle | Open ordered surface anchors with editable contour and depth |
-| point | Landmark or controller for a localized action | Explicit references to the polygons/polylines it controls |
+| point | Group controller for one or more influence areas | Explicit references to the polygons it moves |
 
 The user must be able to select an action mask, drag its pre-authored surface anchors, adjust their
-depth, edit contours, and inspect the related action lines in the same facial-mark authoring view.
-The selected mask exposes its polygon, action-line polyline, group controller, and action-line
-controller as one editable group.
+depth and edit contours in the same facial-mark authoring view. The selected mask exposes its
+influence polygon and group controller as one editable group.
 All other masks remain visible as colored outlines, while only the selected mask exposes clickable
-square anchors. The group controller moves its area and action lines together; the action-line
-controller moves only its action lines.
+square anchors. The group controller moves its area and any explicitly linked influence polygons
+together.
 The editor offers independent and synchronized side editing for paired facial masks; synchronized
 editing mirrors the authored positions while retaining each side's mesh anchors. Stock influence
-areas share one cyan color and stock action lines share one orange color across sides.
+areas share one cyan color across sides, and group controllers share one green color.
 The face guide remains a placement aid and must not be confused with an authored control or a
 legacy vertex mask.
 The current catalog includes paired brows, eyes, cheeks, mouth corners, and nasolabial folds, plus
-upper-lip, lower-lip, chin, jaw, and nose masks. Eye templates also expose an upper and lower
-eyelid action line. New facial projects receive all 15 masks after face-origin placement. Saved
+upper-lip, lower-lip, chin, jaw, and nose masks. New facial projects receive all 15 masks after face-origin placement. Saved
 projects retain their serialized controls: authored template shapes are not added, recolored, or
 reconciled on load. Templates are seeded only for an empty FACS catalog. Any future serialized
 template-layout change must bump the project schema; files with an older schema are rejected and
@@ -81,7 +78,7 @@ the user can change their weights, remove links, or add them through a review li
 surface drag move linked controls by the controller displacement multiplied by each link's weight.
 Stock template links remain at weight 1. A link to another controller moves that controller point
 only; its own links are not traversed. All edits are undoable and saved in the facial project.
-The optional **Suggest nearby** command finds unlinked polygons and polylines near the selected
+The optional **Suggest nearby** command finds unlinked influence polygons near the selected
 controller in the face X/Y plane. It proposes same-side or unpaired controls, displays candidates
 for review, and changes the project only after **Apply selected links**. Existing authored links
 are preserved. Synchronized side mode mirrors link IDs and weights where counterpart controls
@@ -99,15 +96,15 @@ regions. The saved choice is fixed for that project. The workspace tree includes
 classic path and FACS Action Unit Profiles only in the FACS path. **Masks / Regions** also filters
 its controls: classic projects show Rig role management and classic masks, while FACS projects show
 generated regions and target masks. Morph Targets, Expressions, and Clips are shared. Project
-schema 20 stores the workflow and rejects earlier project schemas; users must recreate those
+schema 21 stores the workflow and rejects earlier project schemas; users must recreate those
 projects.
 
 Classic vertex masks are retained as a supported authoring representation in the **Vertex mask**
-workflow. They are not converted automatically into polygons, polylines, or points.
+workflow. They are not converted automatically into FACS surface controls.
 
 The **Vertex mask** workflow edits classic vertex masks only. Surface polygon editing belongs only
 to **FACS facial masks**, the FACS version of the **Landmarks / Marcos faciais** workspace. It is the
-source authoring step for area polygons, action-line polylines, and controllers. **Masks / Regions**
+source authoring step for influence polygons and controllers. **Masks / Regions**
 has no representation selector: it generates FACS regions from those authored polygons and edits
 only the resulting vertex selections. Copying one into a target-selection mask is explicit, with no
 automatic conversion or weight application.
@@ -126,12 +123,11 @@ Acceptance:
   in the FACS path, and filters Masks / Regions to that workflow;
 - the FACS Action Unit reference button appears in Setup only after the FACS workflow is selected;
 - a FACS project loads a facial-action template in the Landmarks worktree after the face origin is placed;
-- a brow template contains a pre-authored polygon, action-line polyline, group controller, and
-  action-line controller;
+- a brow template contains a pre-authored influence polygon and group controller;
 - paired eye, cheek, mouth-corner, and nasolabial templates use the same controls, palette, and
-  synchronized side-editing behavior; lip, chin, jaw, and nose templates have editable area and
-  action lines; loading a saved project does not upgrade its FACS templates;
-- polygon and polyline anchors can be edited with visible depth and contour feedback;
+  synchronized side-editing behavior; lip, chin, jaw, and nose templates have editable influence
+  areas; loading a saved project does not upgrade its FACS templates;
+- polygon anchors can be edited with visible depth and contour feedback;
 - point relationships are explicit, inspectable, and drive weighted movement of multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;
 - stale generated regions produce an actionable diagnostic and never apply weights silently;
@@ -197,7 +193,7 @@ using the same region tools, without requiring face origin, facial landmarks, or
 
 **Milestone 3.1 - project Action Unit profiles (implemented; runtime use still needs visual
 verification).** The Facial Rig Editor now has a FACS Profiles workspace persisted in facial project
-schema 20. A profile defines:
+schema 21. A profile defines:
 
 - semantic name and optional left/right side;
 - a standardized facial Action Unit code, shown with its action name;
@@ -219,7 +215,7 @@ expression model, which can then be used by the existing clip and MSH export wor
 The FACS profile metadata remains in the editor project; no new runtime or MSH payload was added.
 
 The current profile evaluator intentionally maps explicitly authored Action Units to existing
-targets. It does not infer mappings from facial polygons or action lines and does not simulate
+targets. It does not infer mappings from facial polygons and does not simulate
 muscle anatomy. Profiles can be authored without a loaded mesh, but target mapping and evaluation
 require one. The Action Unit picker lists the 44 single facial AUs with their standard action names.
 The reference window marks which AUs have an editor surface-mask template; other standardized AUs

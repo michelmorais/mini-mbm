@@ -54,8 +54,8 @@ this workflow. The guide is shown by default and can be hidden while editing lan
 
 **FACS mask** shows the facial action templates and their surface controls. In the workspace tree,
 the entry that is called **Landmarks** in the classic workflow is displayed as **FACS facial masks**.
-That is the FACS equivalent of **Marcos faciais**: it is where the area polygons, action-line
-polylines, and group/action-line controllers are edited. The classic landmark controls, cyan guide,
+That is the FACS equivalent of **Marcos faciais**: it is where the influence polygons and group
+controllers are edited. The classic landmark controls, cyan guide,
 and Rig workspace are hidden in this workflow. Its selected path is stored with the project.
 
 **Side editing mode** appears below the workflow help and is available in both modes.
@@ -76,8 +76,7 @@ and the [visual reference used by the team](https://coralievogelaar.com/Facial-A
 | Kind | Meaning | Initial authoring behavior |
 | --- | --- | --- |
 | polygon | Area of influence, such as a brow or cheek region | Closed surface shape with editable contour and depth-adjustable anchors |
-| polyline | Line of action, such as a lip border, furrow, or wrinkle | Open surface line with editable points and depth-adjustable anchors |
-| point | Localized landmark or controller | Explicitly references the polygons/polylines it controls; it is not limited to a single vertex |
+| point | Group controller for one or more influence areas | Explicitly references the polygons it moves; it is not limited to a single vertex |
 
 The stock catalog contains paired masks for brows (AU1, AU2, AU4), eyes (AU5, AU7, AU41-AU46),
 cheeks (AU6), mouth corners (AU12, AU15), and nasolabial folds (AU11). It also has upper-lip
@@ -85,30 +84,22 @@ cheeks (AU6), mouth corners (AU12, AU15), and nasolabial folds (AU11). It also h
 (AU9, AU38, AU39) masks. These AU labels identify related actions; a mask does not solve or
 generate those movements. The
 [Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
-is the naming reference. Each mask has an area polygon, one or more action-line polylines, a group
-controller, and a separate action-line controller. The brow masks start with 12 contour anchors
-and five action-line anchors; the other masks provide their own pre-authored contours. All are
+is the naming reference. Each mask has an influence polygon and a green group controller. The brow
+masks start with 12 contour anchors; the other masks provide their own pre-authored contours. All are
 adapted to the current mesh after the face origin is placed and FACS mode is selected. Initial
 fitting uses the mesh subset containing the face origin and prioritizes the front view contour over
 guessed depth. This avoids snapping brow
 points to a separate hair subset and reduces jumps toward the eyelid. The green group controller
-moves its linked mask controls at the stock weight of 1. The yellow action-line controller moves
-its linked action lines at the stock weight of 1, along with itself;
-individual area and line anchors still move one point at a time. The action-line controller is
-placed apart from the line so its pick target stays distinct from the line anchors.
-Action-line polylines are authoring references only: they do not generate a region or contribute
-directly to a morph target or Action Unit profile.
+moves its linked influence polygons at the stock weight of 1, along with itself. Individual area
+anchors still move one point at a time.
 New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
 projects keep their authored mask catalog and are not expanded automatically. The point landmark
 list already includes the chin and both jaw hinges; they are optional rig references and do not create surface masks. The
 jaw polygon is a separate influence region.
 
-All mask outlines remain visible. The shared default palette uses cyan for influence areas and
-orange for action lines on both sides and for future facial templates. New templates use green for
-group controllers and yellow for action-line controllers. Custom area and action-line colors remain
-available when editing a template.
-The group controller is a larger green square
-with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
+All mask outlines remain visible. The shared default palette uses cyan for influence areas on both
+sides and for future facial templates. Group controllers use green. The group controller is a
+larger green square with a cross. Only the selected mask
 displays square anchors for editing. Each square faces the camera in the view plane through its
 polygon vertex, so its visible corners stay at the vertex's camera depth while the camera orbits.
 The controller crosses use the same plane, and the 3D gizmo starts at the exact vertex position.
@@ -121,17 +112,17 @@ gizmo. Ctrl uses a wider axis hit area; clicking outside the gizmo neither selec
 nor starts an orbit.
 Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging a controller's
 gizmo moves its linked controls by the configured weights; stock green controllers move their mask
-group and stock yellow controllers move their action lines. Right drag still snaps an
+group. Right drag still snaps an
 anchor or the corresponding controller's set of points to mesh vertices. Further facial actions
 can extend the catalog without requiring the user to create each shape from an empty control.
 Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
 
-Selecting a green or yellow point controller exposes **Related controls** in the FACS mask panel.
+Selecting a green point controller exposes **Related controls** in the FACS mask panel.
 The list shows each linked control and its movement-link weight. Weight 1 follows the controller's
 full displacement; weight 0 does not move that control. This weight affects editor control movement
 only; it is not an Action Unit or morph-target contribution. The user can adjust a weight, remove a
-link, or add links explicitly. **Suggest nearby links** proposes currently unlinked polygons and
-polylines based on their distance from the controller in face X/Y. The review list can be edited
+link, or add links explicitly. **Suggest nearby links** proposes currently unlinked influence
+polygons based on their distance from the controller in face X/Y. The review list can be edited
 or cancelled; project links change only after **Apply selected links**. A controller moves only
 its direct links, so links to another controller do not recursively move that controller's links.
 Changes support Undo/Redo and persist in the project. In synchronized side mode, paired control
@@ -177,7 +168,7 @@ other workflow. The workspace tree hides **FACS Action Unit Profiles** in the cl
 hides **Rig** in the FACS workflow. **Masks / Regions** also filters its controls by workflow:
 classic projects show Rig role management and classic masks; FACS projects show generated FACS
 regions and target masks. **Morph Targets**, **Expressions**, and **Clips** are shared. Project
-schema 20 stores the choice; schema 19 and earlier projects are rejected and must be recreated.
+schema 21 stores the choice; earlier projects are rejected and must be recreated.
 
 Classic Rig role masks remain an authoring representation in the **Vertex mask** workflow.
 Rig and Morph Target selection masks use vertex selections in that workflow. In the FACS workflow,
@@ -221,7 +212,7 @@ The reference window lists the 44 single facial AUs and marks which have a suppl
 template. A standardized AU without a template can still be profiled by manually mapping existing
 morph targets. The editor does not infer mappings from an AU name.
 
-The workspace does not infer target mappings from facial polygons or action lines. The user
+The workspace does not infer target mappings from facial polygons. The user
 chooses each target explicitly. Multiple enabled profiles can be composed with **Add, clamp at 1**
 or **Maximum contribution**. Missing target references are reported and block preview or expression
 capture. Applying the composed preview writes the resulting weights to the mesh; targets without
@@ -230,7 +221,7 @@ and whether each mapped target has primary, secondary, or both contribution type
 
 **Capture as expression** stores the composed weights in the existing named-expression model. That
 expression can be used in the existing facial clip editor and MSH export workflow. AU profiles are
-saved in the facial project (schema 20); they do not add a runtime or MSH data section. The profile
+saved in the facial project (schema 21); they do not add a runtime or MSH data section. The profile
 authoring layer does not model muscle anatomy or provide live capture input. The standard action
 names follow the [CMU FACS reference](https://www.cs.cmu.edu/afs/cs/project/face/www/facs.htm) and
 the [44 single-AU catalog](https://pub.h-brs.de/frontdoor/deliver/index/docId/3118/file/brsu_techreport_04_2017_TeenaHassan.pdf).
@@ -255,7 +246,7 @@ end of the clip.
 
 The optional assisted Blender target-generation section is available only in the classic **Vertex
 mask** workflow. It uses the classic rig bridge and landmark roles to create starter Shape Keys;
-it does not consume FACS surface polygons, action lines, or Action Unit profiles. FACS projects
+it does not consume FACS surface polygons or Action Unit profiles. FACS projects
 create or import Morph Targets in the **Morph Targets** workspace and export the runtime MSH
 without the classic skeleton and vertex-weight materialization step. The Blender bridge export is
 also hidden in the FACS workflow until a FACS-specific interchange is implemented.

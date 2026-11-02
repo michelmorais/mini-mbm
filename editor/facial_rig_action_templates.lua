@@ -24,9 +24,7 @@ local M={}
 local tPointGizmo=require 'facial_surface_point_gizmo'
 
 local AREA_COLOR={r=0.15,g=0.85,b=1,a=1}
-local ACTION_LINE_COLOR={r=1,g=0.46,b=0.08,a=1}
 local CONTROLLER_COLOR={r=0.28,g=1,b=0.32,a=1}
-local LINE_CONTROLLER_COLOR={r=1,g=0.9,b=0.16,a=1}
 
 local FACS_ACTION_UNIT_CATALOG={
     {code='AU1',nameEn='Inner Brow Raiser',namePt='Elevador interno da sobrancelha'},
@@ -86,12 +84,6 @@ local TEMPLATE_DEFINITIONS={
                 {-0.30,0.282,-0.11},{-0.275,0.275,-0.11},{-0.235,0.275,-0.11},
                 {-0.19,0.265,-0.11},{-0.145,0.260,-0.11},{-0.115,0.265,-0.11}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.12,0.38,-0.09},{-0.16,0.40,-0.09},{-0.21,0.41,-0.09},
-                {-0.26,0.40,-0.09},{-0.29,0.37,-0.09}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{-0.21,0.46,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,points={{-0.20,0.29,-0.12}}}
         }
     },
@@ -105,12 +97,6 @@ local TEMPLATE_DEFINITIONS={
                 {0.30,0.282,-0.11},{0.275,0.275,-0.11},{0.235,0.275,-0.11},
                 {0.19,0.265,-0.11},{0.145,0.260,-0.11},{0.115,0.265,-0.11}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {0.12,0.38,-0.09},{0.16,0.40,-0.09},{0.21,0.41,-0.09},
-                {0.26,0.40,-0.09},{0.29,0.37,-0.09}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0.21,0.46,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,points={{0.20,0.29,-0.12}}}
         }
     }
@@ -130,18 +116,8 @@ local MORE_LEFT_TEMPLATES={
                 {-0.28,0.15,-0.11},{-0.255,0.13,-0.11},{-0.21,0.12,-0.11},
                 {-0.165,0.125,-0.11},{-0.13,0.14,-0.11}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.12,0.215,-0.10},{-0.16,0.228,-0.10},{-0.205,0.232,-0.10},
-                {-0.25,0.22,-0.10},{-0.27,0.20,-0.10}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{-0.205,0.245,-0.10}}},
             {id='controller',role='controller',kind='point',closed=false,
-                points={{-0.20,0.17,-0.11}}},
-            {id='lower_lid_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.12,0.16,-0.10},{-0.15,0.137,-0.10},{-0.19,0.13,-0.10},
-                {-0.23,0.135,-0.10},{-0.26,0.15,-0.10},{-0.275,0.17,-0.10}
-            }}
+                points={{-0.20,0.17,-0.11}}}
         }
     },
     {
@@ -154,12 +130,6 @@ local MORE_LEFT_TEMPLATES={
                 {-0.30,-0.025,-0.14},{-0.25,-0.075,-0.14},{-0.18,-0.07,-0.14},
                 {-0.12,-0.02,-0.14}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.12,0.09,-0.13},{-0.16,0.08,-0.13},{-0.21,0.075,-0.13},
-                {-0.265,0.08,-0.13},{-0.30,0.10,-0.13}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{-0.22,0.035,-0.13}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{-0.21,-0.015,-0.14}}}
         }
@@ -174,12 +144,6 @@ local MORE_LEFT_TEMPLATES={
                 {-0.205,-0.25,-0.08},{-0.165,-0.27,-0.08},{-0.115,-0.25,-0.08},
                 {-0.085,-0.22,-0.08}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.11,-0.035,-0.07},{-0.14,-0.065,-0.07},{-0.17,-0.10,-0.07},
-                {-0.185,-0.14,-0.07},{-0.19,-0.17,-0.07}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{-0.205,-0.085,-0.07}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{-0.16,-0.20,-0.08}}}
         }
@@ -194,12 +158,6 @@ local MORE_LEFT_TEMPLATES={
                 {-0.205,-0.19,-0.10},{-0.18,-0.195,-0.10},{-0.15,-0.16,-0.10},
                 {-0.125,-0.11,-0.10},{-0.105,-0.055,-0.10},{-0.09,-0.005,-0.10}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.085,0.04,-0.10},{-0.105,-0.005,-0.10},{-0.125,-0.05,-0.10},
-                {-0.15,-0.105,-0.10},{-0.185,-0.16,-0.10}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{-0.085,-0.015,-0.10}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{-0.15,-0.105,-0.10}}}
         }
@@ -241,13 +199,6 @@ local LIP_TEMPLATES={
                 {0.09,-0.195,-0.08},{0,-0.19,-0.08},{-0.09,-0.195,-0.08},
                 {-0.14,-0.19,-0.08}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.17,-0.18,-0.08},{-0.14,-0.155,-0.08},{-0.10,-0.142,-0.08},
-                {-0.055,-0.15,-0.08},{0,-0.165,-0.08},{0.055,-0.15,-0.08},
-                {0.10,-0.142,-0.08},{0.14,-0.155,-0.08},{0.17,-0.18,-0.08}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0,-0.105,-0.08}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{0,-0.175,-0.08}}}
         }
@@ -262,13 +213,6 @@ local LIP_TEMPLATES={
                 {0.07,-0.245,-0.08},{0,-0.25,-0.08},{-0.07,-0.245,-0.08},
                 {-0.12,-0.23,-0.08},{-0.15,-0.21,-0.08}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.17,-0.18,-0.08},{-0.14,-0.205,-0.08},{-0.10,-0.23,-0.08},
-                {-0.05,-0.245,-0.08},{0,-0.25,-0.08},{0.05,-0.245,-0.08},
-                {0.10,-0.23,-0.08},{0.14,-0.205,-0.08},{0.17,-0.18,-0.08}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0,-0.30,-0.08}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{0,-0.22,-0.08}}}
         }
@@ -289,12 +233,6 @@ local ANATOMICAL_TEMPLATES={
                 {0,-0.48,-0.09},{-0.08,-0.46,-0.09},{-0.12,-0.42,-0.09},
                 {-0.15,-0.36,-0.09},{-0.14,-0.31,-0.09}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.09,-0.275,-0.09},{-0.045,-0.285,-0.09},{0,-0.288,-0.09},
-                {0.045,-0.285,-0.09},{0.09,-0.275,-0.09}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0,-0.245,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{0,-0.37,-0.09}}}
         }
@@ -311,13 +249,6 @@ local ANATOMICAL_TEMPLATES={
                 {0.30,-0.28,-0.09},{0.25,-0.22,-0.09},{0.19,-0.18,-0.09},
                 {0.13,-0.23,-0.09},{0,-0.25,-0.09},{-0.13,-0.23,-0.09}
             }},
-            {id='action_line',role='action_line',kind='polyline',closed=false,points={
-                {-0.30,-0.32,-0.09},{-0.28,-0.38,-0.09},{-0.22,-0.43,-0.09},
-                {-0.14,-0.465,-0.09},{0,-0.485,-0.09},{0.14,-0.465,-0.09},
-                {0.22,-0.43,-0.09},{0.28,-0.38,-0.09},{0.30,-0.32,-0.09}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0,-0.53,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{0,-0.37,-0.09}}}
         }
@@ -333,18 +264,6 @@ local ANATOMICAL_TEMPLATES={
                 {0.10,0.005,-0.09},{0.075,0.03,-0.09},{0.065,0.06,-0.09},
                 {0.06,0.10,-0.09},{0.04,0.13,-0.09}
             }},
-            {id='bridge_wrinkle',role='action_line',kind='polyline',closed=false,points={
-                {-0.045,0.075,-0.09},{-0.025,0.07,-0.09},{0,0.068,-0.09},
-                {0.025,0.07,-0.09},{0.045,0.075,-0.09}
-            }},
-            {id='left_alar_fold',role='action_line',kind='polyline',closed=false,points={
-                {-0.045,0.005,-0.09},{-0.065,-0.005,-0.09},{-0.085,-0.015,-0.09}
-            }},
-            {id='right_alar_fold',role='action_line',kind='polyline',closed=false,points={
-                {0.045,0.005,-0.09},{0.065,-0.005,-0.09},{0.085,-0.015,-0.09}
-            }},
-            {id='line_controller',role='line_controller',kind='point',closed=false,
-                points={{0,0.16,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
                 points={{0,0.015,-0.09}}}
         }
@@ -363,9 +282,7 @@ function M.displayColor(group,control)
     local color=control and control.color
     local role=control and control.role
     if role=='area' or not role then return color or groupColor end
-    if role=='action_line' then return color or ACTION_LINE_COLOR end
     if role=='controller' then return CONTROLLER_COLOR end
-    if role=='line_controller' then return color or LINE_CONTROLLER_COLOR end
     return color or groupColor
 end
 
@@ -456,10 +373,6 @@ local function fitPoints(control,shape,topology,faceOrigin,scale)
         if index then
             used[index]=true
             local anchor={index=index}
-            if shape.role=='line_controller' then
-                local vertex=topology.vertices[index]
-                anchor.offset={x=target.x-vertex.x,y=target.y-vertex.y,z=0}
-            end
             points[#points+1]=anchor
         end
     end
@@ -476,7 +389,7 @@ local function addRelationship(controller,targetId)
     return true
 end
 
-local function linkControllers(project,group,onlyNew)
+local function linkControllers(project,group)
     local controls={}
     local changed=false
     for _,controlId in ipairs(group.controlIds or {}) do
@@ -484,15 +397,10 @@ local function linkControllers(project,group,onlyNew)
     end
     local prefix=group.templateId and group.templateId~='' and group.templateId or group.id
     local groupController=controls[prefix..'_controller']
-    local lineController=controls[prefix..'_line_controller']
     for _,controlId in ipairs(group.controlIds or {}) do
         local target=controls[controlId]
-        if groupController and target and target~=groupController and
-                (not onlyNew or target==lineController) then
+        if groupController and target and target~=groupController then
             if addRelationship(groupController,controlId) then changed=true end
-        end
-        if lineController and target and target.role=='action_line' then
-            if addRelationship(lineController,controlId) then changed=true end
         end
     end
     return changed

@@ -30,7 +30,7 @@ local ROLE_NAMES = {
     'tongue', 'brows', 'nose', 'mouth', 'hair', 'accessory'
 }
 -- Bump this for serialized template-layout changes; other project schemas are rejected.
-local PROJECT_SCHEMA_VERSION=20
+local PROJECT_SCHEMA_VERSION=21
 
 local SOURCE_OBJECT_SUGGESTIONS = {
     main_face={'Head', 'Face', 'FaceMesh'},
@@ -354,9 +354,7 @@ function M.normalize(project)
             control.depthOffset=tonumber(control.depthOffset) or 0
             control.enabled=control.enabled~=false
             control.groupId=type(control.groupId)=='string' and control.groupId or ''
-            control.role=control.role=='action_line' and 'action_line' or
-                control.role=='line_controller' and 'line_controller' or
-                control.role=='controller' and 'controller' or 'area'
+            control.role=control.role=='controller' and 'controller' or 'area'
             control.color=copyColor(control.color)
             control.relationships=type(control.relationships)=='table' and control.relationships or {}
             if control.kind~='point' then control.relationships={} end

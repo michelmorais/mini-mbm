@@ -1734,7 +1734,7 @@ refreshSurfaceControlOverlay=function(selectionOnly)
             end
         end
     end
-    local markerPaths={area={},action_line={},line_controller={},controller={}}
+    local markerPaths={area={},controller={}}
     local markerColors={}
     local bounds=state.meshBounds or {minX=0,maxX=1,minY=0,maxY=1,minZ=0,maxZ=1}
     local extent=math.sqrt((bounds.maxX-bounds.minX)^2+(bounds.maxY-bounds.minY)^2+
@@ -1757,11 +1757,10 @@ refreshSurfaceControlOverlay=function(selectionOnly)
         markerColors[role]=tFacialActionTemplates.displayColor(selectedGroup,control)
         for _,point in ipairs(points) do
             local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
-            local halfSize=size*(role=='controller' and 1.6 or
-                role=='line_controller' and 1.35 or 1)
+            local halfSize=size*(role=='controller' and 1.6 or 1)
             paths[#paths+1]=tSurfacePointGizmo.markerSquarePath(position,markerRight,markerUp,
                 halfSize)
-            if role=='controller' or role=='line_controller' then
+            if role=='controller' then
                 local crossSize=halfSize*0.5
                 local first,second=tSurfacePointGizmo.markerCrossPaths(position,markerRight,
                     markerUp,crossSize)
@@ -4796,9 +4795,7 @@ local function showLandmarks()
                     end
                     tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
                     tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
-                    if selectedControl.kind=='point' and
-                            (selectedControl.role=='controller' or
-                                selectedControl.role=='line_controller') then
+                    if selectedControl.kind=='point' and selectedControl.role=='controller' then
                         tImGui.Separator()
                         tImGui.Text(tLang.L('fre_surface_control_relationships'))
                         tImGui.TextWrapped(tLang.L('fre_facs_relationships_help'))
