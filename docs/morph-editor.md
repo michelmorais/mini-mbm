@@ -5,6 +5,7 @@ without a face origin, facial landmarks, facial roles, or FACS data. The launche
 `Morph Editor`, implemented by `editor/morph_region_editor.lua`.
 Its topology, polygon geometry, and region data come from `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, and `morph_surface_regions.lua`.
+Linux and macOS builds with Lua also create the `morph_editor` shell alias in `shortcuts.sh`.
 
 ## Current scope
 
