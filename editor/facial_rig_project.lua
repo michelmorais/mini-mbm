@@ -90,7 +90,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=16,
+        schemaVersion=17,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -110,6 +110,7 @@ function M.new()
         selectedFacialMask=1,
         selectedSurfaceControl=1,
         landmarkEditMode=1,
+        landmarkAuthoringMode='facs',
         morphTargetPreview={targetId='',weight=1},
         morphTargetPivots={},
         morphTargetEdits=nil,
@@ -135,7 +136,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(16,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(17,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -148,6 +149,9 @@ function M.normalize(project)
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
     project.facialMasks=type(project.facialMasks)=='table' and project.facialMasks or {}
+    if project.landmarkAuthoringMode~='regions' and project.landmarkAuthoringMode~='facs' then
+        project.landmarkAuthoringMode=#project.facialMasks>0 and 'facs' or 'regions'
+    end
     project.surfaceControls=type(project.surfaceControls)=='table' and project.surfaceControls or {}
     if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
     project.faceOrigin.placed=project.faceOrigin.placed == true

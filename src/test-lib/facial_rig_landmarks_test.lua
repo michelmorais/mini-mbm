@@ -42,7 +42,7 @@ assert(shiftedA.x==browPointA.x and shiftedA.y==browPointA.y and shiftedA.z==6 a
     shiftedB.x==browPointB.x and shiftedB.y==browPointB.y and shiftedB.z==4,
     'face depth must preserve the front-view contour at large offsets')
 local project=Project.new()
-assert(project.schemaVersion==16 and project.landmarkEditMode==1)
+assert(project.schemaVersion==17 and project.landmarkEditMode==1)
 assert(project.morphTargetPreview.targetId=='' and project.morphTargetPreview.weight==1)
 project.morphTargetPreview={targetId='0000000000000007',weight=0}
 local previewPath='/tmp/facial-rig-preview-project-smoke.lua'
@@ -62,7 +62,7 @@ assert(Project.normalize({schemaVersion=2}).landmarkEditMode==1,
 assert(Project.normalize({schemaVersion=2}).morphTargetPreview.weight==1,
     'legacy facial projects must retain a default preview weight')
 local legacyProject=Project.normalize({schemaVersion=10,masks={{name='legacy',vertices={1}}}})
-assert(legacyProject.schemaVersion==16 and legacyProject.masks[1].representation=='vertex',
+assert(legacyProject.schemaVersion==17 and legacyProject.masks[1].representation=='vertex',
     'legacy masks must normalize to the vertex representation')
 local polygon=Project.addSurfaceControl(project,'brow_left','polygon')
 assert(polygon.kind=='polygon' and not polygon.closed and #polygon.points==0)

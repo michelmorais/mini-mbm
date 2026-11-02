@@ -1117,7 +1117,8 @@ local function refreshFaceGuide()
     local guide=state.faceGuide
     local origin=state.project and state.project.faceOrigin
     if (state.workspace~='face_position' and
-            (state.workspace~='landmarks' or not state.showLandmarkGuide)) or
+            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions' or
+                not state.showLandmarkGuide)) or
             not state.mesh or not origin or not origin.placed then
         hideFaceGuide()
         state.faceGuideDirty=false
@@ -1567,7 +1568,8 @@ local function refreshLandmarkMarkers()
             for pathIndex,path in ipairs(markerPaths) do marker:set(path,pathIndex) end
         end
         local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
-        local visible=state.workspace=='landmarks' and state.showLandmarkGuide and
+        local visible=state.workspace=='landmarks' and
+            state.project.landmarkAuthoringMode=='regions' and state.showLandmarkGuide and
             state.mesh.visible and landmark.placed and landmark.position and not originPlaced
         marker.visible=visible and true or false
         if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
@@ -1599,13 +1601,16 @@ setSurfaceControlOverlayVisible=function(visible)
     local overlay=state.surfaceControlOverlay
     overlay.visible=visible==true
     for _,object in pairs(overlay.lines or {}) do
-        object.visible=overlay.visible and state.workspace=='landmarks'
+        object.visible=overlay.visible and state.workspace=='landmarks' and
+            state.project.landmarkAuthoringMode=='facs'
     end
     for _,object in pairs(overlay.markers or {}) do
-        object.visible=overlay.visible and state.workspace=='landmarks'
+        object.visible=overlay.visible and state.workspace=='landmarks' and
+            state.project.landmarkAuthoringMode=='facs'
     end
     for _,object in pairs(state.surfacePointGizmo.axes) do
-        object.visible=overlay.visible and state.workspace=='landmarks'
+        object.visible=overlay.visible and state.workspace=='landmarks' and
+            state.project.landmarkAuthoringMode=='facs'
     end
 end
 
@@ -1648,7 +1653,8 @@ refreshSurfaceControlOverlay=function(selectionOnly)
         return
     end
     local groups=state.project.facialMasks or {}
-    local visible=overlay.visible and state.workspace=='landmarks'
+    local visible=overlay.visible and state.workspace=='landmarks' and
+        state.project.landmarkAuthoringMode=='facs'
     local activeLines,emptyControls=not selectionOnly and {} or nil,{}
     for groupIndex,group in ipairs(groups) do
         local updateGroup=not selectionOnly or groupIndex==state.selectedFacialMask or
@@ -1811,8 +1817,8 @@ end
 
 ensureFacialActionTemplates=function()
     local origin=state.project and state.project.faceOrigin
-    if not state.topology or not origin or not origin.placed or
-            #(state.project.facialMasks or {})>0 then return false end
+    if state.project.landmarkAuthoringMode~='facs' or not state.topology or not origin or
+            not origin.placed or #(state.project.facialMasks or {})>0 then return false end
     if not tFacialActionTemplates.instantiate(state.project,state.topology,origin,origin.scale) then return false end
     state.maskVisualization.visible=false
     setMaskVisualizationViewportVisible(false)
@@ -3697,7 +3703,8 @@ local function selectWorkspace(workspace)
         state.targetAuthoring.mirrorPlan=nil
     end
     state.workspace=nextWorkspace
-    setSurfaceControlOverlayVisible(state.workspace=='landmarks')
+    setSurfaceControlOverlayVisible(state.workspace=='landmarks' and
+        state.project.landmarkAuthoringMode=='facs')
     if state.workspace~='masks' then
         -- Legacy mask geometry is a compatibility view. Keep it out of every
         -- other workspace, especially Landmarks where FACS action templates
@@ -4582,6 +4589,23 @@ local function snapSelectedLandmarkDepthToSurface()
 end
 
 local function showLandmarks()
+    local authoringMode=state.project.landmarkAuthoringMode=='facs' and 2 or 1
+    tImGui.Text(tLang.L('fre_landmark_authoring_mode'))
+    authoringMode=tImGui.RadioButton(tLang.L('fre_landmark_authoring_regions'),authoringMode,1)
+    tImGui.SameLine()
+    authoringMode=tImGui.RadioButton(tLang.L('fre_landmark_authoring_facs'),authoringMode,2)
+    if authoringMode~=(state.project.landmarkAuthoringMode=='facs' and 2 or 1) then
+        state.project.landmarkAuthoringMode=authoringMode==2 and 'facs' or 'regions'
+        state.selectedSurfaceControlPoint=nil
+        state.surfaceControlDrag=nil
+        state.surfacePointGizmo.drag=nil
+        state.surfaceControlOverlay.dirty=true
+        state.landmarkMarkersDirty=true
+        state.faceGuideDirty=true
+        markModified()
+    end
+    tImGui.TextWrapped(tLang.L(authoringMode==2 and
+        'fre_landmark_authoring_facs_help' or 'fre_landmark_authoring_regions_help'))
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_landmark_edit_mode'))
     local editMode=state.landmarkEditMode
@@ -4610,180 +4634,184 @@ local function showLandmarks()
             tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
         end
     end
-    tImGui.Separator()
-    tImGui.Text(tLang.L('fre_facs_masks'))
-    tImGui.TextWrapped(tLang.L('fre_facs_masks_help'))
-    local groups=state.project.facialMasks or {}
-    if #groups==0 then
-        if not state.mesh then
-            tImGui.TextDisabled(tLang.L('fre_no_mesh'))
-        elseif not state.project.faceOrigin or not state.project.faceOrigin.placed then
-            tImGui.TextDisabled(tLang.L('fre_facs_masks_need_origin'))
-        else
-            if tImGui.Button(tLang.L('fre_facs_load_templates') .. '##freFacsLoadTemplates') then
-                ensureFacialActionTemplates()
-            end
-        end
-    else
-        local names={}
-        for _,group in ipairs(groups) do
-            names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
-                (group.name or group.id or '')
-        end
-        local selected=math.max(1,math.min(#names,state.selectedFacialMask or 1))
-        tImGui.SetNextItemWidth(300)
-        local changed,index=tImGui.Combo(tLang.L('fre_facs_select_mask') .. '##freFacsSelectMask',selected,names)
-        if changed then
-            state.selectedFacialMask=index
-            state.project.selectedFacialMask=index
-            state.selectedSurfaceControlPoint=nil
-            state.surfaceControlOverlay.selectionDirty=true
-        end
-        local selectedGroup=groups[state.selectedFacialMask]
-        if selectedGroup then
-            local actionUnits=table.concat(selectedGroup.actionUnits or {},', ')
-            tImGui.Text(string.format(tLang.L('fre_facs_action_units_fmt'),actionUnits))
-            local entries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
-            local selectedControl
-            for _,entry in ipairs(entries) do
-                if entry.index==state.selectedSurfaceControl then
-                    selectedControl=entry.control
-                    break
+    if authoringMode==2 then
+        tImGui.Separator()
+        tImGui.Text(tLang.L('fre_facs_masks'))
+        tImGui.TextWrapped(tLang.L('fre_facs_masks_help'))
+        local groups=state.project.facialMasks or {}
+        if #groups==0 then
+            if not state.mesh then
+                tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+            elseif not state.project.faceOrigin or not state.project.faceOrigin.placed then
+                tImGui.TextDisabled(tLang.L('fre_facs_masks_need_origin'))
+            else
+                if tImGui.Button(tLang.L('fre_facs_load_templates') .. '##freFacsLoadTemplates') then
+                    ensureFacialActionTemplates()
                 end
             end
-            if not selectedControl and entries[1] then
-                selectedControl=entries[1].control
-                state.selectedSurfaceControl=entries[1].index
-                state.project.selectedSurfaceControl=state.selectedSurfaceControl
+        else
+            local names={}
+            for _,group in ipairs(groups) do
+                names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
+                    (group.name or group.id or '')
+            end
+            local selected=math.max(1,math.min(#names,state.selectedFacialMask or 1))
+            tImGui.SetNextItemWidth(300)
+            local changed,index=tImGui.Combo(tLang.L('fre_facs_select_mask') .. '##freFacsSelectMask',selected,names)
+            if changed then
+                state.selectedFacialMask=index
+                state.project.selectedFacialMask=index
                 state.selectedSurfaceControlPoint=nil
                 state.surfaceControlOverlay.selectionDirty=true
             end
-            if selectedControl then
-                tSurfaceControlEditor.ensure(selectedControl)
-                tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
-                tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
-                tImGui.BeginDisabled(not state.topology or #selectedControl.points==0 or
-                    not state.selectedSurfaceControlPoint)
-                if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
-                    local plan=tSurfacePointGizmo.planSurfaceSnap(selectedControl,state.topology,
-                        state.meshBounds,tFacialLandmarks.intersectRaySurface)
-                    if not plan then
-                        setStatus(tLang.L('fre_facs_surface_snap_failed'),true)
-                    elseif not plan.changed then
-                        setStatus(tLang.L('fre_facs_surface_already_snapped'),false)
-                    else
+            local selectedGroup=groups[state.selectedFacialMask]
+            if selectedGroup then
+                local actionUnits=table.concat(selectedGroup.actionUnits or {},', ')
+                tImGui.Text(string.format(tLang.L('fre_facs_action_units_fmt'),actionUnits))
+                local entries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
+                local selectedControl
+                for _,entry in ipairs(entries) do
+                    if entry.index==state.selectedSurfaceControl then
+                        selectedControl=entry.control
+                        break
+                    end
+                end
+                if not selectedControl and entries[1] then
+                    selectedControl=entries[1].control
+                    state.selectedSurfaceControl=entries[1].index
+                    state.project.selectedSurfaceControl=state.selectedSurfaceControl
+                    state.selectedSurfaceControlPoint=nil
+                    state.surfaceControlOverlay.selectionDirty=true
+                end
+                if selectedControl then
+                    tSurfaceControlEditor.ensure(selectedControl)
+                    tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
+                    tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
+                    tImGui.BeginDisabled(not state.topology or #selectedControl.points==0 or
+                        not state.selectedSurfaceControlPoint)
+                    if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
+                        local plan=tSurfacePointGizmo.planSurfaceSnap(selectedControl,state.topology,
+                            state.meshBounds,tFacialLandmarks.intersectRaySurface)
+                        if not plan then
+                            setStatus(tLang.L('fre_facs_surface_snap_failed'),true)
+                        elseif not plan.changed then
+                            setStatus(tLang.L('fre_facs_surface_already_snapped'),false)
+                        else
+                            pushUndoSnapshot()
+                            tSurfacePointGizmo.applySurfaceSnap(selectedControl,plan)
+                            mirrorFacialMaskSides(selectedGroup)
+                            commitSurfaceControl(selectedControl)
+                            setStatus(tLang.L('fre_facs_surface_snapped'),false)
+                        end
+                    end
+                    tImGui.EndDisabled()
+                    showHelpTooltip(tLang.L('fre_facs_surface_snap_help'))
+                end
+                if selectedGroup.templateId and selectedGroup.templateId~='' then
+                    tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)
+                    if tImGui.Button(tLang.L('fre_facs_refit_mask') .. '##freFacsRefitMask') then
                         pushUndoSnapshot()
-                        tSurfacePointGizmo.applySurfaceSnap(selectedControl,plan)
-                        mirrorFacialMaskSides(selectedGroup)
-                        commitSurfaceControl(selectedControl)
-                        setStatus(tLang.L('fre_facs_surface_snapped'),false)
+                        if tFacialActionTemplates.refit(state.project,state.topology,
+                                state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
+                            mirrorFacialMaskSides(selectedGroup)
+                            state.surfaceControlOverlay.dirty=true
+                            state.selectedSurfaceControlPoint=nil
+                            markModified()
+                            setStatus(tLang.L('fre_facs_refit_done'),false)
+                        else
+                            table.remove(state.undoStack)
+                            setStatus(tLang.L('fre_facs_refit_failed'),true)
+                        end
                     end
+                    tImGui.EndDisabled()
+                    showHelpTooltip(tLang.L('fre_facs_refit_help'))
                 end
-                tImGui.EndDisabled()
-                showHelpTooltip(tLang.L('fre_facs_surface_snap_help'))
+                tImGui.TextWrapped(tLang.L('fre_facs_selected_mask_help'))
             end
-            if selectedGroup.templateId and selectedGroup.templateId~='' then
-                tImGui.BeginDisabled(not state.topology or not state.project.faceOrigin.placed)
-                if tImGui.Button(tLang.L('fre_facs_refit_mask') .. '##freFacsRefitMask') then
-                    pushUndoSnapshot()
-                    if tFacialActionTemplates.refit(state.project,state.topology,
-                            state.project.faceOrigin,state.project.faceOrigin.scale,selectedGroup) then
-                        mirrorFacialMaskSides(selectedGroup)
-                        state.surfaceControlOverlay.dirty=true
-                        state.selectedSurfaceControlPoint=nil
-                        markModified()
-                        setStatus(tLang.L('fre_facs_refit_done'),false)
-                    else
-                        table.remove(state.undoStack)
-                        setStatus(tLang.L('fre_facs_refit_failed'),true)
-                    end
-                end
-                tImGui.EndDisabled()
-                showHelpTooltip(tLang.L('fre_facs_refit_help'))
-            end
-            tImGui.TextWrapped(tLang.L('fre_facs_selected_mask_help'))
         end
     end
-    tImGui.Separator()
-    local showGuide=tImGui.Checkbox(tLang.L('fre_facs_show_landmark_guide'),state.showLandmarkGuide)
-    if showGuide~=state.showLandmarkGuide then
-        state.showLandmarkGuide=showGuide
-        markFaceGuideDirty()
-        markLandmarkMarkersDirty()
-    end
-    tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
-    if not state.mesh then
-        tImGui.TextDisabled(tLang.L('fre_no_mesh'))
-        return
-    end
-    local landmarks=state.project.landmarks
-    tImGui.PushItemWidth(220)
-    local names={}
-    for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
-    local option=math.max(1,math.min(#names,state.selectedLandmark))
-    tImGui.SetNextItemWidth(300)
-    local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),option,names)
-    if changed then
-        state.selectedLandmark=index
-        state.project.selectedLandmark=state.selectedLandmark
-        markLandmarkMarkersDirty()
-        markFaceGuideDirty()
-    end
-    local selected=landmarks[state.selectedLandmark]
-    if selected then
-        tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),localizedLandmarkName(selected.name),localizedLandmarkSide(selected.side)))
-        showLandmarkReference(selected)
-        local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
-        local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
-        local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
-        if xChanged then setLandmarkPosition(selected,{x=x,y=selected.position.y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
-        if yChanged then setLandmarkPosition(selected,{x=selected.position.x,y=y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
-        if zChanged then setLandmarkPosition(selected,{x=selected.position.x,y=selected.position.y,z=z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+    if authoringMode==1 then
         tImGui.Separator()
-        tImGui.Text(tLang.L('fre_landmark_surface_title'))
-        tImGui.TextWrapped(tLang.L('fre_landmark_surface_help'))
-        local scale=state.project.faceOrigin and state.project.faceOrigin.scale or faceGuideScale(state.meshBounds)
-        local axisOptions={tLang.L('fre_landmark_surface_axis_x'),tLang.L('fre_landmark_surface_axis_y'),
-            tLang.L('fre_landmark_surface_axis_z')}
-        tImGui.SetNextItemWidth(220)
-        local axisChanged,axisIndex=tImGui.Combo(tLang.L('fre_landmark_surface_axis'),
-            state.landmarkSurfaceAxis,axisOptions)
-        if axisChanged then state.landmarkSurfaceAxis=axisIndex end
-        showHelpTooltip(tLang.L('fre_landmark_surface_axis_tooltip'))
-        local referenceOffset=landmarkSurfaceReferenceOffset(selected.name,scale)
-        local autoChanged=tImGui.Checkbox(tLang.L('fre_landmark_surface_auto'),
-            state.landmarkSurfaceAutoOffset)
-        if autoChanged~=state.landmarkSurfaceAutoOffset then
-            state.landmarkSurfaceAutoOffset=autoChanged
-            if autoChanged then state.landmarkSurfaceOffset=referenceOffset end
+        local showGuide=tImGui.Checkbox(tLang.L('fre_facs_show_landmark_guide'),state.showLandmarkGuide)
+        if showGuide~=state.showLandmarkGuide then
+            state.showLandmarkGuide=showGuide
+            markFaceGuideDirty()
+            markLandmarkMarkersDirty()
         end
-        if state.landmarkSurfaceAutoOffset then state.landmarkSurfaceOffset=referenceOffset end
-        showHelpTooltip(tLang.L('fre_landmark_surface_auto_tooltip'))
-        tImGui.Text(string.format(tLang.L('fre_landmark_surface_reference_fmt'),referenceOffset))
-        tImGui.BeginDisabled(state.landmarkSurfaceAutoOffset)
-        local offsetChanged,newOffset=tImGui.DragFloat(tLang.L('fre_landmark_surface_offset'),
-            state.landmarkSurfaceOffset,math.max(scale*0.01,0.0001),-math.max(scale,0.001),
-            math.max(scale,0.001),'%.4f',0)
-        if offsetChanged then state.landmarkSurfaceOffset=newOffset end
-        tImGui.EndDisabled()
-        showHelpTooltip(tLang.L('fre_landmark_surface_offset_tooltip'))
-        if tImGui.Button(tLang.L('fre_landmark_surface_snap')) then
-            snapSelectedLandmarkDepthToSurface()
+        tImGui.TextWrapped(tLang.L('fre_landmarks_help'))
+        if not state.mesh then
+            tImGui.TextDisabled(tLang.L('fre_no_mesh'))
+            return
         end
-        showHelpTooltip(tLang.L('fre_landmark_surface_snap_tooltip'))
-        local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
-        if placed~=selected.placed then
-            pushUndoSnapshot()
-            selected.placed=placed
-            syncLandmarkRelativePosition(selected)
-            mirrorLandmark(selected)
-            markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty()
+        local landmarks=state.project.landmarks
+        tImGui.PushItemWidth(220)
+        local names={}
+        for _,landmark in ipairs(landmarks) do names[#names+1]=localizedLandmarkName(landmark.name) end
+        local option=math.max(1,math.min(#names,state.selectedLandmark))
+        tImGui.SetNextItemWidth(300)
+        local changed,index=tImGui.Combo(tLang.L('fre_landmark_select'),option,names)
+        if changed then
+            state.selectedLandmark=index
+            state.project.selectedLandmark=state.selectedLandmark
+            markLandmarkMarkersDirty()
+            markFaceGuideDirty()
         end
+        local selected=landmarks[state.selectedLandmark]
+        if selected then
+            tImGui.Text(string.format(tLang.L('fre_landmark_side_fmt'),localizedLandmarkName(selected.name),localizedLandmarkSide(selected.side)))
+            showLandmarkReference(selected)
+            local xChanged,x=tImGui.InputFloat('X##freLandmarkX',selected.position.x,0,0,'%.4f',0)
+            local yChanged,y=tImGui.InputFloat('Y##freLandmarkY',selected.position.y,0,0,'%.4f',0)
+            local zChanged,z=tImGui.InputFloat('Z##freLandmarkZ',selected.position.z,0,0,'%.4f',0)
+            if xChanged then setLandmarkPosition(selected,{x=x,y=selected.position.y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+            if yChanged then setLandmarkPosition(selected,{x=selected.position.x,y=y,z=selected.position.z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+            if zChanged then setLandmarkPosition(selected,{x=selected.position.x,y=selected.position.y,z=z}); markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty() end
+            tImGui.Separator()
+            tImGui.Text(tLang.L('fre_landmark_surface_title'))
+            tImGui.TextWrapped(tLang.L('fre_landmark_surface_help'))
+            local scale=state.project.faceOrigin and state.project.faceOrigin.scale or faceGuideScale(state.meshBounds)
+            local axisOptions={tLang.L('fre_landmark_surface_axis_x'),tLang.L('fre_landmark_surface_axis_y'),
+                tLang.L('fre_landmark_surface_axis_z')}
+            tImGui.SetNextItemWidth(220)
+            local axisChanged,axisIndex=tImGui.Combo(tLang.L('fre_landmark_surface_axis'),
+                state.landmarkSurfaceAxis,axisOptions)
+            if axisChanged then state.landmarkSurfaceAxis=axisIndex end
+            showHelpTooltip(tLang.L('fre_landmark_surface_axis_tooltip'))
+            local referenceOffset=landmarkSurfaceReferenceOffset(selected.name,scale)
+            local autoChanged=tImGui.Checkbox(tLang.L('fre_landmark_surface_auto'),
+                state.landmarkSurfaceAutoOffset)
+            if autoChanged~=state.landmarkSurfaceAutoOffset then
+                state.landmarkSurfaceAutoOffset=autoChanged
+                if autoChanged then state.landmarkSurfaceOffset=referenceOffset end
+            end
+            if state.landmarkSurfaceAutoOffset then state.landmarkSurfaceOffset=referenceOffset end
+            showHelpTooltip(tLang.L('fre_landmark_surface_auto_tooltip'))
+            tImGui.Text(string.format(tLang.L('fre_landmark_surface_reference_fmt'),referenceOffset))
+            tImGui.BeginDisabled(state.landmarkSurfaceAutoOffset)
+            local offsetChanged,newOffset=tImGui.DragFloat(tLang.L('fre_landmark_surface_offset'),
+                state.landmarkSurfaceOffset,math.max(scale*0.01,0.0001),-math.max(scale,0.001),
+                math.max(scale,0.001),'%.4f',0)
+            if offsetChanged then state.landmarkSurfaceOffset=newOffset end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_landmark_surface_offset_tooltip'))
+            if tImGui.Button(tLang.L('fre_landmark_surface_snap')) then
+                snapSelectedLandmarkDepthToSurface()
+            end
+            showHelpTooltip(tLang.L('fre_landmark_surface_snap_tooltip'))
+            local placed=tImGui.Checkbox(tLang.L('fre_landmark_placed'),selected.placed)
+            if placed~=selected.placed then
+                pushUndoSnapshot()
+                selected.placed=placed
+                syncLandmarkRelativePosition(selected)
+                mirrorLandmark(selected)
+                markModified(); markLandmarkMarkersDirty(); markFaceGuideDirty()
+            end
+        end
+        tImGui.PopItemWidth()
+        local report=tFacialProject.validate(state.project,true,state.topology)
+        tImGui.Text(string.format(tLang.L('fre_landmark_count_fmt'),report.placedLandmarkCount,report.landmarkCount))
+        showProjectMessages(report)
     end
-    tImGui.PopItemWidth()
-    local report=tFacialProject.validate(state.project,true,state.topology)
-    tImGui.Text(string.format(tLang.L('fre_landmark_count_fmt'),report.placedLandmarkCount,report.landmarkCount))
-    showProjectMessages(report)
 end
 
 local function showExpressions()
@@ -5675,7 +5703,9 @@ local function showMainPanel()
             tImGui.TextDisabled(tLang.L('fre_unsaved_project'))
         end
         showStatus()
-        if state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
+        if state.controlDown and (state.workspace=='face_position' or
+                (state.workspace=='landmarks' and
+                    state.project.landmarkAuthoringMode=='regions')) then
             tImGui.TextColored({r=1,g=0.8,b=0.25,a=1},tLang.L('fre_ctrl_pressed'))
             local hintKey=state.workspace=='face_position' and 'fre_ctrl_face_hint' or
                 'fre_ctrl_landmarks_hint'
@@ -5698,7 +5728,7 @@ local function showCameraPanel()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_frame_face')) then frameFaceCamera() end
         tImGui.Separator()
-        if state.workspace=='landmarks' then
+        if state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='regions' then
             local selectedLandmark=state.project.landmarks[state.selectedLandmark]
             local canFrameLandmark=selectedLandmark and selectedLandmark.placed and selectedLandmark.position
             tImGui.BeginDisabled(not canFrameLandmark)
@@ -5848,7 +5878,8 @@ end
 
 local function nearestFaceGuidePoint(x,y)
     local guide=state.faceGuide
-    if state.workspace~='face_position' and state.workspace~='landmarks' or
+    if state.workspace~='face_position' and
+            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions') or
             not guide.worldPoints or not guide.origin then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
     if not ok then return nil end
@@ -5889,7 +5920,8 @@ end
 
 local function hitTestFaceGuideAxis(x,y)
     local guide=state.faceGuide
-    if state.workspace~='face_position' and state.workspace~='landmarks' or
+    if state.workspace~='face_position' and
+            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions') or
             not guide.origin or not guide.length then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
     if not ok then return nil end
@@ -7222,7 +7254,7 @@ local function handleViewportAuthoringClick(x,y)
             local vertexHit=tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
             if vertexHit then return setFaceOriginFromVertex(vertexHit) end
         end
-    elseif state.workspace=='landmarks' then
+    elseif state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='regions' then
         local guideHit=nearestFaceGuidePoint(x,y)
         if guideHit then
             if guideHit.name=='face_origin' then
@@ -7268,7 +7300,8 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
-    if key==0 and state.workspace=='landmarks' and not state.controlDown and state.topology then
+    if key==0 and state.workspace=='landmarks' and
+            state.project.landmarkAuthoringMode=='facs' and not state.controlDown and state.topology then
         local origin,direction=viewportPickRay(x,y)
         if origin then
             local gizmo=state.surfacePointGizmo
@@ -7338,7 +7371,8 @@ function onTouchDown(key,x,y)
         end
         return
     end
-    if key==1 and state.workspace=='landmarks' and state.topology and
+    if key==1 and state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='facs' and
+            state.topology and
             state.project.facialMasks and state.project.facialMasks[state.selectedFacialMask] then
         tSurfaceControlEditor.begin(state,x,y,{surfaceHit=function(px,py) return maskBrushSurfaceHit(px,py) end,
             pickRay=viewportPickRay,nearestVertex=tFacialLandmarks.nearestSurfaceVertex,
@@ -7353,7 +7387,9 @@ function onTouchDown(key,x,y)
             end})
         return
     end
-    if key==0 and state.controlDown and (state.workspace=='face_position' or state.workspace=='landmarks') then
+    if key==0 and state.controlDown and (state.workspace=='face_position' or
+            (state.workspace=='landmarks' and
+                state.project.landmarkAuthoringMode=='regions')) then
         local axis=hitTestFaceGuideAxis(x,y)
         if axis and state.faceGuide.origin then
             local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}

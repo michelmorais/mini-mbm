@@ -36,15 +36,26 @@ position, and the match radius.
 
 ## Facial landmarks, surface controls, and regions
 
-The facial authoring flow starts in **Landmarks**. The older cyan face guide (outline, crosses,
-and axes) is a landmark placement reference, not a vertex mask. It appears in **Face Position**
-and can be shown on demand with **Show landmark guide** in **Landmarks**; it starts hidden there
-so facial action shapes are clear.
+The **Landmarks** workspace has two mutually exclusive editing modes, selected by the radio
+buttons at the top: **Landmarks and regions** and **FACS masks**. New projects start in FACS mode.
+Projects saved before this choice existed open in the previous landmark workflow unless they
+already contain facial action masks. Switching modes changes which controls and guides are shown;
+it does not convert or delete either kind of authored data.
 
-**Side editing mode** appears at the top of Landmarks. **Independent sides** edits each side
-separately. **Synchronized sides** mirrors paired facial shapes and side landmarks around the nose's
-X position, or the face origin until the nose is placed. Enabling synchronization uses the
-currently selected mask as the source. Subsequent gizmo drags, right drags, surface adjustments,
+**Landmarks and regions** is the existing workflow for placing facial landmarks and generating
+regions from them. The older cyan face guide (outline, crosses, and axes) is a landmark placement
+reference, not a vertex mask. It appears in **Face Position** and can be shown on demand with
+**Show landmark guide** in **Landmarks and regions**; it starts hidden there so the mesh stays clear.
+
+**FACS masks** shows the facial action templates and their surface controls. The legacy landmark
+editing controls and cyan guide are hidden in this mode. The selected mode is stored with the
+project.
+
+**Side editing mode** appears below the workflow choice and is available in both modes.
+**Independent sides** edits each side separately. **Synchronized sides** mirrors paired facial
+shapes and side landmarks around the nose's X position, or the face origin until the nose is placed.
+Enabling synchronization uses the currently selected mask as the source. Subsequent gizmo drags,
+right drags, surface adjustments,
 and explicit template refits update the opposite side. Mirroring changes its point offsets while
 keeping its mesh vertex references and colors; the operation participates in Undo.
 
@@ -69,16 +80,17 @@ generate those movements. The
 [Ekman and Friesen AU table](https://www.paulekman.com/wp-content/uploads/2013/07/Measuring-Facial-Movement.pdf)
 is the naming reference. Each mask has an area polygon, one or more action-line polylines, a group
 controller, and a separate action-line controller. The brow masks start with 12 contour anchors
-and five action-line anchors; the other masks provide their own pre-authored contours. All are adapted to the
-current mesh after the face origin is placed. Initial fitting uses the mesh subset containing the
-face origin and prioritizes the front view contour over guessed depth. This avoids snapping brow
+and five action-line anchors; the other masks provide their own pre-authored contours. All are
+adapted to the current mesh after the face origin is placed and FACS mode is selected. Initial
+fitting uses the mesh subset containing the face origin and prioritizes the front view contour over
+guessed depth. This avoids snapping brow
 points to a separate hair subset and reduces jumps toward the eyelid. The green group controller
 moves the complete mask. The yellow action-line controller moves only the action lines and itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
-New projects load all 15 masks when the face origin is placed. Saved projects keep their authored
-mask catalog and are not expanded automatically. The point landmark list already includes the
-chin and both jaw hinges; they are optional rig references and do not create surface masks. The
+New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
+projects keep their authored mask catalog and are not expanded automatically. The point landmark
+list already includes the chin and both jaw hinges; they are optional rig references and do not create surface masks. The
 jaw polygon is a separate influence region. **Refit selected mask to face** replaces only the
 selected mask's points with its current template; it is undoable. Refitting an older eye template
 also adds its new lower-eyelid action line. Refit never runs automatically on existing edits.
@@ -102,8 +114,8 @@ anchor or the corresponding controller's set of points to mesh vertices. Further
 can extend the catalog without requiring the user to create each shape from an empty control.
 Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
 
-The current authoring slice exposes the facial-action mask selector at the top of **Landmarks**.
-The user selects a shape by clicking its points or outline in the viewport. The **Edit shape**
+In **FACS masks** mode, the facial-action mask selector appears below the mode choice. The user
+selects a shape by clicking its points or outline in the viewport. The **Edit shape**
 selector and **Depth** slider are no longer shown; the gizmo edits X, Y, and Z directly. Previously
 saved depth offsets remain visible and are retained until the selected shape is adjusted to the
 surface. Each anchor keeps its mesh vertex index and an optional 3D offset, which is saved in the
@@ -111,8 +123,8 @@ project and can be undone.
 **Snap selected shape to face surface** projects every point of the shape selected in the viewport
 along face Z, using the mesh subset of that point. It solves the surface Z independently for each
 point, preserves each X/Y position, and applies the shape only when all points can be projected.
-The operation is undoable; the other shapes in the mask remain unchanged. The separate
-landmark button below continues to raycast a selected individual landmark onto the surface.
+The operation is undoable; the other shapes in the mask remain unchanged. Landmark placement and
+its individual surface-adjustment controls appear only in **Landmarks and regions** mode.
 
 **Masks / Regions** now generates a named region from the selected facial mask's closed area
 polygon. Generation is explicit and preserves the source points. It projects the outline in face
