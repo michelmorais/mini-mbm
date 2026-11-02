@@ -5395,26 +5395,25 @@ showFACSProfiles=function()
                 end
                 editor.previewDirty=false
             end
-            if tImGui.TreeNode(tLang.L('fre_facs_profile_composed_targets')) then
-                tImGui.TextWrapped(tLang.L('fre_facs_profile_composed_targets_help'))
-                if #editor.previewTargetRows==0 then
-                    tImGui.TextDisabled(tLang.L('fre_facs_profile_no_composed_targets'))
-                elseif tImGui.BeginTable('freFACSComposedWeights',3,
-                        tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_target_column'))
-                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_role_column'))
-                    tImGui.TableSetupColumn(tLang.L('fre_facs_profile_preview_weight'))
-                    tImGui.TableHeadersRow()
-                    for _,row in ipairs(editor.previewTargetRows) do
-                        tImGui.TableNextRow()
-                        tImGui.TableSetColumnIndex(0); tImGui.Text(row.target)
-                        tImGui.TableSetColumnIndex(1); tImGui.Text(tLang.L(row.roleKey))
-                        tImGui.TableSetColumnIndex(2)
-                        tImGui.Text(string.format('%.3f',editor.previewWeights[row.target] or 0))
-                    end
-                    tImGui.EndTable()
+            tImGui.Separator()
+            tImGui.Text(tLang.L('fre_facs_profile_composed_targets'))
+            tImGui.TextWrapped(tLang.L('fre_facs_profile_composed_targets_help'))
+            if #editor.previewTargetRows==0 then
+                tImGui.TextDisabled(tLang.L('fre_facs_profile_no_composed_targets'))
+            elseif tImGui.BeginTable('freFACSComposedWeights',3,
+                    tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+                tImGui.TableSetupColumn(tLang.L('fre_facs_profile_target_column'))
+                tImGui.TableSetupColumn(tLang.L('fre_facs_profile_role_column'))
+                tImGui.TableSetupColumn(tLang.L('fre_facs_profile_preview_weight'))
+                tImGui.TableHeadersRow()
+                for _,row in ipairs(editor.previewTargetRows) do
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0); tImGui.Text(row.target)
+                    tImGui.TableSetColumnIndex(1); tImGui.Text(tLang.L(row.roleKey))
+                    tImGui.TableSetColumnIndex(2)
+                    tImGui.Text(string.format('%.3f',editor.previewWeights[row.target] or 0))
                 end
-                tImGui.TreePop()
+                tImGui.EndTable()
             end
             local canPreview=state.mesh~=nil and report.ok and #targetNames>0 and report.outputCount>0 and
                 editor.previewReport~=nil and editor.previewReport.ok

@@ -232,6 +232,11 @@ authoring layer does not model muscle anatomy or provide live capture input. The
 names follow the [CMU FACS reference](https://www.cs.cmu.edu/afs/cs/project/face/www/facs.htm) and
 the [44 single-AU catalog](https://pub.h-brs.de/frontdoor/deliver/index/docId/3118/file/brsu_techreport_04_2017_TeenaHassan.pdf).
 
+The FACS Profiles workspace keeps an always-visible applied-composition summary below the profile
+controls. It shows the final target weights after enabled profiles, output contributions, response
+curves, clamps, and the selected composition rule are evaluated. This summary is the preview source
+used by **Apply composed preview to mesh** and **Capture as expression**.
+
 The workspace list is a toolbox, not a required checklist. A FACS profile requires facial targets
 to exist first. In a **FACS mask** project, adapt templates in **Landmarks**, generate **Regions**
 when reusable vertex selections are needed, create or import targets in **Morph Targets**, then
