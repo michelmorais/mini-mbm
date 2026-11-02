@@ -4016,15 +4016,17 @@ local function showMasks()
     tImGui.Separator()
     if maskMode==2 then
         tImGui.TextWrapped(tLang.L('fre_target_mask_create_help'))
-        tImGui.Text(tLang.L('fre_new_mask_representation'))
-        tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
-        local creationRepresentation=state.maskCreationRepresentation or 1
-        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
-            '##freNewTargetMaskRepresentationLegacy',creationRepresentation,1)
-        tImGui.SameLine()
-        creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
-            '##freNewTargetMaskRepresentationPolygon',creationRepresentation,2)
-        state.maskCreationRepresentation=creationRepresentation
+        if facsWorkflow then
+            tImGui.Text(tLang.L('fre_new_mask_representation'))
+            tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
+            local creationRepresentation=state.maskCreationRepresentation or 2
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                '##freNewTargetMaskRepresentationLegacy',creationRepresentation,1)
+            tImGui.SameLine()
+            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                '##freNewTargetMaskRepresentationPolygon',creationRepresentation,2)
+            state.maskCreationRepresentation=creationRepresentation
+        end
         tImGui.SetNextItemWidth(250)
         local nameChanged,targetMaskName=tImGui.InputText(
             tLang.L('fre_target_mask_new_name')..'##freTargetMaskNewName',state.targetMaskNameDraft or '')
@@ -4032,8 +4034,10 @@ local function showMasks()
         if tImGui.Button(tLang.L('fre_target_mask_create')) then
             pushUndoSnapshot()
             local createdMask=tFacialProject.addTargetMask(state.project,state.targetMaskNameDraft)
-            tFacialMaskRepresentation.apply(createdMask,
-                state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
+            if facsWorkflow then
+                tFacialMaskRepresentation.apply(createdMask,
+                    state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
+            end
             state.selectedMask=#state.project.masks
             state.project.selectedMask=state.selectedMask
             state.targetMaskNameDraft=''
@@ -4121,20 +4125,9 @@ local function showMasks()
                 selected.enabled=enabled
                 markModified()
             end
-            tImGui.Text(tLang.L('fre_new_mask_representation'))
-            tImGui.TextWrapped(tLang.L('fre_new_mask_representation_help'))
-            local creationRepresentation=state.maskCreationRepresentation or 1
-            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
-                '##freNewRigMaskRepresentationLegacy',creationRepresentation,1)
-            tImGui.SameLine()
-            creationRepresentation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
-                '##freNewRigMaskRepresentationPolygon',creationRepresentation,2)
-            state.maskCreationRepresentation=creationRepresentation
             if tImGui.Button(tLang.L('fre_add_mask')) then
                 pushUndoSnapshot()
-                local createdMask=tFacialProject.addMask(state.project,selected.name,state.selectedRole)
-                tFacialMaskRepresentation.apply(createdMask,
-                    state.maskCreationRepresentation==2 and 'polygon' or 'vertex')
+                tFacialProject.addMask(state.project,selected.name,state.selectedRole)
                 state.selectedMask=#state.project.masks
                 state.project.selectedMask=state.selectedMask
                 state.maskWorkspaceMode=2
@@ -4249,39 +4242,47 @@ local function showMasks()
                 markMaskVisualizationDirty()
                 markModified()
             end
-            tImGui.Text(tLang.L('fre_mask_representation'))
-            tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
-            local previousRepresentation=selectedMask.representation=='polygon' and 2 or 1
-            local representation=previousRepresentation
-            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
-                '##freMaskRepresentationLegacy',representation,1)
-            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
-            tImGui.SameLine()
-            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
-                '##freMaskRepresentationPolygon',representation,2)
-            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
-            if representation~=previousRepresentation then
-                requestMaskRepresentationChange(selectedMask,state.selectedMask,
-                    representation==2 and 'polygon' or 'vertex')
+            if facsWorkflow then
+                tImGui.Text(tLang.L('fre_mask_representation'))
+                tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
+                local previousRepresentation=selectedMask.representation=='polygon' and 2 or 1
+                local representation=previousRepresentation
+                representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                    '##freMaskRepresentationLegacy',representation,1)
+                showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+                tImGui.SameLine()
+                representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                    '##freMaskRepresentationPolygon',representation,2)
+                showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+                if representation~=previousRepresentation then
+                    requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                        representation==2 and 'polygon' or 'vertex')
+                end
+            elseif selectedMask.representation=='polygon' then
+                tImGui.TextWrapped(tLang.L('fre_polygon_mask_requires_facs'))
             end
             tImGui.Separator()
         end
         if maskMode==3 then
-            tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
-            local representation=selectedMask.representation=='polygon' and 2 or 1
-            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
-                '##freMaskEditRepresentationLegacy',representation,1)
-            showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
-            tImGui.SameLine()
-            representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
-                '##freMaskEditRepresentationPolygon',representation,2)
-            showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
-            if (representation==2 and selectedMask.representation~='polygon') or
-                    (representation==1 and selectedMask.representation~='vertex') then
-                requestMaskRepresentationChange(selectedMask,state.selectedMask,
-                    representation==2 and 'polygon' or 'vertex')
+            if facsWorkflow then
+                tImGui.TextWrapped(tLang.L('fre_mask_representation_help'))
+                local representation=selectedMask.representation=='polygon' and 2 or 1
+                representation=tImGui.RadioButton(tLang.L('fre_mask_representation_legacy') ..
+                    '##freMaskEditRepresentationLegacy',representation,1)
+                showHelpTooltip(tLang.L('fre_mask_representation_legacy_tooltip'))
+                tImGui.SameLine()
+                representation=tImGui.RadioButton(tLang.L('fre_mask_representation_polygon') ..
+                    '##freMaskEditRepresentationPolygon',representation,2)
+                showHelpTooltip(tLang.L('fre_mask_representation_polygon_tooltip'))
+                if (representation==2 and selectedMask.representation~='polygon') or
+                        (representation==1 and selectedMask.representation~='vertex') then
+                    requestMaskRepresentationChange(selectedMask,state.selectedMask,
+                        representation==2 and 'polygon' or 'vertex')
+                end
             end
-            if selectedMask.representation=='polygon' then
+            if selectedMask.representation=='polygon' and not facsWorkflow then
+                tImGui.TextWrapped(tLang.L('fre_polygon_mask_requires_facs'))
+            elseif selectedMask.representation=='polygon' then
                 local polygon=tFacialPolygonEditor.ensure(selectedMask)
                 tImGui.Text(string.format(tLang.L('fre_mask_polygon_points_fmt'),#polygon.points))
                 tImGui.TextWrapped(tLang.L('fre_mask_polygon_edit_help'))
@@ -4733,13 +4734,14 @@ local function showLandmarks()
         markModified()
     end
     if state.landmarkEditMode==2 then
-        tImGui.TextWrapped(tLang.L('fre_landmark_sync_help'))
+        tImGui.TextWrapped(tLang.L(state.project.authoringWorkflow=='facs' and
+            'fre_facs_landmark_sync_help' or 'fre_landmark_sync_help'))
         local nose=findLandmark('nose_tip') or findLandmark('nose_bridge')
         if not nose or not nose.placed then
             tImGui.TextDisabled(tLang.L('fre_landmark_sync_center_fallback'))
         end
     end
-    if authoringMode==2 then
+    if state.project.authoringWorkflow=='facs' then
         tImGui.Separator()
         tImGui.Text(tLang.L('fre_facs_masks'))
         tImGui.TextWrapped(tLang.L('fre_facs_masks_help'))
@@ -4904,7 +4906,7 @@ local function showLandmarks()
             end
         end
     end
-    if authoringMode==1 then
+    if state.project.authoringWorkflow=='regions' then
         tImGui.Separator()
         local showGuide=tImGui.Checkbox(tLang.L('fre_facs_show_landmark_guide'),state.showLandmarkGuide)
         if showGuide~=state.showLandmarkGuide then

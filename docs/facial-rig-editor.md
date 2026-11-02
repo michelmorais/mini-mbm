@@ -175,9 +175,11 @@ regions and target masks. **Morph Targets**, **Expressions**, and **Clips** are 
 schema 20 stores the choice; schema 19 and earlier projects are rejected and must be recreated.
 
 Classic Rig role masks remain an authoring representation in the **Landmarks and regions** workflow.
-They are not silently converted into FACS surface controls. Their viewport visualization starts
-disabled and remains inside **Masks / Regions**. FACS target masks are created from generated regions
-or as explicit target masks in the FACS workflow.
+Rig and Morph Target selection masks use vertex selections in that workflow; polygon representation
+choices and polygon editing are available only in the **FACS mask** workflow. Classic masks are not
+silently converted into FACS surface controls. Their viewport visualization starts disabled and
+remains inside **Masks / Regions**. FACS target masks are created from generated regions or as
+explicit target masks in the FACS workflow.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and

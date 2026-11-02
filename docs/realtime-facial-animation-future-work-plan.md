@@ -105,10 +105,10 @@ projects.
 Classic vertex masks are retained as a supported authoring representation in the **Landmarks and
 Regions** workflow. They are not converted automatically into polygons, polylines, or points.
 
-The classic vertex-mask and interim polygon-mask editors remain under **Masks / Regions** in the
-**Landmarks and Regions** workflow. Generated FACS regions are shown in the FACS path and stored
-separately; copying one into a target-selection mask is explicit, with no automatic conversion or
-weight application.
+The **Landmarks and Regions** workflow edits classic vertex masks only. Surface polygon mask
+representation controls and polygon editing belong to the **FACS Mask** workflow. Generated FACS
+regions are shown in that workflow and stored separately; copying one into a target-selection mask
+is explicit, with no automatic conversion or weight application.
 
 The first surface-anchor implementation may use canonical mesh vertices. A later extension may
 anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.
