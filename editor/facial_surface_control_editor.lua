@@ -78,7 +78,7 @@ local function snapshotEntries(entries,topology)
             local position=tPointGizmo.position(control,index,topology)
             if position then points[#points+1]={pointIndex=index,index=vertexIndex,position=position} end
         end
-        result[#result+1]={control=control,index=entry.index,points=points}
+        result[#result+1]={control=control,index=entry.index,points=points,weight=entry.weight or 1}
     end
     return result
 end
@@ -95,7 +95,8 @@ function M.begin(state,x,y,api)
     state.selectedSurfaceControlPoint=candidate.pointIndex
     api.pushUndo()
     if control.role=='controller' or control.role=='line_controller' then
-        local members=tPointGizmo.dragEntries(control,candidate.pointIndex,entries)
+        local members=tPointGizmo.dragEntries(control,candidate.pointIndex,
+            api.allEntries and api.allEntries(state) or entries)
         local origin,direction=api.pickRay(x,y)
         local startVertex=origin and api.nearestVertex(state.topology,origin,direction)
         state.surfaceControlDrag={mode='group',controller=control,controllerPoint=candidate.pointIndex,
@@ -119,14 +120,16 @@ function M.update(state,x,y,api)
         for _,member in ipairs(drag.members or {}) do
             local used={}
             for _,basePoint in ipairs(member.points) do
-                local target={x=basePoint.position.x+delta.x,y=basePoint.position.y+delta.y,
-                    z=basePoint.position.z+delta.z}
+                local weight=member.weight
+                local target={x=basePoint.position.x+delta.x*weight,
+                    y=basePoint.position.y+delta.y*weight,
+                    z=basePoint.position.z+delta.z*weight}
                 local index=nearestVertexToPosition(state.topology,target,used,basePoint.index)
                 if index then
                     used[index]=true
                     local point=member.control.points[basePoint.pointIndex]
                     point.index=index
-                    if member.control.kind=='point' then
+                    if member.control.kind=='point' or weight<1 then
                         local vertex=state.topology.vertices[index]
                         point.offset={x=target.x-vertex.x,y=target.y-vertex.y,
                             z=target.z-vertex.z-(member.control.depthOffset or 0)}

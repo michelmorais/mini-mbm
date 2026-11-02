@@ -49,6 +49,7 @@ tFacialPlayback = require "facial_mesh_playback"
 tBlender = require "blender_cli_wrapper"
 tMeshImporter = require "blender_mesh_importer"
 tFacialMeshExport = require "facial_rig_blender_mesh_export"
+tSurfaceRelationships = require "facial_surface_relationships"
 
 -- Protected-call wrapper used by all editor operations that can cross the Lua/C++ boundary.
 local function dpCall(fn, ...)
@@ -70,6 +71,7 @@ local state = {
     selectedMask=1, maskCreationRepresentation=2, maskRepresentationChangePending=nil,
     selectedFacialMask=1,
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
+    relationshipReview=nil,
     surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
     surfaceControlNameDraft='', surfaceControlKind=1,
     maskEditMode='add', maskWorkspaceMode=2, maskLoopMode=false, maskLoopCache=nil,
@@ -757,6 +759,7 @@ local function restoreHistorySnapshot(snapshot)
     state.selectedFacialMask=snapshot.selectedFacialMask or state.project.selectedFacialMask or 1
     state.selectedSurfaceControl=snapshot.selectedSurfaceControl or state.project.selectedSurfaceControl or 1
     state.selectedSurfaceControlPoint=nil
+    state.relationshipReview=nil
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=snapshot.landmarkEditMode or state.project.landmarkEditMode or 1
     state.expressions.selectedTarget=snapshot.selectedExpressionTarget or 1
@@ -2978,6 +2981,7 @@ local function loadMesh(path, preserveProject)
     state.selectedMask=state.project.selectedMask or 1
     state.selectedFacialMask=state.project.selectedFacialMask or 1
     state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
+    state.relationshipReview=nil
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     state.modified=embeddedTargetEdits or standardizedColors or addedLineControllers or
@@ -3050,6 +3054,7 @@ local function newProject()
     state.maskRepresentationChangePending=nil
     state.selectedSurfaceControl=1
     state.selectedSurfaceControlPoint=nil
+    state.relationshipReview=nil
     state.surfaceControlNameDraft=''
     state.surfaceControlKind=1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
@@ -3120,6 +3125,7 @@ local function openProject()
     state.selectedFacialMask=project.selectedFacialMask or 1
     state.selectedSurfaceControl=project.selectedSurfaceControl or 1
     state.selectedSurfaceControlPoint=nil
+    state.relationshipReview=nil
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
     state.showLandmarkGuide=project.landmarkAuthoringMode=='regions'
@@ -4473,6 +4479,7 @@ local function mirrorFacialMaskSides(group)
     if state.landmarkEditMode~=2 or not state.topology then return false end
     local changed=tFacialActionTemplates.mirrorGroup(state.project,state.topology,
         group,landmarkMirrorCenterX())
+    if tSurfaceRelationships.mirror(state.project,group) then changed=true end
     if changed then state.surfaceControlOverlay.dirty=true end
     return changed
 end
@@ -4605,6 +4612,7 @@ local function showLandmarks()
         state.project.landmarkAuthoringMode=authoringMode==2 and 'facs' or 'regions'
         if authoringMode==1 then state.showLandmarkGuide=true end
         state.selectedSurfaceControlPoint=nil
+        state.relationshipReview=nil
         state.surfaceControlDrag=nil
         state.surfacePointGizmo.drag=nil
         state.surfaceControlOverlay.dirty=true
@@ -4693,8 +4701,92 @@ local function showLandmarks()
                 end
                 if selectedControl then
                     tSurfaceControlEditor.ensure(selectedControl)
+                    if state.relationshipReview and
+                            state.relationshipReview.controlId~=selectedControl.id then
+                        state.relationshipReview=nil
+                    end
                     tImGui.Text(string.format(tLang.L('fre_surface_control_points_fmt'),#selectedControl.points))
                     tImGui.TextWrapped(tLang.L('fre_facs_edit_help'))
+                    if selectedControl.kind=='point' and
+                            (selectedControl.role=='controller' or
+                                selectedControl.role=='line_controller') then
+                        tImGui.Separator()
+                        tImGui.Text(tLang.L('fre_surface_control_relationships'))
+                        tImGui.TextWrapped(tLang.L('fre_facs_relationships_help'))
+                        if #(selectedControl.relationships or {})==0 then
+                            tImGui.TextDisabled(tLang.L('fre_surface_control_no_relationships'))
+                        end
+                        local removeIndex
+                        for linkIndex,link in ipairs(selectedControl.relationships or {}) do
+                            tImGui.Text(link.controlId)
+                            tImGui.SameLine()
+                            if tImGui.Button(tLang.L('fre_facs_link_remove') ..
+                                    '##freFacsRemoveLink'..linkIndex) then
+                                removeIndex=linkIndex
+                            end
+                            local weightChanged,weight=tImGui.SliderFloat(
+                                tLang.L('fre_facs_link_weight') .. '##freFacsLinkWeight'..linkIndex,
+                                link.weight or 1,0,1,'%.2f')
+                            if weightChanged and math.abs(weight-(link.weight or 1))>1e-6 then
+                                pushUndoSnapshot()
+                                link.weight=weight
+                                mirrorFacialMaskSides(selectedGroup)
+                                markModified()
+                            end
+                        end
+                        if removeIndex then
+                            pushUndoSnapshot()
+                            table.remove(selectedControl.relationships,removeIndex)
+                            mirrorFacialMaskSides(selectedGroup)
+                            markModified()
+                        end
+                        if tImGui.Button(tLang.L('fre_facs_link_add') .. '##freFacsLinkAdd') then
+                            local options=tSurfaceRelationships.candidates(selectedControl,
+                                tSurfaceRelationships.allEntries(state.project),state.topology,
+                                math.huge,true)
+                            for _,option in ipairs(options) do option.selected=false end
+                            state.relationshipReview={controlId=selectedControl.id,options=options}
+                        end
+                        tImGui.SameLine()
+                        if tImGui.Button(tLang.L('fre_facs_link_suggest') .. '##freFacsLinkSuggest') then
+                            local scale=state.project.faceOrigin and state.project.faceOrigin.scale or 1
+                            local options=tSurfaceRelationships.candidates(selectedControl,
+                                tSurfaceRelationships.allEntries(state.project),state.topology,
+                                math.max(scale*0.2,0.001))
+                            state.relationshipReview={controlId=selectedControl.id,options=options}
+                        end
+                        local review=state.relationshipReview
+                        if review and review.controlId==selectedControl.id then
+                            tImGui.Separator()
+                            tImGui.Text(tLang.L('fre_facs_link_review'))
+                            if #review.options==0 then
+                                tImGui.TextDisabled(tLang.L('fre_facs_link_none'))
+                            end
+                            for index,option in ipairs(review.options) do
+                                option.selected=tImGui.Checkbox(
+                                    option.name .. '##freFacsCandidate'..index,option.selected)
+                            end
+                            if tImGui.Button(tLang.L('fre_facs_link_confirm') ..
+                                    '##freFacsLinkConfirm') then
+                                local chosen=false
+                                for _,option in ipairs(review.options) do
+                                    if option.selected then chosen=true break end
+                                end
+                                if chosen then
+                                    pushUndoSnapshot()
+                                    tSurfaceRelationships.accept(selectedControl,review.options)
+                                    mirrorFacialMaskSides(selectedGroup)
+                                    markModified()
+                                end
+                                state.relationshipReview=nil
+                            end
+                            tImGui.SameLine()
+                            if tImGui.Button(tLang.L('fre_facs_link_cancel') ..
+                                    '##freFacsLinkCancel') then
+                                state.relationshipReview=nil
+                            end
+                        end
+                    end
                     tImGui.BeginDisabled(not state.topology or #selectedControl.points==0 or
                         not state.selectedSurfaceControlPoint)
                     if tImGui.Button(tLang.L('fre_facs_surface_snap') .. '##freFacsSurfaceSnap') then
@@ -7327,9 +7419,8 @@ function onTouchDown(key,x,y)
                 if parameter then
                     local selectedGroup=state.project.facialMasks[state.selectedFacialMask]
                     local control=state.project.surfaceControls[state.selectedSurfaceControl]
-                    local groupEntries=tFacialActionTemplates.groupControls(state.project,selectedGroup)
                     local entries=tSurfacePointGizmo.dragEntries(control,
-                        state.selectedSurfaceControlPoint,groupEntries)
+                        state.selectedSurfaceControlPoint,tSurfaceRelationships.allEntries(state.project))
                     gizmo.drag={axis=axis,origin={x=gizmo.origin.x,y=gizmo.origin.y,z=gizmo.origin.z},
                         startParameter=parameter,
                         snapshot=tSurfacePointGizmo.snapshot(entries,state.topology),moved=false}
@@ -7397,9 +7488,16 @@ function onTouchDown(key,x,y)
                 return tFacialActionTemplates.groupControls(state.project,
                     state.project.facialMasks[state.selectedFacialMask])
             end,
+            allEntries=function() return tSurfaceRelationships.allEntries(state.project) end,
             pushUndo=pushUndoSnapshot,commit=commitSurfaceControl,refresh=function()
                 state.surfaceControlOverlay.dirty=true
-                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
+                local drag=state.surfaceControlDrag
+                if drag and drag.mode=='group' then
+                    tSurfaceRelationships.mirrorDragged(state.project,drag.members,
+                        mirrorFacialMaskSides)
+                else
+                    mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
+                end
             end})
         return
     end
@@ -7506,7 +7604,8 @@ function onTouchMove(key,x,y)
                 tSurfacePointGizmo.translate(pointDrag.snapshot,state.topology,
                     {x=pointDrag.axis.x*amount,y=pointDrag.axis.y*amount,z=pointDrag.axis.z*amount})
                 state.surfaceControlOverlay.dirty=true
-                mirrorFacialMaskSides(state.project.facialMasks[state.selectedFacialMask])
+                tSurfaceRelationships.mirrorDragged(state.project,pointDrag.snapshot,
+                    mirrorFacialMaskSides)
             end
         end
         return

@@ -69,21 +69,17 @@ topology changes, and can copy a current region into an independent Morph Target
 Surface falloff, rig-weight application, Blender transport, and AU-to-target profiles remain
 future milestones.
 
-The initial point-controller model is explicit: a controller lists the controls it affects, with
-optional per-control contribution values. The closing milestone adds an optional spatial-inference
-command to suggest related controls based on proximity; the user must invoke and confirm it. Inference
-must produce inspectable relationships and must not overwrite explicit links silently.
-
-**Next milestone - close Phase 1 controller relationships.** Projects already store point-controller
-relationships and stock templates create default links. The editor does not yet expose those links
-for inspection or editing; group dragging still chooses controls by role and does not apply the
-stored contribution values. Complete this milestone by showing each controller's linked controls
-and weights, making edits undoable and persistent, and using those explicit links during group
-movement. Existing stock links with weight 1 must preserve their current movement. Add a separate
-user-invoked proximity suggestion with a review step that can accept selected links without
-silently replacing authored relationships. A suggested link must not affect the project until the
-user confirms it. Close the milestone by exercising independent and synchronized sides and by
-checking saved projects with their existing links.
+**Phase 1 controller relationships are implemented.** Each point controller stores direct links
+to controls and a contribution weight from 0 to 1. The Landmarks/FACS panel displays the links;
+the user can change their weights, remove links, or add them through a review list. Gizmo and
+surface drag move linked controls by the controller displacement multiplied by each link's weight.
+Stock template links remain at weight 1. A link to another controller moves that controller point
+only; its own links are not traversed. All edits are undoable and saved in the facial project.
+The optional **Suggest nearby** command finds unlinked polygons and polylines near the selected
+controller in the face X/Y plane. It proposes same-side or unpaired controls, displays candidates
+for review, and changes the project only after **Apply selected links**. Existing authored links
+are preserved. Synchronized side mode mirrors link IDs and weights where counterpart controls
+exist; independent mode leaves the opposite side unchanged.
 
 **Masks / Regions** is the derivation stage. It consumes authored controls and generates named
 regions, vertex weights, and any legacy-compatible selections required by existing rig or target

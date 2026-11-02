@@ -86,7 +86,8 @@ adapted to the current mesh after the face origin is placed and FACS mode is sel
 fitting uses the mesh subset containing the face origin and prioritizes the front view contour over
 guessed depth. This avoids snapping brow
 points to a separate hair subset and reduces jumps toward the eyelid. The green group controller
-moves the complete mask. The yellow action-line controller moves only the action lines and itself;
+moves its linked mask controls at the stock weight of 1. The yellow action-line controller moves
+its linked action lines at the stock weight of 1, along with itself;
 individual area and line anchors still move one point at a time. The action-line controller is
 placed apart from the line so its pick target stays distinct from the line anchors.
 New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
@@ -115,12 +116,22 @@ selects its point (a segment selects its nearer endpoint) and displays a 3D tran
 Hold Ctrl while clicking to restrict the interaction to an axis on the currently selected point's
 gizmo. Ctrl uses a wider axis hit area; clicking outside the gizmo neither selects another point
 nor starts an orbit.
-Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the green
-controller's gizmo moves every point in its mask group by the same world-space displacement;
-dragging the yellow controller moves only the action lines and itself. Right drag still snaps an
+Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging a controller's
+gizmo moves its linked controls by the configured weights; stock green controllers move their mask
+group and stock yellow controllers move their action lines. Right drag still snaps an
 anchor or the corresponding controller's set of points to mesh vertices. Further facial actions
 can extend the catalog without requiring the user to create each shape from an empty control.
 Middle drag pans the whole viewport, as in **Face position**, without editing facial points.
+
+Selecting a green or yellow point controller exposes **Related controls** in the FACS mask panel.
+The list shows each linked control and its contribution weight. Weight 1 follows the controller's
+full displacement; weight 0 does not move that control. The user can adjust a weight, remove a
+link, or add links explicitly. **Suggest nearby** proposes currently unlinked polygons and
+polylines based on their distance from the controller in face X/Y. The review list can be edited
+or cancelled; project links change only after **Apply selected links**. A controller moves only
+its direct links, so links to another controller do not recursively move that controller's links.
+Changes support Undo/Redo and persist in the project. In synchronized side mode, paired control
+links and weights are mirrored where counterparts exist; independent mode edits only one side.
 
 In **FACS masks** mode, the facial-action mask selector appears below the mode choice. The user
 selects a shape by clicking its points or outline in the viewport. The **Edit shape**

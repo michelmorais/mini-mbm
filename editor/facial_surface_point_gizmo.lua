@@ -122,20 +122,7 @@ function M.axisParameter(origin,direction,pivot,axis)
 end
 
 function M.dragEntries(control,pointIndex,groupEntries)
-    if not control or not pointIndex then return {} end
-    if control.kind=='point' and control.role=='controller' then
-        return groupEntries or {}
-    end
-    if control.kind=='point' and control.role=='line_controller' then
-        local result={}
-        for _,entry in ipairs(groupEntries or {}) do
-            if entry.control==control or entry.control.role=='action_line' then
-                result[#result+1]=entry
-            end
-        end
-        return result
-    end
-    return {{control=control,pointIndex=pointIndex}}
+    return require('facial_surface_relationships').dragEntries(control,pointIndex,groupEntries)
 end
 
 function M.snapshot(entries,topology)
@@ -148,7 +135,7 @@ function M.snapshot(entries,topology)
                 if resolved then points[#points+1]={index=index,position=resolved} end
             end
         end
-        result[#result+1]={control=entry.control,points=points}
+        result[#result+1]={control=entry.control,points=points,weight=entry.weight or 1}
     end
     return result
 end
@@ -160,9 +147,10 @@ function M.translate(snapshot,topology,delta)
             local raw=entry.control.points[point.index]
             local vertex=raw and topology.vertices[raw.index]
             if base and vertex then
-                raw.offset={x=base.x+delta.x-vertex.x,
-                    y=base.y+delta.y-vertex.y,
-                    z=base.z+delta.z-vertex.z-(entry.control.depthOffset or 0)}
+                local weight=entry.weight or 1
+                raw.offset={x=base.x+delta.x*weight-vertex.x,
+                    y=base.y+delta.y*weight-vertex.y,
+                    z=base.z+delta.z*weight-vertex.z-(entry.control.depthOffset or 0)}
             end
         end
     end
