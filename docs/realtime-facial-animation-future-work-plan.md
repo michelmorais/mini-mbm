@@ -143,6 +143,26 @@ The facial editor should consume this generic core while retaining its facial-sp
 The runtime format remains unchanged in this phase; the semantic distinction belongs to project
 metadata and editor modules until a runtime semantic API is proven necessary.
 
+**Milestone 2.1 - generic polygon-region core.** Introduce a reusable region record and lifecycle
+that contains a name, polygon kind, canonical surface anchors, topology signature, rebuildable
+vertex selection, and falloff settings. Its geometry API must not require face origin, facial
+roles, or FACS identifiers, and must support concave contours. This milestone establishes the
+data and geometry layer; it does not yet add a separate Morph Editor worktree. The current FACS
+region generator keeps its face-specific front-depth and subset rules until the generic editor
+can supply equivalent surface constraints. The reusable module is
+`editor/morph_surface_regions.lua`; facial generated-region records now also carry its generic
+anchors and derived-weight field while retaining their face-specific source validation. At this
+stage, polygon selections remain binary; falloff settings are stored for the later target workflow
+but are not applied yet.
+
+**Milestone 2.2 - non-facial polygon authoring.** Add a generic Morph Editor entry point that loads
+any MSH-backed object, lets the user create and adapt polygon regions on its surface, and saves
+the generic region project without requiring a face origin or landmarks.
+
+**Milestone 2.3 - morph workflow integration.** Connect generic regions to target selection,
+painting, smoothing, transforms, mirroring, MSH export, and reload. Keep derived selections
+rebuildable and require explicit regeneration after anchor or topology changes.
+
 Acceptance: a non-facial MSH can create, preview, save, reload, export, and play a morph target
 using the same region tools, without requiring face origin, facial landmarks, or facial roles.
 

@@ -18,6 +18,7 @@
 ]]--
 
 local tPolygon=require 'facial_rig_polygon'
+local tMorphSurfaceRegions=require 'morph_surface_regions'
 local M={}
 
 local function finite(value)
@@ -149,7 +150,7 @@ function M.status(project,topology,region)
     end
     if region.sourceFingerprint~=fingerprint(control,
             project.faceOrigin and project.faceOrigin.scale) then return 'stale' end
-    if #(region.vertexWeights or {})==0 then return 'empty' end
+    if #(region.derivedVertexWeights or {})==0 then return 'empty' end
     return 'ready'
 end
 
@@ -157,7 +158,7 @@ function M.copyVertices(project,topology,region)
     local status=M.status(project,topology,region)
     if status~='ready' then return nil,status end
     local vertices={}
-    for _,item in ipairs(region.vertexWeights) do
+    for _,item in ipairs(region.derivedVertexWeights) do
         if not finite(item.index) or item.index%1~=0 or item.index<1 or
                 item.index>#(topology.vertices or {}) or not finite(item.weight) or
                 item.weight<=0 or item.weight>1 then return nil,'invalid_vertices' end
@@ -178,16 +179,25 @@ function M.generate(project,topology,group)
     if not weights then return nil,errorCode end
     project.generatedRegions=project.generatedRegions or {}
     local region=M.regionForGroup(project,group)
+    local genericRegion=tMorphSurfaceRegions.new(group.name or group.id or control.id,
+        'polygon',control.points)
     if not region then
-        region={id=(group.id or control.id)..'_region'}
+        region=genericRegion
+        region.id=(group.id or control.id)..'_region'
         project.generatedRegions[#project.generatedRegions+1]=region
     end
     region.name=group.name or group.id or control.id
+    region.kind='polygon'
+    region.closed=true
+    region.points=genericRegion.points
+    region.falloff=genericRegion.falloff
     region.sourceGroupId=group.id
     region.sourceControlId=control.id
     region.topologySignature=topology.signature or ''
     region.sourceFingerprint=fingerprint(control,project.faceOrigin and project.faceOrigin.scale)
-    region.vertexWeights=weights
+    region.derivedVertexWeights=weights
+    region.vertexWeights=nil
+    region.geometryFingerprint=tMorphSurfaceRegions.fingerprint(region)
     return region
 end
 
@@ -203,8 +213,11 @@ function M.normalize(project)
                 region.topologySignature or ''
             region.sourceFingerprint=type(region.sourceFingerprint)=='string' and
                 region.sourceFingerprint or ''
+            tMorphSurfaceRegions.normalize(region)
             local weights,seen={},{}
-            for _,item in ipairs(type(region.vertexWeights)=='table' and region.vertexWeights or {}) do
+            local sourceWeights=#region.derivedVertexWeights>0 and region.derivedVertexWeights or
+                type(region.vertexWeights)=='table' and region.vertexWeights or {}
+            for _,item in ipairs(sourceWeights) do
                 local index=type(item)=='table' and tonumber(item.index) or tonumber(item)
                 local weight=type(item)=='table' and tonumber(item.weight) or 1
                 if finite(index) and index>=1 and index%1==0 and finite(weight) and
@@ -214,7 +227,8 @@ function M.normalize(project)
                 end
             end
             table.sort(weights,function(a,b) return a.index<b.index end)
-            region.vertexWeights=weights
+            region.derivedVertexWeights=weights
+            region.vertexWeights=nil
             normalized[#normalized+1]=region
         end
     end

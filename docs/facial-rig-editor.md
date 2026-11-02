@@ -159,6 +159,12 @@ source. The existing legacy and interim polygon-mask editors remain available. S
 automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
 work.
 
+Generated regions also carry the generic region fields used by the upcoming Morph Editor:
+polygon kind, canonical surface anchors, topology identity, and rebuildable vertex weights. Facial
+generation retains its front-depth and mesh-subset rules; the generic polygon core is being prepared
+for non-facial meshes separately. This first generic core derives binary vertex selections. Its
+stored falloff settings do not affect weights yet.
+
 Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
 They are not the authoring surface for the new facial workflow, and the editor must not silently
 convert a legacy mask into a surface control. Their viewport visualization starts disabled and is

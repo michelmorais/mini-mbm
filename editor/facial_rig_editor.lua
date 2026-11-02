@@ -3848,7 +3848,7 @@ local function showMasks()
         tImGui.TextWrapped(tLang.L(statusKey))
         if region then
             tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
-                #(region.vertexWeights or {})))
+                #(region.derivedVertexWeights or region.vertexWeights or {})))
         end
         local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
         if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
@@ -3857,7 +3857,7 @@ local function showMasks()
             if generated then
                 markModified()
                 setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
-                    #generated.vertexWeights),false)
+                    #(generated.derivedVertexWeights or generated.vertexWeights or {})),false)
             else
                 table.remove(state.undoStack)
                 setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)

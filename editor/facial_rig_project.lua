@@ -90,7 +90,7 @@ end
 
 function M.new()
     return {
-        schemaVersion=17,
+        schemaVersion=18,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -136,7 +136,7 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(17,tonumber(project.schemaVersion) or 1)
+    project.schemaVersion=math.max(18,tonumber(project.schemaVersion) or 1)
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
