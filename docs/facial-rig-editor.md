@@ -181,6 +181,13 @@ silently converted into FACS surface controls. Their viewport visualization star
 remains inside **Masks / Regions**. FACS target masks are created from generated regions or as
 explicit target masks in the FACS workflow.
 
+In a **Vertex mask** project, **Rig** first materializes the missing facial bones and verified
+vertex weights directly in the loaded MSH. Its optional **Generate facial armature preview in
+Blender** section is open by default. Export the Blender bridge, then use **Generate preview
+armature in Blender** to open a selected `.blend`, import the bridge automatically, and create the
+`FacialRigPreview` armature. This Blender armature is for visual review and continued manual work;
+it does not assign vertex weights or replace the rig materialized in the MSH.
+
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and
 an optional displacement overlay. The overlay is a visual aid; the textured mesh can be shown again

@@ -6238,7 +6238,8 @@ local function showRig()
     tImGui.TreePop()
     end
     tImGui.Separator()
-    if tImGui.TreeNode(tLang.L('fre_rig_blender_title')) then
+    if tImGui.TreeNodeEx(tLang.L('fre_rig_blender_title'),
+            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
     tImGui.Text(tLang.L('fre_blender_workflow_title'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_runtime_help'))
     tImGui.TextWrapped(tLang.L('fre_blender_workflow_purpose_help'))
