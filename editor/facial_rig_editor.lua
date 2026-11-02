@@ -3681,6 +3681,7 @@ end
 
 local function showExportWindow()
     if not state.exportWindow.open then return end
+    local facsWorkflow=state.project.authoringWorkflow=='facs'
     local screenWidth,screenHeight=mbm.getRealSizeScreen()
     tImGui.SetNextWindowPos({x=math.max(0,(screenWidth-560)*0.5),y=math.max(0,(screenHeight-360)*0.5)},
         tImGui.Flags('ImGuiCond_FirstUseEver'))
@@ -3690,26 +3691,32 @@ local function showExportWindow()
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if closed then state.exportWindow.open=false end
     if opened then
-        tImGui.TextWrapped(tLang.L('fre_export_window_help'))
+        tImGui.TextWrapped(tLang.L(facsWorkflow and 'fre_export_window_facs_help' or
+            'fre_export_window_help'))
         tImGui.Separator()
-        local targets={tLang.L('fre_export_target_project'),tLang.L('fre_export_target_msh'),
-            tLang.L('fre_export_target_bridge')}
+        local targets={tLang.L('fre_export_target_project'),tLang.L('fre_export_target_msh')}
+        if not facsWorkflow then targets[#targets+1]=tLang.L('fre_export_target_bridge') end
+        if facsWorkflow and state.exportWindow.target>2 then state.exportWindow.target=1 end
         tImGui.SetNextItemWidth(300)
         local targetChanged,target=tImGui.Combo(tLang.L('fre_export_target'),state.exportWindow.target,targets)
         if targetChanged then state.exportWindow.target=target end
         tImGui.Separator()
         if state.exportWindow.target==1 then
-            tImGui.TextWrapped(tLang.L('fre_export_project_help'))
+            tImGui.TextWrapped(tLang.L(facsWorkflow and 'fre_export_project_facs_help' or
+                'fre_export_project_help'))
             if tImGui.Button(tLang.L('fre_export_project_button'),{x=220,y=0}) then saveProjectAs() end
             showHelpTooltip(tLang.L('fre_export_project_tooltip'))
         elseif state.exportWindow.target==2 then
-            tImGui.TextWrapped(tLang.L('fre_export_msh_help'))
+            tImGui.TextWrapped(tLang.L(facsWorkflow and 'fre_export_msh_facs_help' or
+                'fre_export_msh_help'))
             local includeClipsChanged,includeClips=tImGui.Checkbox(
                 tLang.L('fre_export_msh_include_project_clips'),
                 state.exportWindow.includeProjectFacialClips~=false)
             if includeClipsChanged then state.exportWindow.includeProjectFacialClips=includeClips end
             showHelpTooltip(tLang.L('fre_export_msh_include_project_clips_tooltip'))
-            if not state.meshDebug then
+            if facsWorkflow then
+                if not state.meshDebug then tImGui.TextDisabled(tLang.L('fre_no_mesh')) end
+            elseif not state.meshDebug then
                 tImGui.TextDisabled(tLang.L('fre_no_mesh'))
             else
                 if state.facialSkeleton.dirty then refreshFacialSkeletonBinding(true) end
@@ -3758,8 +3765,11 @@ local function showExportWindow()
             end
             tImGui.EndDisabled()
             showHelpTooltip(tLang.L('fre_export_msh_tooltip'))
-            if not canExport then tImGui.TextDisabled(tLang.L('fre_export_msh_blocked')) end
-        else
+            if not canExport then
+                tImGui.TextDisabled(tLang.L(facsWorkflow and 'fre_export_msh_facs_blocked' or
+                    'fre_export_msh_blocked'))
+            end
+        elseif not facsWorkflow then
             tImGui.TextWrapped(tLang.L('fre_export_bridge_help'))
             if tImGui.Button(tLang.L('fre_export_bridge_button'),{x=220,y=0}) then exportBlenderBridge() end
             showHelpTooltip(tLang.L('fre_export_bridge_tooltip'))
@@ -5472,7 +5482,7 @@ local function showExpressions()
     local modeChanged=previousEditMode~=state.expressions.editMode
     state.expressions.lastEditMode=state.expressions.editMode
     tImGui.TextWrapped(tLang.L('fre_expressions_help'))
-    if tImGui.TreeNode(tLang.L('fre_expression_blender_title')) then
+    if state.project.authoringWorkflow~='facs' and tImGui.TreeNode(tLang.L('fre_expression_blender_title')) then
         tImGui.TextWrapped(tLang.L('fre_expression_blender_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_targets_help'))
         tImGui.TextWrapped(tLang.L('fre_expression_blender_clips_help'))

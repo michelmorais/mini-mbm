@@ -240,6 +240,13 @@ intensities, apply the composed preview or capture it as an expression, then use
 **Clips**. Profile edits, including **Include in preview**, take effect after clicking **Apply profile
 details**.
 
+The optional assisted Blender target-generation section is available only in the classic **Vertex
+mask** workflow. It uses the classic rig bridge and landmark roles to create starter Shape Keys;
+it does not consume FACS surface polygons, action lines, or Action Unit profiles. FACS projects
+create or import Morph Targets in the **Morph Targets** workspace and export the runtime MSH
+without the classic skeleton and vertex-weight materialization step. The Blender bridge export is
+also hidden in the FACS workflow until a FACS-specific interchange is implemented.
+
 ## Project and MSH persistence
 
 Saving the facial project stores the selected authoring workflow, editor metadata, facial action
