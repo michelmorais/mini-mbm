@@ -1906,8 +1906,39 @@ local function refreshTargetPreview()
     if state.mirrorPreview and state.mirrorPreview.mesh then releaseMirrorPreview() end
     if not authoring or not authoring.previewDirty or not state.meshDebug or not state.mesh then return end
     local path=tUtil.getTemporaryFilePath('_facial_target_preview.msh')
-    local savedOk,saved=dpCall(function() return state.meshDebug:save(path,false,false,true) end)
+    local sourcePath=tUtil.getTemporaryFilePath('_facial_target_preview_source.msh')
+    local savedOk,saved=dpCall(function()
+        return state.meshDebug:save(sourcePath,false,false,true)
+    end)
     if not savedOk or saved~=true then
+        os.remove(sourcePath)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    -- Facial rendering currently does not accept normal-map batches. Build the
+    -- preview from a temporary debug copy so the source mesh and its materials
+    -- remain unchanged while the facial targets stay available for preview.
+    local previewDebug=meshDebug:new()
+    local sourceLoadedOk,sourceLoaded=dpCall(function()
+        return previewDebug:load(sourcePath)
+    end)
+    if not sourceLoadedOk or sourceLoaded~=true then
+        previewDebug:destroy()
+        dpCall(function() meshDebug:fakeRelease(sourcePath) end)
+        os.remove(sourcePath)
+        targetAuthoringError(tLang.L('fre_target_preview_failed'))
+        authoring.previewDirty=false
+        return
+    end
+    dpCall(function() previewDebug:removeNormalMap() end)
+    local previewSavedOk,previewSaved=dpCall(function()
+        return previewDebug:save(path,false,false,true)
+    end)
+    previewDebug:destroy()
+    dpCall(function() meshDebug:fakeRelease(sourcePath) end)
+    os.remove(sourcePath)
+    if not previewSavedOk or previewSaved~=true then
         os.remove(path)
         targetAuthoringError(tLang.L('fre_target_preview_failed'))
         authoring.previewDirty=false
@@ -3903,20 +3934,59 @@ local function showMasks()
                 tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
                     #(region.derivedVertexWeights or region.vertexWeights or {})))
             end
+            local matchingTargetMask=nil
+            local matchingTargetIndex=nil
+            local targetName=((region and region.name) or group.name or group.id or '')..'_target'
+            for maskIndex,mask in ipairs(masks) do
+                if mask.purpose=='target' and mask.name==targetName then
+                    matchingTargetMask=mask
+                    matchingTargetIndex=maskIndex
+                    break
+                end
+            end
             local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
+            if matchingTargetMask then
+                label='fre_generated_region_regenerate_and_update'
+            end
             if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
                 pushUndoSnapshot()
                 local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
                 if generated then
+                    local targetUpdated=false
+                    local targetUpdateError=nil
+                    if matchingTargetMask then
+                        local vertices,copyError=tGeneratedRegions.copyVertices(
+                            state.project,state.topology,generated)
+                        if vertices then
+                            matchingTargetMask.vertices=vertices
+                            matchingTargetMask.topologySignature=generated.topologySignature
+                            targetUpdated=true
+                            if state.selectedMask==matchingTargetIndex then
+                                markMaskVisualizationDirty()
+                                startMaskVisualizationBuild()
+                            end
+                        else
+                            targetUpdateError=copyError
+                        end
+                    end
                     markModified()
-                    setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
-                        #(generated.derivedVertexWeights or generated.vertexWeights or {})),false)
+                    if targetUpdated then
+                        setStatus(tLang.L('fre_generated_region_regenerated_and_updated'),false)
+                    elseif targetUpdateError then
+                        setStatus(tLang.L('fre_generated_region_error_'..tostring(targetUpdateError)),true)
+                    else
+                        setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
+                            #(generated.derivedVertexWeights or generated.vertexWeights or {})),false)
+                    end
                 else
                     table.remove(state.undoStack)
                     setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
                 end
             end
-            showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
+            local generateHelpKey=matchingTargetMask and
+                'fre_generated_region_regenerate_and_update_help' or
+                'fre_generated_region_generate_help'
+            showHelpTooltip(tLang.L(generateHelpKey))
             tImGui.SameLine()
             tImGui.BeginDisabled(status~='ready')
             if tImGui.Button(tLang.L('fre_generated_region_create_target')..'##freRegionCreateTarget') then
@@ -3960,7 +4030,6 @@ local function showMasks()
                     targetChoice,targetMaskNames)
                 if targetChanged then choices[group.id]=targetIndex end
                 targetChoice=targetChanged and targetIndex or targetChoice
-                tImGui.SameLine()
                 tImGui.BeginDisabled(status~='ready')
                 if tImGui.Button(tLang.L('fre_generated_region_update_target')..
                         '##freRegionUpdateTarget') then
