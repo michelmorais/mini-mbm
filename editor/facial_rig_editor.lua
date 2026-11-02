@@ -5210,6 +5210,7 @@ showFACSProfiles=function()
             end
             tImGui.Separator()
             local compositionIndex=data.composition=='max' and 2 or 1
+            tImGui.SetNextItemWidth(280)
             local compositionChanged,newComposition=tImGui.Combo(
                 tLang.L('fre_facs_profile_composition')..'##freFACSComposition',compositionIndex,
                 editor.compositionOptions)
@@ -5452,6 +5453,7 @@ showFACSProfiles=function()
                 end
             end
             tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_facs_profile_bake_expression_tooltip'))
         end
     end
 
@@ -5518,11 +5520,11 @@ local function showExpressions()
     local poseNames={}
     for _,pose in ipairs(expressions.poses or {}) do poseNames[#poseNames+1]=pose.name end
     local selectedPose=nil
-    if state.expressions.editMode~=1 then
-        if #poseNames==0 then
-            tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
-            return
-        end
+    tImGui.Text(tLang.L('fre_expressions_poses')..': '..tostring(#poseNames))
+    if #poseNames==0 then
+        tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
+        if state.expressions.editMode~=1 then return end
+    else
         state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#poseNames))
         tImGui.SetNextItemWidth(280)
         local changed,index=tImGui.Combo(tLang.L('fre_expression_select'),state.expressions.selectedPose,poseNames)
