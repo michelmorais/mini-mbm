@@ -1600,6 +1600,18 @@ setSurfaceControlOverlayVisible=function(visible)
     end
 end
 
+local function invalidateGeneratedRegionsForControl(control)
+    if not control or control.role~='area' then return false end
+    local changed=false
+    for _,region in ipairs(state.project.generatedRegions or {}) do
+        if region.sourceControlId==control.id and region.sourceFingerprint~='' then
+            region.sourceFingerprint=''
+            changed=true
+        end
+    end
+    return changed
+end
+
 commitSurfaceControl=function(control)
     if not control or not state.topology then return false end
     tSurfaceControlEditor.ensure(control)
@@ -1607,6 +1619,7 @@ commitSurfaceControl=function(control)
     if control.kind=='point' and #control.points>1 then
         control.points={control.points[1]}
     end
+    invalidateGeneratedRegionsForControl(control)
     state.project.selectedSurfaceControl=state.selectedSurfaceControl
     state.surfaceControlOverlay.dirty=true
     markModified()
@@ -3877,7 +3890,11 @@ local function showMasks()
             local region=tGeneratedRegions.regionForGroup(state.project,group)
             local status=tGeneratedRegions.status(state.project,state.topology,region)
             local statusKey='fre_generated_region_status_'..status
-            tImGui.TextWrapped(tLang.L(statusKey))
+            if status=='stale' then
+                textColoredWrapped({r=1,g=0.8,b=0.25,a=1},tLang.L(statusKey))
+            else
+                tImGui.TextWrapped(tLang.L(statusKey))
+            end
             if region then
                 tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
                     #(region.derivedVertexWeights or region.vertexWeights or {})))
