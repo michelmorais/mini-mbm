@@ -44,8 +44,9 @@ it does not convert or delete either kind of authored data.
 
 **Landmarks and regions** is the existing workflow for placing facial landmarks and generating
 regions from them. The older cyan face guide (outline, crosses, and axes) is a landmark placement
-reference, not a vertex mask. It appears in **Face Position** and can be shown on demand with
-**Show landmark guide** in **Landmarks and regions**; it starts hidden there so the mesh stays clear.
+reference, not a vertex mask. It appears in **Face Position** and can be controlled with
+**Show landmark guide** in **Landmarks and regions**. Selecting or opening a project in this mode
+shows the guide by default; the checkbox can hide it while editing landmarks.
 
 **FACS masks** shows the facial action templates and their surface controls. The legacy landmark
 editing controls and cyan guide are hidden in this mode. The selected mode is stored with the

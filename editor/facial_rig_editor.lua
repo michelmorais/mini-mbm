@@ -3116,6 +3116,7 @@ local function openProject()
     state.selectedSurfaceControlPoint=nil
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
+    state.showLandmarkGuide=project.landmarkAuthoringMode=='regions'
     clearHistory()
     if projectNeedsSync then
         setStatus(tLang.L('fre_target_project_embedded_sync'),false)
@@ -4596,6 +4597,7 @@ local function showLandmarks()
     authoringMode=tImGui.RadioButton(tLang.L('fre_landmark_authoring_facs'),authoringMode,2)
     if authoringMode~=(state.project.landmarkAuthoringMode=='facs' and 2 or 1) then
         state.project.landmarkAuthoringMode=authoringMode==2 and 'facs' or 'regions'
+        if authoringMode==1 then state.showLandmarkGuide=true end
         state.selectedSurfaceControlPoint=nil
         state.surfaceControlDrag=nil
         state.surfacePointGizmo.drag=nil
