@@ -5022,49 +5022,71 @@ showFACSProfiles=function()
     end
     if not state.mesh then tImGui.TextDisabled(tLang.L('fre_facs_profile_mesh_required')) end
 
-    tImGui.Separator()
-    tImGui.SetNextItemWidth(260)
-    local nameChanged,name=tImGui.InputText(tLang.L('fre_facs_profile_name')..'##freFACSNewName',editor.nameDraft or '')
-    if nameChanged then editor.nameDraft=name end
-    local actionUnitIndex=1
-    for index,actionUnit in ipairs(editor.actionUnitValues) do
-        if actionUnit==editor.actionUnitDraft then actionUnitIndex=index; break end
-    end
-    tImGui.SetNextItemWidth(300)
-    local actionChanged,actionIndex=tImGui.Combo(tLang.L('fre_facs_profile_au')..'##freFACSNewAU',
-        actionUnitIndex,editor.actionUnitLabels)
-    if actionChanged then editor.actionUnitDraft=editor.actionUnitValues[actionIndex] end
-    showHelpTooltip(tLang.L('fre_facs_profile_au_tooltip'))
-    tImGui.SetNextItemWidth(180)
-    local sideChanged,sideIndex=tImGui.Combo(tLang.L('fre_facs_profile_side')..'##freFACSNewSide',
-        editor.sideDraft or 1,editor.sideOptions)
-    if sideChanged then editor.sideDraft=sideIndex end
-    if tImGui.Button(tLang.L('fre_facs_profile_create')..'##freFACSCreateProfile',{x=250,y=0}) then
-        pushUndoSnapshot()
-        local profile,errorCode=tFacialFACSProfiles.addProfile(data,editor.nameDraft,
-            editor.actionUnitDraft,editor.sideValues[editor.sideDraft] or 'bilateral',editor.actionUnitValues)
-        if profile then
-            editor.nameDraft=''
-            editor.actionUnitDraft='AU1'
-            data.selectedProfile=#data.profiles
-            editor.profileNamesDirty=true
-            editor.draftProfileId=nil
-            editor.validationDirty=true
-            editor.previewDirty=true
-            markModified()
-            setStatus(tLang.L('fre_facs_profile_created'),false)
-        else
-            table.remove(state.undoStack)
-            local errorKey=errorCode=='empty_name' and 'fre_facs_profile_error_empty_name' or
-                errorCode=='empty_action_unit' and 'fre_facs_profile_error_empty_au' or
-                errorCode=='unsupported_action_unit' and 'fre_facs_profile_error_unsupported_au' or
-                errorCode=='duplicate_name' and 'fre_facs_profile_error_duplicate_name' or
-                'fre_facs_profile_error_duplicate_au_side'
-            setStatus(tLang.L(errorKey),true)
-        end
+    local profiles=data.profiles or {}
+    local mode=editor.mode
+    if #profiles==0 then mode=1 end
+    if not mode then mode=#profiles>0 and 2 or 1 end
+    local previousMode=mode
+    mode=tImGui.RadioButton(tLang.L('fre_facs_profile_mode_add')..'##freFACSModeAdd',mode,1)
+    tImGui.SameLine()
+    mode=tImGui.RadioButton(tLang.L('fre_facs_profile_mode_edit')..'##freFACSModeEdit',mode,2)
+    tImGui.SameLine()
+    mode=tImGui.RadioButton(tLang.L('fre_facs_profile_mode_delete')..'##freFACSModeDelete',mode,3)
+    editor.mode=mode
+    if mode~=previousMode then
+        editor.draftProfileId=nil
+        editor.outputEdits={}
+        editor.pendingOutputEdits={}
+        editor.validationDirty=true
+        editor.previewDirty=true
     end
 
-    local profiles=data.profiles or {}
+    tImGui.Separator()
+    if mode==1 then
+        tImGui.SetNextItemWidth(260)
+        local nameChanged,name=tImGui.InputText(tLang.L('fre_facs_profile_name')..'##freFACSNewName',editor.nameDraft or '')
+        if nameChanged then editor.nameDraft=name end
+        local actionUnitIndex=1
+        for index,actionUnit in ipairs(editor.actionUnitValues) do
+            if actionUnit==editor.actionUnitDraft then actionUnitIndex=index; break end
+        end
+        tImGui.SetNextItemWidth(300)
+        local actionChanged,actionIndex=tImGui.Combo(tLang.L('fre_facs_profile_au')..'##freFACSNewAU',
+            actionUnitIndex,editor.actionUnitLabels)
+        if actionChanged then editor.actionUnitDraft=editor.actionUnitValues[actionIndex] end
+        showHelpTooltip(tLang.L('fre_facs_profile_au_tooltip'))
+        tImGui.SetNextItemWidth(180)
+        local sideChanged,sideIndex=tImGui.Combo(tLang.L('fre_facs_profile_side')..'##freFACSNewSide',
+            editor.sideDraft or 1,editor.sideOptions)
+        if sideChanged then editor.sideDraft=sideIndex end
+        if tImGui.Button(tLang.L('fre_facs_profile_create')..'##freFACSCreateProfile',{x=250,y=0}) then
+            pushUndoSnapshot()
+            local profile,errorCode=tFacialFACSProfiles.addProfile(data,editor.nameDraft,
+                editor.actionUnitDraft,editor.sideValues[editor.sideDraft] or 'bilateral',editor.actionUnitValues)
+            if profile then
+                editor.nameDraft=''
+                editor.actionUnitDraft='AU1'
+                data.selectedProfile=#data.profiles
+                editor.profileNamesDirty=true
+                editor.draftProfileId=nil
+                editor.mode=2
+                editor.validationDirty=true
+                editor.previewDirty=true
+                markModified()
+                setStatus(tLang.L('fre_facs_profile_created'),false)
+            else
+                table.remove(state.undoStack)
+                local errorKey=errorCode=='empty_name' and 'fre_facs_profile_error_empty_name' or
+                    errorCode=='empty_action_unit' and 'fre_facs_profile_error_empty_au' or
+                    errorCode=='unsupported_action_unit' and 'fre_facs_profile_error_unsupported_au' or
+                    errorCode=='duplicate_name' and 'fre_facs_profile_error_duplicate_name' or
+                    'fre_facs_profile_error_duplicate_au_side'
+                setStatus(tLang.L(errorKey),true)
+            end
+        end
+        return
+    end
+
     if editor.profileNamesDirty then
         editor.profileNames={}
         for _,profile in ipairs(profiles) do
@@ -5075,17 +5097,36 @@ showFACSProfiles=function()
     end
     if #profiles==0 then
         tImGui.TextDisabled(tLang.L('fre_facs_profile_no_profiles'))
-    else
-        data.selectedProfile=math.max(1,math.min(data.selectedProfile,#profiles))
-        tImGui.SetNextItemWidth(320)
-        local profileChanged,profileIndex=tImGui.Combo(tLang.L('fre_facs_profile_select')..'##freFACSProfile',
-            data.selectedProfile,editor.profileNames)
-        if profileChanged then
-            data.selectedProfile=profileIndex
+        return
+    end
+    data.selectedProfile=math.max(1,math.min(data.selectedProfile,#profiles))
+    tImGui.SetNextItemWidth(320)
+    local profileChanged,profileIndex=tImGui.Combo(tLang.L('fre_facs_profile_select')..'##freFACSProfile',
+        data.selectedProfile,editor.profileNames)
+    if profileChanged then
+        data.selectedProfile=profileIndex
+        editor.draftProfileId=nil
+    end
+    local profile=profiles[data.selectedProfile]
+    if profile and mode==3 then
+        tImGui.Separator()
+        local actionLabel=editor.actionUnitDisplayByCode[profile.actionUnit] or profile.actionUnit
+        tImGui.Text(string.format(tLang.L('fre_facs_profile_delete_selected_fmt'),
+            profile.name..' ['..actionLabel..' - '..profile.side..']'))
+        if tImGui.Button(tLang.L('fre_facs_profile_delete')..'##freFACSDeleteProfile',{x=250,y=0}) then
+            pushUndoSnapshot()
+            tFacialFACSProfiles.removeProfile(data,data.selectedProfile)
+            editor.profileNamesDirty=true
             editor.draftProfileId=nil
+            editor.validationDirty=true
+            editor.previewDirty=true
+            editor.mode=#data.profiles>0 and 3 or 1
+            markModified()
+            setStatus(tLang.L('fre_facs_profile_deleted'),false)
         end
-        local profile=profiles[data.selectedProfile]
-        if profile then
+        return
+    end
+    if profile then
             if editor.draftProfileId~=profile.id then
                 editor.draftProfileId=profile.id
                 editor.detailName=profile.name
@@ -5167,19 +5208,6 @@ showFACSProfiles=function()
                     setStatus(tLang.L(errorKey),true)
                 end
             end
-            tImGui.SameLine()
-            if tImGui.Button(tLang.L('fre_facs_profile_delete')..'##freFACSDeleteProfile',{x=200,y=0}) then
-                pushUndoSnapshot()
-                tFacialFACSProfiles.removeProfile(data,data.selectedProfile)
-                editor.profileNamesDirty=true
-                editor.draftProfileId=nil
-                editor.validationDirty=true
-                editor.previewDirty=true
-                markModified()
-                setStatus(tLang.L('fre_facs_profile_deleted'),false)
-                return
-            end
-
             tImGui.Separator()
             local compositionIndex=data.composition=='max' and 2 or 1
             local compositionChanged,newComposition=tImGui.Combo(
@@ -5426,7 +5454,6 @@ showFACSProfiles=function()
             tImGui.EndDisabled()
         end
     end
-end
 
 local function showExpressions()
     if state.expressions.catalogDirty then refreshExpressionCatalog() end

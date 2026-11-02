@@ -206,6 +206,11 @@ stores its contribution weight, response curve, optional per-output clamp, and a
 contribution marker for neighboring regions. The secondary marker is descriptive metadata; it
 does not change the weight calculation.
 
+The workspace is divided into three modes: **Add profile**, **Edit profile**, and **Delete profile**.
+Only the controls belonging to the selected operation are shown. Editing changes profile metadata,
+target outputs, composition, and preview; deleting uses the selected profile without mixing those
+controls with the authoring form.
+
 An Action Unit (AU) is a standardized label for an observable facial movement. For example, AU1
 identifies the inner brow raiser. The profile's AU names the action; mapped target outputs define
 which deformations the mesh receives. The combo shows each code with its standardized action name.
