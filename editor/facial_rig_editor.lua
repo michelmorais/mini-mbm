@@ -1762,7 +1762,6 @@ refreshSurfaceControlOverlay=function(selectionOnly)
             if not object then
                 object=line:new('3d',0,0,0)
                 object.alwaysOnTop=true
-                object.alwaysOnTopPriority=(role=='controller' or role=='line_controller') and 4 or 3
                 object.alwaysRender=true
                 object.pathCount=#paths
                 overlay.markers[role]=object
@@ -1770,6 +1769,10 @@ refreshSurfaceControlOverlay=function(selectionOnly)
             else
                 for index,path in ipairs(paths) do object:set(path,index) end
             end
+            -- The engine clears depth between always-on-top priorities. Keep
+            -- anchors in the selected mask's contour layer so their Z matches
+            -- the visible shape instead of forcing every handle in front.
+            object.alwaysOnTopPriority=2
             local color=markerColors[role]
             object:setColor(color.r or 1,color.g or 1,color.b or 1,color.a or 1)
             object.visible=visible and selectedGroup.enabled~=false
@@ -1799,11 +1802,12 @@ refreshSurfaceControlOverlay=function(selectionOnly)
                 object:add(path)
                 object.alwaysOnTop=true
                 object.alwaysRender=true
-                object.alwaysOnTopPriority=5
                 gizmo.axes[name]=object
             else
                 object:set(path,1)
             end
+            -- Share depth with the selected contour and its anchor markers.
+            object.alwaysOnTopPriority=2
             object:setColor(table.unpack(axis.color))
             object.visible=true
         elseif object then
@@ -5706,11 +5710,16 @@ local function showMainPanel()
         end
         showStatus()
         if state.controlDown and (state.workspace=='face_position' or
-                (state.workspace=='landmarks' and
-                    state.project.landmarkAuthoringMode=='regions')) then
+                state.workspace=='landmarks') then
             tImGui.TextColored({r=1,g=0.8,b=0.25,a=1},tLang.L('fre_ctrl_pressed'))
-            local hintKey=state.workspace=='face_position' and 'fre_ctrl_face_hint' or
-                'fre_ctrl_landmarks_hint'
+            local hintKey
+            if state.workspace=='face_position' then
+                hintKey='fre_ctrl_face_hint'
+            elseif state.project.landmarkAuthoringMode=='regions' then
+                hintKey='fre_ctrl_landmarks_hint'
+            else
+                hintKey='fre_ctrl_facs_hint'
+            end
             tImGui.TextWrapped(tLang.L(hintKey))
         end
         tImGui.Separator()
