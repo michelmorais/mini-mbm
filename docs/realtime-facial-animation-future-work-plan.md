@@ -102,13 +102,15 @@ generated regions and target masks. Morph Targets, Expressions, and Clips are sh
 schema 20 stores the workflow and rejects earlier project schemas; users must recreate those
 projects.
 
-Classic vertex masks are retained as a supported authoring representation in the **Landmarks and
-Regions** workflow. They are not converted automatically into polygons, polylines, or points.
+Classic vertex masks are retained as a supported authoring representation in the **Vertex mask**
+workflow. They are not converted automatically into polygons, polylines, or points.
 
-The **Vertex mask** workflow edits classic vertex masks only. Surface polygon mask
-representation controls and polygon editing belong to the **FACS Mask** workflow. Generated FACS
-regions are shown in that workflow and stored separately; copying one into a target-selection mask
-is explicit, with no automatic conversion or weight application.
+The **Vertex mask** workflow edits classic vertex masks only. Surface polygon editing belongs only
+to **FACS facial masks**, the FACS version of the **Landmarks / Marcos faciais** workspace. It is the
+source authoring step for area polygons, action-line polylines, and controllers. **Masks / Regions**
+has no representation selector: it generates FACS regions from those authored polygons and edits
+only the resulting vertex selections. Copying one into a target-selection mask is explicit, with no
+automatic conversion or weight application.
 
 The first surface-anchor implementation may use canonical mesh vertices. A later extension may
 anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.

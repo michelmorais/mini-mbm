@@ -52,9 +52,11 @@ masks. The cyan face guide (outline, crosses, and axes) is a landmark placement 
 vertex mask. It appears in **Face Position** and can be controlled with **Show landmark guide** in
 this workflow. The guide is shown by default and can be hidden while editing landmarks.
 
-**FACS mask** shows the facial action templates and their surface controls. The classic landmark
-controls, cyan guide, and Rig workspace are hidden in this workflow. Its selected path is stored with
-the project.
+**FACS mask** shows the facial action templates and their surface controls. In the workspace tree,
+the entry that is called **Landmarks** in the classic workflow is displayed as **FACS facial masks**.
+That is the FACS equivalent of **Marcos faciais**: it is where the area polygons, action-line
+polylines, and group/action-line controllers are edited. The classic landmark controls, cyan guide,
+and Rig workspace are hidden in this workflow. Its selected path is stored with the project.
 
 **Side editing mode** appears below the workflow help and is available in both modes.
 **Independent sides** edits each side separately. **Synchronized sides** mirrors paired facial
@@ -175,11 +177,13 @@ regions and target masks. **Morph Targets**, **Expressions**, and **Clips** are 
 schema 20 stores the choice; schema 19 and earlier projects are rejected and must be recreated.
 
 Classic Rig role masks remain an authoring representation in the **Vertex mask** workflow.
-Rig and Morph Target selection masks use vertex selections in that workflow; polygon representation
-choices and polygon editing are available only in the **FACS mask** workflow. Classic masks are not
+Rig and Morph Target selection masks use vertex selections in that workflow. In the FACS workflow,
+surface polygon editing belongs only to **FACS facial masks** (the FACS version of **Marcos faciais**);
+there is no representation selector in **Masks / Regions**. That workspace only generates regions
+from the authored FACS area polygon and edits the resulting vertex selections. Classic masks are not
 silently converted into FACS surface controls. Their viewport visualization starts disabled and
 remains inside **Masks / Regions**. FACS target masks are created from generated regions or as
-explicit target masks in the FACS workflow.
+explicit vertex-selection masks in the FACS workflow.
 
 In a **Vertex mask** project, **Rig** first materializes the missing facial bones and verified
 vertex weights directly in the loaded MSH. Its optional **Generate facial armature preview in
