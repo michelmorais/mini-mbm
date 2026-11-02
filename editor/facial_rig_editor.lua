@@ -7303,13 +7303,15 @@ end
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
     if key==0 and state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='facs' and not state.controlDown and state.topology then
+            state.project.landmarkAuthoringMode=='facs' and state.topology then
         local origin,direction=viewportPickRay(x,y)
         if origin then
             local gizmo=state.surfacePointGizmo
             if gizmo.origin and gizmo.length then
+                local axisRadius=state.controlDown and math.max(gizmo.length*0.24,0.005) or
+                    math.max(gizmo.length*0.09,0.002)
                 local axisName=tSurfacePointGizmo.pickAxis(origin,direction,gizmo.origin,
-                    gizmo.length,math.max(gizmo.length*0.09,0.002))
+                    gizmo.length,axisRadius)
                 local axis=axisName and tSurfacePointGizmo.axes[axisName]
                 local parameter=axis and tSurfacePointGizmo.axisParameter(origin,direction,gizmo.origin,axis)
                 if parameter then
@@ -7324,6 +7326,7 @@ function onTouchDown(key,x,y)
                     return
                 end
             end
+            if state.controlDown then return end
             local entries={}
             for groupIndex,group in ipairs(state.project.facialMasks or {}) do
                 if group.enabled~=false then
@@ -7346,6 +7349,7 @@ function onTouchDown(key,x,y)
                 return
             end
         end
+        if state.controlDown then return end
     end
     if key==0 and state.workspace=='targets' and state.targetAuthoring.mode==2 and
             state.targetAuthoring.editMode==2 and beginTargetGizmoDrag(x,y) then return end

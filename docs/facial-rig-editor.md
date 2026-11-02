@@ -108,6 +108,9 @@ with a cross; the action-line controller is a yellow square with a cross. Only t
 displays square anchors for editing.
 In the viewport, left drag on empty space orbits the camera. Clicking a square anchor or an outline
 selects its point (a segment selects its nearer endpoint) and displays a 3D translation gizmo.
+Hold Ctrl while clicking to restrict the interaction to an axis on the currently selected point's
+gizmo. Ctrl uses a wider axis hit area; clicking outside the gizmo neither selects another point
+nor starts an orbit.
 Dragging the red X, green Y, or blue Z axis moves that point freely in 3D. Dragging the green
 controller's gizmo moves every point in its mask group by the same world-space displacement;
 dragging the yellow controller moves only the action lines and itself. Right drag still snaps an
