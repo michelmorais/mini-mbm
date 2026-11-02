@@ -214,4 +214,69 @@ function M.applySurfaceSnap(control,plan)
     control.depthOffset=0
 end
 
+function M.vertexNormals(topology)
+    local normals={}
+    for _,triangle in ipairs(topology and topology.triangles or {}) do
+        local first=topology.vertices[triangle[1]]
+        local second=topology.vertices[triangle[2]]
+        local third=topology.vertices[triangle[3]]
+        if first and second and third then
+            local abx,aby,abz=second.x-first.x,second.y-first.y,second.z-first.z
+            local acx,acy,acz=third.x-first.x,third.y-first.y,third.z-first.z
+            local nx,ny,nz=aby*acz-abz*acy,abz*acx-abx*acz,abx*acy-aby*acx
+            for _,index in ipairs(triangle) do
+                local normal=normals[index]
+                if not normal then
+                    normal={x=0,y=0,z=0}
+                    normals[index]=normal
+                end
+                normal.x=normal.x+nx
+                normal.y=normal.y+ny
+                normal.z=normal.z+nz
+            end
+        end
+    end
+    for index,normal in pairs(normals) do
+        local length=math.sqrt(normal.x*normal.x+normal.y*normal.y+normal.z*normal.z)
+        if length<=1e-8 then
+            normals[index]={x=0,y=0,z=1}
+        else
+            normal.x=normal.x/length
+            normal.y=normal.y/length
+            normal.z=normal.z/length
+            if normal.z<0 then
+                normal.x=-normal.x
+                normal.y=-normal.y
+                normal.z=-normal.z
+            end
+        end
+    end
+    return normals
+end
+
+function M.markerFrame(position,normal,halfSize)
+    local nx,ny,nz=normal and normal.x or 0,normal and normal.y or 0,normal and normal.z or 1
+    local normalLength=math.sqrt(nx*nx+ny*ny+nz*nz)
+    if normalLength<=1e-8 then
+        nx,ny,nz=0,0,1
+    else
+        nx,ny,nz=nx/normalLength,ny/normalLength,nz/normalLength
+    end
+    if nz<0 then nx,ny,nz=-nx,-ny,-nz end
+    local rx,ry,rz=0,0,1
+    if math.abs(nz)>0.9 then rx,ry,rz=0,1,0 end
+    local tx,ty,tz=ry*nz-rz*ny,rz*nx-rx*nz,rx*ny-ry*nx
+    local tangentLength=math.sqrt(tx*tx+ty*ty+tz*tz)
+    tx,ty,tz=tx/tangentLength,ty/tangentLength,tz/tangentLength
+    local bx,by,bz=ny*tz-nz*ty,nz*tx-nx*tz,nx*ty-ny*tx
+    local h=halfSize
+    local corners={
+        {x=position.x-tx*h-bx*h,y=position.y-ty*h-by*h,z=position.z-tz*h-bz*h},
+        {x=position.x+tx*h-bx*h,y=position.y+ty*h-by*h,z=position.z+tz*h-bz*h},
+        {x=position.x+tx*h+bx*h,y=position.y+ty*h+by*h,z=position.z+tz*h+bz*h},
+        {x=position.x-tx*h+bx*h,y=position.y-ty*h+by*h,z=position.z-tz*h+bz*h}
+    }
+    return corners,{x=tx,y=ty,z=tz},{x=bx,y=by,z=bz}
+end
+
 return M

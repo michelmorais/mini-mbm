@@ -1727,6 +1727,10 @@ refreshSurfaceControlOverlay=function(selectionOnly)
     -- retain a small bounds fallback for old projects without an origin.
     local size=math.max(faceScale and faceScale*0.006 or extent*0.0015,0.001)
     local selectedGroup=groups[state.selectedFacialMask]
+    if overlay.vertexNormalTopology~=state.topology then
+        overlay.vertexNormals=tSurfacePointGizmo.vertexNormals(state.topology)
+        overlay.vertexNormalTopology=state.topology
+    end
     for _,entry in ipairs(tFacialActionTemplates.groupControls(state.project,selectedGroup)) do
         local control=entry.control
         local points=tFacialPolygon.resolvePoints(control,state.topology)
@@ -1737,17 +1741,23 @@ refreshSurfaceControlOverlay=function(selectionOnly)
             local position=tFacialPolygon.positionWithFaceDepth(point.position,control.depthOffset)
             local halfSize=size*(role=='controller' and 1.6 or
                 role=='line_controller' and 1.35 or 1)
-            paths[#paths+1]={position.x-halfSize,position.y-halfSize,position.z,
-                position.x+halfSize,position.y-halfSize,position.z,
-                position.x+halfSize,position.y+halfSize,position.z,
-                position.x-halfSize,position.y+halfSize,position.z,
-                position.x-halfSize,position.y-halfSize,position.z}
+            local corners,tangent,bitangent=tSurfacePointGizmo.markerFrame(position,
+                overlay.vertexNormals[point.index],halfSize)
+            paths[#paths+1]={corners[1].x,corners[1].y,corners[1].z,
+                corners[2].x,corners[2].y,corners[2].z,
+                corners[3].x,corners[3].y,corners[3].z,
+                corners[4].x,corners[4].y,corners[4].z,
+                corners[1].x,corners[1].y,corners[1].z}
             if role=='controller' or role=='line_controller' then
                 local crossSize=halfSize*0.5
-                paths[#paths+1]={position.x-crossSize,position.y,position.z,
-                    position.x+crossSize,position.y,position.z}
-                paths[#paths+1]={position.x,position.y-crossSize,position.z,
-                    position.x,position.y+crossSize,position.z}
+                paths[#paths+1]={position.x-tangent.x*crossSize,
+                    position.y-tangent.y*crossSize,position.z-tangent.z*crossSize,
+                    position.x+tangent.x*crossSize,position.y+tangent.y*crossSize,
+                    position.z+tangent.z*crossSize}
+                paths[#paths+1]={position.x-bitangent.x*crossSize,
+                    position.y-bitangent.y*crossSize,position.z-bitangent.z*crossSize,
+                    position.x+bitangent.x*crossSize,position.y+bitangent.y*crossSize,
+                    position.z+bitangent.z*crossSize}
             end
         end
     end
