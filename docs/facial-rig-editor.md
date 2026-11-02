@@ -36,23 +36,22 @@ position, and the match radius.
 
 ## Facial landmarks, surface controls, and regions
 
-The **Landmarks** workspace has two mutually exclusive editing modes, selected by the radio
-buttons at the top: **Landmarks and regions** and **FACS masks**. New projects start in FACS mode.
-Projects saved before this choice existed open in the previous landmark workflow unless they
-already contain facial action masks. Switching modes changes which controls and guides are shown;
-it does not convert or delete either kind of authored data.
+Choose **Landmarks and regions** or **FACS mask** once in the first workspace, **Setup**. The
+selection is fixed for the project; start a new project to choose the other workflow. Older facial
+project schemas are not loaded by this editor version. The workspace tree then follows the selected
+path: **Rig** is available in Landmarks and regions, while **FACS Action Unit Profiles** is available
+in FACS mask. **Morph Targets**, **Expressions**, and **Clips** are shared.
 
-**Landmarks and regions** is the existing workflow for placing facial landmarks and generating
-regions from them. The older cyan face guide (outline, crosses, and axes) is a landmark placement
-reference, not a vertex mask. It appears in **Face Position** and can be controlled with
-**Show landmark guide** in **Landmarks and regions**. Selecting or opening a project in this mode
-shows the guide by default; the checkbox can hide it while editing landmarks.
+**Landmarks and regions** is the classic workflow for placing facial landmarks and editing vertex
+masks. The cyan face guide (outline, crosses, and axes) is a landmark placement reference, not a
+vertex mask. It appears in **Face Position** and can be controlled with **Show landmark guide** in
+this workflow. The guide is shown by default and can be hidden while editing landmarks.
 
-**FACS masks** shows the facial action templates and their surface controls. The legacy landmark
-editing controls and cyan guide are hidden in this mode. The selected mode is stored with the
-project.
+**FACS mask** shows the facial action templates and their surface controls. The classic landmark
+controls, cyan guide, and Rig workspace are hidden in this workflow. Its selected path is stored with
+the project.
 
-**Side editing mode** appears below the workflow choice and is available in both modes.
+**Side editing mode** appears below the workflow help and is available in both modes.
 **Independent sides** edits each side separately. **Synchronized sides** mirrors paired facial
 shapes and side landmarks around the nose's X position, or the face origin until the nose is placed.
 Enabling synchronization uses the currently selected mask as the source. Subsequent gizmo drags,
@@ -93,17 +92,13 @@ placed apart from the line so its pick target stays distinct from the line ancho
 New projects load all 15 masks when the face origin is placed while FACS mode is active. Saved
 projects keep their authored mask catalog and are not expanded automatically. The point landmark
 list already includes the chin and both jaw hinges; they are optional rig references and do not create surface masks. The
-jaw polygon is a separate influence region. **Refit selected mask to face** replaces only the
-selected mask's points with its current template; it is undoable. Refitting an older eye template
-also adds its new lower-eyelid action line. Refit never runs automatically on existing edits.
-Opening an older brow project adds only a missing action-line controller and its relationships;
-it is placed near the already edited action line. Existing contours, offsets, and the
-group-controller position are preserved.
+jaw polygon is a separate influence region. **Refit selected mask to face** replaces the selected
+mask's controls with its complete current template; it is undoable and never runs automatically.
 
 All mask outlines remain visible. The shared default palette uses cyan for influence areas and
-orange for action lines on both sides and for future facial templates. Previously saved stock
-right-brow pink and older action-line accents are upgraded on load; custom area and action-line
-colors are preserved. Every group controller is green, including those in older projects.
+orange for action lines on both sides and for future facial templates. New templates use green for
+group controllers and yellow for action-line controllers. Custom area and action-line colors remain
+available when editing a template.
 The group controller is a larger green square
 with a cross; the action-line controller is a yellow square with a cross. Only the selected mask
 displays square anchors for editing. Each square faces the camera in the view plane through its
@@ -145,7 +140,7 @@ point, preserves each X/Y position, and applies the shape only when all points c
 The operation is undoable; the other shapes in the mask remain unchanged. Landmark placement and
 its individual surface-adjustment controls appear only in **Landmarks and regions** mode.
 
-**Masks / Regions** now generates a named region from the selected facial mask's closed area
+In the **FACS mask** workflow, **Masks / Regions** generates a named region from the selected facial mask's closed area
 polygon. Generation is explicit and preserves the source points. It projects the outline in face
 X/Y, selects vertices from the source mesh subset within a local front-surface depth band based
 on the anchor vertices (so lifting the contour in Z does not switch mesh layers), and
@@ -155,7 +150,8 @@ signature. Changing an anchor, face scale, or topology makes it
 stale; the editor reports that state and requires explicit regeneration before the region can be
 used. **Copy to Morph Target mask** creates an independent, editable snapshot of a current
 region's selected vertices and opens it for visual review. The copy does not remain linked to the
-source. The existing legacy and interim polygon-mask editors remain available. Surface falloff,
+source. The **Landmarks and regions** workflow instead shows Rig role management and classic vertex
+masks here; it does not show FACS region generation. Surface falloff,
 automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
 work.
 
@@ -165,12 +161,19 @@ generation retains its front-depth and mesh-subset rules; the generic polygon co
 for non-facial meshes separately. This first generic core derives binary vertex selections. Its
 stored falloff settings do not affect weights yet.
 
-Legacy vertex masks remain a compatibility representation for old projects and existing workflows.
-They are not the authoring surface for the new facial workflow, and the editor must not silently
-convert a legacy mask into a surface control. Their viewport visualization starts disabled and is
-kept hidden outside **Masks / Regions**, so it cannot be confused with the FACS-inspired controls.
-It can still be explicitly enabled while editing a legacy mask in that workspace for compatibility
-review.
+Projects choose one authoring workflow in **Setup**: **Landmarks and regions** uses classic facial
+landmarks, Rig roles, and vertex masks, while **FACS mask** uses surface-action templates, generated
+regions, and target masks. The choice is fixed for the project; start a new project to choose the
+other workflow. The workspace tree hides **FACS Action Unit Profiles** in the classic workflow and
+hides **Rig** in the FACS workflow. **Masks / Regions** also filters its controls by workflow:
+classic projects show Rig role management and classic masks; FACS projects show generated FACS
+regions and target masks. **Morph Targets**, **Expressions**, and **Clips** are shared. Project
+schema 20 stores the choice; schema 19 and earlier projects are rejected and must be recreated.
+
+Classic Rig role masks remain an authoring representation in the **Landmarks and regions** workflow.
+They are not silently converted into FACS surface controls. Their viewport visualization starts
+disabled and remains inside **Masks / Regions**. FACS target masks are created from generated regions
+or as explicit target masks in the FACS workflow.
 
 In the 3D viewport, left drag orbits and middle drag pans. Right click picks a vertex in Edit Target;
 right drag applies the selected brush in Paint Target. The selected target has a preview weight and
@@ -187,11 +190,11 @@ contribution marker for neighboring regions. The secondary marker is descriptive
 does not change the weight calculation.
 
 An Action Unit (AU) is a standardized label for an observable facial movement. For example, AU1
-describes raising the inner brow. The profile's AU identifies the facial action; the mapped target
-outputs define which deformations the mesh receives. The Action Unit combo is populated from the
-unique AU codes in the editor's facial-action templates. It does not accept arbitrary text. Saved
-profiles with an AU outside that catalog are retained, shown with a warning, and must be assigned a
-supported AU before validation, preview, or expression capture can succeed.
+identifies the inner brow raiser. The profile's AU names the action; mapped target outputs define
+which deformations the mesh receives. The combo shows each code with its standardized action name.
+The reference window lists the 44 single facial AUs and marks which have a supplied surface-mask
+template. A standardized AU without a template can still be profiled by manually mapping existing
+morph targets. The editor does not infer mappings from an AU name.
 
 The workspace does not infer target mappings from facial polygons or action lines. The user
 chooses each target explicitly. Multiple enabled profiles can be composed with **Add, clamp at 1**
@@ -202,22 +205,24 @@ and whether each mapped target has primary, secondary, or both contribution type
 
 **Capture as expression** stores the composed weights in the existing named-expression model. That
 expression can be used in the existing facial clip editor and MSH export workflow. AU profiles are
-saved in the facial project (schema 19); they do not add a runtime or MSH data section. The profile
-authoring layer does not model muscle anatomy or provide live capture input.
+saved in the facial project (schema 20); they do not add a runtime or MSH data section. The profile
+authoring layer does not model muscle anatomy or provide live capture input. The standard action
+names follow the [CMU FACS reference](https://www.cs.cmu.edu/afs/cs/project/face/www/facs.htm) and
+the [44 single-AU catalog](https://pub.h-brs.de/frontdoor/deliver/index/docId/3118/file/brsu_techreport_04_2017_TeenaHassan.pdf).
 
 The workspace list is a toolbox, not a required checklist. A FACS profile requires facial targets
-to exist first. For a morph-only flow, adapt templates in **Landmarks**, generate **Regions** when
-reusable vertex selections are needed, create or import targets in **Morph Targets**, then create a
-profile here, select its AU and side, and map its target outputs. Adjust the profile intensities,
-apply the composed preview or capture it as an expression, then use that expression in **Clips**.
-**Rig** is optional and belongs to bone and weight workflows. Profile edits, including **Include in
-preview**, take effect after clicking **Apply profile details**.
+to exist first. In a **FACS mask** project, adapt templates in **Landmarks**, generate **Regions**
+when reusable vertex selections are needed, create or import targets in **Morph Targets**, then
+create a profile here, select its AU and side, and map its target outputs. Adjust the profile
+intensities, apply the composed preview or capture it as an expression, then use that expression in
+**Clips**. Profile edits, including **Include in preview**, take effect after clicking **Apply profile
+details**.
 
 ## Project and MSH persistence
 
-Saving the facial project stores editor metadata, facial action masks and their surface controls,
-generated regions, legacy compatibility masks, FACS Action Unit profiles, expressions, clips, target
-selection, and preview weight. Target edits
+Saving the facial project stores the selected authoring workflow, editor metadata, facial action
+masks and their surface controls, generated regions, classic vertex masks, FACS Action Unit profiles,
+expressions, clips, target selection, and preview weight. Target edits
 are stored as sparse changes relative to the assigned source MSH.
 Reopening validates source target identity and topology before applying those changes. If the
 assigned MSH already contains the exact edited target set and deltas, the editor treats the project

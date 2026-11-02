@@ -38,9 +38,10 @@ from the facial-only workflow.
 
 ## Phase 1 - facial surface-control authoring and region generation
 
-The authoring source is **Landmarks**, not **Masks / Regions**. After the face origin is positioned,
-the editor loads a pre-defined facial-action template and the user adapts its controls directly on
-the visible mesh:
+In the **FACS Mask** workflow, the authoring source is **Landmarks**, not **Masks / Regions**. After
+the face origin is positioned, the editor loads a pre-defined facial-action template and the user
+adapts its controls directly on the visible mesh. The separate **Landmarks and Regions** workflow
+retains classic landmark and vertex-mask authoring:
 
 | Kind | Intended use | Initial semantics |
 | --- | --- | --- |
@@ -65,11 +66,11 @@ upper-lip, lower-lip, chin, jaw, and nose masks. Eye templates also expose an up
 eyelid action line. New facial projects receive all 15 masks after face-origin placement. Saved
 projects retain their authored catalog without automatic additions. Chin and jaw-hinge point
 landmarks already exist as optional rig references; their surface influence masks are separate.
-AU labels on these templates are semantic hints. The editor now
-derives binary front-surface regions explicitly from closed area polygons, tracks source edits and
-topology changes, and can copy a current region into an independent Morph Target selection mask.
-Surface falloff, rig-weight application, Blender transport, and AU-to-target profiles remain
-future milestones.
+AU labels on these templates are semantic hints. The editor derives binary front-surface regions
+explicitly from closed area polygons, tracks source edits and topology changes, and can copy a
+current region into an independent Morph Target selection mask. Surface falloff, automatic
+rig-weight assignment, and Blender transport remain future milestones. AU-to-target profile
+authoring is described in Phase 3.
 
 **Phase 1 controller relationships are implemented.** Each point controller stores direct links
 to controls and a contribution weight from 0 to 1. The Landmarks/FACS panel displays the links;
@@ -89,13 +90,22 @@ workflows. A generated region records its source-control identity, source topolo
 generation state. Editing a source control marks dependent regions stale; regeneration is explicit
 and must be reviewed before export or weight application.
 
-Legacy vertex masks remain loadable and editable for old projects. They are not converted
-automatically into polygons, polylines, or points. New projects start with surface-control
-authoring; a legacy mask is an explicit compatibility choice.
+New projects select one workflow in **Setup**. **Landmarks and Regions** uses classic landmark,
+Rig-role, and vertex-mask authoring; **FACS Mask** uses surface-action templates and derived
+regions. The saved choice is fixed for that project. The workspace tree includes Rig only in the
+classic path and FACS Action Unit Profiles only in the FACS path. **Masks / Regions** also filters
+its controls: classic projects show Rig role management and classic masks, while FACS projects show
+generated regions and target masks. Morph Targets, Expressions, and Clips are shared. Project
+schema 20 stores the workflow and rejects earlier project schemas; users must recreate those
+projects.
 
-The interim polygon-mask editor remains under **Masks / Regions** for compatibility. Generated
-regions are stored separately from these masks, and copying one into a target-selection mask is
-explicit; no automatic conversion or weight application occurs.
+Classic vertex masks are retained as a supported authoring representation in the **Landmarks and
+Regions** workflow. They are not converted automatically into polygons, polylines, or points.
+
+The classic vertex-mask and interim polygon-mask editors remain under **Masks / Regions** in the
+**Landmarks and Regions** workflow. Generated FACS regions are shown in the FACS path and stored
+separately; copying one into a target-selection mask is explicit, with no automatic conversion or
+weight application.
 
 The first surface-anchor implementation may use canonical mesh vertices. A later extension may
 anchor a point to a triangle plus barycentric coordinates when it must lie between existing vertices.
@@ -106,8 +116,10 @@ identity. Existing legacy vertex lists remain available for compatibility export
 
 Acceptance:
 
-- old facial projects load and save without changing legacy mask semantics;
-- a new project loads a facial-action template in the Landmarks worktree after the face origin is placed;
+- a new project requires one workflow choice in Setup before saving or opening its workspaces;
+- a project keeps its selected workflow, shows Rig only in the classic path and FACS Profiles only
+  in the FACS path, and filters Masks / Regions to that workflow;
+- a FACS project loads a facial-action template in the Landmarks worktree after the face origin is placed;
 - a brow template contains a pre-authored polygon, action-line polyline, group controller, and
   action-line controller;
 - paired eye, cheek, mouth-corner, and nasolabial templates use the same controls, palette, and
@@ -179,16 +191,16 @@ using the same region tools, without requiring face origin, facial landmarks, or
 
 **Milestone 3.1 - project Action Unit profiles (implemented; runtime use still needs visual
 verification).** The Facial Rig Editor now has a FACS Profiles workspace persisted in facial project
-schema 19. A profile defines:
+schema 20. A profile defines:
 
 - semantic name and optional left/right side;
-- an Action Unit chosen from the unique codes present in the editor's facial-action templates;
+- a standardized facial Action Unit code, shown with its action name;
 - normalized intensity range;
 - one or more output target references;
 - per-output weight, response curve, and optional clamp;
 - optional secondary contributions for neighboring facial regions;
-- diagnostics when a referenced target is missing or a saved Action Unit is outside the current
-  template catalog.
+- diagnostics when a referenced target is missing or a saved Action Unit is outside the standard
+  facial AU catalog.
 
 The workspace lets the user create and edit profiles, map outputs to the current mesh's facial
 targets, set each profile's normalized input range and preview intensity, and choose additive
@@ -203,14 +215,15 @@ The FACS profile metadata remains in the editor project; no new runtime or MSH p
 The current profile evaluator intentionally maps explicitly authored Action Units to existing
 targets. It does not infer mappings from facial polygons or action lines and does not simulate
 muscle anatomy. Profiles can be authored without a loaded mesh, but target mapping and evaluation
-require one. The Action Unit picker is limited to codes used by the facial-action templates. Older
-profiles with other text values remain saved, but must be reassigned to a supported AU before they
-can pass validation or participate in preview and expression capture.
+require one. The Action Unit picker lists the 44 single facial AUs with their standard action names.
+The reference window marks which AUs have an editor surface-mask template; other standardized AUs
+can still be profiled with manually mapped targets.
 
-The workspace tree is an inventory of tools, not a mandatory linear sequence. For the morph-only
-path, adapt FACS masks, generate regions if needed, create or import morph targets, map those targets
-to Action Units in profiles, capture an expression, and use it in clips. The Rig workspace is
-optional for this path and is used for bone and weight workflows.
+In the FACS workflow, the workspace order is **FACS Masks**, **Masks / Regions**, **Morph Targets**,
+**FACS Action Unit Profiles**, **Expressions**, then **Clips**. Adapt surface masks, generate
+regions if reusable vertex selections are useful, create or import morph targets, map targets to
+Action Units in profiles, capture an expression, and use it in clips. Rig is hidden in this
+workflow; choose **Landmarks and Regions** in a separate project for bone and weight authoring.
 
 Example:
 

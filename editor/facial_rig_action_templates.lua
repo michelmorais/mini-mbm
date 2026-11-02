@@ -23,15 +23,57 @@
 local M={}
 local tPointGizmo=require 'facial_surface_point_gizmo'
 
-local PREVIOUS_ACTION_LINE_COLORS={
-    brow_left={r=0.78,g=0.48,b=1,a=1},
-    brow_right={r=1,g=0.73,b=0.20,a=1}
-}
 local AREA_COLOR={r=0.15,g=0.85,b=1,a=1}
-local PREVIOUS_RIGHT_AREA_COLOR={r=1,g=0.35,b=0.75,a=1}
 local ACTION_LINE_COLOR={r=1,g=0.46,b=0.08,a=1}
 local CONTROLLER_COLOR={r=0.28,g=1,b=0.32,a=1}
 local LINE_CONTROLLER_COLOR={r=1,g=0.9,b=0.16,a=1}
+
+local FACS_ACTION_UNIT_CATALOG={
+    {code='AU1',nameEn='Inner Brow Raiser',namePt='Elevador interno da sobrancelha'},
+    {code='AU2',nameEn='Outer Brow Raiser',namePt='Elevador externo da sobrancelha'},
+    {code='AU4',nameEn='Brow Lowerer',namePt='Abaixador da sobrancelha'},
+    {code='AU5',nameEn='Upper Lid Raiser',namePt='Elevador da palpebra superior'},
+    {code='AU6',nameEn='Cheek Raiser',namePt='Elevador da bochecha'},
+    {code='AU7',nameEn='Lid Tightener',namePt='Apertador das palpebras'},
+    {code='AU8',nameEn='Lips Toward Each Other',namePt='Aproximacao dos labios'},
+    {code='AU9',nameEn='Nose Wrinkler',namePt='Enrugador do nariz'},
+    {code='AU10',nameEn='Upper Lip Raiser',namePt='Elevador do labio superior'},
+    {code='AU11',nameEn='Nasolabial Deepener',namePt='Aprofundador do sulco nasolabial'},
+    {code='AU12',nameEn='Lip Corner Puller',namePt='Puxador do canto dos labios'},
+    {code='AU13',nameEn='Cheek Puffer',namePt='Inflador da bochecha'},
+    {code='AU14',nameEn='Dimpler',namePt='Formador de covinha'},
+    {code='AU15',nameEn='Lip Corner Depressor',namePt='Abaixador do canto dos labios'},
+    {code='AU16',nameEn='Lower Lip Depressor',namePt='Abaixador do labio inferior'},
+    {code='AU17',nameEn='Chin Raiser',namePt='Elevador do queixo'},
+    {code='AU18',nameEn='Lip Puckerer',namePt='Projecao dos labios'},
+    {code='AU19',nameEn='Tongue Show',namePt='Exposicao da lingua'},
+    {code='AU20',nameEn='Lip Stretcher',namePt='Estirador dos labios'},
+    {code='AU21',nameEn='Neck Tightener',namePt='Tensionador do pescoco'},
+    {code='AU22',nameEn='Lip Funneler',namePt='Funilamento dos labios'},
+    {code='AU23',nameEn='Lip Tightener',namePt='Apertador dos labios'},
+    {code='AU24',nameEn='Lip Pressor',namePt='Pressionador dos labios'},
+    {code='AU25',nameEn='Lips Part',namePt='Separacao dos labios'},
+    {code='AU26',nameEn='Jaw Drop',namePt='Abertura da mandibula'},
+    {code='AU27',nameEn='Mouth Stretch',namePt='Alongamento da boca'},
+    {code='AU28',nameEn='Lip Suck',namePt='Sucao dos labios'},
+    {code='AU29',nameEn='Jaw Thrust',namePt='Projecao da mandibula'},
+    {code='AU30',nameEn='Jaw Sideways',namePt='Deslocamento lateral da mandibula'},
+    {code='AU31',nameEn='Jaw Clencher',namePt='Contracao da mandibula'},
+    {code='AU32',nameEn='Lip Bite',namePt='Mordida do labio'},
+    {code='AU33',nameEn='Blow',namePt='Sopro'},
+    {code='AU34',nameEn='Puff',namePt='Inflar as bochechas'},
+    {code='AU35',nameEn='Cheek Suck',namePt='Sucao das bochechas'},
+    {code='AU36',nameEn='Tongue Bulge',namePt='Protrusao da lingua'},
+    {code='AU37',nameEn='Lip Wipe',namePt='Passar a lingua nos labios'},
+    {code='AU38',nameEn='Nostril Dilator',namePt='Dilatador das narinas'},
+    {code='AU39',nameEn='Nostril Compressor',namePt='Compressor das narinas'},
+    {code='AU41',nameEn='Lid Droop',namePt='Queda da palpebra'},
+    {code='AU42',nameEn='Slit',namePt='Olhos semicerrados'},
+    {code='AU43',nameEn='Eyes Closed',namePt='Olhos fechados'},
+    {code='AU44',nameEn='Squint',namePt='Apertar os olhos'},
+    {code='AU45',nameEn='Blink',namePt='Piscar'},
+    {code='AU46',nameEn='Wink',namePt='Piscar um olho'}
+}
 
 local TEMPLATE_DEFINITIONS={
     {
@@ -316,77 +358,15 @@ local function copyColor(color)
     return {r=color.r,g=color.g,b=color.b,a=color.a}
 end
 
-local function sameRgb(left,right)
-    return left and right and left.r==right.r and left.g==right.g and left.b==right.b
-end
-
-local function stockGroupColor(group)
-    if not group then return false end
-    return sameRgb(group.color,AREA_COLOR) or
-        group.templateId=='brow_right' and sameRgb(group.color,PREVIOUS_RIGHT_AREA_COLOR)
-end
-
--- Older projects saved each shape with the same group color. Give their
--- action lines and controller distinct display colors without rewriting the
--- project. A separately authored shape color still takes precedence.
 function M.displayColor(group,control)
     local groupColor=group and group.color or AREA_COLOR
     local color=control and control.color
     local role=control and control.role
-    if role=='area' or not role then
-        local area=color or groupColor
-        if group and group.templateId=='brow_right' and
-                sameRgb(area,PREVIOUS_RIGHT_AREA_COLOR) then return AREA_COLOR end
-        return area
-    end
-    if role=='action_line' then
-        local previous=PREVIOUS_ACTION_LINE_COLORS[group and group.templateId]
-        if not color or sameRgb(color,previous) or
-                stockGroupColor(group) and sameRgb(color,groupColor) then
-            return ACTION_LINE_COLOR
-        end
-        return color
-    end
+    if role=='area' or not role then return color or groupColor end
+    if role=='action_line' then return color or ACTION_LINE_COLOR end
     if role=='controller' then return CONTROLLER_COLOR end
-    if color and not sameRgb(color,groupColor) then return color end
-    if role=='line_controller' then return LINE_CONTROLLER_COLOR end
+    if role=='line_controller' then return color or LINE_CONTROLLER_COLOR end
     return color or groupColor
-end
-
--- Only replace colors that came from older stock templates. Explicitly
--- authored colors remain untouched when a saved project is opened.
-function M.standardizeColors(project)
-    local changed=false
-    for _,group in ipairs(project and project.facialMasks or {}) do
-        local previousGroupColor=group.color
-        if group.templateId=='brow_right' and sameRgb(group.color,PREVIOUS_RIGHT_AREA_COLOR) then
-            group.color=copyColor(AREA_COLOR)
-            changed=true
-        end
-        for _,controlId in ipairs(group.controlIds or {}) do
-            local control=M.controlById(project,controlId)
-            if control and control.role=='controller' and
-                    (not sameRgb(control.color,CONTROLLER_COLOR) or control.color.a~=CONTROLLER_COLOR.a) then
-                control.color=copyColor(CONTROLLER_COLOR)
-                changed=true
-            elseif control and control.role=='area' and group.templateId=='brow_right' and
-                    sameRgb(control.color,PREVIOUS_RIGHT_AREA_COLOR) then
-                control.color=copyColor(AREA_COLOR)
-                changed=true
-            elseif control and control.role=='action_line' then
-                local oldAccent=PREVIOUS_ACTION_LINE_COLORS[group.templateId]
-                if sameRgb(control.color,oldAccent) or
-                        (sameRgb(previousGroupColor,AREA_COLOR) or
-                            group.templateId=='brow_right' and
-                            sameRgb(previousGroupColor,PREVIOUS_RIGHT_AREA_COLOR)) and
-                        sameRgb(control.color,previousGroupColor) then
-                    control.color=copyColor(ACTION_LINE_COLOR)
-                    changed=true
-                end
-            end
-        end
-    end
-    return changed
 end
 
 local function oppositeTemplateId(templateId)
@@ -518,52 +498,28 @@ local function linkControllers(project,group,onlyNew)
     return changed
 end
 
-local function fitLineControllerToExistingAction(control,project,group,topology,scale)
-    local x,y,z,count,anchorIndex=0,0,0,0,nil
-    for _,controlId in ipairs(group.controlIds or {}) do
-        local action=M.controlById(project,controlId)
-        if action and action.role=='action_line' and #(action.points or {})>0 then
-            local raw=action.points[math.ceil(#action.points*0.5)]
-            local index=type(raw)=='table' and raw.index or raw
-            local vertex=topology.vertices[index]
-            if vertex then
-                local offset=type(raw)=='table' and raw.offset or nil
-                x=x+vertex.x+(offset and offset.x or 0)
-                y=y+vertex.y+(offset and offset.y or 0)
-                z=z+vertex.z+(offset and offset.z or 0)+(action.depthOffset or 0)
-                count=count+1
-                anchorIndex=anchorIndex or index
-            end
-        end
-    end
-    if count==0 then return false end
-    local vertex=topology.vertices[anchorIndex]
-    control.points={{index=anchorIndex,offset={x=x/count-vertex.x,
-        y=y/count+scale*0.05-vertex.y,z=z/count-vertex.z}}}
-    control.topologySignature=topology.signature or ''
-    return true
-end
-
 function M.templates()
     return TEMPLATE_DEFINITIONS
 end
 
-function M.actionUnits()
-    local result,seen={},{}
+function M.actionUnitCatalog()
+    local templateCodes={}
     for _,definition in ipairs(TEMPLATE_DEFINITIONS) do
         for _,actionUnit in ipairs(definition.actionUnits or {}) do
-            if not seen[actionUnit] then
-                seen[actionUnit]=true
-                result[#result+1]=actionUnit
-            end
+            templateCodes[actionUnit]=true
         end
     end
-    table.sort(result,function(left,right)
-        local leftNumber=tonumber(left:match('^AU(%d+)$')) or math.huge
-        local rightNumber=tonumber(right:match('^AU(%d+)$')) or math.huge
-        if leftNumber==rightNumber then return left<right end
-        return leftNumber<rightNumber
-    end)
+    local result={}
+    for _,entry in ipairs(FACS_ACTION_UNIT_CATALOG) do
+        result[#result+1]={code=entry.code,nameEn=entry.nameEn,namePt=entry.namePt,
+            templateAvailable=templateCodes[entry.code]==true}
+    end
+    return result
+end
+
+function M.actionUnits()
+    local result={}
+    for _,entry in ipairs(FACS_ACTION_UNIT_CATALOG) do result[#result+1]=entry.code end
     return result
 end
 
@@ -602,58 +558,6 @@ function M.instantiate(project,topology,faceOrigin,scale)
     return true
 end
 
--- Add only a missing line controller to saved stock-template projects. Existing
--- contours, offsets, and group-controller placement remain authored data.
-function M.ensureLineControllers(project,topology,faceOrigin,scale)
-    if type(project)~='table' or type(topology)~='table' or type(faceOrigin)~='table' or
-            not faceOrigin.placed or #(topology.vertices or {})==0 then return false end
-    local changed=false
-    local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
-    for _,group in ipairs(project.facialMasks or {}) do
-        local definition
-        for _,candidate in ipairs(TEMPLATE_DEFINITIONS) do
-            if candidate.id==group.templateId then definition=candidate; break end
-        end
-        if definition then
-            local hasAction=false
-            for _,controlId in ipairs(group.controlIds or {}) do
-                local control=M.controlById(project,controlId)
-                if control and control.role=='action_line' then hasAction=true; break end
-            end
-            local id=definition.id..'_line_controller'
-            local controller=M.controlById(project,id)
-            if hasAction and not controller then
-                local shape
-                for _,candidate in ipairs(definition.shapes) do
-                    if candidate.role=='line_controller' then shape=candidate; break end
-                end
-                if shape then
-                    controller={id=id,name=id,groupId=group.id,role='line_controller',kind='point',
-                        closed=false,points={},topologySignature=topology.signature or '',depthOffset=0,
-                        color=copyColor(LINE_CONTROLLER_COLOR),relationships={},enabled=true}
-                    if not fitLineControllerToExistingAction(controller,project,group,topology,actualScale) then
-                        fitPoints(controller,shape,topology,faceOrigin,actualScale)
-                    end
-                    project.surfaceControls[#project.surfaceControls+1]=controller
-                    changed=true
-                end
-            end
-            if hasAction and controller then
-                local listed=false
-                for _,controlId in ipairs(group.controlIds or {}) do
-                    if controlId==id then listed=true; break end
-                end
-                if not listed then
-                    group.controlIds[#group.controlIds+1]=id
-                    changed=true
-                end
-                if linkControllers(project,group,true) then changed=true end
-            end
-        end
-    end
-    return changed
-end
-
 -- Refit only an explicitly selected stock template. Callers should take an
 -- undo snapshot before using this on an already authored project.
 function M.refit(project,topology,faceOrigin,scale,group)
@@ -664,30 +568,20 @@ function M.refit(project,topology,faceOrigin,scale,group)
         if candidate.id==group.templateId then definition=candidate break end
     end
     if not definition then return false end
-    local controls,additions={},{}
+    local controls={}
     for _,shape in ipairs(definition.shapes) do
         local id=definition.id..'_'..shape.id
         local control=M.controlById(project,id)
         if control then
             if control.groupId~=group.id then return false end
         else
-            if shape.role~='action_line' then return false end
-            control={id=id,name=id,groupId=group.id,role=shape.role,kind=shape.kind,
-                closed=shape.closed==true,points={},topologySignature=topology.signature or '',
-                depthOffset=0,color=copyColor(M.displayColor(group,{role=shape.role})),
-                relationships={},enabled=true}
-            additions[#additions+1]=control
+            return false
         end
         controls[#controls+1]={control=control,shape=shape}
     end
     local actualScale=math.max(tonumber(scale) or tonumber(faceOrigin.scale) or 1,1e-6)
     for _,entry in ipairs(controls) do
         fitPoints(entry.control,entry.shape,topology,faceOrigin,actualScale)
-    end
-    if #additions>0 then group.controlIds=group.controlIds or {} end
-    for _,control in ipairs(additions) do
-        project.surfaceControls[#project.surfaceControls+1]=control
-        group.controlIds[#group.controlIds+1]=control.id
     end
     group.actionUnits={}
     for _,actionUnit in ipairs(definition.actionUnits) do

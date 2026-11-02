@@ -29,6 +29,7 @@ local ROLE_NAMES = {
     'main_face', 'left_eye', 'right_eye', 'upper_teeth', 'lower_teeth',
     'tongue', 'brows', 'nose', 'mouth', 'hair', 'accessory'
 }
+local PROJECT_SCHEMA_VERSION=20
 
 local SOURCE_OBJECT_SUGGESTIONS = {
     main_face={'Head', 'Face', 'FaceMesh'},
@@ -91,7 +92,8 @@ end
 
 function M.new()
     return {
-        schemaVersion=19,
+        schemaVersion=PROJECT_SCHEMA_VERSION,
+        authoringWorkflow=nil,
         meshPath='',
         meshVertexCount=0,
         meshTopologySignature='',
@@ -111,7 +113,6 @@ function M.new()
         selectedFacialMask=1,
         selectedSurfaceControl=1,
         landmarkEditMode=1,
-        landmarkAuthoringMode='facs',
         morphTargetPreview={targetId='',weight=1},
         morphTargetPivots={},
         morphTargetEdits=nil,
@@ -138,7 +139,12 @@ end
 
 function M.normalize(project)
     if type(project) ~= 'table' then return nil, 'project must be a table' end
-    project.schemaVersion=math.max(19,tonumber(project.schemaVersion) or 1)
+    if tonumber(project.schemaVersion)~=PROJECT_SCHEMA_VERSION then
+        return nil,'unsupported facial project schema: '..tostring(project.schemaVersion)
+    end
+    if project.authoringWorkflow~='regions' and project.authoringWorkflow~='facs' then
+        project.authoringWorkflow=nil
+    end
     project.meshPath=type(project.meshPath) == 'string' and project.meshPath or ''
     project.meshVertexCount=math.max(0, math.floor(tonumber(project.meshVertexCount) or 0))
     project.meshTopologySignature=type(project.meshTopologySignature) == 'string' and
@@ -151,9 +157,6 @@ function M.normalize(project)
     project.masks=type(project.masks) == 'table' and project.masks or {}
     project.landmarks=type(project.landmarks) == 'table' and project.landmarks or defaultLandmarks()
     project.facialMasks=type(project.facialMasks)=='table' and project.facialMasks or {}
-    if project.landmarkAuthoringMode~='regions' and project.landmarkAuthoringMode~='facs' then
-        project.landmarkAuthoringMode=#project.facialMasks>0 and 'facs' or 'regions'
-    end
     project.surfaceControls=type(project.surfaceControls)=='table' and project.surfaceControls or {}
     if type(project.faceOrigin) ~= 'table' then project.faceOrigin=defaultFaceOrigin() end
     project.faceOrigin.placed=project.faceOrigin.placed == true
@@ -249,10 +252,8 @@ function M.normalize(project)
             mask.roleIndex=math.max(1,math.floor(tonumber(mask.roleIndex) or 1))
             mask.purpose=mask.purpose=='target' and 'target' or 'rig'
             mask.representation=mask.representation=='polygon' and 'polygon' or 'vertex'
-            -- Normalize the serialized list before any read-only review runs. Older
-            -- editor versions could leave boolean set-members in this array while
-            -- calculating a binding review; discard those malformed values and keep
-            -- one canonical integer entry for each vertex.
+            -- Normalize the serialized list before any read-only review runs;
+            -- retain one canonical integer entry for each valid vertex.
             local normalizedVertices,seenVertices={},{}
             for _,rawIndex in ipairs(type(mask.vertices)=='table' and mask.vertices or {}) do
                 local vertexIndex=tonumber(rawIndex)
@@ -603,6 +604,10 @@ function M.validate(project, meshLoaded, topology)
         report.ok=false
         report.errors[#report.errors + 1]='project is missing'
         return report
+    end
+    if project.authoringWorkflow~='regions' and project.authoringWorkflow~='facs' then
+        report.ok=false
+        report.errors[#report.errors+1]='authoring workflow is not selected'
     end
     if not meshLoaded or project.meshPath == '' then
         report.ok=false
@@ -985,8 +990,11 @@ end
 
 function M.save(project, path, serializer)
     if type(serializer) ~= 'function' then return false, 'serializer is missing' end
+    local normalized,errorMessage=M.normalize(project)
+    if not normalized then return false,errorMessage end
+    if not normalized.authoringWorkflow then return false,'authoring workflow is not selected' end
     local lines={'-- mini-mbm facial rig project', 'local facialProject = {}'}
-    serializer('facialProject', project, lines)
+    serializer('facialProject', normalized, lines)
     lines[#lines + 1]='return facialProject'
     local file, errorMessage = io.open(path, 'w')
     if not file then return false, errorMessage end
@@ -1000,7 +1008,10 @@ function M.load(path)
     if not chunk then return nil, errorMessage end
     local ok, project = pcall(chunk)
     if not ok then return nil, project end
-    return M.normalize(project)
+    local normalized,normalizeError=M.normalize(project)
+    if not normalized then return nil,normalizeError end
+    if not normalized.authoringWorkflow then return nil,'project authoring workflow is missing' end
+    return normalized
 end
 
 return M

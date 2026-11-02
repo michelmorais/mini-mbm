@@ -86,9 +86,8 @@ local state = {
         lastTime=0,lastHit=nil,forceSurfaceHit=true},
     maskVisualization={dirty=true,needsBuild=true,building=false,buildCursor=0,buildTotal=0,
         buildSelected=nil,buildSurfaceCoords=nil,buildSurfaceUvs=nil,buildSurfaceIndices=nil,
-        -- The legacy mask remains loadable/editable for compatibility, but its
-        -- viewport overlay starts disabled so it cannot be confused with the
-        -- FACS-inspired facial action masks in the Landmarks workspace.
+        -- Classic vertex-mask editing is a separate workflow. Keep its overlay
+        -- disabled initially so it cannot be confused with FACS surface masks.
         visible=false,surface=nil,faces=nil,markers=nil,hoverMarker=nil,
         hoverFace=nil,hoverTriangleKey=nil,hoverIndex=nil,vertexCount=0,faceCount=0,markerCount=0,
         surfaceUvDirty=false,surfaceUvCallbackArmed=false,surfaceUvChanges={},
@@ -119,7 +118,9 @@ local state = {
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     facsProfileEditor={nameDraft='',actionUnitDraft='AU1',sideDraft=1,
         outputTarget=1,expressionNameDraft='',draftProfileId=nil,profileNames={},profileNamesDirty=true,
-        actionUnitValues=nil,actionUnitLabels=nil,detailName='',detailActionUnit='',detailActionUnitIndex=1,
+        actionUnitValues=nil,actionUnitLabels=nil,actionUnitCatalog=nil,actionUnitDisplayByCode=nil,
+        actionUnitLanguage=nil,actionUnitReferenceOpen=false,
+        detailName='',detailActionUnit='',detailActionUnitIndex=1,
         detailSide=1,detailMin=0,detailMax=1,
         detailIntensity=0,detailEnabled=true,validationDirty=true,validation=nil,
         targetNames={},targetNamesDirty=true,language=nil,sideOptions=nil,sideValues=nil,
@@ -361,11 +362,15 @@ local function localizedProjectMessage(message)
     if name then return string.format(tLang.L('fre_error_mask_stale_fmt'),name) end
     name=diagnosticName('^mask has an invalid or duplicate vertex:?%s*(.+)$')
     if name then return string.format(tLang.L('fre_error_mask_invalid_vertex_fmt'),name) end
+    local schema=diagnosticName('^unsupported facial project schema:?%s*(.+)$')
+    if schema then return string.format(tLang.L('fre_error_project_schema_unsupported_fmt'),schema) end
     local exact={
         ['mesh topology changed since the project was saved']='fre_error_mesh_topology',
         ['mesh vertex count changed since the project was saved']='fre_error_mesh_vertex_count',
         ['mesh is not loaded']='fre_error_mesh_not_loaded',
         ['project is missing']='fre_error_project_missing',
+        ['authoring workflow is not selected']='fre_error_authoring_workflow_required',
+        ['project authoring workflow is missing']='fre_error_authoring_workflow_missing',
         ['face origin is not placed']='fre_error_face_origin',
         ['face origin vertex is outside the current topology']='fre_error_face_origin_vertex',
         ['mask has no name']='fre_error_mask_no_name',
@@ -947,7 +952,7 @@ local function applyCamera()
     local z=c.fz+c.distance*math.cos(c.elevation)*math.cos(c.azimuth)
     camera3d:setPos(x,y,z)
     camera3d:setFocus(c.fx,c.fy,c.fz)
-    if state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='facs' then
+    if state.workspace=='landmarks' and state.project.authoringWorkflow=='facs' then
         state.surfaceControlOverlay.selectionDirty=true
     end
 end
@@ -1137,7 +1142,7 @@ local function refreshFaceGuide()
     local guide=state.faceGuide
     local origin=state.project and state.project.faceOrigin
     if (state.workspace~='face_position' and
-            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions' or
+            (state.workspace~='landmarks' or state.project.authoringWorkflow~='regions' or
                 not state.showLandmarkGuide)) or
             not state.mesh or not origin or not origin.placed then
         hideFaceGuide()
@@ -1590,7 +1595,7 @@ local function refreshLandmarkMarkers()
         end
         local originPlaced=state.project.faceOrigin and state.project.faceOrigin.placed
         local visible=state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='regions' and state.showLandmarkGuide and
+            state.project.authoringWorkflow=='regions' and state.showLandmarkGuide and
             state.mesh.visible and landmark.placed and landmark.position and not originPlaced
         marker.visible=visible and true or false
         if landmark.position then marker:setPos(landmark.position.x,landmark.position.y,landmark.position.z) end
@@ -1623,15 +1628,15 @@ setSurfaceControlOverlayVisible=function(visible)
     overlay.visible=visible==true
     for _,object in pairs(overlay.lines or {}) do
         object.visible=overlay.visible and state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='facs'
+            state.project.authoringWorkflow=='facs'
     end
     for _,object in pairs(overlay.markers or {}) do
         object.visible=overlay.visible and state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='facs'
+            state.project.authoringWorkflow=='facs'
     end
     for _,object in pairs(state.surfacePointGizmo.axes) do
         object.visible=overlay.visible and state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='facs'
+            state.project.authoringWorkflow=='facs'
     end
 end
 
@@ -1675,7 +1680,7 @@ refreshSurfaceControlOverlay=function(selectionOnly)
     end
     local groups=state.project.facialMasks or {}
     local visible=overlay.visible and state.workspace=='landmarks' and
-        state.project.landmarkAuthoringMode=='facs'
+        state.project.authoringWorkflow=='facs'
     local activeLines,emptyControls=not selectionOnly and {} or nil,{}
     for groupIndex,group in ipairs(groups) do
         local updateGroup=not selectionOnly or groupIndex==state.selectedFacialMask or
@@ -1841,7 +1846,7 @@ end
 
 ensureFacialActionTemplates=function()
     local origin=state.project and state.project.faceOrigin
-    if state.project.landmarkAuthoringMode~='facs' or not state.topology or not origin or
+    if state.project.authoringWorkflow~='facs' or not state.topology or not origin or
             not origin.placed or #(state.project.facialMasks or {})>0 then return false end
     if not tFacialActionTemplates.instantiate(state.project,state.topology,origin,origin.scale) then return false end
     state.maskVisualization.visible=false
@@ -2985,7 +2990,9 @@ local function loadMesh(path, preserveProject)
     -- would change depth ordering and is therefore not appropriate here.
     state.mesh.alwaysRender=true
     if not preserveProject then
+        local authoringWorkflow=state.project and state.project.authoringWorkflow
         state.project=tFacialProject.new()
+        state.project.authoringWorkflow=authoringWorkflow
         state.facsProfileEditor.profileNamesDirty=true
         state.facsProfileEditor.draftProfileId=nil
         state.facsProfileEditor.validationDirty=true
@@ -3000,10 +3007,6 @@ local function loadMesh(path, preserveProject)
     if not preserveProject or state.project.meshTopologySignature=='' then
         tFacialProject.setTopology(state.project,topology)
     end
-    local standardizedColors=preserveProject and
-        tFacialActionTemplates.standardizeColors(state.project) or false
-    local addedLineControllers=preserveProject and tFacialActionTemplates.ensureLineControllers(
-        state.project,topology,state.project.faceOrigin,state.project.faceOrigin.scale) or false
     state.selectedRole=state.project.selectedRole or 1
     state.selectedLandmark=state.project.selectedLandmark or 1
     state.selectedMask=state.project.selectedMask or 1
@@ -3012,8 +3015,7 @@ local function loadMesh(path, preserveProject)
     state.relationshipReview=nil
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
-    state.modified=embeddedTargetEdits or standardizedColors or addedLineControllers or
-        (preserveProject and state.modified or true)
+    state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
     markLandmarkMarkersDirty()
     markFaceGuideDirty()
     state.rigPreview.dirty=true
@@ -3071,6 +3073,7 @@ local function newProject()
     state.facsProfileEditor.validationDirty=true
     state.facsProfileEditor.previewDirty=true
     state.projectPath=nil
+    state.workspace='setup'
     state.blenderBridgePath=nil
     state.blenderSourcePath=nil
     state.blenderGeneratedBlendPath=nil
@@ -3108,7 +3111,7 @@ end
 
 local function openMesh()
     local path=mbm.openFile(state.project.meshPath or '', 'msh')
-    if path then loadMesh(path,state.project.meshPath~='') end
+    if path then loadMesh(path,state.project.meshPath~='' or state.project.authoringWorkflow~=nil) end
 end
 
 local function openProject()
@@ -3128,6 +3131,7 @@ local function openProject()
     state.facsProfileEditor.validationDirty=true
     state.facsProfileEditor.previewDirty=true
     state.projectPath=path
+    state.workspace='setup'
     state.modified=false
     local projectNeedsSync=false
     if project.meshPath~='' then
@@ -3168,7 +3172,7 @@ local function openProject()
     state.relationshipReview=nil
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
-    state.showLandmarkGuide=project.landmarkAuthoringMode=='regions'
+    state.showLandmarkGuide=project.authoringWorkflow=='regions'
     clearHistory()
     if projectNeedsSync then
         setStatus(tLang.L('fre_target_project_embedded_sync'),false)
@@ -3178,6 +3182,10 @@ local function openProject()
 end
 
 local function saveProject(path)
+    if not state.project.authoringWorkflow then
+        setStatus(tLang.L('fre_authoring_workflow_required'),true)
+        return false
+    end
     path=path or state.projectPath
     if not path or path=='' then return false end
     state.project.selectedRole=state.selectedRole
@@ -3227,6 +3235,10 @@ local function saveProject(path)
 end
 
 local function saveProjectAs()
+    if not state.project.authoringWorkflow then
+        setStatus(tLang.L('fre_authoring_workflow_required'),true)
+        return false
+    end
     local path=mbm.saveFile(state.projectPath or 'facial-rig.lua','lua')
     if path then saveProject(path) end
 end
@@ -3750,6 +3762,10 @@ local function showExportWindow()
 end
 
 local function selectWorkspace(workspace)
+    local workflow=state.project.authoringWorkflow
+    if workspace~='setup' and not workflow then return end
+    if workspace=='rig' and workflow~='regions' then return end
+    if workspace=='facs_profiles' and workflow~='facs' then return end
     local nextWorkspace=state.workspace==workspace and nil or workspace
     if nextWorkspace~='targets' then
         releaseMirrorPreview()
@@ -3757,11 +3773,9 @@ local function selectWorkspace(workspace)
     end
     state.workspace=nextWorkspace
     setSurfaceControlOverlayVisible(state.workspace=='landmarks' and
-        state.project.landmarkAuthoringMode=='facs')
+        state.project.authoringWorkflow=='facs')
     if state.workspace~='masks' then
-        -- Legacy mask geometry is a compatibility view. Keep it out of every
-        -- other workspace, especially Landmarks where FACS action templates
-        -- are authored and reviewed.
+        -- Classic vertex-mask geometry belongs only in Masks / Regions.
         state.maskVisualization.visible=false
     end
     if nextWorkspace=='targets' and state.targetAuthoring.mode==4 then
@@ -3799,6 +3813,31 @@ local function showSetup()
     if tImGui.Button(tLang.L('fre_open_mesh')) then openMesh() end
     tImGui.SameLine()
     if tImGui.Button(tLang.L('fre_open_project')) then openProject() end
+    tImGui.Separator()
+    tImGui.Text(tLang.L('fre_landmark_authoring_mode'))
+    if not state.project.authoringWorkflow then
+        local selectedWorkflow=0
+        selectedWorkflow=tImGui.RadioButton(tLang.L('fre_landmark_authoring_regions'),selectedWorkflow,1)
+        tImGui.SameLine()
+        selectedWorkflow=tImGui.RadioButton(tLang.L('fre_landmark_authoring_facs'),selectedWorkflow,2)
+        tImGui.TextWrapped(tLang.L('fre_authoring_workflow_help'))
+        if selectedWorkflow==1 or selectedWorkflow==2 then
+            state.project.authoringWorkflow=selectedWorkflow==2 and 'facs' or 'regions'
+            state.showLandmarkGuide=selectedWorkflow==1
+            markModified()
+            setStatus(tLang.L('fre_authoring_workflow_selected'),false)
+        end
+    else
+        local workflowLabel=tLang.L(state.project.authoringWorkflow=='facs' and
+            'fre_landmark_authoring_facs' or 'fre_landmark_authoring_regions')
+        tImGui.Text(string.format(tLang.L('fre_authoring_workflow_selected_fmt'),workflowLabel))
+        tImGui.TextWrapped(tLang.L(state.project.authoringWorkflow=='facs' and
+            'fre_authoring_workflow_facs_help' or 'fre_authoring_workflow_regions_help'))
+        tImGui.TextDisabled(tLang.L('fre_authoring_workflow_locked'))
+    end
+    if tImGui.Button(tLang.L('fre_facs_au_reference_button')..'##freAUReferenceSetup') then
+        state.facsProfileEditor.actionUnitReferenceOpen=true
+    end
     if not state.mesh then
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
@@ -3811,8 +3850,10 @@ local function showSetup()
         mappedVertices=mappedVertices+#(indices or {})
     end
     tImGui.Text(string.format(tLang.L('fre_source_map_summary_fmt'),mappedObjects,mappedVertices))
-    tImGui.TextWrapped(tLang.L('fre_setup_roles_help'))
-    tImGui.Text(string.format(tLang.L('fre_role_summary_fmt'),#state.project.roles,#state.project.masks))
+    if state.project.authoringWorkflow=='regions' then
+        tImGui.TextWrapped(tLang.L('fre_setup_roles_help'))
+        tImGui.Text(string.format(tLang.L('fre_role_summary_fmt'),#state.project.roles,#state.project.masks))
+    end
 end
 
 local function deleteSelectedMask()
@@ -3853,89 +3894,108 @@ local function showMasks()
         tImGui.TextDisabled(tLang.L('fre_no_mesh'))
         return
     end
-    tImGui.Text(tLang.L('fre_generated_regions'))
-    local groups=state.project.facialMasks or {}
-    if #groups==0 then
-        tImGui.TextDisabled(tLang.L('fre_generated_regions_need_shapes'))
-        tImGui.Separator()
-    else
-        local language=tLang.getLanguage()
-        local cache=state.generatedRegionNamesCache
-        if not cache or cache.groups~=groups or cache.count~=#groups or cache.language~=language then
-            local names={}
-            for _,group in ipairs(groups) do
-                names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
-                    (group.name or group.id or '')
+    local facsWorkflow=state.project.authoringWorkflow=='facs'
+    local masks=state.project.masks or {}
+    if facsWorkflow then
+        tImGui.Text(tLang.L('fre_generated_regions'))
+        local groups=state.project.facialMasks or {}
+        if #groups==0 then
+            tImGui.TextDisabled(tLang.L('fre_generated_regions_need_shapes'))
+            tImGui.Separator()
+        else
+            local language=tLang.getLanguage()
+            local cache=state.generatedRegionNamesCache
+            if not cache or cache.groups~=groups or cache.count~=#groups or cache.language~=language then
+                local names={}
+                for _,group in ipairs(groups) do
+                    names[#names+1]=group.nameKey and group.nameKey~='' and tLang.L(group.nameKey) or
+                        (group.name or group.id or '')
+                end
+                cache={groups=groups,count=#groups,language=language,names=names}
+                state.generatedRegionNamesCache=cache
             end
-            cache={groups=groups,count=#groups,language=language,names=names}
-            state.generatedRegionNamesCache=cache
-        end
-        local selected=math.max(1,math.min(#groups,state.selectedFacialMask or 1))
-        tImGui.SetNextItemWidth(300)
-        local changed,index=tImGui.Combo(tLang.L('fre_generated_region_source')..'##freRegionSource',
-            selected,cache.names)
-        if changed then
-            selected=index
-            state.selectedFacialMask=index
-            state.project.selectedFacialMask=index
-            state.selectedSurfaceControlPoint=nil
-            state.surfaceControlOverlay.selectionDirty=true
-        end
-        local group=groups[selected]
-        local region=tGeneratedRegions.regionForGroup(state.project,group)
-        local status=tGeneratedRegions.status(state.project,state.topology,region)
-        local statusKey='fre_generated_region_status_'..status
-        tImGui.TextWrapped(tLang.L(statusKey))
-        if region then
-            tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
-                #(region.derivedVertexWeights or region.vertexWeights or {})))
-        end
-        local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
-        if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
-            pushUndoSnapshot()
-            local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
-            if generated then
-                markModified()
-                setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
-                    #(generated.derivedVertexWeights or generated.vertexWeights or {})),false)
-            else
-                table.remove(state.undoStack)
-                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+            local selected=math.max(1,math.min(#groups,state.selectedFacialMask or 1))
+            tImGui.SetNextItemWidth(300)
+            local changed,index=tImGui.Combo(tLang.L('fre_generated_region_source')..'##freRegionSource',
+                selected,cache.names)
+            if changed then
+                selected=index
+                state.selectedFacialMask=index
+                state.project.selectedFacialMask=index
+                state.selectedSurfaceControlPoint=nil
+                state.surfaceControlOverlay.selectionDirty=true
             end
-        end
-        showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
-        tImGui.SameLine()
-        tImGui.BeginDisabled(status~='ready')
-        if tImGui.Button(tLang.L('fre_generated_region_copy_target')..'##freRegionCopyTarget') then
-            local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
-            if not vertices then
-                setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
-            else
+            local group=groups[selected]
+            local region=tGeneratedRegions.regionForGroup(state.project,group)
+            local status=tGeneratedRegions.status(state.project,state.topology,region)
+            local statusKey='fre_generated_region_status_'..status
+            tImGui.TextWrapped(tLang.L(statusKey))
+            if region then
+                tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
+                    #(region.derivedVertexWeights or region.vertexWeights or {})))
+            end
+            local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
+            if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
                 pushUndoSnapshot()
-                local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
-                mask.vertices=vertices
-                mask.topologySignature=region.topologySignature
-                state.selectedMask=#state.project.masks
-                state.project.selectedMask=state.selectedMask
-                state.maskWorkspaceMode=3
-                markMaskVisualizationDirty()
-                markModified()
-                startMaskVisualizationBuild()
-                setStatus(tLang.L('fre_generated_region_copied'),false)
+                local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
+                if generated then
+                    markModified()
+                    setStatus(string.format(tLang.L('fre_generated_region_done_fmt'),
+                        #(generated.derivedVertexWeights or generated.vertexWeights or {})),false)
+                else
+                    table.remove(state.undoStack)
+                    setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+                end
             end
+            showHelpTooltip(tLang.L('fre_generated_region_generate_help'))
+            tImGui.SameLine()
+            tImGui.BeginDisabled(status~='ready')
+            if tImGui.Button(tLang.L('fre_generated_region_copy_target')..'##freRegionCopyTarget') then
+                local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
+                if not vertices then
+                    setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+                else
+                    pushUndoSnapshot()
+                    local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
+                    mask.vertices=vertices
+                    mask.topologySignature=region.topologySignature
+                    state.selectedMask=#state.project.masks
+                    state.project.selectedMask=state.selectedMask
+                    state.maskWorkspaceMode=3
+                    markMaskVisualizationDirty()
+                    markModified()
+                    startMaskVisualizationBuild()
+                    setStatus(tLang.L('fre_generated_region_copied'),false)
+                end
+            end
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_generated_region_copy_help'))
+            tImGui.Separator()
         end
-        tImGui.EndDisabled()
-        showHelpTooltip(tLang.L('fre_generated_region_copy_help'))
-        tImGui.Separator()
+    end
+
+    local availableMaskCount,firstAvailableMask=0,nil
+    for index,mask in ipairs(masks) do
+        if not facsWorkflow or not tFacialProject.isRigMask(mask) then
+            availableMaskCount=availableMaskCount+1
+            firstAvailableMask=firstAvailableMask or index
+        end
+    end
+    if facsWorkflow and tFacialProject.isRigMask(masks[state.selectedMask]) then
+        state.selectedMask=firstAvailableMask or 1
+        state.project.selectedMask=state.selectedMask
     end
     local maskMode=state.maskWorkspaceMode or 2
-    if #(state.project.masks or {})==0 and maskMode==3 then maskMode=2 end
+    if facsWorkflow and maskMode==1 then maskMode=2 end
+    if availableMaskCount==0 and maskMode==3 then maskMode=2 end
     local previousMaskMode=state.maskWorkspaceMode
-    maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_roles'),maskMode,1)
-    tImGui.SameLine()
+    if not facsWorkflow then
+        maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_roles'),maskMode,1)
+        tImGui.SameLine()
+    end
     maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_manage'),maskMode,2)
     tImGui.SameLine()
-    tImGui.BeginDisabled(#(state.project.masks or {})==0)
+    tImGui.BeginDisabled(availableMaskCount==0)
     maskMode=tImGui.RadioButton(tLang.L('fre_masks_mode_edit'),maskMode,3)
     tImGui.EndDisabled()
     state.maskWorkspaceMode=maskMode
@@ -4094,32 +4154,35 @@ local function showMasks()
         tImGui.TableSetupColumn(tLang.L('fre_role_column'))
         tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'))
         tImGui.TableHeadersRow()
-        for index,mask in ipairs(state.project.masks) do
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-            local maskLabel=(mask.name or tLang.L('fre_unassigned')) .. '##freMaskRow' .. index
-            if tImGui.Selectable(maskLabel,index==state.selectedMask) then
-                state.selectedMask=index
-                state.maskPolygonSelectedPoint=nil
-                state.maskRepresentationChangePending=nil
-                state.maskDeletePending=nil
-                markMaskVisualizationDirty()
-                if maskMode==3 then startMaskVisualizationBuild() end
+        for index,mask in ipairs(masks) do
+            if not facsWorkflow or not tFacialProject.isRigMask(mask) then
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                local maskLabel=(mask.name or tLang.L('fre_unassigned')) .. '##freMaskRow' .. index
+                if tImGui.Selectable(maskLabel,index==state.selectedMask) then
+                    state.selectedMask=index
+                    state.maskPolygonSelectedPoint=nil
+                    state.maskRepresentationChangePending=nil
+                    state.maskDeletePending=nil
+                    markMaskVisualizationDirty()
+                    if maskMode==3 then startMaskVisualizationBuild() end
+                end
+                tImGui.TableSetColumnIndex(1)
+                tImGui.Text(tLang.L(mask.representation=='polygon' and
+                    'fre_mask_representation_polygon' or 'fre_mask_representation_legacy'))
+                tImGui.TableSetColumnIndex(2)
+                local rigMask=tFacialProject.isRigMask(mask)
+                local role=rigMask and state.project.roles[mask.roleIndex or 1]
+                tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
+                    tLang.L('fre_target_mask_scope'))
+                tImGui.TableSetColumnIndex(3)
+                tImGui.Text(tostring(#(mask.vertices or {})))
             end
-            tImGui.TableSetColumnIndex(1)
-            tImGui.Text(tLang.L(mask.representation=='polygon' and
-                'fre_mask_representation_polygon' or 'fre_mask_representation_legacy'))
-            tImGui.TableSetColumnIndex(2)
-            local rigMask=tFacialProject.isRigMask(mask)
-            local role=rigMask and state.project.roles[mask.roleIndex or 1]
-            tImGui.Text(rigMask and (role and role.name or tLang.L('fre_unassigned')) or
-                tLang.L('fre_target_mask_scope'))
-            tImGui.TableSetColumnIndex(3)
-            tImGui.Text(tostring(#(mask.vertices or {})))
         end
         tImGui.EndTable()
     end
-    local selectedMask=state.project.masks[state.selectedMask]
+    local selectedMask=masks[state.selectedMask]
+    if facsWorkflow and tFacialProject.isRigMask(selectedMask) then selectedMask=nil end
     if selectedMask then
         local visualizationReady=not state.maskVisualization.building and
             (not state.maskVisualization.needsBuild or state.maskVisualization.surface~=nil)
@@ -4643,24 +4706,7 @@ local function snapSelectedLandmarkDepthToSurface()
 end
 
 local function showLandmarks()
-    local authoringMode=state.project.landmarkAuthoringMode=='facs' and 2 or 1
-    tImGui.Text(tLang.L('fre_landmark_authoring_mode'))
-    authoringMode=tImGui.RadioButton(tLang.L('fre_landmark_authoring_regions'),authoringMode,1)
-    tImGui.SameLine()
-    authoringMode=tImGui.RadioButton(tLang.L('fre_landmark_authoring_facs'),authoringMode,2)
-    if authoringMode~=(state.project.landmarkAuthoringMode=='facs' and 2 or 1) then
-        state.project.landmarkAuthoringMode=authoringMode==2 and 'facs' or 'regions'
-        if authoringMode==1 then state.showLandmarkGuide=true end
-        state.selectedSurfaceControlPoint=nil
-        state.relationshipReview=nil
-        state.surfaceControlDrag=nil
-        state.surfacePointGizmo.drag=nil
-        state.surfaceControlOverlay.dirty=true
-        state.landmarkMarkersDirty=true
-        state.faceGuideDirty=true
-        markModified()
-    end
-    tImGui.TextWrapped(tLang.L(authoringMode==2 and
+    tImGui.TextWrapped(tLang.L(state.project.authoringWorkflow=='facs' and
         'fre_landmark_authoring_facs_help' or 'fre_landmark_authoring_regions_help'))
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_landmark_edit_mode'))
@@ -4987,6 +5033,7 @@ showFACSProfiles=function()
     local language=tLang.getLanguage()
     if editor.language~=language then
         editor.language=language
+        editor.profileNamesDirty=true
         editor.sideOptions={tLang.L('fre_facs_profile_side_bilateral'),
             tLang.L('fre_facs_profile_side_left'),tLang.L('fre_facs_profile_side_right')}
         editor.sideValues={'bilateral','left','right'}
@@ -4997,11 +5044,18 @@ showFACSProfiles=function()
             tLang.L('fre_facs_profile_curve_ease_out')}
         editor.responseValues={'linear','smoothstep','ease_in','ease_out'}
     end
-    if not editor.actionUnitValues then
-        editor.actionUnitValues=tFacialActionTemplates.actionUnits()
+    if editor.actionUnitLanguage~=language then
+        editor.actionUnitLanguage=language
+        editor.actionUnitCatalog=tFacialActionTemplates.actionUnitCatalog()
+        editor.actionUnitValues={}
         editor.actionUnitLabels={}
-        for index,actionUnit in ipairs(editor.actionUnitValues) do
-            editor.actionUnitLabels[index]=actionUnit
+        editor.actionUnitDisplayByCode={}
+        for index,entry in ipairs(editor.actionUnitCatalog) do
+            local actionName=language=='pt_br' and entry.namePt or entry.nameEn
+            local label=entry.code..' - '..actionName
+            editor.actionUnitValues[index]=entry.code
+            editor.actionUnitLabels[index]=label
+            editor.actionUnitDisplayByCode[entry.code]=label
         end
     end
 
@@ -5009,6 +5063,9 @@ showFACSProfiles=function()
     tImGui.TextWrapped(tLang.L('fre_facs_profile_help'))
     tImGui.TextWrapped(tLang.L('fre_facs_profile_what_is_au'))
     tImGui.TextWrapped(tLang.L('fre_facs_profile_workflow'))
+    if tImGui.Button(tLang.L('fre_facs_au_reference_button')..'##freAUReferenceProfiles') then
+        editor.actionUnitReferenceOpen=true
+    end
     if not state.mesh then tImGui.TextDisabled(tLang.L('fre_facs_profile_mesh_required')) end
 
     tImGui.Separator()
@@ -5019,7 +5076,7 @@ showFACSProfiles=function()
     for index,actionUnit in ipairs(editor.actionUnitValues) do
         if actionUnit==editor.actionUnitDraft then actionUnitIndex=index; break end
     end
-    tImGui.SetNextItemWidth(180)
+    tImGui.SetNextItemWidth(300)
     local actionChanged,actionIndex=tImGui.Combo(tLang.L('fre_facs_profile_au')..'##freFACSNewAU',
         actionUnitIndex,editor.actionUnitLabels)
     if actionChanged then editor.actionUnitDraft=editor.actionUnitValues[actionIndex] end
@@ -5057,7 +5114,8 @@ showFACSProfiles=function()
     if editor.profileNamesDirty then
         editor.profileNames={}
         for _,profile in ipairs(profiles) do
-            editor.profileNames[#editor.profileNames+1]=profile.name..' ['..profile.actionUnit..' - '..profile.side..']'
+            local actionLabel=editor.actionUnitDisplayByCode[profile.actionUnit] or profile.actionUnit
+            editor.profileNames[#editor.profileNames+1]=profile.name..' ['..actionLabel..' - '..profile.side..']'
         end
         editor.profileNamesDirty=false
     end
@@ -5097,7 +5155,7 @@ showFACSProfiles=function()
                 tImGui.TextDisabled(string.format(tLang.L('fre_facs_profile_unsupported_au_fmt'),
                     editor.detailActionUnit or ''))
             end
-            tImGui.SetNextItemWidth(180)
+            tImGui.SetNextItemWidth(300)
             local detailAUChanged,detailAUIndex=tImGui.Combo(
                 tLang.L('fre_facs_profile_au')..'##freFACSDetailAU',editor.detailActionUnitIndex,
                 editor.actionUnitLabels)
@@ -6262,12 +6320,19 @@ end
 
 local function showWorkspaceTree()
     tImGui.Text(tLang.L('fre_workspaces'))
-    local workspaces={
-        {'setup','fre_setup'}, {'face_position','fre_face_position'}, {'landmarks','fre_landmarks'}, {'masks','fre_masks'},
-        {'targets','fre_targets'}, {'facs_profiles','fre_facs_profiles'},
-        {'expressions','fre_expressions'}, {'clips','fre_clips'}, {'preview','fre_preview'},
-        {'rig','fre_rig_optional'}
-    }
+    local workflow=state.project.authoringWorkflow
+    local workspaces={{'setup','fre_setup'}}
+    if workflow then
+        workspaces[#workspaces+1]={'face_position','fre_face_position'}
+        workspaces[#workspaces+1]={'landmarks',workflow=='facs' and 'fre_facs_masks' or 'fre_landmarks'}
+        workspaces[#workspaces+1]={'masks','fre_masks'}
+        if workflow=='regions' then workspaces[#workspaces+1]={'rig','fre_rig'} end
+        workspaces[#workspaces+1]={'targets','fre_targets'}
+        if workflow=='facs' then workspaces[#workspaces+1]={'facs_profiles','fre_facs_profiles'} end
+        workspaces[#workspaces+1]={'expressions','fre_expressions'}
+        workspaces[#workspaces+1]={'clips','fre_clips'}
+        workspaces[#workspaces+1]={'preview','fre_preview'}
+    end
     for _,entry in ipairs(workspaces) do
         local label=tLang.L(entry[2])
         local flags=state.workspace==entry[1] and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
@@ -6314,7 +6379,7 @@ local function showMainPanel()
             local hintKey
             if state.workspace=='face_position' then
                 hintKey='fre_ctrl_face_hint'
-            elseif state.project.landmarkAuthoringMode=='regions' then
+            elseif state.project.authoringWorkflow=='regions' then
                 hintKey='fre_ctrl_landmarks_hint'
             else
                 hintKey='fre_ctrl_facs_hint'
@@ -6325,6 +6390,37 @@ local function showMainPanel()
         showWorkspaceTree()
     end
     tImGui.End()
+    if state.facsProfileEditor.actionUnitReferenceOpen then
+        tImGui.SetNextWindowSize({x=720,y=560},tImGui.Flags('ImGuiCond_FirstUseEver'))
+        tImGui.SetNextWindowSizeConstraints({x=520,y=360},{x=1000,y=900})
+        local opened,closed=tImGui.Begin(tLang.L('fre_facs_au_reference_title')..'##freAUReference',true,
+            tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+        if closed then state.facsProfileEditor.actionUnitReferenceOpen=false end
+        if opened then
+            tImGui.TextWrapped(tLang.L('fre_facs_au_reference_help'))
+            tImGui.Separator()
+            if tImGui.BeginTable('freFACSActionUnitReference',3,
+                    tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+                tImGui.TableSetupColumn(tLang.L('fre_facs_au_reference_code'))
+                tImGui.TableSetupColumn(tLang.L('fre_facs_au_reference_action'))
+                tImGui.TableSetupColumn(tLang.L('fre_facs_au_reference_template'))
+                tImGui.TableHeadersRow()
+                local catalog=tFacialActionTemplates.actionUnitCatalog()
+                local language=tLang.getLanguage()
+                for _,entry in ipairs(catalog) do
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0); tImGui.Text(entry.code)
+                    tImGui.TableSetColumnIndex(1)
+                    tImGui.Text(language=='pt_br' and entry.namePt or entry.nameEn)
+                    tImGui.TableSetColumnIndex(2)
+                    tImGui.Text(tLang.L(entry.templateAvailable and
+                        'fre_facs_au_reference_available' or 'fre_facs_au_reference_not_available'))
+                end
+                tImGui.EndTable()
+            end
+        end
+        tImGui.End()
+    end
 end
 
 local function showCameraPanel()
@@ -6338,7 +6434,7 @@ local function showCameraPanel()
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_frame_face')) then frameFaceCamera() end
         tImGui.Separator()
-        if state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='regions' then
+        if state.workspace=='landmarks' and state.project.authoringWorkflow=='regions' then
             local selectedLandmark=state.project.landmarks[state.selectedLandmark]
             local canFrameLandmark=selectedLandmark and selectedLandmark.placed and selectedLandmark.position
             tImGui.BeginDisabled(not canFrameLandmark)
@@ -6489,7 +6585,7 @@ end
 local function nearestFaceGuidePoint(x,y)
     local guide=state.faceGuide
     if state.workspace~='face_position' and
-            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions') or
+            (state.workspace~='landmarks' or state.project.authoringWorkflow~='regions') or
             not guide.worldPoints or not guide.origin then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
     if not ok then return nil end
@@ -6531,7 +6627,7 @@ end
 local function hitTestFaceGuideAxis(x,y)
     local guide=state.faceGuide
     if state.workspace~='face_position' and
-            (state.workspace~='landmarks' or state.project.landmarkAuthoringMode~='regions') or
+            (state.workspace~='landmarks' or state.project.authoringWorkflow~='regions') or
             not guide.origin or not guide.length then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
     if not ok then return nil end
@@ -6832,9 +6928,8 @@ end
 refreshMaskPolygonOverlay=function()
     local visualization=state.maskVisualization
     if state.workspace~='masks' then
-        -- This is the compatibility overlay for vertex/polygon masks. Never
-        -- let a refresh triggered by loading or rebuilding leak it into the
-        -- FACS authoring workspace.
+        -- This overlay belongs to the classic vertex/polygon mask workflow.
+        -- Never let a refresh leak it into the FACS authoring workspace.
         if visualization.faces then visualization.faces.visible=false end
         if visualization.markers then visualization.markers.visible=false end
         if visualization.surface then visualization.surface.visible=false end
@@ -7863,7 +7958,7 @@ local function handleViewportAuthoringClick(x,y)
             local vertexHit=tFacialLandmarks.nearestSurfaceVertex(state.topology,origin,direction)
             if vertexHit then return setFaceOriginFromVertex(vertexHit) end
         end
-    elseif state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='regions' then
+    elseif state.workspace=='landmarks' and state.project.authoringWorkflow=='regions' then
         local guideHit=nearestFaceGuidePoint(x,y)
         if guideHit then
             if guideHit.name=='face_origin' then
@@ -7910,7 +8005,7 @@ end
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
     if key==0 and state.workspace=='landmarks' and
-            state.project.landmarkAuthoringMode=='facs' and state.topology then
+            state.project.authoringWorkflow=='facs' and state.topology then
         local origin,direction=viewportPickRay(x,y)
         if origin then
             local gizmo=state.surfacePointGizmo
@@ -7983,7 +8078,7 @@ function onTouchDown(key,x,y)
         end
         return
     end
-    if key==1 and state.workspace=='landmarks' and state.project.landmarkAuthoringMode=='facs' and
+    if key==1 and state.workspace=='landmarks' and state.project.authoringWorkflow=='facs' and
             state.topology and
             state.project.facialMasks and state.project.facialMasks[state.selectedFacialMask] then
         tSurfaceControlEditor.begin(state,x,y,{surfaceHit=function(px,py) return maskBrushSurfaceHit(px,py) end,
@@ -8008,7 +8103,7 @@ function onTouchDown(key,x,y)
     end
     if key==0 and state.controlDown and (state.workspace=='face_position' or
             (state.workspace=='landmarks' and
-                state.project.landmarkAuthoringMode=='regions')) then
+                state.project.authoringWorkflow=='regions')) then
         local axis=hitTestFaceGuideAxis(x,y)
         if axis and state.faceGuide.origin then
             local axisVector=axis=='x' and {x=1,y=0,z=0} or axis=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
