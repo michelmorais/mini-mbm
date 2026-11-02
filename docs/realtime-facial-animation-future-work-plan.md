@@ -70,9 +70,20 @@ Surface falloff, rig-weight application, Blender transport, and AU-to-target pro
 future milestones.
 
 The initial point-controller model is explicit: a controller lists the controls it affects, with
-optional per-control contribution values. An optional spatial-inference command may later suggest
-related controls based on proximity, but the user must explicitly invoke and confirm it. Inference
+optional per-control contribution values. The closing milestone adds an optional spatial-inference
+command to suggest related controls based on proximity; the user must invoke and confirm it. Inference
 must produce inspectable relationships and must not overwrite explicit links silently.
+
+**Next milestone - close Phase 1 controller relationships.** Projects already store point-controller
+relationships and stock templates create default links. The editor does not yet expose those links
+for inspection or editing; group dragging still chooses controls by role and does not apply the
+stored contribution values. Complete this milestone by showing each controller's linked controls
+and weights, making edits undoable and persistent, and using those explicit links during group
+movement. Existing stock links with weight 1 must preserve their current movement. Add a separate
+user-invoked proximity suggestion with a review step that can accept selected links without
+silently replacing authored relationships. A suggested link must not affect the project until the
+user confirms it. Close the milestone by exercising independent and synchronized sides and by
+checking saved projects with their existing links.
 
 **Masks / Regions** is the derivation stage. It consumes authored controls and generates named
 regions, vertex weights, and any legacy-compatible selections required by existing rig or target
@@ -105,7 +116,7 @@ Acceptance:
   synchronized side-editing behavior; lip, chin, jaw, and nose templates have editable area and
   action lines; saved projects retain their authored masks;
 - polygon and polyline anchors can be edited with visible depth and contour feedback;
-- point relationships are explicit, inspectable, and can control multiple surface controls;
+- point relationships are explicit, inspectable, and drive weighted movement of multiple surface controls;
 - Masks / Regions can generate and refresh dependent regions without replacing the source controls;
 - stale generated regions produce an actionable diagnostic and never apply weights silently;
 - an explicit inference command can suggest point relationships without overwriting authored links.
