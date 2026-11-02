@@ -36,10 +36,10 @@ position, and the match radius.
 
 ## Facial landmarks, surface controls, and regions
 
-Choose **Landmarks and regions** or **FACS mask** once in the first workspace, **Setup**. The
+Choose **Vertex mask** or **FACS mask** once in the first workspace, **Setup**. The
 selection is fixed for the project; start a new project to choose the other workflow. Older facial
 project schemas are not loaded by this editor version. The workspace tree then follows the selected
-path: **Rig** is available in Landmarks and regions, while **FACS Action Unit Profiles** is available
+path: **Rig** is available in Vertex mask, while **FACS Action Unit Profiles** is available
 in FACS mask. **Morph Targets**, **Expressions**, and **Clips** are shared.
 The Action Unit reference-table button appears in **Setup** only after selecting **FACS mask**; it is
 also available from **FACS Action Unit Profiles**.
@@ -47,7 +47,7 @@ Loading a project with authored FACS controls does not upgrade, add, or recolor 
 Templates are seeded only when the FACS catalog is empty. If a template change alters saved control
 data, bump the project schema; older schemas are rejected and must be recreated.
 
-**Landmarks and regions** is the classic workflow for placing facial landmarks and editing vertex
+**Vertex mask** is the classic workflow for placing facial landmarks and editing vertex
 masks. The cyan face guide (outline, crosses, and axes) is a landmark placement reference, not a
 vertex mask. It appears in **Face Position** and can be controlled with **Show landmark guide** in
 this workflow. The guide is shown by default and can be hidden while editing landmarks.
@@ -142,7 +142,7 @@ project and can be undone.
 along face Z, using the mesh subset of that point. It solves the surface Z independently for each
 point, preserves each X/Y position, and applies the shape only when all points can be projected.
 The operation is undoable; the other shapes in the mask remain unchanged. Landmark placement and
-its individual surface-adjustment controls appear only in **Landmarks and regions** mode.
+its individual surface-adjustment controls appear only in **Vertex mask** mode.
 
 In the **FACS mask** workflow, **Masks / Regions** generates a named region from the selected facial mask's closed area
 polygon. Generation is explicit and preserves the source points. It projects the outline in face
@@ -154,7 +154,7 @@ signature. Changing an anchor, face scale, or topology makes it
 stale; the editor reports that state and requires explicit regeneration before the region can be
 used. **Copy to Morph Target mask** creates an independent, editable snapshot of a current
 region's selected vertices and opens it for visual review. The copy does not remain linked to the
-source. The **Landmarks and regions** workflow instead shows Rig role management and classic vertex
+source. The **Vertex mask** workflow instead shows Rig role management and classic vertex
 masks here; it does not show FACS region generation. Surface falloff,
 automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
 work.
@@ -165,7 +165,7 @@ generation retains its front-depth and mesh-subset rules; the generic polygon co
 for non-facial meshes separately. This first generic core derives binary vertex selections. Its
 stored falloff settings do not affect weights yet.
 
-Projects choose one authoring workflow in **Setup**: **Landmarks and regions** uses classic facial
+Projects choose one authoring workflow in **Setup**: **Vertex mask** uses classic facial
 landmarks, Rig roles, and vertex masks, while **FACS mask** uses surface-action templates, generated
 regions, and target masks. The choice is fixed for the project; start a new project to choose the
 other workflow. The workspace tree hides **FACS Action Unit Profiles** in the classic workflow and
@@ -174,7 +174,7 @@ classic projects show Rig role management and classic masks; FACS projects show 
 regions and target masks. **Morph Targets**, **Expressions**, and **Clips** are shared. Project
 schema 20 stores the choice; schema 19 and earlier projects are rejected and must be recreated.
 
-Classic Rig role masks remain an authoring representation in the **Landmarks and regions** workflow.
+Classic Rig role masks remain an authoring representation in the **Vertex mask** workflow.
 Rig and Morph Target selection masks use vertex selections in that workflow; polygon representation
 choices and polygon editing are available only in the **FACS mask** workflow. Classic masks are not
 silently converted into FACS surface controls. Their viewport visualization starts disabled and

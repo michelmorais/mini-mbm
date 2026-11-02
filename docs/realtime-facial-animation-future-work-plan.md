@@ -40,7 +40,7 @@ from the facial-only workflow.
 
 In the **FACS Mask** workflow, the authoring source is **Landmarks**, not **Masks / Regions**. After
 the face origin is positioned, the editor loads a pre-defined facial-action template and the user
-adapts its controls directly on the visible mesh. The separate **Landmarks and Regions** workflow
+adapts its controls directly on the visible mesh. The separate **Vertex mask** workflow
 retains classic landmark and vertex-mask authoring:
 
 | Kind | Intended use | Initial semantics |
@@ -93,7 +93,7 @@ workflows. A generated region records its source-control identity, source topolo
 generation state. Editing a source control marks dependent regions stale; regeneration is explicit
 and must be reviewed before export or weight application.
 
-New projects select one workflow in **Setup**. **Landmarks and Regions** uses classic landmark,
+New projects select one workflow in **Setup**. **Vertex mask** uses classic landmark,
 Rig-role, and vertex-mask authoring; **FACS Mask** uses surface-action templates and derived
 regions. The saved choice is fixed for that project. The workspace tree includes Rig only in the
 classic path and FACS Action Unit Profiles only in the FACS path. **Masks / Regions** also filters
@@ -105,7 +105,7 @@ projects.
 Classic vertex masks are retained as a supported authoring representation in the **Landmarks and
 Regions** workflow. They are not converted automatically into polygons, polylines, or points.
 
-The **Landmarks and Regions** workflow edits classic vertex masks only. Surface polygon mask
+The **Vertex mask** workflow edits classic vertex masks only. Surface polygon mask
 representation controls and polygon editing belong to the **FACS Mask** workflow. Generated FACS
 regions are shown in that workflow and stored separately; copying one into a target-selection mask
 is explicit, with no automatic conversion or weight application.
@@ -227,7 +227,7 @@ In the FACS workflow, the workspace order is **FACS Masks**, **Masks / Regions**
 **FACS Action Unit Profiles**, **Expressions**, then **Clips**. Adapt surface masks, generate
 regions if reusable vertex selections are useful, create or import morph targets, map targets to
 Action Units in profiles, capture an expression, and use it in clips. Rig is hidden in this
-workflow; choose **Landmarks and Regions** in a separate project for bone and weight authoring.
+workflow; choose **Vertex mask** in a separate project for bone and weight authoring.
 
 Example:
 

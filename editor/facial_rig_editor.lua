@@ -3817,11 +3817,12 @@ local function showSetup()
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_landmark_authoring_mode'))
     if not state.project.authoringWorkflow then
+        tImGui.TextWrapped(tLang.L('fre_authoring_workflow_help'))
         local selectedWorkflow=0
         selectedWorkflow=tImGui.RadioButton(tLang.L('fre_landmark_authoring_regions'),selectedWorkflow,1)
-        tImGui.SameLine()
+        tImGui.TextWrapped(tLang.L('fre_authoring_workflow_regions_help'))
         selectedWorkflow=tImGui.RadioButton(tLang.L('fre_landmark_authoring_facs'),selectedWorkflow,2)
-        tImGui.TextWrapped(tLang.L('fre_authoring_workflow_help'))
+        tImGui.TextWrapped(tLang.L('fre_authoring_workflow_facs_help'))
         if selectedWorkflow==1 or selectedWorkflow==2 then
             state.project.authoringWorkflow=selectedWorkflow==2 and 'facs' or 'regions'
             state.showLandmarkGuide=selectedWorkflow==1
