@@ -254,7 +254,7 @@ local ANATOMICAL_TEMPLATES={
             {id='line_controller',role='line_controller',kind='point',closed=false,
                 points={{0,-0.245,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
-                points={{0,-0.37,-0.09}}
+                points={{0,-0.37,-0.09}}}
         }
     },
     {
@@ -277,7 +277,7 @@ local ANATOMICAL_TEMPLATES={
             {id='line_controller',role='line_controller',kind='point',closed=false,
                 points={{0,-0.53,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
-                points={{0,-0.37,-0.09}}
+                points={{0,-0.37,-0.09}}}
         }
     },
     {
@@ -304,7 +304,7 @@ local ANATOMICAL_TEMPLATES={
             {id='line_controller',role='line_controller',kind='point',closed=false,
                 points={{0,0.16,-0.09}}},
             {id='controller',role='controller',kind='point',closed=false,
-                points={{0,0.015,-0.09}}
+                points={{0,0.015,-0.09}}}
         }
     }
 }
