@@ -20,6 +20,37 @@
 local M={}
 local tPointGizmo=require 'facial_surface_point_gizmo'
 
+function M.labelId(controlId,translate)
+    if type(controlId)~='string' then return tostring(controlId or '') end
+    local groupName,detail
+    for split=#controlId-1,1,-1 do
+        if controlId:sub(split,split)=='_' then
+            local candidate=controlId:sub(1,split-1)
+            local key='fre_facs_'..candidate
+            local translated=translate(key)
+            if translated~=key then
+                groupName=translated
+                detail=controlId:sub(split+1)
+                break
+            end
+        end
+    end
+    if not groupName then return controlId end
+    local detailKeys={
+        area='fre_facs_control_area',
+        action_line='fre_facs_control_action_line',
+        line_controller='fre_facs_control_line_controller',
+        controller='fre_facs_control_group_controller',
+        lower_lid_line='fre_facs_control_lower_lid_line',
+        bridge_wrinkle='fre_facs_control_bridge_wrinkle',
+        left_alar_fold='fre_facs_control_left_alar_fold',
+        right_alar_fold='fre_facs_control_right_alar_fold'
+    }
+    local detailKey=detailKeys[detail]
+    if not detailKey then return controlId end
+    return groupName..' - '..translate(detailKey)
+end
+
 function M.allEntries(project)
     local result,seen={},{}
     local indexed={}

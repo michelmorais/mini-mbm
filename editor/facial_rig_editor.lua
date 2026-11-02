@@ -4718,12 +4718,13 @@ local function showLandmarks()
                         end
                         local removeIndex
                         for linkIndex,link in ipairs(selectedControl.relationships or {}) do
-                            tImGui.Text(link.controlId)
+                            tImGui.Text(tSurfaceRelationships.labelId(link.controlId,tLang.L))
                             tImGui.SameLine()
                             if tImGui.Button(tLang.L('fre_facs_link_remove') ..
                                     '##freFacsRemoveLink'..linkIndex) then
                                 removeIndex=linkIndex
                             end
+                            tImGui.SetNextItemWidth(150)
                             local weightChanged,weight=tImGui.SliderFloat(
                                 tLang.L('fre_facs_link_weight') .. '##freFacsLinkWeight'..linkIndex,
                                 link.weight or 1,0,1,'%.2f')
@@ -4747,6 +4748,7 @@ local function showLandmarks()
                             for _,option in ipairs(options) do option.selected=false end
                             state.relationshipReview={controlId=selectedControl.id,options=options}
                         end
+                        showHelpTooltip(tLang.L('fre_facs_link_add_tooltip'))
                         tImGui.SameLine()
                         if tImGui.Button(tLang.L('fre_facs_link_suggest') .. '##freFacsLinkSuggest') then
                             local scale=state.project.faceOrigin and state.project.faceOrigin.scale or 1
@@ -4755,6 +4757,7 @@ local function showLandmarks()
                                 math.max(scale*0.2,0.001))
                             state.relationshipReview={controlId=selectedControl.id,options=options}
                         end
+                        showHelpTooltip(tLang.L('fre_facs_link_suggest_tooltip'))
                         local review=state.relationshipReview
                         if review and review.controlId==selectedControl.id then
                             tImGui.Separator()
@@ -4764,7 +4767,8 @@ local function showLandmarks()
                             end
                             for index,option in ipairs(review.options) do
                                 option.selected=tImGui.Checkbox(
-                                    option.name .. '##freFacsCandidate'..index,option.selected)
+                                    tSurfaceRelationships.labelId(option.controlId,tLang.L) ..
+                                        '##freFacsCandidate'..index,option.selected)
                             end
                             if tImGui.Button(tLang.L('fre_facs_link_confirm') ..
                                     '##freFacsLinkConfirm') then
