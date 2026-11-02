@@ -240,6 +240,11 @@ intensities, apply the composed preview or capture it as an expression, then use
 **Clips**. Profile edits, including **Include in preview**, take effect after clicking **Apply profile
 details**.
 
+In the facial clip timeline, **Reset facial weights** returns the current mesh preview to neutral
+without changing saved keys. Use **Capture current key** afterward to store that neutral pose at
+the selected time, for example as the first key before inserting a composed FACS expression at the
+end of the clip.
+
 The optional assisted Blender target-generation section is available only in the classic **Vertex
 mask** workflow. It uses the classic rig bridge and landmark roles to create starter Shape Keys;
 it does not consume FACS surface polygons, action lines, or Action Unit profiles. FACS projects

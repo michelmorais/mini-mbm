@@ -5798,6 +5798,18 @@ local function showFacialClipTimelineWindow()
             pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
         end
         showHelpTooltip(tLang.L('fre_clip_capture_key_tooltip'))
+        tImGui.BeginDisabled(not state.mesh)
+        if tImGui.Button(tLang.L('fre_clip_reset_weights')..'##freClipResetWeights',{x=190,y=0}) then
+            local ok,reset=dpCall(function() return state.mesh:resetFacialWeights() end)
+            if ok and reset~=false then
+                syncFacialComparisonWeights()
+                setStatus(tLang.L('fre_clip_weights_reset'),false)
+            else
+                setStatus(tLang.L('fre_clip_weights_reset_failed'),true)
+            end
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(tLang.L('fre_clip_reset_weights_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_clip_play')..'##freClipTimelinePlay',{x=110,y=0}) then state.clipEditor.playing=not state.clipEditor.playing end
         showHelpTooltip(tLang.L('fre_clip_play_tooltip'))
