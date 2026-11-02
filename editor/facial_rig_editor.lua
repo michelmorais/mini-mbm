@@ -5521,13 +5521,15 @@ local function showExpressions()
     for _,pose in ipairs(expressions.poses or {}) do poseNames[#poseNames+1]=pose.name end
     local selectedPose=nil
     tImGui.Text(tLang.L('fre_expressions_poses')..': '..tostring(#poseNames))
-    if #poseNames==0 then
-        tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
-        if state.expressions.editMode~=1 then return end
-    else
+    if state.expressions.editMode~=1 then
+        if #poseNames==0 then
+            tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
+            return
+        end
         state.expressions.selectedPose=math.max(1,math.min(state.expressions.selectedPose,#poseNames))
         tImGui.SetNextItemWidth(280)
         local changed,index=tImGui.Combo(tLang.L('fre_expression_select'),state.expressions.selectedPose,poseNames)
+        showHelpTooltip(tLang.L('fre_expression_select_tooltip'))
         if changed then
             state.expressions.selectedPose=index
             expressions.selectedPose=index
@@ -5535,16 +5537,30 @@ local function showExpressions()
             if state.expressions.editMode~=1 then applyExpressionPose(selectedPose) end
         end
         selectedPose=expressions.poses[state.expressions.selectedPose]
+        if selectedPose then
+            tImGui.Text(string.format(tLang.L('fre_expression_selected_fmt'),selectedPose.name))
+        end
+    elseif #poseNames>0 then
+        tImGui.TextDisabled(tLang.L('fre_expressions_select_mode_help'))
+    else
+        tImGui.TextDisabled(tLang.L('fre_expressions_no_poses'))
     end
     if modeChanged and state.expressions.editMode~=1 and selectedPose then
         applyExpressionPose(selectedPose)
     end
     if state.expressions.editMode==1 then
+        tImGui.Text(tLang.L('fre_expression_new_weights_title'))
+        tImGui.TextWrapped(tLang.L('fre_expression_new_weights_help'))
         tImGui.SetNextItemWidth(250)
         local draftChanged,draft=tImGui.InputText(tLang.L('fre_expression_name') .. '##freExpressionName',state.expressions.nameDraft or '')
         if draftChanged then state.expressions.nameDraft=draft end
     end
     if state.expressions.editMode~=3 then
+        if state.expressions.editMode==2 then
+            tImGui.Text(tLang.L('fre_expression_selected_weights_title'))
+            tImGui.TextWrapped(tLang.L('fre_expression_selected_weights_help'))
+        end
+        tImGui.Text(tLang.L('fre_expression_target_table_title'))
         if tImGui.BeginTable('freExpressionTargets',2,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
             tImGui.TableSetupColumn(tLang.L('fre_expression_target_column'))
             tImGui.TableSetupColumn(tLang.L('fre_expression_weight_column'))
@@ -5602,6 +5618,7 @@ local function showExpressions()
             pushUndoSnapshot(); tFacialExpressions.capturePose(expressions,selectedPose,weights); markModified()
             setStatus(tLang.L('fre_expression_updated'),false)
         end
+        showHelpTooltip(tLang.L('fre_expression_update_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('fre_expression_mirror'),{x=180,y=0}) then
             pushUndoSnapshot(); tFacialExpressions.mirrorPose(expressions,selectedPose); applyExpressionPose(selectedPose); markModified()
