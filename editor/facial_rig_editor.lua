@@ -1924,7 +1924,7 @@ local function refreshTargetPreview()
         return previewDebug:load(sourcePath)
     end)
     if not sourceLoadedOk or sourceLoaded~=true then
-        previewDebug:destroy()
+        previewDebug=nil
         dpCall(function() meshDebug:fakeRelease(sourcePath) end)
         os.remove(sourcePath)
         targetAuthoringError(tLang.L('fre_target_preview_failed'))
@@ -1935,7 +1935,7 @@ local function refreshTargetPreview()
     local previewSavedOk,previewSaved=dpCall(function()
         return previewDebug:save(path,false,false,true)
     end)
-    previewDebug:destroy()
+    previewDebug=nil
     dpCall(function() meshDebug:fakeRelease(sourcePath) end)
     os.remove(sourcePath)
     if not previewSavedOk or previewSaved~=true then
