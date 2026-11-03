@@ -10,11 +10,15 @@ On launch the editor opens to an empty workspace. Choose **File > Open Mesh** or
 Project** when ready; no file dialog appears automatically. **File > Quit** exits the editor, and
 **Options > Language** switches between English and Portuguese (Brazil).
 
-The Morph Editor currently has two worktrees: **Surface shapes** and **Morph targets**. The first
-worktree follows the interaction model of the
+The Morph Editor currently presents two sequential worktree nodes: **Surface shapes** and
+**Morph targets**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**, and
 **Remove shape**; each mode exposes only the controls needed for that operation.
+
+**Morph targets** is enabled only after at least one non-empty surface selection has been rebuilt.
+Each worktree is a separate editor node; the Add/Edit/Remove radios belong to the currently
+opened worktree and are not worktree selectors.
 
 ## Shape modes
 

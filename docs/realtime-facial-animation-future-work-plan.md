@@ -198,8 +198,8 @@ preferences are persisted with the project. Selection data is currently binary; 
 morph-target editing remain for milestone 2.3. See
 [Morph Editor](morph-editor.md).
 
-**Milestone 2.3 - morph workflow integration (in progress).** The Morph Editor now has a separate
-`Morph targets` worktree. It creates an independent target selection from a ready surface region,
+**Milestone 2.3 - morph workflow integration (in progress).** The Morph Editor now has a separate,
+sequential `Morph targets` worktree node after `Surface shapes`. It creates an independent target selection from a ready surface region,
 retains the source region fingerprint and topology identity, explicitly rebuilds the target
 selection after source changes, and supports an initial weighted translation operation. The target
 record is generic and remains project data; it does not yet pretend to be a runtime MSH target.

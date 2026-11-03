@@ -42,6 +42,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     selectedPoint=nil,regionDrag=nil,cameraDrag=nil,cameraPan=nil,overlayDirty=true,
     regionOverlay={},regionNames={},regionNamesDirty=true,selectedRegionStatus='missing',
     regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
+    targetAvailabilityDirty=true,targetAvailability=false,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
@@ -69,6 +70,7 @@ local function markChanged()
     E.overlayDirty=true
     E.regionStatusDirty=true
     E.regionTableDirty=true
+    E.targetAvailabilityDirty=true
 end
 
 local function applyCamera()
@@ -212,6 +214,7 @@ local function destroyMesh()
     E.meshBounds=nil
     E.regionStatusDirty=true
     E.regionTableDirty=true
+    E.targetAvailabilityDirty=true
 end
 
 local function releaseObject(object)
@@ -260,6 +263,7 @@ local function loadMesh(path,preserveProject)
         E.modified=false
         E.regionNamesDirty=true
         E.regionTableDirty=true
+        E.targetAvailabilityDirty=true
     end
     if E.project.topologySignature=='' or not preserveProject then
         E.project.topologySignature=topology.signature
@@ -371,6 +375,7 @@ local function loadProject(path)
     E.regionNamesDirty=true
     E.regionStatusDirty=true
     E.regionTableDirty=true
+    E.targetAvailabilityDirty=true
     if project.meshPath~='' then
         if not loadMesh(project.meshPath,true) then
             E.project,E.projectPath,E.modified,E.selectedPoint=
@@ -1047,8 +1052,6 @@ local function drawTargetSourceSelector()
 end
 
 local function drawMorphTargets()
-    if not tImGui.TreeNodeEx(L('worktree_morph_targets')..'##mreMorphTargets',
-            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then return end
     local previousMode=E.targetMode
     E.targetMode=tImGui.RadioButton(L('target_mode_add')..'##mreTargetModeAdd',E.targetMode,1)
     tImGui.SameLine()
@@ -1060,7 +1063,6 @@ local function drawMorphTargets()
     tImGui.Separator()
     if not E.topology or E.project.topologySignature~=E.topology.signature then
         tImGui.TextWrapped(L('target_mesh_required'))
-        tImGui.TreePop()
         return
     end
     if E.targetMode==1 then
@@ -1124,7 +1126,6 @@ local function drawMorphTargets()
         end
     end
     drawTargetTable()
-    tImGui.TreePop()
 end
 
 local function drawSelectedRegionSelector()
@@ -1201,30 +1202,37 @@ local function drawSelectedShapeEditControls(region,shapeTypes)
     tImGui.EndDisabled()
 end
 
-local function drawControls()
-    tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
-    if E.mesh then
-        tImGui.Text(string.format(L('mesh_info'),E.project.meshPath,E.topology.vertexCount))
-    else
-        tImGui.TextWrapped(L('load_mesh_help'))
+local function hasReadyRegion()
+    if not E.targetAvailabilityDirty then return E.targetAvailability end
+    E.targetAvailability=false
+    if not E.topology or E.project.topologySignature~=E.topology.signature then
+        E.targetAvailabilityDirty=false
+        return false
     end
-    tImGui.Separator()
-    if tImGui.TreeNodeEx(L('worktrees')..'##mreWorktrees',
-            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
-        local previousWorktree=E.worktree
-        E.worktree=tImGui.RadioButton(L('worktree_surface_shapes')..'##mreWorktreeShapes',E.worktree,1)
-        tImGui.SameLine()
-        E.worktree=tImGui.RadioButton(L('worktree_morph_targets')..'##mreWorktreeTargets',E.worktree,2)
-        if E.worktree~=previousWorktree then
-            E.regionDrag=nil
-            E.pendingSurfacePick=nil
-            E.modified=true
-            E.overlayDirty=true
+    for _,region in ipairs(E.project.regions or {}) do
+        if tRegions.status(region,E.topology)=='ready' then
+            E.targetAvailability=true
+            break
         end
-        tImGui.TreePop()
     end
-    if E.worktree==1 and tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
-            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+    E.targetAvailabilityDirty=false
+    return E.targetAvailability
+end
+
+local function selectWorktree(worktree)
+    if worktree==2 and not hasReadyRegion() then
+        setStatus(L('target_worktree_sequence_help'),true)
+        return
+    end
+    if E.worktree==worktree then return end
+    E.worktree=worktree
+    E.regionDrag=nil
+    E.pendingSurfacePick=nil
+    E.modified=true
+    E.overlayDirty=true
+end
+
+local function drawSurfaceShapes()
     local previousShapeMode=E.shapeMode
     E.shapeMode=tImGui.RadioButton(L('mode_add')..'##mreShapeModeAdd',E.shapeMode,1)
     tImGui.SameLine()
@@ -1282,9 +1290,35 @@ local function drawControls()
     elseif E.topology then
         tImGui.TextWrapped(L('topology_changed'))
     end
-    tImGui.TreePop()
+end
+
+local function drawWorktreeNode(worktree,label,content,enabled)
+    local flags=E.worktree==worktree and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
+    tImGui.SetNextItemOpen(E.worktree==worktree,tImGui.Flags('ImGuiCond_Always'))
+    tImGui.BeginDisabled(enabled==false)
+    local opened=tImGui.TreeNodeEx(label..'##mreWorktree'..tostring(worktree),flags)
+    local clicked=tImGui.IsItemClicked()
+    tImGui.EndDisabled()
+    if clicked and enabled~=false then selectWorktree(worktree) end
+    if opened then
+        if E.worktree==worktree then content() end
+        tImGui.TreePop()
     end
-    if E.worktree==2 then drawMorphTargets() end
+end
+
+local function drawControls()
+    tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
+    if E.mesh then
+        tImGui.Text(string.format(L('mesh_info'),E.project.meshPath,E.topology.vertexCount))
+    else
+        tImGui.TextWrapped(L('load_mesh_help'))
+    end
+    tImGui.Separator()
+    tImGui.Text(L('worktrees'))
+    drawWorktreeNode(1,L('worktree_surface_shapes'),drawSurfaceShapes,true)
+    local targetsEnabled=hasReadyRegion()
+    drawWorktreeNode(2,L('worktree_morph_targets'),drawMorphTargets,targetsEnabled)
+    if not targetsEnabled then tImGui.TextDisabled(L('target_worktree_sequence_help')) end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
         else tImGui.TextWrapped(E.status) end
