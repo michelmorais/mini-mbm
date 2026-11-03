@@ -25,6 +25,10 @@ local tShapes=require 'morph_surface_shapes'
 local M={}
 local SELECTED_COLOR={0.1,0.85,1,1}
 local OTHER_COLOR={0.45,0.5,0.6,1}
+local INACTIVE_SELECTED_COLOR={0.28,0.34,0.42,1}
+local INACTIVE_OTHER_COLOR={0.22,0.26,0.32,1}
+local INACTIVE_HANDLE_COLOR={0.42,0.46,0.52,1}
+local INACTIVE_CENTER_COLOR={0.38,0.43,0.48,1}
 
 local function destroy(object)
     if object then pcall(function() object:destroy() end) end
@@ -112,6 +116,7 @@ end
 function M.rebuild(state)
     if not state.topology then M.destroy(state); return end
     state.regionOverlay=state.regionOverlay or {}
+    local editingShapes=state.worktree==1
     local activeIds={}
     for regionIndex,region in ipairs(state.project.regions or {}) do
         local id=region.id
@@ -135,9 +140,16 @@ function M.rebuild(state)
             else
                 entry.line:set(segments,1)
             end
-            local color=regionIndex==state.project.selectedRegion and SELECTED_COLOR or OTHER_COLOR
+            local color
+            if editingShapes then
+                color=regionIndex==state.project.selectedRegion and SELECTED_COLOR or OTHER_COLOR
+            else
+                color=regionIndex==state.project.selectedRegion and INACTIVE_SELECTED_COLOR or
+                    INACTIVE_OTHER_COLOR
+            end
             entry.line:setColor(table.unpack(color))
-            entry.line.alwaysOnTopPriority=regionIndex==state.project.selectedRegion and 2 or 1
+            entry.line.alwaysOnTopPriority=editingShapes and
+                (regionIndex==state.project.selectedRegion and 2 or 1) or 1
             entry.line.visible=true
         else
             destroy(entry.line)
@@ -175,8 +187,10 @@ function M.rebuild(state)
             end
         end
         destroyCollection(state.regionMarkers); state.regionMarkers=nil
-        state.regionShapeHandles=updateLineCollection(state.regionShapeHandles,shapeHandlePaths,{1,1,1,1},3)
-        state.regionShapeCenter=updateLine(state.regionShapeCenter,shapeCenter,{0.25,1,0.35,1},4)
+        state.regionShapeHandles=updateLineCollection(state.regionShapeHandles,shapeHandlePaths,
+            editingShapes and {1,1,1,1} or INACTIVE_HANDLE_COLOR,editingShapes and 3 or 1)
+        state.regionShapeCenter=updateLine(state.regionShapeCenter,shapeCenter,
+            editingShapes and {0.25,1,0.35,1} or INACTIVE_CENTER_COLOR,editingShapes and 4 or 1)
         return
     end
     destroyCollection(state.regionShapeHandles); state.regionShapeHandles=nil
@@ -193,7 +207,8 @@ function M.rebuild(state)
             markerPaths[#markerPaths+1]=cross
         end
     end
-    state.regionMarkers=updateLineCollection(state.regionMarkers,markerPaths,SELECTED_COLOR,3)
+    state.regionMarkers=updateLineCollection(state.regionMarkers,markerPaths,
+        editingShapes and SELECTED_COLOR or INACTIVE_HANDLE_COLOR,editingShapes and 3 or 1)
 end
 
 return M

@@ -19,6 +19,9 @@ and adapts its handles to the object. Its operation modes are **Add shape**, **E
 **Morph targets** is enabled only after at least one non-empty surface selection has been rebuilt.
 Each worktree is a separate editor node; the Add/Edit/Remove radios belong to the currently
 opened worktree and are not worktree selectors.
+When **Morph targets** is active, the source shapes remain visible only as inactive reference
+geometry: their handles cannot be selected or edited, and the active point selection is cleared
+when changing worktrees.
 
 ## Shape modes
 

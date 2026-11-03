@@ -1226,6 +1226,7 @@ local function selectWorktree(worktree)
     end
     if E.worktree==worktree then return end
     E.worktree=worktree
+    E.selectedPoint=nil
     E.regionDrag=nil
     E.pendingSurfacePick=nil
     E.modified=true
