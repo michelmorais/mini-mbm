@@ -274,8 +274,6 @@ function M.build(state,target,weight)
             if not textured then
                 -- Keep the target geometry opaque and inspectable without the displacement shader.
                 surface:setColor(0.72,0.82,0.9,1)
-            else
-                surface:setColor(1,1,1,1)
             end
         end
         surface.alwaysRender=true

@@ -104,17 +104,22 @@ settings are restored when the project is opened and are part of the project dir
    displacement shader, while disabled keeps the displaced geometry visible with its original
    texture and material when available, without the custom shader. The source mesh remains
    unchanged and the target is updated in memory.
-6. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
+6. Switch to **Paint target**, choose **Move** or **Smooth**, adjust the brush radius and strength,
+   then right-drag over the displaced target surface. Release the button to commit one stroke;
+   left-drag still orbits and the middle button pans.
+7. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 
-While **Morph targets** is active, the viewport is navigation-only; shape anchors are editable only
-in **Surface shapes**. Selecting a target selects its source shape for inspection without changing
-the source geometry.
+While **Morph targets** is active, **Edit target** remains navigation-only. **Paint target** uses
+right-drag on the displaced surface to apply local Move or Smooth edits; left-drag orbits and the
+middle button pans. Shape anchors are editable only in **Surface shapes**. Selecting a target
+selects its source shape for inspection without changing the source geometry.
 
 This initial target worktree stores generic authoring data only. Its editor preview uses a dynamic
 in-memory surface overlay and does not modify or regenerate the source MSH while the preview weight
-changes. Painting, smoothing, transforms beyond translation, mirroring, MSH export, and runtime
-reload are later Milestone 2.3 steps.
+changes. Paint strokes are accumulated in memory and committed when the right button is released;
+the preview rebuilds once per completed stroke. Smoothing, transforms beyond translation, mirroring,
+MSH export, and runtime reload remain later Milestone 2.3 steps.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -125,5 +130,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback, painting, smoothing, transforms beyond the initial translation, mirroring, MSH export,
-and runtime reload remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+playback, richer smoothing, transforms beyond the initial translation, mirroring, MSH export, and
+runtime reload remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

@@ -31,6 +31,7 @@ local tProject=require 'morph_surface_project'
 local tTargets=require 'morph_surface_targets'
 local tOverlay=require 'morph_surface_overlay'
 local tTargetPreview=require 'morph_surface_target_preview'
+local tTargetBrush=require 'morph_surface_target_brush'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -48,6 +49,9 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
+    targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
+    targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
+    targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
 
 local function L(key) return tLang.L('mre_'..key) end
@@ -74,6 +78,10 @@ local function markChanged()
     E.regionTableDirty=true
     E.targetAvailabilityDirty=true
     E.targetPreviewDirty=true
+    if E.targetBrush and not E.targetBrush.stroke then
+        E.targetBrush.geometry=nil
+        E.targetBrush.geometryKey=nil
+    end
 end
 
 local function applyCamera()
@@ -101,6 +109,12 @@ local function saveEditorPreferences()
     preferences.targetDx=E.targetDx
     preferences.targetDy=E.targetDy
     preferences.targetDz=E.targetDz
+    preferences.targetBrushMode=E.targetBrushMode
+    preferences.targetBrushRadius=E.targetBrushRadius
+    preferences.targetBrushStrength=E.targetBrushStrength
+    preferences.targetBrushDx=E.targetBrushDx
+    preferences.targetBrushDy=E.targetBrushDy
+    preferences.targetBrushDz=E.targetBrushDz
     preferences.targetPreviewWeight=E.targetPreviewWeight
     preferences.targetPreviewVisible=E.targetPreviewVisible
     if E.mesh then
@@ -126,7 +140,7 @@ local function restoreEditorPreferences(project)
     E.surfaceAxis=math.max(1,math.min(3,math.floor(tonumber(preferences.surfaceAxis) or 3)))
     E.shapeMode=math.max(1,math.min(3,math.floor(tonumber(preferences.shapeMode) or 1)))
     E.worktree=math.max(1,math.min(2,math.floor(tonumber(preferences.worktree) or 1)))
-    E.targetMode=math.max(1,math.min(3,math.floor(tonumber(preferences.targetMode) or 1)))
+    E.targetMode=math.max(1,math.min(4,math.floor(tonumber(preferences.targetMode) or 1)))
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -136,6 +150,15 @@ local function restoreEditorPreferences(project)
     E.targetDx=tonumber(preferences.targetDx) or 0
     E.targetDy=tonumber(preferences.targetDy) or 0
     E.targetDz=tonumber(preferences.targetDz) or 0
+    E.targetBrushMode=math.max(1,math.min(2,math.floor(tonumber(preferences.targetBrushMode) or 1)))
+    E.targetBrushRadius=math.max(0.001,math.min(0.15,tonumber(preferences.targetBrushRadius) or 0.025))
+    E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
+    E.targetBrushDx=tonumber(preferences.targetBrushDx) or 0
+    E.targetBrushDy=tonumber(preferences.targetBrushDy) or -0.01
+    E.targetBrushDz=tonumber(preferences.targetBrushDz) or 0
+    E.targetBrush.geometry=nil
+    E.targetBrush.geometryKey=nil
+    E.targetBrush.hoverHit=nil
     E.targetPreviewWeight=math.max(0,math.min(1,tonumber(preferences.targetPreviewWeight) or 1))
     E.targetPreviewVisible=preferences.targetPreviewVisible~=false
     if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
@@ -223,6 +246,13 @@ local function destroyMesh()
     E.meshDebug=nil
     E.topology=nil
     E.meshBounds=nil
+    E.targetBrush.stroke=nil
+    E.targetBrush.geometry=nil
+    E.targetBrush.geometryKey=nil
+    E.targetBrush.hoverHit=nil
+    E.targetBrush.hoverX=nil
+    E.targetBrush.hoverY=nil
+    E.targetBrush.hoverTime=nil
     E.targetPreviewDirty=true
     E.regionStatusDirty=true
     E.regionTableDirty=true
@@ -275,6 +305,15 @@ local function loadMesh(path,preserveProject)
         E.modified=false
         E.targetPreviewWeight=1
         E.targetPreviewVisible=true
+        E.targetBrushMode=1
+        E.targetBrushRadius=0.025
+        E.targetBrushStrength=0.5
+        E.targetBrushDx=0
+        E.targetBrushDy=-0.01
+        E.targetBrushDz=0
+        E.targetBrush.geometry=nil
+        E.targetBrush.geometryKey=nil
+        E.targetBrush.hoverHit=nil
         E.regionNamesDirty=true
         E.regionTableDirty=true
         E.targetAvailabilityDirty=true
@@ -573,7 +612,8 @@ local function targetStatus(target)
 end
 
 local function targetPreviewReady(target)
-    return E.worktree==2 and E.targetMode==2 and target and targetStatus(target)=='ready'
+    return E.worktree==2 and (E.targetMode==2 or E.targetMode==4) and target and
+        targetStatus(target)=='ready'
 end
 
 local function refreshTargetPreview()
@@ -645,6 +685,9 @@ local function selectTarget(index)
     if regionIndex then E.project.selectedRegion=regionIndex end
     E.selectedPoint=nil
     E.targetPreviewDirty=true
+    E.targetBrush.geometry=nil
+    E.targetBrush.geometryKey=nil
+    E.targetBrush.hoverHit=nil
     E.overlayDirty=true
     E.regionStatusDirty=true
     E.modified=true
@@ -727,6 +770,115 @@ local function deleteSelectedTarget()
     E.targetPreviewDirty=true
     setStatus(L('target_deleted'),false)
     return true
+end
+
+local function targetBrushRadius()
+    return tTargetBrush.radius(E.meshBounds,E.targetBrushRadius)
+end
+
+local function ensureTargetBrushGeometry()
+    local target=selectedTarget()
+    if not target or not E.topology then return nil end
+    local key=tostring(target.id)..':'..string.format('%.6f',E.targetPreviewWeight)
+    local brush=E.targetBrush
+    if brush.geometry and brush.geometryKey==key then
+        local radius=targetBrushRadius()
+        if not brush.geometry.spatial or math.abs((brush.geometry.spatialRadius or 0)-radius)>1e-8 then
+            brush.geometry.spatial=tTargetBrush.buildSpatial(brush.geometry,radius)
+            brush.geometry.spatialRadius=radius
+        end
+        return brush.geometry
+    end
+    local geometry=tTargetBrush.buildGeometry(E.topology,target,E.targetPreviewWeight)
+    if not geometry then return nil end
+    local radius=targetBrushRadius()
+    geometry.spatial=tTargetBrush.buildSpatial(geometry,radius)
+    geometry.spatialRadius=radius
+    brush.geometry=geometry
+    brush.geometryKey=key
+    return geometry
+end
+
+local function targetBrushHit(x,y,geometry)
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(function() return mbm.getPickRay(x,y) end)
+    if not ok or not ox or not dx then return nil end
+    return tTargetBrush.hit(geometry,{x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
+end
+
+local function stampTargetBrush(x,y,stroke)
+    local hit=targetBrushHit(x,y,stroke.geometry)
+    if not hit then return false end
+    local brush=E.targetBrush
+    brush.hoverHit=hit
+    brush.hoverX,brush.hoverY=x,y
+    local radius=targetBrushRadius()
+    local nearby=tTargetBrush.nearby(stroke.geometry,stroke.geometry.spatial,hit.point,radius,
+        stroke.allowed)
+    local changed=tTargets.brushStamp(stroke.edited,stroke.geometry.vertices,hit.point,hit.normal,
+        radius,E.targetBrushStrength,{x=E.targetBrushDx,y=E.targetBrushDy,z=E.targetBrushDz},
+        E.targetBrushMode==2,stroke.allowed,nearby)
+    stroke.changed=stroke.changed+changed
+    stroke.lastX,stroke.lastY=x,y
+    return true
+end
+
+local function beginTargetBrush(x,y)
+    local target=selectedTarget()
+    if not target or targetStatus(target)~='ready' or not E.topology then return false end
+    local geometry=ensureTargetBrushGeometry()
+    if not geometry then return false end
+    local stroke={edited=tTargets.copyTargetData(target),changed=0,geometry=geometry,
+        allowed=tTargetBrush.allowed(target),lastX=x,lastY=y}
+    if not stroke.edited or not stampTargetBrush(x,y,stroke) then return false end
+    E.targetBrush.stroke=stroke
+    return true
+end
+
+local function finishTargetBrush()
+    local stroke=E.targetBrush.stroke
+    E.targetBrush.stroke=nil
+    if not stroke or stroke.changed==0 then return false end
+    local target=selectedTarget()
+    if not target then return false end
+    target.deltas=stroke.edited.deltas
+    E.targetBrush.geometry=nil
+    E.targetBrush.geometryKey=nil
+    markChanged()
+    setStatus(string.format(L('target_brush_applied'),stroke.changed),false)
+    return true
+end
+
+local function updateTargetBrushHover()
+    local brush=E.targetBrush
+    if E.worktree~=2 or E.targetMode~=4 or brush.stroke or not targetPreviewReady(selectedTarget()) or
+            tImGui.GetWantCaptureMouse() then
+        brush.hoverHit=nil
+        return
+    end
+    local mouse=tImGui.GetMousePos()
+    if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
+    local x,y=mouse.x,mouse.y
+    if brush.hoverX and math.abs(x-brush.hoverX)<2 and brush.hoverY and
+            math.abs(y-brush.hoverY)<2 and brush.hoverHit then return end
+    local now=mbm.getTimeRun()
+    if brush.hoverTime and now-brush.hoverTime<1/30 then return end
+    brush.hoverTime=now
+    local geometry=ensureTargetBrushGeometry()
+    brush.hoverHit=targetBrushHit(x,y,geometry)
+    brush.hoverX,brush.hoverY=x,y
+end
+
+local function drawTargetBrushCursor()
+    local brush=E.targetBrush
+    if E.worktree~=2 or E.targetMode~=4 or not brush.hoverHit or tImGui.GetWantCaptureMouse() then return end
+    local mouse=tImGui.GetMousePos()
+    if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
+    local radius=math.max(6,math.min(96,(E.targetBrushRadius/0.025)*20))
+    local color=E.targetBrushMode==2 and {r=0.25,g=0.75,b=1,a=0.9} or
+        {r=1,g=0.75,b=0.2,a=0.9}
+    tImGui.SetImDrawListToForeground(true)
+    tImGui.AddCircle({x=mouse.x,y=mouse.y},radius,color,32,1.5)
+    tImGui.SetImDrawListToForeground(false)
 end
 
 local function containsAnchor(region,index,except)
@@ -1116,9 +1268,15 @@ local function drawMorphTargets()
     tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_edit')..'##mreTargetModeEdit',E.targetMode,2)
     tImGui.SameLine()
+    E.targetMode=tImGui.RadioButton(L('target_mode_paint')..'##mreTargetModePaint',E.targetMode,4)
+    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_remove')..'##mreTargetModeRemove',E.targetMode,3)
     if E.targetMode~=previousMode then
         E.targetPreviewDirty=true
+        E.targetBrush.stroke=nil
+        E.targetBrush.hoverHit=nil
+        E.targetBrush.geometry=nil
+        E.targetBrush.geometryKey=nil
         E.modified=true
     end
     tImGui.TextWrapped(L('target_interaction_help'))
@@ -1157,7 +1315,7 @@ local function drawMorphTargets()
                 tImGui.Text(string.format(L('target_vertex_count'),#(target.vertices or {})))
                 tImGui.Text(string.format(L('target_delta_count'),tTargets.deltaCount(target)))
                 tImGui.Text(targetStatusLabel(targetStatus(target)))
-                if E.targetMode==2 then
+                if E.targetMode==2 or E.targetMode==4 then
                     local targetReady=targetStatus(target)=='ready'
                     tImGui.BeginDisabled(not targetReady)
                     tImGui.SetNextItemWidth(220)
@@ -1169,6 +1327,8 @@ local function drawMorphTargets()
                     if previewChanged then
                         E.targetPreviewWeight=math.max(0,math.min(1,previewWeight))
                         tTargetPreview.setWeight(E,E.targetPreviewWeight)
+                        E.targetBrush.geometry=nil
+                        E.targetBrush.geometryKey=nil
                         E.modified=true
                     end
                     tImGui.BeginDisabled(not targetReady)
@@ -1188,21 +1348,64 @@ local function drawMorphTargets()
                     end
                     tImGui.EndDisabled()
                     tImGui.Separator()
-                    tImGui.SetNextItemWidth(220)
-                    local deltaChanged,delta=tImGui.DragFloat3(L('target_translation')..'##mreTargetTranslation',
-                        {E.targetDx,E.targetDy,E.targetDz},0.001,-math.huge,math.huge,'%.4f')
-                    if deltaChanged then
-                        E.targetDx, E.targetDy, E.targetDz=delta[1] or 0,delta[2] or 0,delta[3] or 0
-                        E.modified=true
+                    if E.targetMode==2 then
+                        tImGui.SetNextItemWidth(220)
+                        local deltaChanged,delta=tImGui.DragFloat3(L('target_translation')..'##mreTargetTranslation',
+                            {E.targetDx,E.targetDy,E.targetDz},0.001,-math.huge,math.huge,'%.4f')
+                        if deltaChanged then
+                            E.targetDx, E.targetDy, E.targetDz=delta[1] or 0,delta[2] or 0,delta[3] or 0
+                            E.modified=true
+                        end
+                        if tImGui.Button(L('target_apply_translation')..'##mreTargetApplyTranslation') then
+                            applyTargetTranslation()
+                        end
+                        tImGui.SameLine()
+                        if tImGui.Button(L('target_reset_deltas')..'##mreTargetReset') then
+                            resetSelectedTargetDeltas()
+                        end
+                        showHelpTooltip(L('target_translation_help'))
+                    else
+                        tImGui.Text(L('target_brush_title'))
+                        local brushMode=E.targetBrushMode
+                        brushMode=tImGui.RadioButton(L('target_brush_move')..'##mreTargetBrushMove',brushMode,1)
+                        tImGui.SameLine()
+                        brushMode=tImGui.RadioButton(L('target_brush_smooth')..'##mreTargetBrushSmooth',brushMode,2)
+                        if brushMode~=E.targetBrushMode then
+                            E.targetBrushMode=brushMode
+                            E.modified=true
+                        end
+                        showHelpTooltip(L(E.targetBrushMode==1 and 'target_brush_move_help' or
+                            'target_brush_smooth_help'))
+                        tImGui.SetNextItemWidth(220)
+                        local radiusChanged,radius=tImGui.SliderFloat(
+                            L('target_brush_radius')..'##mreTargetBrushRadius',E.targetBrushRadius,0.001,0.15,'%.3f')
+                        if radiusChanged then
+                            E.targetBrushRadius=math.max(0.001,math.min(0.15,radius))
+                            E.targetBrush.geometry=nil
+                            E.targetBrush.geometryKey=nil
+                            E.modified=true
+                        end
+                        showHelpTooltip(L('target_brush_radius_help'))
+                        tImGui.SetNextItemWidth(220)
+                        local strengthChanged,strength=tImGui.SliderFloat(
+                            L('target_brush_strength')..'##mreTargetBrushStrength',E.targetBrushStrength,0.01,1,'%.2f')
+                        if strengthChanged then E.targetBrushStrength=strength; E.modified=true end
+                        showHelpTooltip(L('target_brush_strength_help'))
+                        if E.targetBrushMode==1 then
+                            tImGui.SetNextItemWidth(220)
+                            local brushDeltaChanged,brushDelta=tImGui.DragFloat3(
+                                L('target_brush_offset')..'##mreTargetBrushOffset',
+                                {E.targetBrushDx,E.targetBrushDy,E.targetBrushDz},0.001,-math.huge,math.huge,'%.4f')
+                            if brushDeltaChanged then
+                                E.targetBrushDx=brushDelta[1] or 0
+                                E.targetBrushDy=brushDelta[2] or 0
+                                E.targetBrushDz=brushDelta[3] or 0
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_brush_offset_help'))
+                        end
+                        tImGui.TextWrapped(L('target_brush_interaction_help'))
                     end
-                    if tImGui.Button(L('target_apply_translation')..'##mreTargetApplyTranslation') then
-                        applyTargetTranslation()
-                    end
-                    tImGui.SameLine()
-                    if tImGui.Button(L('target_reset_deltas')..'##mreTargetReset') then
-                        resetSelectedTargetDeltas()
-                    end
-                    showHelpTooltip(L('target_translation_help'))
                 else
                     if tImGui.Button(L('target_delete')..'##mreTargetDelete') then
                         deleteSelectedTarget()
@@ -1315,6 +1518,11 @@ local function selectWorktree(worktree)
     E.selectedPoint=nil
     E.regionDrag=nil
     E.pendingSurfacePick=nil
+    E.targetBrush.stroke=nil
+    E.targetBrush.hoverHit=nil
+    E.targetBrush.hoverX=nil
+    E.targetBrush.hoverY=nil
+    E.targetBrush.hoverTime=nil
     E.targetPreviewDirty=true
     E.modified=true
     E.overlayDirty=true
@@ -1442,11 +1650,17 @@ function onLoop()
     syncLanguagePreference()
     drawControls()
     showCameraPanel()
+    updateTargetBrushHover()
+    drawTargetBrushCursor()
     tUtil.showOverlayMessage()
 end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==1 and E.worktree==2 and E.targetMode==4 then
+        beginTargetBrush(x,y)
+        return
+    end
     if key==0 then
         if E.worktree==1 and pickPoint(x,y,false) then
             return
@@ -1463,6 +1677,10 @@ function onTouchDown(key,x,y)
 end
 
 function onTouchMove(key,x,y)
+    if key==1 and E.targetBrush.stroke then
+        stampTargetBrush(x,y,E.targetBrush.stroke)
+        return
+    end
     if E.regionDrag then updatePointDrag(x,y); return end
     if E.cameraDrag then
         if E.pendingSurfacePick then
@@ -1478,6 +1696,12 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if key==1 and E.targetMode==4 and E.targetBrush.stroke then
+        stampTargetBrush(x,y,E.targetBrush.stroke)
+        finishTargetBrush()
+        return
+    end
+    if key==1 and E.worktree==2 and E.targetMode==4 then return end
     if key==0 and E.regionDrag then
         local drag=E.regionDrag
         local region=selectedRegion()

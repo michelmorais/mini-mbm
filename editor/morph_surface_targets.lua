@@ -138,6 +138,81 @@ function M.deltaCount(target)
     return #(target and target.deltas or {})
 end
 
+function M.copyTargetData(target)
+    if not target then return nil end
+    local result={vertices={},deltas={}}
+    for _,vertex in ipairs(target.vertices or {}) do
+        result.vertices[#result.vertices+1]={index=vertex.index,weight=vertex.weight}
+    end
+    for _,delta in ipairs(target.deltas or {}) do
+        result.deltas[#result.deltas+1]={index=delta.index,x=delta.x,y=delta.y,z=delta.z}
+    end
+    return result
+end
+
+-- Apply one local brush stamp to a target candidate. The caller owns the hit
+-- testing and supplies only vertices belonging to the target selection.
+function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,smooth,allowed,indices)
+    if not target or not baseVertices or not point or not normal or radius<=0 or strength<=0 then return 0 end
+    local positions=copyDeltasByIndex(target.deltas)
+    local affected={}
+    local radiusSquared=radius*radius
+    local nx,ny,nz=normal.x,normal.y,normal.z
+    for _,index in ipairs(indices or {}) do
+        local base=baseVertices[index]
+        local selectionWeight=allowed and allowed[index] or 1
+        if base and selectionWeight then
+            local x,y,z=base.x-point.x,base.y-point.y,base.z-point.z
+            local normalDistance=x*nx+y*ny+z*nz
+            local tangentSquared=x*x+y*y+z*z-normalDistance*normalDistance
+            if tangentSquared<=radiusSquared and math.abs(normalDistance)<=radius*0.45 then
+                local distance=math.sqrt(math.max(0,tangentSquared))/radius
+                local falloff=(1-distance*distance)^2*strength*selectionWeight
+                if falloff>1e-6 then affected[#affected+1]={index=index,weight=falloff} end
+            end
+        end
+    end
+    if #affected==0 then return 0 end
+    local average={x=0,y=0,z=0}
+    if smooth then
+        local sum=0
+        for _,entry in ipairs(affected) do
+            local delta=positions[entry.index] or {x=0,y=0,z=0}
+            average.x=average.x+delta.x*entry.weight
+            average.y=average.y+delta.y*entry.weight
+            average.z=average.z+delta.z*entry.weight
+            sum=sum+entry.weight
+        end
+        if sum>0 then
+            average.x,average.y,average.z=average.x/sum,average.y/sum,average.z/sum
+        end
+    end
+    local changed=0
+    for _,entry in ipairs(affected) do
+        local old=positions[entry.index] or {x=0,y=0,z=0}
+        local weight=entry.weight
+        local nextPosition
+        if smooth then
+            nextPosition={x=old.x+(average.x-old.x)*weight,
+                y=old.y+(average.y-old.y)*weight,z=old.z+(average.z-old.z)*weight}
+        else
+            nextPosition={x=old.x+(offset.x or 0)*weight,
+                y=old.y+(offset.y or 0)*weight,z=old.z+(offset.z or 0)*weight}
+        end
+        if math.abs(nextPosition.x-old.x)>1e-8 or math.abs(nextPosition.y-old.y)>1e-8 or
+                math.abs(nextPosition.z-old.z)>1e-8 then changed=changed+1 end
+        positions[entry.index]=nextPosition
+    end
+    target.deltas={}
+    for index,delta in pairs(positions) do
+        if nonZero(delta) then
+            target.deltas[#target.deltas+1]={index=index,x=delta.x,y=delta.y,z=delta.z}
+        end
+    end
+    table.sort(target.deltas,function(left,right) return left.index<right.index end)
+    return changed
+end
+
 function M.applyTranslation(target,dx,dy,dz)
     if type(target)~='table' then return 0 end
     local byIndex=copyDeltasByIndex(target.deltas)
