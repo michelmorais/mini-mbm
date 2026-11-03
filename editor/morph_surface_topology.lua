@@ -45,16 +45,30 @@ local function pointDistanceSquared(a, b)
 end
 
 function M.inspect(meshDebugObject)
-    local result={vertices={},refs={},triangles={},bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
+    local result={vertices={},refs={},triangles={},subsets={},uvs={},sourceTexture=nil,
+        bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
         maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge},signature='',vertexCount=0}
     local hash=2166136261
     local subsetCount=meshDebugObject:getTotalSubset(1)
+    local textureCandidate=nil
+    local textureConsistent=true
     hash=hashCount(hash,subsetCount)
     for subset=1,subsetCount do
         local count=meshDebugObject:getTotalVertex(1,subset)
         hash=hashCount(hash,count)
         local indices=meshDebugObject:getIndex(1,subset)
+        local texture=meshDebugObject.getTexture and meshDebugObject:getTexture(1,subset) or nil
+        if type(texture)=='string' and texture~='' then
+            if textureCandidate==nil then
+                textureCandidate=texture
+            elseif textureCandidate~=texture then
+                textureConsistent=false
+            end
+        else
+            textureConsistent=false
+        end
         local globalOffset=#result.vertices
+        local subsetInfo={start=globalOffset+1,count=count,indices={},texture=texture}
         if type(indices)=='table' then
             hash=hashCount(hash,#indices)
             for _,index in ipairs(indices) do hash=hashCount(hash,index) end
@@ -66,6 +80,8 @@ function M.inspect(meshDebugObject)
             if point then
                 local copy={x=tonumber(point.x) or 0,y=tonumber(point.y) or 0,z=tonumber(point.z) or 0}
                 result.vertices[#result.vertices+1]=copy
+                result.uvs[#result.uvs+1]=tonumber(point.u) or 0
+                result.uvs[#result.uvs+1]=tonumber(point.v) or 0
                 result.refs[#result.refs+1]={subset=subset,vertex=vertex}
                 result.bounds.minX=math.min(result.bounds.minX,copy.x)
                 result.bounds.minY=math.min(result.bounds.minY,copy.y)
@@ -82,15 +98,23 @@ function M.inspect(meshDebugObject)
                 if a and b and c and a>=1 and b>=1 and c>=1 and
                         a<=count and b<=count and c<=count then
                     result.triangles[#result.triangles+1]={globalOffset+a,globalOffset+b,globalOffset+c}
+                    subsetInfo.indices[#subsetInfo.indices+1]=a
+                    subsetInfo.indices[#subsetInfo.indices+1]=b
+                    subsetInfo.indices[#subsetInfo.indices+1]=c
                 end
             end
         elseif count>=3 then
             for vertex=1,count-2,3 do
                 result.triangles[#result.triangles+1]={globalOffset+vertex,globalOffset+vertex+1,globalOffset+vertex+2}
+                subsetInfo.indices[#subsetInfo.indices+1]=vertex
+                subsetInfo.indices[#subsetInfo.indices+1]=vertex+1
+                subsetInfo.indices[#subsetInfo.indices+1]=vertex+2
             end
         end
+        if #subsetInfo.indices>0 then result.subsets[#result.subsets+1]=subsetInfo end
     end
     result.vertexCount=#result.vertices
+    if textureConsistent then result.sourceTexture=textureCandidate end
     if result.vertexCount==0 then result.bounds=nil end
     result.signature=string.format('%08x:%d',hash,result.vertexCount)
     return result

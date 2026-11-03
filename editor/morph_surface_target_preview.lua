@@ -88,18 +88,41 @@ local function ensureShader()
     return ok and result~=false
 end
 
-local function releaseSurface(preview)
-    if not preview or not preview.surface then return end
-    dpCall(function() preview.surface:onRender(nil) end)
-    preview.surface.visible=false
-    dpCall(function() preview.surface:destroy() end)
-    preview.surface=nil
+local function releaseSurface(preview,field)
+    if not preview or not preview[field] then return end
+    local surface=preview[field]
+    dpCall(function() surface:onRender(nil) end)
+    surface.visible=false
+    dpCall(function() surface:destroy() end)
+    preview[field]=nil
+end
+
+local function releaseSurfaces(preview,field)
+    local surfaces=preview and preview[field]
+    if type(surfaces)~='table' then return end
+    for _,surface in ipairs(surfaces) do
+        dpCall(function() surface:onRender(nil) end)
+        surface.visible=false
+        dpCall(function() surface:destroy() end)
+    end
+    preview[field]=nil
+end
+
+local function clearBufferCallbacks(preview)
+    for _,target in ipairs(preview.bufferTargets or {}) do
+        dpCall(function() target.surface:onRender(nil) end)
+    end
+    preview.bufferTargets={}
+    preview.bufferApplied=false
 end
 
 function M.destroy(state)
     local preview=state.targetPreview
     if not preview then return end
-    releaseSurface(preview)
+    clearBufferCallbacks(preview)
+    releaseSurface(preview,'surface')
+    releaseSurfaces(preview,'plainSurfaces')
+    preview.plainSurface=nil
     if state.mesh and preview.meshHidden then
         state.mesh.visible=preview.meshWasVisible~=false
     end
@@ -107,40 +130,41 @@ function M.destroy(state)
     preview.weight=nil
     preview.meshWasVisible=nil
     preview.meshHidden=false
-    preview.visible=false
+    preview.shaderEnabled=nil
     preview.bufferDirty=false
-    preview.bufferApplied=false
+    preview.bufferTargets={}
 end
 
-function M.setVisible(state,visible)
+function M.setVisible(state,shaderEnabled)
     local preview=state.targetPreview
-    if not preview or not preview.surface then return false end
-    visible=visible==true
-    preview.visible=visible
-    if visible then
-        if not preview.meshHidden then
-            preview.meshWasVisible=state.mesh and state.mesh.visible~=false or true
-            preview.meshHidden=true
-        end
-        if state.mesh then state.mesh.visible=false end
-        preview.surface.visible=preview.meshWasVisible
-    else
-        if preview.meshHidden and state.mesh then
-            state.mesh.visible=preview.meshWasVisible~=false
-            preview.meshHidden=false
-        end
-        preview.surface.visible=false
+    if not preview or not preview.surface or not preview.plainSurface or
+            type(preview.plainSurfaces)~='table' then return false end
+    shaderEnabled=shaderEnabled==true
+    local modeChanged=preview.shaderEnabled~=shaderEnabled
+    preview.shaderEnabled=shaderEnabled
+    if not preview.meshHidden then
+        preview.meshWasVisible=state.mesh and state.mesh.visible~=false or true
+        preview.meshHidden=true
     end
+    if state.mesh then state.mesh.visible=false end
+    if modeChanged then clearBufferCallbacks(preview) end
+    preview.surface.visible=shaderEnabled and preview.meshWasVisible or false
+    for _,surface in ipairs(preview.plainSurfaces) do
+        surface.visible=(not shaderEnabled) and preview.meshWasVisible or false
+    end
+    if modeChanged then preview.bufferDirty=true end
     return true
 end
 
-local function updateDynamicBuffer(state,_,vertex,uv)
+local function updateDynamicBuffer(state,start,count,_,vertex,uv)
     local preview=state.targetPreview
     if not preview or not preview.surface then return end
     local weight=preview.weight or 1
     local vertices=state.topology and state.topology.vertices or {}
-    for index,point in ipairs(vertices) do
-        local entry=vertex[index]
+    for localIndex=1,count do
+        local index=start+localIndex-1
+        local point=vertices[index]
+        local entry=vertex[localIndex]
         if entry then
             local delta=preview.deltas[index]
             entry.x=point.x+(delta and delta.x or 0)*weight
@@ -156,19 +180,24 @@ end
 
 function M.update(state)
     local preview=state.targetPreview
-    if not preview or not preview.surface then return end
-    if preview.bufferApplied then
-        dpCall(function() preview.surface:onRender(nil) end)
-        preview.bufferApplied=false
-    end
+    if not preview or not preview.surface or not preview.plainSurface or
+            type(preview.plainSurfaces)~='table' then return end
+    if preview.bufferApplied then clearBufferCallbacks(preview) end
     if not preview.bufferDirty then return end
     preview.bufferDirty=false
-    local ok=dpCall(function()
-        return preview.surface:onRender(function(shape,vertex,uv)
-            return updateDynamicBuffer(state,shape,vertex,uv)
+    local targets=preview.shaderEnabled and {preview.shaderTarget} or preview.plainTargets
+    preview.bufferTargets={}
+    for _,target in ipairs(targets or {}) do
+        local ok=dpCall(function()
+            return target.surface:onRender(function(shape,vertex,uv)
+                return updateDynamicBuffer(state,target.start,target.count,shape,vertex,uv)
+            end)
         end)
-    end)
-    if not ok then preview.bufferDirty=false end
+        if ok then preview.bufferTargets[#preview.bufferTargets+1]=target end
+    end
+    if #preview.bufferTargets==0 then
+        preview.bufferDirty=false
+    end
 end
 
 function M.setWeight(state,weight)
@@ -199,53 +228,114 @@ function M.build(state,target,weight)
         end
     end
     local clampedWeight=clampWeight(weight)
-    local coords,indices,uvs={},{},{}
+    local coords,indices,heatmapUvs={},{},{}
     for index,point in ipairs(vertices) do
         local delta=deltas[index]
         coords[#coords+1]=point.x+(delta and delta.x or 0)*clampedWeight
         coords[#coords+1]=point.y+(delta and delta.y or 0)*clampedWeight
         coords[#coords+1]=point.z+(delta and delta.z or 0)*clampedWeight
         local magnitude=delta and math.sqrt(delta.x*delta.x+delta.y*delta.y+delta.z*delta.z) or 0
-        uvs[#uvs+1]=maximum>1e-10 and math.min(1,magnitude/maximum) or 0
-        uvs[#uvs+1]=1
+        heatmapUvs[#heatmapUvs+1]=maximum>1e-10 and math.min(1,magnitude/maximum) or 0
+        heatmapUvs[#heatmapUvs+1]=1
     end
     for _,triangle in ipairs(triangles) do
         indices[#indices+1]=triangle[1]
         indices[#indices+1]=triangle[2]
         indices[#indices+1]=triangle[3]
     end
-    local surface=shape:new('3d',0,0,0.0001)
-    local created=dpCall(function()
-        return surface:createDynamicIndexed(coords,indices,uvs,
-            'morph_target_overlay_'..tostring(mbm.getTimeRun()))
-    end)
-    if not created then
-        dpCall(function() surface:destroy() end)
+    local uniqueName='morph_target_preview_'..tostring(mbm.getTimeRun())
+    local function createSurface(withShader,surfaceCoords,surfaceIndices,surfaceUvs,
+            nameSuffix,texture)
+        local surface=shape:new('3d',0,0,0.0001)
+        local created=dpCall(function()
+            return surface:createDynamicIndexed(surfaceCoords,surfaceIndices,surfaceUvs,
+                uniqueName..nameSuffix)
+        end)
+        if not created then
+            dpCall(function() surface:destroy() end)
+            return nil
+        end
+        if withShader then
+            local shaderLoaded=false
+            local shaderOk,shader=dpCall(function() return surface:getShader() end)
+            if ensureShader() and shaderOk and shader then
+                local loadOk,loaded=dpCall(function() return shader:load(SHADER_NAME,nil) end)
+                shaderLoaded=loadOk and loaded~=false
+            end
+            if not shaderLoaded then surface:setColor(0.1,0.7,1,0.8) end
+        else
+            local textured=false
+            if texture then
+                local textureOk,textureApplied=dpCall(function()
+                    return surface:setTexture(texture)
+                end)
+                textured=textureOk and textureApplied~=false
+            end
+            if not textured then
+                -- Keep the target geometry opaque and inspectable without the displacement shader.
+                surface:setColor(0.72,0.82,0.9,1)
+            else
+                surface:setColor(1,1,1,1)
+            end
+        end
+        surface.alwaysRender=true
+        surface.alwaysOnTop=true
+        surface.alwaysOnTopPriority=3
+        surface.visible=false
+        return surface
+    end
+    local surface=createSurface(true,coords,indices,heatmapUvs,'_shader',nil)
+    local topologySubsets=state.topology.subsets or {}
+    if #topologySubsets==0 then
+        topologySubsets={{start=1,count=#vertices,indices=indices,
+            texture=state.topology.sourceTexture}}
+    end
+    local plainSurfaces,plainTargets={},{}
+    for subsetIndex,subset in ipairs(topologySubsets) do
+        local subsetStart=math.max(1,math.floor(tonumber(subset.start) or 1))
+        local subsetCount=math.max(0,math.floor(tonumber(subset.count) or 0))
+        local subsetCoords,subsetUvs={},{}
+        local sourceUv=state.topology.uvs or {}
+        for localIndex=1,subsetCount do
+            local index=subsetStart+localIndex-1
+            subsetCoords[#subsetCoords+1]=coords[index*3-2] or 0
+            subsetCoords[#subsetCoords+1]=coords[index*3-1] or 0
+            subsetCoords[#subsetCoords+1]=coords[index*3] or 0
+            subsetUvs[#subsetUvs+1]=sourceUv[index*2-1] or 0
+            subsetUvs[#subsetUvs+1]=sourceUv[index*2] or 0
+        end
+        local plain=createSurface(false,subsetCoords,subset.indices or {},subsetUvs,
+            '_plain_'..tostring(subsetIndex),subset.texture)
+        if not plain then
+            if surface then dpCall(function() surface:destroy() end) end
+            for _,createdSurface in ipairs(plainSurfaces) do
+                dpCall(function() createdSurface:destroy() end)
+            end
+            return false,'create_overlay_failed'
+        end
+        plainSurfaces[#plainSurfaces+1]=plain
+        plainTargets[#plainTargets+1]={surface=plain,start=subsetStart,count=subsetCount}
+    end
+    if not surface or #plainSurfaces==0 then
+        if surface then dpCall(function() surface:destroy() end) end
+        for _,createdSurface in ipairs(plainSurfaces) do
+            dpCall(function() createdSurface:destroy() end)
+        end
         return false,'create_overlay_failed'
     end
-    local shaderLoaded=false
-    local shaderOk,shader=dpCall(function() return surface:getShader() end)
-    if ensureShader() and shaderOk and shader then
-        local loadOk,loaded=dpCall(function() return shader:load(SHADER_NAME,nil) end)
-        shaderLoaded=loadOk and loaded~=false
-    end
-    if not shaderLoaded then surface:setColor(0.1,0.7,1,0.8) end
-    surface.alwaysRender=true
-    surface.alwaysOnTop=true
-    surface.alwaysOnTopPriority=3
-    surface.visible=false
 
     local previous=state.targetPreview
     local hasPrevious=previous and previous.surface
-    local meshWasVisible=hasPrevious and previous.visible and previous.meshWasVisible~=nil and
+    local meshWasVisible=hasPrevious and previous.meshWasVisible~=nil and
         previous.meshWasVisible or state.mesh.visible~=false
-    local previewVisible=hasPrevious and previous.visible~=nil and previous.visible or
+    local previewShaderEnabled=hasPrevious and previous.shaderEnabled~=nil and previous.shaderEnabled or
         state.targetPreviewVisible~=false
     M.destroy(state)
-    state.targetPreview={surface=surface,targetId=target.id,weight=clampedWeight,deltas=deltas,
-        meshWasVisible=meshWasVisible,meshHidden=false,visible=false,bufferDirty=false,
-        bufferApplied=false}
-    M.setVisible(state,previewVisible)
+    state.targetPreview={surface=surface,plainSurface=plainSurfaces[1],plainSurfaces=plainSurfaces,
+        shaderTarget={surface=surface,start=1,count=#vertices},plainTargets=plainTargets,
+        targetId=target.id,weight=clampedWeight,deltas=deltas,meshWasVisible=meshWasVisible,
+        meshHidden=false,shaderEnabled=false,bufferDirty=false,bufferApplied=false,bufferTargets={}}
+    M.setVisible(state,previewShaderEnabled)
     return true
 end
 

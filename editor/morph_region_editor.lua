@@ -104,8 +104,9 @@ local function saveEditorPreferences()
     preferences.targetPreviewWeight=E.targetPreviewWeight
     preferences.targetPreviewVisible=E.targetPreviewVisible
     if E.mesh then
-        local visibleMesh=E.targetPreview and E.targetPreview.surface and E.targetPreviewVisible and
-            E.targetPreview.surface or E.mesh
+        local preview=E.targetPreview
+        local visibleMesh=preview and preview.surface and
+            (E.targetPreviewVisible and preview.surface or preview.plainSurface) or E.mesh
         preferences.meshVisible=visibleMesh.visible~=false
     elseif preferences.meshVisible==nil then
         preferences.meshVisible=true
@@ -1007,16 +1008,14 @@ local function showCameraPanel()
         tImGui.EndDisabled()
         tImGui.Separator()
         local displacementActive=E.targetPreview and E.targetPreview.surface and
-            E.targetPreviewVisible
+            E.targetPreview.plainSurface~=nil
         local meshVisible=E.mesh and E.mesh.visible or false
         tImGui.BeginDisabled(displacementActive==true)
         local visible=tImGui.Checkbox(L('show_mesh')..'##mreShowMesh',meshVisible)
         tImGui.EndDisabled()
         if not displacementActive and E.mesh and visible~=meshVisible then
             E.mesh.visible=visible
-            if E.targetPreview and E.targetPreview.surface then
-                E.targetPreview.meshWasVisible=visible
-            end
+            if E.targetPreview and E.targetPreview.surface then E.targetPreview.meshWasVisible=visible end
             E.modified=true
         end
         tImGui.Separator()

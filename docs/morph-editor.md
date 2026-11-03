@@ -100,8 +100,10 @@ settings are restored when the project is opened and are part of the project dir
 4. Apply a translation to create target deltas. The translation is multiplied by each source
    vertex weight and is stored in the project.
 5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
-   **Show target displacement** toggles the dynamic displacement overlay; it can be hidden to
-   return to the source mesh without changing the target data.
+   **Show target displacement** selects the visualization material: enabled uses the dynamic
+   displacement shader, while disabled keeps the displaced geometry visible with its original
+   texture and material when available, without the custom shader. The source mesh remains
+   unchanged and the target is updated in memory.
 6. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 

@@ -202,8 +202,9 @@ morph-target editing remain for milestone 2.3. See
 sequential `Morph targets` worktree node after `Surface shapes`. It creates an independent target selection from a ready surface region,
 retains the source region fingerprint and topology identity, explicitly rebuilds the target
 selection after source changes, and supports an initial weighted translation operation. Edit mode
-now uses a dynamic in-memory displacement overlay with a neutral-to-full contribution slider; the
-source MSH remains unchanged while the slider moves. The target record is generic and remains project data;
+now uses paired dynamic in-memory surfaces: a shader heat map and a textured/default-material geometry
+view, selected by the displacement checkbox, with a neutral-to-full contribution slider; the source
+MSH remains unchanged while the slider moves. The target record is generic and remains project data;
 it does not yet pretend to be a runtime MSH target. Next steps are painting, smoothing, transforms,
 mirroring, MSH export, and reload.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
