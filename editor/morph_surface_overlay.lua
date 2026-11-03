@@ -65,16 +65,20 @@ local function appendCross(target,center,right,up,half)
         {x=center.x+up.x*half,y=center.y+up.y*half,z=center.z+up.z*half})
 end
 
-local function updateLine(object,segments,color)
+local function updateLine(object,segments,color,priority)
     if #segments==0 then
         destroy(object)
         return nil
     end
     if not object then
-        object=line:new('3d')
+        object=line:new('3d',0,0,0)
+        object:add(segments)
         object.alwaysOnTop=true
+        object.alwaysRender=true
+    else
+        object:set(segments,1)
     end
-    object:set(segments,1)
+    object.alwaysOnTopPriority=priority or 1
     object:setColor(table.unpack(color))
     object.visible=true
     return object
@@ -98,10 +102,14 @@ function M.rebuild(state)
         end
         if #segments>0 then
             if not entry.line then
-                entry.line=line:new('3d')
+                entry.line=line:new('3d',0,0,0)
+                entry.line:add(segments)
                 entry.line.alwaysOnTop=true
+                entry.line.alwaysRender=true
+                entry.line.alwaysOnTopPriority=1
+            else
+                entry.line:set(segments,1)
             end
-            entry.line:set(segments,1)
             entry.line:setColor(table.unpack(COLORS[(regionIndex-1)%#COLORS+1]))
             entry.line.visible=true
         else
@@ -138,8 +146,8 @@ function M.rebuild(state)
             end
         end
         destroy(state.regionMarkers); state.regionMarkers=nil
-        state.regionShapeHandles=updateLine(state.regionShapeHandles,shapeHandles,{1,1,1,1})
-        state.regionShapeCenter=updateLine(state.regionShapeCenter,shapeCenter,{0.25,1,0.35,1})
+        state.regionShapeHandles=updateLine(state.regionShapeHandles,shapeHandles,{1,1,1,1},3)
+        state.regionShapeCenter=updateLine(state.regionShapeCenter,shapeCenter,{0.25,1,0.35,1},4)
         return
     end
     destroy(state.regionShapeHandles); state.regionShapeHandles=nil
@@ -151,7 +159,7 @@ function M.rebuild(state)
             appendCross(markers,center,right,up,half*1.5)
         end
     end
-    state.regionMarkers=updateLine(state.regionMarkers,markers,{0.15,0.9,1,1})
+    state.regionMarkers=updateLine(state.regionMarkers,markers,{0.15,0.9,1,1},3)
 end
 
 return M

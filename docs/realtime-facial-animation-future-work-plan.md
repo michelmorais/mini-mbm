@@ -155,9 +155,10 @@ region = {
 ```
 
 The generic Morph Editor may author a parametric `square` or `ellipse` shape before it becomes a
-free contour. A locked shape preserves its geometric constraint while it is resized; `free = true`
-means that its surface anchors can be edited independently. A `polygon` remains the unconstrained
-shape representation.
+free contour. A locked shape preserves its closed contour while it is resized; its uniform handle
+keeps a square square, while width and height handles can produce a rectangle. `free = true` means
+that its surface anchors can be edited independently. A `polygon` remains the unconstrained shape
+representation.
 
 The initial generic editor should reuse target catalog, transforms, painting, smoothing, masking,
 and mirroring without requiring facial landmarks, facial roles, or FACS names. A `polygon` is an

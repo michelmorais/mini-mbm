@@ -59,6 +59,20 @@ local function cameraBasis(camera)
         {x=-sinEl*sinAz,y=cosEl,z=-sinEl*cosAz}
 end
 
+local function intersectCameraPlane(origin,direction,point,camera)
+    if not origin or not direction or not point then return nil end
+    local right,up=cameraBasis(camera)
+    local normal={x=right.y*up.z-right.z*up.y,
+        y=right.z*up.x-right.x*up.z,
+        z=right.x*up.y-right.y*up.x}
+    local denominator=dot(direction,normal)
+    if math.abs(denominator)<=1e-8 then return nil end
+    local relative=subtract(point,origin)
+    local distance=dot(relative,normal)/denominator
+    if distance<0 then return nil end
+    return add(origin,scale(direction,distance))
+end
+
 local function shapeType(region)
     local shape=region and region.shape
     local value=type(shape)=='table' and shape.type or nil
@@ -110,8 +124,6 @@ local function targetPoints(parameters)
     local center,right,up=parameters.center,parameters.right,parameters.up
     local radiusX,radiusY=parameters.radiusX,parameters.radiusY
     if parameters.type=='square' then
-        local radius=math.max(radiusX,radiusY)
-        radiusX,radiusY=radius,radius
         return {
             add(center,add(scale(right,-radiusX),scale(up,-radiusY))),
             add(center,add(scale(right,radiusX),scale(up,-radiusY))),
@@ -145,10 +157,18 @@ local function nearestVertex(topology,target,used)
     return bestIndex
 end
 
-local function assignTargets(region,targets,topology)
+local function assignTargets(region,targets,topology,reuseExisting)
     local points,used={},{}
     for index,target in ipairs(targets) do
-        local vertexIndex=nearestVertex(topology,target,used)
+        local vertexIndex
+        local existing=reuseExisting and region.points and region.points[index]
+        -- During a drag, preserve the authored vertex anchors. Re-scanning the
+        -- complete mesh for every mouse event makes large meshes unusable.
+        if existing and topology.vertices[existing.index] and not used[existing.index] then
+            vertexIndex=existing.index
+        else
+            vertexIndex=nearestVertex(topology,target,used)
+        end
         if vertexIndex then
             used[vertexIndex]=true
             local vertex=topology.vertices[vertexIndex]
@@ -163,10 +183,10 @@ local function assignTargets(region,targets,topology)
     region.topologySignature=topology.signature or ''
 end
 
-local function normalizeParameters(parameters)
+local function normalizeParameters(parameters,forceSquare)
     parameters.radiusX=math.max(tonumber(parameters.radiusX) or 1e-5,1e-5)
     parameters.radiusY=math.max(tonumber(parameters.radiusY) or 1e-5,1e-5)
-    if parameters.type=='square' then
+    if forceSquare and parameters.type=='square' then
         local radius=math.max(parameters.radiusX,parameters.radiusY)
         parameters.radiusX,parameters.radiusY=radius,radius
     end
@@ -192,13 +212,18 @@ function M.isParametric(region)
 end
 function M.cameraBasis(camera) return cameraBasis(camera) end
 function M.parameters(region,topology,camera) return captureParameters(region,topology,camera) end
+function M.intersectCameraPlane(origin,direction,point,camera)
+    return intersectCameraPlane(origin,direction,point,camera)
+end
 
 function M.seed(region,center,topology,camera,extent)
     ensureShape(region)
     local right,up=cameraBasis(camera)
     local size=math.max(tonumber(extent) or 1,0.001)
+    local radiusX=size*0.08
+    local radiusY=shapeType(region)=='square' and radiusX or size*0.06
     local parameters={type=shapeType(region),center=copyPoint(center),right=right,up=up,
-        radiusX=size*0.08,radiusY=size*0.06,segments=region.shape.segments}
+        radiusX=radiusX,radiusY=radiusY,segments=region.shape.segments}
     normalizeParameters(parameters)
     assignTargets(region,targetPoints(parameters),topology)
     return parameters
@@ -210,9 +235,8 @@ function M.handles(region,topology,camera)
     if not parameters then return {} end
     local result={{id='center',kind='center',position=parameters.center}}
     if parameters.type=='square' then
-        local radius=math.max(parameters.radiusX,parameters.radiusY)
-        local locations={{'corner_top_left',-radius,-radius},
-            {'corner_top_right',radius,-radius},{'corner_bottom_right',radius,radius}}
+        local locations={{'uniform',parameters.radiusX,parameters.radiusY},
+            {'width',parameters.radiusX,0},{'height',0,parameters.radiusY}}
         for _,entry in ipairs(locations) do
             result[#result+1]={id=entry[1],kind='resize',position=add(parameters.center,
                 add(scale(parameters.right,entry[2]),scale(parameters.up,entry[3])))}
@@ -258,7 +282,7 @@ function M.applyCenterDrag(region,base,newCenter,topology)
     if not base or not newCenter then return false end
     local parameters={type=base.type,center=copyPoint(newCenter),right=base.right,up=base.up,
         radiusX=base.radiusX,radiusY=base.radiusY,segments=base.segments}
-    assignTargets(region,targetPoints(parameters),topology)
+    assignTargets(region,targetPoints(parameters),topology,true)
     return true
 end
 
@@ -268,7 +292,7 @@ function M.applyResize(region,base,handleId,point,topology)
     local x,y=dot(relative,base.right),dot(relative,base.up)
     local parameters={type=base.type,center=copyPoint(base.center),right=base.right,up=base.up,
         radiusX=base.radiusX,radiusY=base.radiusY,segments=base.segments}
-    if base.type=='square' then
+    if handleId=='uniform' and base.type=='square' then
         local radius=math.max(math.abs(x),math.abs(y),1e-5)
         parameters.radiusX,parameters.radiusY=radius,radius
     elseif handleId=='uniform' then
@@ -283,7 +307,7 @@ function M.applyResize(region,base,handleId,point,topology)
         parameters.radiusY=math.max(math.abs(y),1e-5)
     end
     normalizeParameters(parameters)
-    assignTargets(region,targetPoints(parameters),topology)
+    assignTargets(region,targetPoints(parameters),topology,true)
     return true
 end
 
@@ -303,7 +327,7 @@ function M.change(region,typeName,isFree,topology,camera)
     if parameters then
         parameters.type=kind
         parameters.segments=region.shape.segments
-        normalizeParameters(parameters)
+        normalizeParameters(parameters,true)
         assignTargets(region,targetPoints(parameters),topology)
     else
         region.closed=false

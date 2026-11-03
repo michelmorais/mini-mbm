@@ -19,14 +19,15 @@ and adapts its handles to the object.
 The new-shape selector provides:
 
 - **Square**: starts as a square. In locked mode it has a center controller and three resize
-  handles (top-left, top-right, and bottom-right). Resizing always preserves a square.
+  handles: uniform size, width, and height. The uniform handle preserves a square; the width and
+  height handles can turn it into a rectangle without enabling Free.
 - **Circle / ellipse**: starts as an ellipse. In locked mode it has a center controller and
   three resize handles: uniform size, width, and height.
 - **Free polygon**: exposes each anchor for independent editing.
 
 The **Free** flag is available for Square and Circle / ellipse. A free shape keeps its initial
 template points but then behaves as an editable polygon, so each anchor can be dragged to create
-an arbitrary contour. Parametric Square and Ellipse shapes are always closed; free polygons can be
+an arbitrary contour. Locked Square and Ellipse shapes are always closed; free polygons can be
 opened or closed explicitly.
 
 The center controller moves the complete shape. Resize controllers change only the shape

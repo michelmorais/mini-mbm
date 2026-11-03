@@ -40,7 +40,8 @@ local E={project=tProject.new(),projectPath=nil,mesh=nil,meshDebug=nil,topology=
     meshBounds=nil,modified=false,status='',statusError=false,nameDraft='region',
     selectedPoint=nil,regionDrag=nil,cameraDrag=nil,cameraPan=nil,overlayDirty=true,
     regionOverlay={},regionNames={},regionNamesDirty=true,selectedRegionStatus='missing',
-    regionStatusDirty=true,camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
+    regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
+    camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false}
 
 local function L(key) return tLang.L('mre_'..key) end
@@ -64,6 +65,7 @@ local function markChanged()
     E.modified=true
     E.overlayDirty=true
     E.regionStatusDirty=true
+    E.regionTableDirty=true
 end
 
 local function applyCamera()
@@ -140,6 +142,7 @@ local function destroyMesh()
     E.topology=nil
     E.meshBounds=nil
     E.regionStatusDirty=true
+    E.regionTableDirty=true
 end
 
 local function releaseObject(object)
@@ -187,6 +190,7 @@ local function loadMesh(path,preserveProject)
         E.projectPath=nil
         E.modified=false
         E.regionNamesDirty=true
+        E.regionTableDirty=true
     end
     if E.project.topologySignature=='' or not preserveProject then
         E.project.topologySignature=topology.signature
@@ -225,6 +229,7 @@ local function loadProject(path)
     E.selectedPoint=nil
     E.regionNamesDirty=true
     E.regionStatusDirty=true
+    E.regionTableDirty=true
     if project.meshPath~='' then
         if not loadMesh(project.meshPath,true) then
             E.project,E.projectPath,E.modified,E.selectedPoint=
@@ -368,6 +373,22 @@ local function refreshRegionNames()
     E.regionNamesDirty=false
 end
 
+local function refreshRegionTable()
+    if not E.regionTableDirty then return end
+    local rows={}
+    for _,region in ipairs(E.project.regions or {}) do
+        local kind=tShapes.type(region)
+        rows[#rows+1]={name=region.name or '',
+            type=kind=='square' and L('shape_square') or kind=='ellipse' and L('shape_ellipse') or
+                L('shape_polygon'),
+            mode=tShapes.isFree(region) and L('shape_free') or L('shape_locked'),
+            points=#(region.points or {}),vertices=#(region.derivedVertexWeights or {}),
+            status=tRegions.status(region,E.topology)}
+    end
+    E.regionTableRows=rows
+    E.regionTableDirty=false
+end
+
 local function containsAnchor(region,index,except)
     for pointIndex,point in ipairs(region.points or {}) do
         if pointIndex~=except and point.index==index then return true end
@@ -441,15 +462,17 @@ local function updatePointDrag(x,y)
     if not drag or not region or not E.topology then return end
     local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
     if not ok or not ox or not dx then return end
-    local surfaceHit=tTopology.intersectRaySurface(E.topology,
-        {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
     if drag.mode=='shape_center' or drag.mode=='shape_handle' then
-        if not surfaceHit or not drag.base then return end
+        -- Surface picking scans every triangle. Shape manipulation is a
+        -- camera-plane operation, so keep this path constant-time per event.
+        local planeHit=tShapes.intersectCameraPlane({x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz},
+            drag.base and drag.base.center,E.camera)
+        if not planeHit or not drag.base then return end
         local changed
         if drag.mode=='shape_center' then
-            changed=tShapes.applyCenterDrag(region,drag.base,surfaceHit.point,E.topology)
+            changed=tShapes.applyCenterDrag(region,drag.base,planeHit,E.topology)
         else
-            changed=tShapes.applyResize(region,drag.base,drag.handleId,surfaceHit.point,E.topology)
+            changed=tShapes.applyResize(region,drag.base,drag.handleId,planeHit,E.topology)
         end
         if changed then
             drag.changed=true
@@ -458,6 +481,8 @@ local function updatePointDrag(x,y)
         end
         return
     end
+    local surfaceHit=tTopology.intersectRaySurface(E.topology,
+        {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
     local hit=tTopology.nearestVertexOnSurfaceHit(E.topology,surfaceHit)
     if not hit or containsAnchor(region,hit.index,drag.pointIndex) then return end
     local point=region.points[drag.pointIndex]
@@ -593,15 +618,15 @@ local function showCameraPanel()
     if opened then
         local canFrameRegion=selectedRegionBounds()~=nil
         tImGui.BeginDisabled(not E.meshBounds)
-        if tImGui.Button(L('frame_mesh')) then fitCamera(E.meshBounds) end
+        if tImGui.Button(L('frame_mesh')..'##mreFrameMesh') then fitCamera(E.meshBounds) end
         tImGui.SameLine()
         tImGui.BeginDisabled(not canFrameRegion)
-        if tImGui.Button(L('frame_region')) then frameRegionCamera() end
+        if tImGui.Button(L('frame_region')..'##mreFrameRegion') then frameRegionCamera() end
         tImGui.EndDisabled()
         tImGui.EndDisabled()
         tImGui.Separator()
         local meshVisible=E.mesh and E.mesh.visible or false
-        local visible=tImGui.Checkbox(L('show_mesh'),meshVisible)
+        local visible=tImGui.Checkbox(L('show_mesh')..'##mreShowMesh',meshVisible)
         if E.mesh and visible~=meshVisible then E.mesh.visible=visible end
         tImGui.Separator()
         if tUtil.drawOrbitGizmo(E.camera,{size=110}) then
@@ -613,6 +638,32 @@ local function showCameraPanel()
         tImGui.TextWrapped(L('camera_help'))
     end
     tImGui.End()
+end
+
+local function drawRegionTable()
+    refreshRegionTable()
+    if #E.regionTableRows==0 then return end
+    tImGui.Separator()
+    if tImGui.BeginTable('mreRegionTable',6,
+            tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(L('table_name'))
+        tImGui.TableSetupColumn(L('table_type'))
+        tImGui.TableSetupColumn(L('table_mode'))
+        tImGui.TableSetupColumn(L('table_points'))
+        tImGui.TableSetupColumn(L('table_vertices'))
+        tImGui.TableSetupColumn(L('table_status'))
+        tImGui.TableHeadersRow()
+        for _,row in ipairs(E.regionTableRows) do
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0); tImGui.Text(row.name)
+            tImGui.TableSetColumnIndex(1); tImGui.Text(row.type)
+            tImGui.TableSetColumnIndex(2); tImGui.Text(row.mode)
+            tImGui.TableSetColumnIndex(3); tImGui.Text(tostring(row.points))
+            tImGui.TableSetColumnIndex(4); tImGui.Text(tostring(row.vertices))
+            tImGui.TableSetColumnIndex(5); tImGui.Text(L('region_status_'..row.status))
+        end
+        tImGui.EndTable()
+    end
 end
 
 local function drawControls()
@@ -628,26 +679,26 @@ local function drawControls()
     tImGui.TextWrapped(L('interaction_help'))
     if E.topology and E.project.topologySignature==E.topology.signature then
         tImGui.SetNextItemWidth(220)
-        local changed,name=tImGui.InputText(L('new_region_name'),E.nameDraft)
+        local changed,name=tImGui.InputText(L('new_region_name')..'##mreNewShapeName',E.nameDraft)
         if changed then E.nameDraft=name end
         local shapeTypes={L('shape_square'),L('shape_ellipse'),L('shape_polygon')}
         tImGui.SetNextItemWidth(220)
-        local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type'),E.newShapeType,shapeTypes)
+        local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type')..'##mreNewShapeType',E.newShapeType,shapeTypes)
         if shapeChanged then
             E.newShapeType=shapeIndex
             if shapeIndex==3 then E.newShapeFree=false end
         end
         tImGui.BeginDisabled(E.newShapeType==3)
-        local free=tImGui.Checkbox(L('shape_free'),E.newShapeFree)
+        local free=tImGui.Checkbox(L('shape_free')..'##mreNewShapeFree',E.newShapeFree)
         if free~=E.newShapeFree then E.newShapeFree=free end
         tImGui.EndDisabled()
         showHelpTooltip(L('shape_free_help'))
-        if tImGui.Button(L('add_region')) then addRegion() end
+        if tImGui.Button(L('add_region')..'##mreAddShape') then addRegion() end
         if #E.project.regions>0 then
             refreshRegionNames()
             local names=E.regionNames
             local index=math.max(1,math.min(#names,E.project.selectedRegion))
-            local selectionChanged,selected=tImGui.Combo(L('select_region'),index,names)
+            local selectionChanged,selected=tImGui.Combo(L('select_region')..'##mreSelectedShape',index,names)
             if selectionChanged then
                 E.project.selectedRegion=selected
                 E.selectedPoint=nil
@@ -657,7 +708,7 @@ local function drawControls()
             local region=selectedRegion()
             local selectedShapeIndex=shapeTypeIndex(region)
             tImGui.SetNextItemWidth(220)
-            local selectedShapeChanged,newShapeIndex=tImGui.Combo(L('shape_type'),selectedShapeIndex,shapeTypes)
+            local selectedShapeChanged,newShapeIndex=tImGui.Combo(L('shape_type')..'##mreSelectedShapeType',selectedShapeIndex,shapeTypes)
             if selectedShapeChanged then
                 local newType=shapeTypeFromIndex(newShapeIndex)
                 local keepFree=newType=='polygon' or
@@ -666,7 +717,7 @@ local function drawControls()
             end
             local shapeIsFree=tShapes.isFree(region)
             tImGui.BeginDisabled(tShapes.type(region)=='polygon')
-            local selectedFree=tImGui.Checkbox(L('shape_free'),shapeIsFree)
+            local selectedFree=tImGui.Checkbox(L('shape_free')..'##mreSelectedShapeFree',shapeIsFree)
             tImGui.EndDisabled()
             if tShapes.type(region)~='polygon' and selectedFree~=shapeIsFree then
                 changeSelectedShape(region,tShapes.type(region),selectedFree)
@@ -675,23 +726,24 @@ local function drawControls()
             tImGui.Text(string.format(L('region_weight_count'),#region.derivedVertexWeights))
             tImGui.Text(L('region_status_'..E.selectedRegionStatus))
             tImGui.BeginDisabled(tShapes.isParametric(region))
-            if tImGui.Button(region.closed and L('open_contour') or L('close_contour')) then
+            if tImGui.Button((region.closed and L('open_contour') or L('close_contour'))..'##mreContourToggle') then
                 toggleClosed()
             end
             tImGui.EndDisabled()
             tImGui.SameLine()
             tImGui.BeginDisabled(not E.selectedPoint)
-            if tImGui.Button(L('remove_point')) then removeSelectedPoint() end
+            if tImGui.Button(L('remove_point')..'##mreRemovePoint') then removeSelectedPoint() end
             tImGui.EndDisabled()
             tImGui.SameLine()
-            if tImGui.Button(L('delete_region')) then deleteSelectedRegion() end
+            if tImGui.Button(L('delete_region')..'##mreDeleteShape') then deleteSelectedRegion() end
             tImGui.BeginDisabled(not region.closed or #region.points<3)
-            if tImGui.Button(L('rebuild_region')) then rebuildRegion(region) end
+            if tImGui.Button(L('rebuild_region')..'##mreRebuildSelection') then rebuildRegion(region) end
             tImGui.EndDisabled()
         end
     elseif E.topology then
         tImGui.TextWrapped(L('topology_changed'))
     end
+    drawRegionTable()
     tImGui.TreePop()
     end
     if E.status~='' then
