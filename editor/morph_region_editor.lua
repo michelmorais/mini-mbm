@@ -30,6 +30,7 @@ local tShapes=require 'morph_surface_shapes'
 local tProject=require 'morph_surface_project'
 local tTargets=require 'morph_surface_targets'
 local tOverlay=require 'morph_surface_overlay'
+local tTargetPreview=require 'morph_surface_target_preview'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -46,7 +47,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
-    worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0}
+    worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
+    targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -71,6 +73,7 @@ local function markChanged()
     E.regionStatusDirty=true
     E.regionTableDirty=true
     E.targetAvailabilityDirty=true
+    E.targetPreviewDirty=true
 end
 
 local function applyCamera()
@@ -98,8 +101,12 @@ local function saveEditorPreferences()
     preferences.targetDx=E.targetDx
     preferences.targetDy=E.targetDy
     preferences.targetDz=E.targetDz
+    preferences.targetPreviewWeight=E.targetPreviewWeight
+    preferences.targetPreviewVisible=E.targetPreviewVisible
     if E.mesh then
-        preferences.meshVisible=E.mesh.visible~=false
+        local visibleMesh=E.targetPreview and E.targetPreview.surface and E.targetPreviewVisible and
+            E.targetPreview.surface or E.mesh
+        preferences.meshVisible=visibleMesh.visible~=false
     elseif preferences.meshVisible==nil then
         preferences.meshVisible=true
     end
@@ -128,6 +135,8 @@ local function restoreEditorPreferences(project)
     E.targetDx=tonumber(preferences.targetDx) or 0
     E.targetDy=tonumber(preferences.targetDy) or 0
     E.targetDz=tonumber(preferences.targetDz) or 0
+    E.targetPreviewWeight=math.max(0,math.min(1,tonumber(preferences.targetPreviewWeight) or 1))
+    E.targetPreviewVisible=preferences.targetPreviewVisible~=false
     if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
     local camera=preferences.camera
     if type(camera)=='table' then
@@ -205,6 +214,7 @@ local function placeShapeAtViewportCenter(region)
 end
 
 local function destroyMesh()
+    tTargetPreview.destroy(E)
     tOverlay.destroy(E)
     if E.mesh then dpCall(function() E.mesh:destroy() end) end
     if E.meshDebug then dpCall(function() E.meshDebug:destroy() end) end
@@ -212,6 +222,7 @@ local function destroyMesh()
     E.meshDebug=nil
     E.topology=nil
     E.meshBounds=nil
+    E.targetPreviewDirty=true
     E.regionStatusDirty=true
     E.regionTableDirty=true
     E.targetAvailabilityDirty=true
@@ -261,6 +272,8 @@ local function loadMesh(path,preserveProject)
         E.project.meshPath=path
         E.projectPath=nil
         E.modified=false
+        E.targetPreviewWeight=1
+        E.targetPreviewVisible=true
         E.regionNamesDirty=true
         E.regionTableDirty=true
         E.targetAvailabilityDirty=true
@@ -558,6 +571,41 @@ local function targetStatus(target)
     return tTargets.status(target,region,E.topology)
 end
 
+local function targetPreviewReady(target)
+    return E.worktree==2 and E.targetMode==2 and target and targetStatus(target)=='ready'
+end
+
+local function refreshTargetPreview()
+    local target=selectedTarget()
+    if not targetPreviewReady(target) then
+        tTargetPreview.destroy(E)
+        E.targetPreviewDirty=false
+        return
+    end
+    tTargetPreview.destroy(E)
+    local ok,errorCode=tTargetPreview.build(E,target,E.targetPreviewWeight)
+    E.targetPreviewDirty=false
+    if not ok then
+        setStatus(L('target_preview_failed')..': '..tostring(errorCode),true)
+    end
+end
+
+local function syncTargetPreview()
+    local target=selectedTarget()
+    if not targetPreviewReady(target) then
+        if E.targetPreview.surface then tTargetPreview.destroy(E) end
+        return
+    end
+    if E.targetPreviewDirty or E.targetPreview.targetId~=target.id then
+        refreshTargetPreview()
+    end
+    if E.targetPreview.surface then
+        tTargetPreview.setWeight(E,E.targetPreviewWeight)
+        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        tTargetPreview.update(E)
+    end
+end
+
 local function newTargetId()
     local suffix=1
     while true do
@@ -595,6 +643,7 @@ local function selectTarget(index)
     local regionIndex=targetRegion(target)
     if regionIndex then E.project.selectedRegion=regionIndex end
     E.selectedPoint=nil
+    E.targetPreviewDirty=true
     E.overlayDirty=true
     E.regionStatusDirty=true
     E.modified=true
@@ -613,6 +662,7 @@ local function createTargetFromRegion()
     E.project.targets[#E.project.targets+1]=target
     E.project.selectedTarget=#E.project.targets
     E.targetMode=2
+    E.targetPreviewDirty=true
     markChanged()
     setStatus(string.format(L('target_created'),name),false)
     return true
@@ -632,6 +682,7 @@ local function rebuildSelectedTarget()
         return false
     end
     markChanged()
+    E.targetPreviewDirty=true
     setStatus(L('target_rebuilt'),false)
     return true
 end
@@ -648,6 +699,7 @@ local function applyTargetTranslation()
         return true
     end
     markChanged()
+    E.targetPreviewDirty=true
     setStatus(string.format(L('target_translation_applied'),changed),false)
     return true
 end
@@ -671,6 +723,7 @@ local function deleteSelectedTarget()
         E.project.selectedTarget))
     E.overlayDirty=true
     markChanged()
+    E.targetPreviewDirty=true
     setStatus(L('target_deleted'),false)
     return true
 end
@@ -953,10 +1006,17 @@ local function showCameraPanel()
         tImGui.EndDisabled()
         tImGui.EndDisabled()
         tImGui.Separator()
+        local displacementActive=E.targetPreview and E.targetPreview.surface and
+            E.targetPreviewVisible
         local meshVisible=E.mesh and E.mesh.visible or false
+        tImGui.BeginDisabled(displacementActive==true)
         local visible=tImGui.Checkbox(L('show_mesh')..'##mreShowMesh',meshVisible)
-        if E.mesh and visible~=meshVisible then
+        tImGui.EndDisabled()
+        if not displacementActive and E.mesh and visible~=meshVisible then
             E.mesh.visible=visible
+            if E.targetPreview and E.targetPreview.surface then
+                E.targetPreview.meshWasVisible=visible
+            end
             E.modified=true
         end
         tImGui.Separator()
@@ -1058,7 +1118,10 @@ local function drawMorphTargets()
     E.targetMode=tImGui.RadioButton(L('target_mode_edit')..'##mreTargetModeEdit',E.targetMode,2)
     tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_remove')..'##mreTargetModeRemove',E.targetMode,3)
-    if E.targetMode~=previousMode then E.modified=true end
+    if E.targetMode~=previousMode then
+        E.targetPreviewDirty=true
+        E.modified=true
+    end
     tImGui.TextWrapped(L('target_interaction_help'))
     tImGui.Separator()
     if not E.topology or E.project.topologySignature~=E.topology.signature then
@@ -1096,6 +1159,30 @@ local function drawMorphTargets()
                 tImGui.Text(string.format(L('target_delta_count'),tTargets.deltaCount(target)))
                 tImGui.Text(targetStatusLabel(targetStatus(target)))
                 if E.targetMode==2 then
+                    local targetReady=targetStatus(target)=='ready'
+                    tImGui.BeginDisabled(not targetReady)
+                    tImGui.SetNextItemWidth(220)
+                    local previewChanged,previewWeight=tImGui.SliderFloat(
+                        L('target_preview_weight')..'##mreTargetPreviewWeight',
+                        E.targetPreviewWeight,0,1,'%.2f')
+                    tImGui.EndDisabled()
+                    showHelpTooltip(L('target_preview_help'))
+                    if previewChanged then
+                        E.targetPreviewWeight=math.max(0,math.min(1,previewWeight))
+                        tTargetPreview.setWeight(E,E.targetPreviewWeight)
+                        E.modified=true
+                    end
+                    tImGui.BeginDisabled(not targetReady)
+                    local displacementVisible=tImGui.Checkbox(
+                        L('target_preview_displacement')..'##mreTargetPreviewDisplacement',
+                        E.targetPreviewVisible)
+                    tImGui.EndDisabled()
+                    showHelpTooltip(L('target_preview_displacement_help'))
+                    if displacementVisible~=E.targetPreviewVisible then
+                        E.targetPreviewVisible=displacementVisible
+                        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+                        E.modified=true
+                    end
                     tImGui.BeginDisabled(targetStatus(target)~='ready')
                     if tImGui.Button(L('target_rebuild')..'##mreTargetRebuild') then
                         rebuildSelectedTarget()
@@ -1229,6 +1316,7 @@ local function selectWorktree(worktree)
     E.selectedPoint=nil
     E.regionDrag=nil
     E.pendingSurfacePick=nil
+    E.targetPreviewDirty=true
     E.modified=true
     E.overlayDirty=true
 end
@@ -1350,6 +1438,7 @@ function onLoop()
         end
         E.overlayDirty=false
     end
+    syncTargetPreview()
     showMenu()
     syncLanguagePreference()
     drawControls()

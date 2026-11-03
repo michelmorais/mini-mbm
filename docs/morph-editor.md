@@ -60,7 +60,8 @@ shows the handles over the selected surface contour.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
 - In **Morph targets**, create an independent target selection from a rebuilt shape selection,
   inspect its source and topology status, regenerate it explicitly after source changes, and apply
-  a first weighted translation operation to its authored deltas.
+  a first weighted translation operation to its authored deltas. Edit mode also previews the
+  selected target in the viewport with a neutral-to-full contribution slider.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
@@ -73,9 +74,9 @@ files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
 language, selected worktree, Add/Edit/Remove modes, selector size, surface-snap axis, new-shape
-type and Free flag, target name and translation drafts, the draft shape name, mesh visibility, and
-the Morph viewport camera. These settings are restored when the project is opened and are part of
-the project dirty state when changed.
+type and Free flag, target name and translation drafts, the draft shape name, mesh visibility, the
+target preview weight, target displacement visibility, and the Morph viewport camera. These
+settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
 
@@ -95,19 +96,23 @@ the project dirty state when changed.
 2. Open the **Morph targets** worktree, keep **Add target** selected, choose the source shape, and
    create a target.
 3. Switch to **Edit target** to inspect the source fingerprint, topology status, selected vertex
-   count, and authored delta count.
+   count, authored delta count, and the target preview.
 4. Apply a translation to create target deltas. The translation is multiplied by each source
    vertex weight and is stored in the project.
-5. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
+5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
+   **Show target displacement** toggles the dynamic displacement overlay; it can be hidden to
+   return to the source mesh without changing the target data.
+6. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 
 While **Morph targets** is active, the viewport is navigation-only; shape anchors are editable only
 in **Surface shapes**. Selecting a target selects its source shape for inspection without changing
 the source geometry.
 
-This initial target worktree stores generic authoring data only. Runtime preview, painting,
-smoothing, transforms beyond translation, mirroring, MSH export, and runtime reload are later
-Milestone 2.3 steps.
+This initial target worktree stores generic authoring data only. Its editor preview uses a dynamic
+in-memory surface overlay and does not modify or regenerate the source MSH while the preview weight
+changes. Painting, smoothing, transforms beyond translation, mirroring, MSH export, and runtime
+reload are later Milestone 2.3 steps.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -118,5 +123,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-preview, painting, smoothing, transforms beyond the initial translation, mirroring, MSH export, and
-runtime playback remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+playback, painting, smoothing, transforms beyond the initial translation, mirroring, MSH export,
+and runtime reload remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

@@ -60,6 +60,8 @@ local function normalizePreferences(preferences)
         targetDx=validNumber(preferences.targetDx,0),
         targetDy=validNumber(preferences.targetDy,0),
         targetDz=validNumber(preferences.targetDz,0),
+        targetPreviewWeight=clamp(validNumber(preferences.targetPreviewWeight,1),0,1),
+        targetPreviewVisible=preferences.targetPreviewVisible~=false,
         meshVisible=preferences.meshVisible~=false,
     }
     if camera then
