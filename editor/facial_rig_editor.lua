@@ -71,6 +71,7 @@ local state = {
     selectedMask=1,
     selectedFacialMask=1,
     generatedRegionTargetChoice={},
+    generatedRegionTargetMode=1,
     selectedSurfaceControl=1, selectedSurfaceControlPoint=nil, surfaceControlDrag=nil,
     relationshipReview=nil,
     surfacePointGizmo={axes={},origin=nil,length=nil,drag=nil},
@@ -3039,6 +3040,7 @@ local function loadMesh(path, preserveProject)
     state.selectedSurfaceControl=state.project.selectedSurfaceControl or 1
     state.relationshipReview=nil
     state.generatedRegionTargetChoice={}
+    state.generatedRegionTargetMode=1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
     clearHistory()
     state.modified=embeddedTargetEdits or (preserveProject and state.modified or true)
@@ -3115,6 +3117,7 @@ local function newProject()
     state.selectedSurfaceControlPoint=nil
     state.relationshipReview=nil
     state.generatedRegionTargetChoice={}
+    state.generatedRegionTargetMode=1
     state.surfaceControlNameDraft=''
     state.surfaceControlKind=1
     state.landmarkEditMode=state.project.landmarkEditMode or 1
@@ -3196,6 +3199,7 @@ local function openProject()
     state.selectedSurfaceControlPoint=nil
     state.relationshipReview=nil
     state.generatedRegionTargetChoice={}
+    state.generatedRegionTargetMode=1
     state.surfacePointGizmo.drag=nil
     state.landmarkEditMode=project.landmarkEditMode or 1
     state.showLandmarkGuide=project.authoringWorkflow=='regions'
@@ -3963,34 +3967,59 @@ local function showMasks()
                 tImGui.Text(string.format(tLang.L('fre_generated_region_count_fmt'),
                     #(region.derivedVertexWeights or region.vertexWeights or {})))
             end
-            local matchingTargetMask=nil
-            local matchingTargetIndex=nil
+            local targetMaskIndices,targetMaskNames={},{}
+            local preferredTargetChoice=nil
             local targetName=((region and region.name) or group.name or group.id or '')..'_target'
             for maskIndex,mask in ipairs(masks) do
-                if mask.purpose=='target' and mask.name==targetName then
-                    matchingTargetMask=mask
-                    matchingTargetIndex=maskIndex
-                    break
+                if mask.purpose=='target' then
+                    targetMaskIndices[#targetMaskIndices+1]=maskIndex
+                    targetMaskNames[#targetMaskNames+1]=mask.name or ('#'..tostring(maskIndex))
+                    if mask.name==targetName then preferredTargetChoice=#targetMaskNames end
                 end
             end
-            local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
-            if matchingTargetMask then
-                label='fre_generated_region_regenerate_and_update'
+            local targetMode=state.generatedRegionTargetMode or 1
+            if #targetMaskIndices==0 then targetMode=1 end
+            tImGui.Text(tLang.L('fre_generated_region_target_mode'))
+            targetMode=tImGui.RadioButton(tLang.L('fre_generated_region_target_create'),targetMode,1)
+            tImGui.SameLine()
+            tImGui.BeginDisabled(#targetMaskIndices==0)
+            targetMode=tImGui.RadioButton(tLang.L('fre_generated_region_target_update'),targetMode,2)
+            tImGui.EndDisabled()
+            showHelpTooltip(tLang.L('fre_generated_region_target_mode_help'))
+            state.generatedRegionTargetMode=targetMode
+
+            local targetChoice=nil
+            local targetMask=nil
+            if targetMode==2 and #targetMaskIndices>0 then
+                local choices=state.generatedRegionTargetChoice
+                targetChoice=choices[group.id] or preferredTargetChoice or 1
+                targetChoice=math.max(1,math.min(#targetMaskIndices,targetChoice))
+                tImGui.SetNextItemWidth(260)
+                local targetChanged,targetIndex=tImGui.Combo(
+                    tLang.L('fre_generated_region_target_select')..'##freRegionTargetSelect',
+                    targetChoice,targetMaskNames)
+                if targetChanged then choices[group.id]=targetIndex end
+                targetChoice=targetChanged and targetIndex or targetChoice
+                targetMask=masks[targetMaskIndices[targetChoice]]
             end
+
+            local updateTargetWhileGenerating=targetMode==2 and targetMask~=nil
+            local label=region and 'fre_generated_region_regenerate' or 'fre_generated_region_generate'
+            if updateTargetWhileGenerating then label='fre_generated_region_regenerate_and_update' end
             if tImGui.Button(tLang.L(label)..'##freGenerateRegion') then
                 pushUndoSnapshot()
                 local generated,errorCode=tGeneratedRegions.generate(state.project,state.topology,group)
                 if generated then
                     local targetUpdated=false
                     local targetUpdateError=nil
-                    if matchingTargetMask then
+                    if updateTargetWhileGenerating then
                         local vertices,copyError=tGeneratedRegions.copyVertices(
                             state.project,state.topology,generated)
                         if vertices then
-                            matchingTargetMask.vertices=vertices
-                            matchingTargetMask.topologySignature=generated.topologySignature
+                            targetMask.vertices=vertices
+                            targetMask.topologySignature=generated.topologySignature
                             targetUpdated=true
-                            if state.selectedMask==matchingTargetIndex then
+                            if state.selectedMask==targetMaskIndices[targetChoice] then
                                 markMaskVisualizationDirty()
                                 startMaskVisualizationBuild()
                             end
@@ -4012,61 +4041,41 @@ local function showMasks()
                     setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
                 end
             end
-            local generateHelpKey=matchingTargetMask and
+            local generateHelpKey=updateTargetWhileGenerating and
                 'fre_generated_region_regenerate_and_update_help' or
                 'fre_generated_region_generate_help'
             showHelpTooltip(tLang.L(generateHelpKey))
             tImGui.SameLine()
-            tImGui.BeginDisabled(status~='ready')
-            if tImGui.Button(tLang.L('fre_generated_region_create_target')..'##freRegionCreateTarget') then
-                local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
-                if not vertices then
-                    setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
-                else
-                    pushUndoSnapshot()
-                    local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
-                    mask.vertices=vertices
-                    mask.topologySignature=region.topologySignature
-                    state.selectedMask=#state.project.masks
-                    state.project.selectedMask=state.selectedMask
-                    state.maskWorkspaceMode=3
-                    markMaskVisualizationDirty()
-                    markModified()
-                    startMaskVisualizationBuild()
-                    setStatus(tLang.L('fre_generated_region_created_target'),false)
-                end
-            end
-            tImGui.EndDisabled()
-            showHelpTooltip(tLang.L('fre_generated_region_create_target_help'))
-            local targetMaskIndices,targetMaskNames={},{}
-            local preferredTargetChoice=nil
-            for maskIndex,mask in ipairs(masks) do
-                if mask.purpose=='target' then
-                    targetMaskIndices[#targetMaskIndices+1]=maskIndex
-                    targetMaskNames[#targetMaskNames+1]=mask.name or ('#'..tostring(maskIndex))
-                    if region and mask.name==((region.name or group.name or group.id or '')..'_target') then
-                        preferredTargetChoice=#targetMaskNames
+            if targetMode==1 then
+                tImGui.BeginDisabled(status~='ready')
+                if tImGui.Button(tLang.L('fre_generated_region_create_target')..'##freRegionCreateTarget') then
+                    local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
+                    if not vertices then
+                        setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
+                    else
+                        pushUndoSnapshot()
+                        local mask=tFacialProject.addTargetMask(state.project,region.name..'_target')
+                        mask.vertices=vertices
+                        mask.topologySignature=region.topologySignature
+                        state.selectedMask=#state.project.masks
+                        state.project.selectedMask=state.selectedMask
+                        state.maskWorkspaceMode=3
+                        markMaskVisualizationDirty()
+                        markModified()
+                        startMaskVisualizationBuild()
+                        setStatus(tLang.L('fre_generated_region_created_target'),false)
                     end
                 end
-            end
-            if #targetMaskIndices>0 then
-                local choices=state.generatedRegionTargetChoice
-                local targetChoice=choices[group.id] or preferredTargetChoice or 1
-                targetChoice=math.max(1,math.min(#targetMaskIndices,targetChoice))
-                tImGui.SetNextItemWidth(300)
-                local targetChanged,targetIndex=tImGui.Combo(
-                    tLang.L('fre_generated_region_target_select')..'##freRegionTargetSelect',
-                    targetChoice,targetMaskNames)
-                if targetChanged then choices[group.id]=targetIndex end
-                targetChoice=targetChanged and targetIndex or targetChoice
-                tImGui.BeginDisabled(status~='ready')
+                tImGui.EndDisabled()
+                showHelpTooltip(tLang.L('fre_generated_region_create_target_help'))
+            else
+                tImGui.BeginDisabled(status~='ready' or targetMask==nil)
                 if tImGui.Button(tLang.L('fre_generated_region_update_target')..
                         '##freRegionUpdateTarget') then
                     local vertices,errorCode=tGeneratedRegions.copyVertices(state.project,state.topology,region)
                     if not vertices then
                         setStatus(tLang.L('fre_generated_region_error_'..tostring(errorCode)),true)
                     else
-                        local targetMask=masks[targetMaskIndices[targetChoice]]
                         pushUndoSnapshot()
                         targetMask.vertices=vertices
                         targetMask.topologySignature=region.topologySignature
@@ -4237,10 +4246,12 @@ local function showMasks()
     end
     tImGui.Separator()
     tImGui.Text(tLang.L('fre_masks'))
-    if tImGui.BeginTable('freMasks',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(tLang.L('fre_mask_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_role_column'))
-        tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'))
+    if tImGui.BeginTable('freMasks',3,tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg',
+            'ImGuiTableFlags_SizingFixedFit','ImGuiTableFlags_NoHostExtendX')) then
+        local fixedColumn=tImGui.Flags('ImGuiTableColumnFlags_WidthFixed','ImGuiTableColumnFlags_NoResize')
+        tImGui.TableSetupColumn(tLang.L('fre_mask_column'),fixedColumn,205)
+        tImGui.TableSetupColumn(tLang.L('fre_role_column'),fixedColumn,135)
+        tImGui.TableSetupColumn(tLang.L('fre_mask_vertices_column'),fixedColumn,85)
         tImGui.TableHeadersRow()
         for index,mask in ipairs(masks) do
             if not facsWorkflow or not tFacialProject.isRigMask(mask) then
@@ -4347,6 +4358,7 @@ local function showMasks()
             local loopMode=tImGui.Checkbox(tLang.L('fre_mask_loop_mode'),state.maskLoopMode)
             if loopMode~=state.maskLoopMode then state.maskLoopMode=loopMode end
             showHelpTooltip(tLang.L('fre_mask_loop_mode_tooltip'))
+            tImGui.SetNextItemWidth(150)
             local brushRadiusChanged,brushRadius=tImGui.SliderFloat(
                 tLang.L('fre_mask_brush_radius'),state.maskBrushRadius,0.005,0.20,'%.3f')
             if brushRadiusChanged then state.maskBrushRadius=brushRadius end

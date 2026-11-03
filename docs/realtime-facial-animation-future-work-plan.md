@@ -72,6 +72,10 @@ current region into an independent Morph Target selection mask. Surface falloff,
 rig-weight assignment, and Blender transport remain future milestones. AU-to-target profile
 authoring is described in Phase 3.
 
+The FACS region workspace separates target operations into **Create Target** and **Update Target**.
+The latter exposes the target-mask selector and can regenerate the region and replace the selected
+target mask in one action; creating a target never changes an existing target mask implicitly.
+
 **Phase 1 controller relationships are implemented.** Each point controller stores direct links
 to controls and a contribution weight from 0 to 1. The Landmarks/FACS panel displays the links;
 the user can change their weights, remove links, or add them through a review list. Gizmo and

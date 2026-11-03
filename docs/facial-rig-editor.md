@@ -148,12 +148,17 @@ stores binary vertex weights. The stored region records its source group, source
 source fingerprint (including the face scale used for the depth band), and mesh topology
 signature. Changing an anchor, face scale, or topology makes it
 stale; the editor reports that state and requires explicit regeneration before the region can be
-used. **Copy to Morph Target mask** creates an independent, editable snapshot of a current
+used. **Create Morph Target mask** creates an independent, editable snapshot of a current
 region's selected vertices and opens it for visual review. The copy does not remain linked to the
 source. The **Vertex mask** workflow instead shows Rig role management and classic vertex
 masks here; it does not show FACS region generation. Surface falloff,
 automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
 work.
+
+For FACS regions, the target operation is explicit: **Create Target** creates a new independent
+Morph Target selection mask, while **Update Target** reveals the **Target mask to update** combo and
+replaces the selected mask's vertices. In Update Target mode, **Regenerate region and update target**
+performs both operations in one action; the combo is not shown in Create Target mode.
 
 Generated regions also carry the generic region fields used by the upcoming Morph Editor:
 polygon kind, canonical surface anchors, topology identity, and rebuildable vertex weights. Facial
