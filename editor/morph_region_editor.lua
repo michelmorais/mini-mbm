@@ -26,15 +26,22 @@ tLang=require 'lang.language'
 local tTopology=require 'morph_surface_topology'
 local tPolygon=require 'morph_surface_polygon'
 local tRegions=require 'morph_surface_regions'
+local tShapes=require 'morph_surface_shapes'
 local tProject=require 'morph_surface_project'
 local tOverlay=require 'morph_surface_overlay'
+
+local function dpCall(fn,...)
+    local result=table.pack(pcall(fn,...))
+    if not result[1] then print('[morph_region_editor] '..tostring(result[2])) end
+    return table.unpack(result,1,result.n)
+end
 
 local E={project=tProject.new(),projectPath=nil,mesh=nil,meshDebug=nil,topology=nil,
     meshBounds=nil,modified=false,status='',statusError=false,nameDraft='region',
     selectedPoint=nil,regionDrag=nil,cameraDrag=nil,cameraPan=nil,overlayDirty=true,
     regionOverlay={},regionNames={},regionNamesDirty=true,selectedRegionStatus='missing',
     regionStatusDirty=true,camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
-    pendingAction=nil,confirmOpen=false}
+    pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -43,6 +50,14 @@ local function setStatus(message,isError)
     E.statusError=isError==true
     tUtil.sMessageOverlay=E.status
     tUtil.bWarnMessage=E.statusError
+end
+
+local function showHelpTooltip(message)
+    if not message or message=='' or not tImGui.IsItemHovered(0) then return end
+    tImGui.SetNextWindowSizeConstraints({x=280,y=0},{x=440,y=360})
+    tImGui.BeginTooltip()
+    tImGui.TextWrapped(message)
+    tImGui.EndTooltip()
 end
 
 local function markChanged()
@@ -75,10 +90,51 @@ local function fitCamera(bounds)
     applyCamera()
 end
 
+local function selectedRegionBounds()
+    local region=E.project.regions[E.project.selectedRegion]
+    if not region or not E.topology then return nil end
+    local points=tPolygon.resolvePoints(region,E.topology)
+    if #points==0 then return nil end
+    local bounds={minX=math.huge,minY=math.huge,minZ=math.huge,
+        maxX=-math.huge,maxY=-math.huge,maxZ=-math.huge}
+    for _,point in ipairs(points) do
+        bounds.minX=math.min(bounds.minX,point.position.x)
+        bounds.minY=math.min(bounds.minY,point.position.y)
+        bounds.minZ=math.min(bounds.minZ,point.position.z)
+        bounds.maxX=math.max(bounds.maxX,point.position.x)
+        bounds.maxY=math.max(bounds.maxY,point.position.y)
+        bounds.maxZ=math.max(bounds.maxZ,point.position.z)
+    end
+    local extent=math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+    local padding=math.max(extent*0.18,0.01)
+    bounds.minX=bounds.minX-padding; bounds.maxX=bounds.maxX+padding
+    bounds.minY=bounds.minY-padding; bounds.maxY=bounds.maxY+padding
+    bounds.minZ=bounds.minZ-padding; bounds.maxZ=bounds.maxZ+padding
+    return bounds
+end
+
+local function frameRegionCamera()
+    fitCamera(selectedRegionBounds() or E.meshBounds)
+end
+
+local function placeShapeAtViewportCenter(region)
+    if not region or tShapes.type(region)=='polygon' or not E.topology then return false end
+    local ok,width,height=dpCall(mbm.getSizeScreen)
+    if not ok or not width or not height then return false end
+    local rayOk,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,width*0.5,height*0.5)
+    if not rayOk or not ox or not dx then return false end
+    local hit=tTopology.intersectRaySurface(E.topology,{x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
+    if not hit then return false end
+    local extent=math.sqrt((E.meshBounds.maxX-E.meshBounds.minX)^2+
+        (E.meshBounds.maxY-E.meshBounds.minY)^2+(E.meshBounds.maxZ-E.meshBounds.minZ)^2)
+    tShapes.seed(region,hit.point,E.topology,E.camera,extent)
+    return true
+end
+
 local function destroyMesh()
     tOverlay.destroy(E)
-    if E.mesh then pcall(function() E.mesh:destroy() end) end
-    if E.meshDebug then pcall(function() E.meshDebug:destroy() end) end
+    if E.mesh then dpCall(function() E.mesh:destroy() end) end
+    if E.meshDebug then dpCall(function() E.meshDebug:destroy() end) end
     E.mesh=nil
     E.meshDebug=nil
     E.topology=nil
@@ -87,7 +143,7 @@ local function destroyMesh()
 end
 
 local function releaseObject(object)
-    if object then pcall(function() object:destroy() end) end
+    if object then dpCall(function() object:destroy() end) end
 end
 
 local function loadMesh(path,preserveProject)
@@ -95,28 +151,28 @@ local function loadMesh(path,preserveProject)
     local directory=path:match('^(.*)[/\\][^/\\]+$')
     if directory then mbm.addPath(directory) end
     local candidate=mesh:new('3d')
-    local loadOk,loaded=pcall(function() return candidate:load(path) end)
+    local loadOk,loaded=dpCall(function() return candidate:load(path) end)
     if not loadOk or loaded==false then
         releaseObject(candidate)
         setStatus(string.format(L('mesh_load_failed'),path),true)
         return false
     end
     local inspector=meshDebug:new()
-    local inspectOk,inspected=pcall(function() return inspector:load(path) end)
+    local inspectOk,inspected=dpCall(function() return inspector:load(path) end)
     if not inspectOk or inspected~=true then
         releaseObject(candidate)
         releaseObject(inspector)
         setStatus(L('mesh_inspect_failed'),true)
         return false
     end
-    local topologyOk,topology=pcall(tTopology.inspect,inspector)
+    local topologyOk,topology=dpCall(tTopology.inspect,inspector)
     if not topologyOk or not topology or not topology.bounds then
         releaseObject(candidate)
         releaseObject(inspector)
         setStatus(L('mesh_inspect_failed'),true)
         return false
     end
-    pcall(function() candidate:stopSkeletalAnimation() end)
+    dpCall(function() candidate:stopSkeletalAnimation() end)
     candidate.alwaysRender=true
     candidate.visible=true
     destroyMesh()
@@ -256,11 +312,22 @@ local function newRegionId()
     end
 end
 
+local function shapeTypeFromIndex(index)
+    return index==1 and 'square' or index==2 and 'ellipse' or 'polygon'
+end
+
+local function shapeTypeIndex(region)
+    local kind=tShapes.type(region)
+    return kind=='square' and 1 or kind=='ellipse' and 2 or 3
+end
+
 local function addRegion()
     if not E.topology then setStatus(L('load_mesh_first'),true); return end
     local name=E.nameDraft:match('^%s*(.-)%s*$')
     if name=='' then name=string.format(L('region_default_name'),#E.project.regions+1) end
+    local shapeType=shapeTypeFromIndex(E.newShapeType)
     local region=tRegions.new(name,'polygon',{})
+    region.shape=tShapes.new(shapeType,shapeType=='polygon' and true or E.newShapeFree)
     region.closed=false
     region.id=newRegionId()
     region.topologySignature=E.topology.signature
@@ -269,7 +336,24 @@ local function addRegion()
     E.selectedPoint=nil
     E.regionNamesDirty=true
     markChanged()
-    setStatus(L('region_created'),false)
+    if placeShapeAtViewportCenter(region) then
+        markChanged()
+        setStatus(L('shape_seeded'),false)
+    else
+        setStatus(L('region_created'),false)
+    end
+end
+
+local function changeSelectedShape(region,shapeType,isFree)
+    if not region or not E.topology then return false end
+    local changed=tShapes.change(region,shapeType,isFree,E.topology,E.camera)
+    if changed then
+        markChanged()
+        E.selectedPoint=nil
+        E.overlayDirty=true
+        E.regionStatusDirty=true
+    end
+    return changed
 end
 
 local function selectedRegion()
@@ -295,15 +379,35 @@ local function pickPoint(x,y)
     if not E.topology then return false end
     local region=selectedRegion()
     if not region then return false end
-    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
     if not ok or not ox or not dx then return false end
     local origin,direction={x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz}
-    local hit=tTopology.intersectRaySurface(E.topology,origin,direction)
-    if not hit then return false end
     local resolved=tPolygon.resolvePoints(region,E.topology)
     local extent=math.sqrt((E.meshBounds.maxX-E.meshBounds.minX)^2+
         (E.meshBounds.maxY-E.meshBounds.minY)^2+(E.meshBounds.maxZ-E.meshBounds.minZ)^2)
     local radius=math.max(extent*0.024,0.001)
+    if #region.points>0 and tShapes.isParametric(region) then
+        local handle=tShapes.nearestHandleOnRay(tShapes.handles(region,E.topology,E.camera),
+            origin,direction,radius*1.8)
+        if handle then
+            E.regionDrag={mode=handle.kind=='center' and 'shape_center' or 'shape_handle',
+                handleId=handle.id,base=tShapes.parameters(region,E.topology,E.camera),changed=false}
+            E.overlayDirty=true
+            return true
+        end
+    end
+    local hit=tTopology.intersectRaySurface(E.topology,origin,direction)
+    if not hit then return false end
+    if #region.points==0 and tShapes.type(region)~='polygon' then
+        tShapes.seed(region,hit.point,E.topology,E.camera,extent)
+        E.selectedPoint=nil
+        markChanged()
+        setStatus(L('shape_seeded'),false)
+        return true
+    end
+    if tShapes.isParametric(region) then
+        return false
+    end
     local nearest,distance=tPolygon.nearestPoint(resolved,hit.point,radius)
     if nearest then
         E.selectedPoint=nearest
@@ -335,10 +439,25 @@ local function updatePointDrag(x,y)
     local drag=E.regionDrag
     local region=selectedRegion()
     if not drag or not region or not E.topology then return end
-    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,x,y)
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
     if not ok or not ox or not dx then return end
     local surfaceHit=tTopology.intersectRaySurface(E.topology,
         {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
+    if drag.mode=='shape_center' or drag.mode=='shape_handle' then
+        if not surfaceHit or not drag.base then return end
+        local changed
+        if drag.mode=='shape_center' then
+            changed=tShapes.applyCenterDrag(region,drag.base,surfaceHit.point,E.topology)
+        else
+            changed=tShapes.applyResize(region,drag.base,drag.handleId,surfaceHit.point,E.topology)
+        end
+        if changed then
+            drag.changed=true
+            E.overlayDirty=true
+            E.regionStatusDirty=true
+        end
+        return
+    end
     local hit=tTopology.nearestVertexOnSurfaceHit(E.topology,surfaceHit)
     if not hit or containsAnchor(region,hit.index,drag.pointIndex) then return end
     local point=region.points[drag.pointIndex]
@@ -379,6 +498,10 @@ end
 local function toggleClosed()
     local region=selectedRegion()
     if not region then return end
+    if tShapes.isParametric(region) then
+        setStatus(L('shape_always_closed'),true)
+        return
+    end
     if region.closed then
         region.closed=false
         region.derivedVertexWeights={}
@@ -408,8 +531,8 @@ local function panCamera(x,y)
     local scale=c.distance*0.001
     local dx=(E.cameraPan.x-x)*scale
     local dy=(y-E.cameraPan.y)*scale
-    c.fx=c.fx+math.cos(c.azimuth)*dx
-    c.fz=c.fz-math.sin(c.azimuth)*dx
+    c.fx=c.fx-math.cos(c.azimuth)*dx
+    c.fz=c.fz+math.sin(c.azimuth)*dx
     c.fy=c.fy+dy
     E.cameraPan={x=x,y=y}
     applyCamera()
@@ -461,6 +584,37 @@ local function showMenu()
     tImGui.EndMainMenuBar()
 end
 
+local function showCameraPanel()
+    tUtil.setInitialWindowPositionRight('MorphRegionCamera',0,25,330)
+    tImGui.SetNextWindowSize({x=330,y=300},tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowSizeConstraints({x=330,y=300},{x=330,y=300})
+    local opened=tImGui.Begin(L('camera')..'##MorphRegionCamera',true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if opened then
+        local canFrameRegion=selectedRegionBounds()~=nil
+        tImGui.BeginDisabled(not E.meshBounds)
+        if tImGui.Button(L('frame_mesh')) then fitCamera(E.meshBounds) end
+        tImGui.SameLine()
+        tImGui.BeginDisabled(not canFrameRegion)
+        if tImGui.Button(L('frame_region')) then frameRegionCamera() end
+        tImGui.EndDisabled()
+        tImGui.EndDisabled()
+        tImGui.Separator()
+        local meshVisible=E.mesh and E.mesh.visible or false
+        local visible=tImGui.Checkbox(L('show_mesh'),meshVisible)
+        if E.mesh and visible~=meshVisible then E.mesh.visible=visible end
+        tImGui.Separator()
+        if tUtil.drawOrbitGizmo(E.camera,{size=110}) then
+            applyCamera()
+            E.overlayDirty=true
+        end
+        tImGui.Separator()
+        tImGui.Text(string.format(L('camera_distance_fmt'),E.camera.distance))
+        tImGui.TextWrapped(L('camera_help'))
+    end
+    tImGui.End()
+end
+
 local function drawControls()
     tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
     if E.mesh then
@@ -469,10 +623,25 @@ local function drawControls()
         tImGui.TextWrapped(L('load_mesh_help'))
     end
     tImGui.Separator()
+    if tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
+            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
     tImGui.TextWrapped(L('interaction_help'))
     if E.topology and E.project.topologySignature==E.topology.signature then
+        tImGui.SetNextItemWidth(220)
         local changed,name=tImGui.InputText(L('new_region_name'),E.nameDraft)
         if changed then E.nameDraft=name end
+        local shapeTypes={L('shape_square'),L('shape_ellipse'),L('shape_polygon')}
+        tImGui.SetNextItemWidth(220)
+        local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type'),E.newShapeType,shapeTypes)
+        if shapeChanged then
+            E.newShapeType=shapeIndex
+            if shapeIndex==3 then E.newShapeFree=false end
+        end
+        tImGui.BeginDisabled(E.newShapeType==3)
+        local free=tImGui.Checkbox(L('shape_free'),E.newShapeFree)
+        if free~=E.newShapeFree then E.newShapeFree=free end
+        tImGui.EndDisabled()
+        showHelpTooltip(L('shape_free_help'))
         if tImGui.Button(L('add_region')) then addRegion() end
         if #E.project.regions>0 then
             refreshRegionNames()
@@ -486,12 +655,30 @@ local function drawControls()
                 E.regionStatusDirty=true
             end
             local region=selectedRegion()
+            local selectedShapeIndex=shapeTypeIndex(region)
+            tImGui.SetNextItemWidth(220)
+            local selectedShapeChanged,newShapeIndex=tImGui.Combo(L('shape_type'),selectedShapeIndex,shapeTypes)
+            if selectedShapeChanged then
+                local newType=shapeTypeFromIndex(newShapeIndex)
+                local keepFree=newType=='polygon' or
+                    (tShapes.type(region)~='polygon' and tShapes.isFree(region))
+                changeSelectedShape(region,newType,keepFree)
+            end
+            local shapeIsFree=tShapes.isFree(region)
+            tImGui.BeginDisabled(tShapes.type(region)=='polygon')
+            local selectedFree=tImGui.Checkbox(L('shape_free'),shapeIsFree)
+            tImGui.EndDisabled()
+            if tShapes.type(region)~='polygon' and selectedFree~=shapeIsFree then
+                changeSelectedShape(region,tShapes.type(region),selectedFree)
+            end
             tImGui.Text(string.format(L('region_point_count'),#region.points))
             tImGui.Text(string.format(L('region_weight_count'),#region.derivedVertexWeights))
             tImGui.Text(L('region_status_'..E.selectedRegionStatus))
+            tImGui.BeginDisabled(tShapes.isParametric(region))
             if tImGui.Button(region.closed and L('open_contour') or L('close_contour')) then
                 toggleClosed()
             end
+            tImGui.EndDisabled()
             tImGui.SameLine()
             tImGui.BeginDisabled(not E.selectedPoint)
             if tImGui.Button(L('remove_point')) then removeSelectedPoint() end
@@ -504,6 +691,8 @@ local function drawControls()
         end
     elseif E.topology then
         tImGui.TextWrapped(L('topology_changed'))
+    end
+    tImGui.TreePop()
     end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
@@ -537,6 +726,7 @@ function onLoop()
     end
     showMenu()
     drawControls()
+    showCameraPanel()
     tUtil.showOverlayMessage()
 end
 

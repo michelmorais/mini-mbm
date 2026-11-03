@@ -23,13 +23,18 @@
 local tRegions=require 'morph_surface_regions'
 local M={}
 
+local PROJECT_VERSION=2
+
 function M.new()
-    return {version=1,meshPath='',topologySignature='',regions={},selectedRegion=1}
+    return {version=PROJECT_VERSION,meshPath='',topologySignature='',regions={},selectedRegion=1}
 end
 
 function M.normalize(project)
     if type(project)~='table' then return nil,'invalid_project' end
-    project.version=1
+    if tonumber(project.version)~=PROJECT_VERSION then
+        return nil,'unsupported_morph_project_version: '..tostring(project.version)
+    end
+    project.version=PROJECT_VERSION
     project.meshPath=type(project.meshPath)=='string' and project.meshPath or ''
     project.topologySignature=type(project.topologySignature)=='string' and
         project.topologySignature or ''

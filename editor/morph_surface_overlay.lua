@@ -21,6 +21,7 @@
 ]]--
 
 local tPolygon=require 'morph_surface_polygon'
+local tShapes=require 'morph_surface_shapes'
 local M={}
 local COLORS={{0.1,0.85,1,1},{1,0.52,0.1,1},{0.7,0.45,1,1},
     {0.35,1,0.55,1},{1,0.8,0.15,1}}
@@ -32,13 +33,51 @@ end
 function M.destroy(state)
     for _,entry in pairs(state.regionOverlay or {}) do destroy(entry.line) end
     destroy(state.regionMarkers)
+    destroy(state.regionShapeHandles)
+    destroy(state.regionShapeCenter)
     state.regionOverlay={}
     state.regionMarkers=nil
+    state.regionShapeHandles=nil
+    state.regionShapeCenter=nil
 end
 
 local function appendSegment(target,a,b)
     target[#target+1]=a.x; target[#target+1]=a.y; target[#target+1]=a.z
     target[#target+1]=b.x; target[#target+1]=b.y; target[#target+1]=b.z
+end
+
+local function appendSquare(target,center,right,up,half)
+    local corners={}
+    for _,signs in ipairs({{-1,-1},{1,-1},{1,1},{-1,1}}) do
+        corners[#corners+1]={x=center.x+right.x*half*signs[1]+up.x*half*signs[2],
+            y=center.y+right.y*half*signs[1]+up.y*half*signs[2],
+            z=center.z+right.z*half*signs[1]+up.z*half*signs[2]}
+    end
+    for index=1,4 do appendSegment(target,corners[index],corners[index%4+1]) end
+end
+
+local function appendCross(target,center,right,up,half)
+    appendSegment(target,
+        {x=center.x-right.x*half,y=center.y-right.y*half,z=center.z-right.z*half},
+        {x=center.x+right.x*half,y=center.y+right.y*half,z=center.z+right.z*half})
+    appendSegment(target,
+        {x=center.x-up.x*half,y=center.y-up.y*half,z=center.z-up.z*half},
+        {x=center.x+up.x*half,y=center.y+up.y*half,z=center.z+up.z*half})
+end
+
+local function updateLine(object,segments,color)
+    if #segments==0 then
+        destroy(object)
+        return nil
+    end
+    if not object then
+        object=line:new('3d')
+        object.alwaysOnTop=true
+    end
+    object:set(segments,1)
+    object:setColor(table.unpack(color))
+    object.visible=true
+    return object
 end
 
 function M.rebuild(state)
@@ -50,10 +89,6 @@ function M.rebuild(state)
         activeIds[id]=true
         local entry=state.regionOverlay[id] or {}
         state.regionOverlay[id]=entry
-        if not entry.line then
-            entry.line=line:new('3d')
-            entry.line.alwaysOnTop=true
-        end
         local points=tPolygon.resolvePoints(region,state.topology)
         local segments={}
         local edgeCount=region.closed and #points or #points-1
@@ -62,11 +97,16 @@ function M.rebuild(state)
             appendSegment(segments,points[index].position,points[nextIndex].position)
         end
         if #segments>0 then
+            if not entry.line then
+                entry.line=line:new('3d')
+                entry.line.alwaysOnTop=true
+            end
             entry.line:set(segments,1)
             entry.line:setColor(table.unpack(COLORS[(regionIndex-1)%#COLORS+1]))
             entry.line.visible=true
         else
-            entry.line.visible=false
+            destroy(entry.line)
+            entry.line=nil
         end
     end
     for id,entry in pairs(state.regionOverlay) do
@@ -76,6 +116,8 @@ function M.rebuild(state)
     local selected=state.project.regions[state.project.selectedRegion]
     if not selected then
         destroy(state.regionMarkers); state.regionMarkers=nil
+        destroy(state.regionShapeHandles); state.regionShapeHandles=nil
+        destroy(state.regionShapeCenter); state.regionShapeCenter=nil
         return
     end
     local points=tPolygon.resolvePoints(selected,state.topology)
@@ -85,38 +127,31 @@ function M.rebuild(state)
         (state.meshBounds.maxY-state.meshBounds.minY)^2+
         (state.meshBounds.maxZ-state.meshBounds.minZ)^2) or 1
     local half=math.max(extent*0.006,0.001)
-    local azimuth=state.camera.azimuth or 0
-    local elevation=state.camera.elevation or 0
-    local right={x=math.cos(azimuth),y=0,z=-math.sin(azimuth)}
-    local up={x=-math.sin(azimuth)*math.sin(elevation),y=math.cos(elevation),
-        z=-math.cos(azimuth)*math.sin(elevation)}
+    local right,up=tShapes.cameraBasis(state.camera)
+    if tShapes.isParametric(selected) then
+        local shapeHandles,shapeCenter={},{}
+        for _,handle in ipairs(tShapes.handles(selected,state.topology,state.camera)) do
+            if handle.kind=='center' then
+                appendCross(shapeCenter,handle.position,right,up,half*1.45)
+            else
+                appendSquare(shapeHandles,handle.position,right,up,half*1.2)
+            end
+        end
+        destroy(state.regionMarkers); state.regionMarkers=nil
+        state.regionShapeHandles=updateLine(state.regionShapeHandles,shapeHandles,{1,1,1,1})
+        state.regionShapeCenter=updateLine(state.regionShapeCenter,shapeCenter,{0.25,1,0.35,1})
+        return
+    end
+    destroy(state.regionShapeHandles); state.regionShapeHandles=nil
+    destroy(state.regionShapeCenter); state.regionShapeCenter=nil
     for index,point in ipairs(points) do
         local center=point.position
-        local corners={}
-        for _,signs in ipairs({{-1,-1},{1,-1},{1,1},{-1,1}}) do
-            corners[#corners+1]={x=center.x+right.x*half*signs[1]+up.x*half*signs[2],
-                y=center.y+right.y*half*signs[1]+up.y*half*signs[2],
-                z=center.z+right.z*half*signs[1]+up.z*half*signs[2]}
-        end
-        for corner=1,4 do appendSegment(markers,corners[corner],corners[corner%4+1]) end
+        appendSquare(markers,center,right,up,half)
         if index==state.selectedPoint then
-            local crossHalf=half*1.5
-            appendSegment(markers,
-                {x=center.x-right.x*crossHalf,y=center.y-right.y*crossHalf,z=center.z-right.z*crossHalf},
-                {x=center.x+right.x*crossHalf,y=center.y+right.y*crossHalf,z=center.z+right.z*crossHalf})
-            appendSegment(markers,
-                {x=center.x-up.x*crossHalf,y=center.y-up.y*crossHalf,z=center.z-up.z*crossHalf},
-                {x=center.x+up.x*crossHalf,y=center.y+up.y*crossHalf,z=center.z+up.z*crossHalf})
+            appendCross(markers,center,right,up,half*1.5)
         end
     end
-    if #markers==0 then destroy(state.regionMarkers); state.regionMarkers=nil; return end
-    if not state.regionMarkers then
-        state.regionMarkers=line:new('3d')
-        state.regionMarkers.alwaysOnTop=true
-    end
-    state.regionMarkers:set(markers,1)
-    state.regionMarkers:setColor(0.15,0.9,1,1)
-    state.regionMarkers.visible=true
+    state.regionMarkers=updateLine(state.regionMarkers,markers,{0.15,0.9,1,1})
 end
 
 return M

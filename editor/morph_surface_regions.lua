@@ -21,6 +21,7 @@
 ]]--
 
 local tSurfacePolygon=require 'morph_surface_polygon'
+local tShapes=require 'morph_surface_shapes'
 local M={}
 
 local function finite(value)
@@ -48,7 +49,7 @@ function M.new(name,kind,points)
         kind=kind=='polyline' and 'polyline' or kind=='point' and 'point' or 'polygon',
         closed=kind~='polyline' and kind~='point',topologySignature='',points={},
         derivedVertexWeights={},falloff={mode='surface',radius=2,curve='smooth'},
-        geometryFingerprint=''}
+        geometryFingerprint='',shape=tShapes.new('polygon',true)}
     for _,raw in ipairs(type(points)=='table' and points or {}) do
         local index=type(raw)=='table' and tonumber(raw.index) or tonumber(raw)
         if finite(index) and index>=1 and index%1==0 then
@@ -76,6 +77,7 @@ function M.normalize(region,vertexCount)
     region.falloff.mode='surface'
     region.falloff.radius=math.max(0,tonumber(region.falloff.radius) or 2)
     region.falloff.curve=type(region.falloff.curve)=='string' and region.falloff.curve or 'smooth'
+    tShapes.normalize(region)
     local points,seen={},{}
     for _,raw in ipairs(type(region.points)=='table' and region.points or {}) do
         local index=type(raw)=='table' and tonumber(raw.index) or tonumber(raw)

@@ -149,9 +149,15 @@ region = {
     topologySignature = "...",
     points = { ... }, -- authoritative surface anchors
     derivedVertexWeights = { ... }, -- rebuildable result
-    falloff = { mode = "surface", radius = 2, curve = "smooth" }
+    falloff = { mode = "surface", radius = 2, curve = "smooth" },
+    shape = { type = "square", free = false, segments = 16 }
 }
 ```
+
+The generic Morph Editor may author a parametric `square` or `ellipse` shape before it becomes a
+free contour. A locked shape preserves its geometric constraint while it is resized; `free = true`
+means that its surface anchors can be edited independently. A `polygon` remains the unconstrained
+shape representation.
 
 The initial generic editor should reuse target catalog, transforms, painting, smoothing, masking,
 and mirroring without requiring facial landmarks, facial roles, or FACS names. A `polygon` is an
@@ -178,13 +184,17 @@ The generic implementation is split across `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, and `morph_surface_regions.lua`; the facial modules retain
 compatibility wrappers for facial-only callers.
 
-**Milestone 2.2 - non-facial polygon authoring (partial; paused while FACS work continues).** The
-generic Morph Editor and its compatibility modules exist, but the worktree does not yet meet the
-authoring feedback expected from this milestone. The current editor is missing the requested camera
-orientation gizmo, and creating a region does not provide the visible region result expected in the
-viewport. Keep the generic modules and facial compatibility wrappers in place; resume this milestone
-after the facial FACS workflow is complete. See [Morph Editor](morph-editor.md). Selection data is
-currently binary; falloff and morph-target editing remain for milestone 2.3.
+**Milestone 2.2 - non-facial surface-shape authoring (in progress).** The Morph Editor now has its
+first worktree, `Surface shapes`, with a shape-aware interaction model instead of exposing only a
+free polygon. New regions can be Square, Circle / ellipse, or Free polygon. Locked Square and
+Ellipse shapes retain their parametric form while the center controller moves the complete shape
+and the resize handles change its dimensions. The Free flag converts either template into an
+independently editable contour. Shape anchors and derived selections are persisted in Morph Editor
+project schema 2. The current implementation still needs the remaining editor worktree organization
+and broader visual acceptance on non-facial meshes. The Morph viewport now provides mesh/region framing,
+mesh visibility, camera distance, navigation help, and the orbit gizmo. Selection data is currently
+binary; falloff and morph-target editing remain for milestone 2.3. See
+[Morph Editor](morph-editor.md).
 
 **Milestone 2.3 - morph workflow integration.** Connect generic regions to target selection,
 painting, smoothing, transforms, mirroring, MSH export, and reload. Keep derived selections
