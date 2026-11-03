@@ -12,7 +12,8 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 
 The first Morph Editor worktree is **Surface shapes**. It follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
-and adapts its handles to the object.
+and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**, and
+**Remove shape**; each mode exposes only the controls needed for that operation.
 
 ## Shape modes
 
@@ -23,7 +24,8 @@ The new-shape selector provides:
   height handles can turn it into a rectangle without enabling Free.
 - **Circle / ellipse**: starts as an ellipse. In locked mode it has a center controller and
   three resize handles: uniform size, width, and height.
-- **Free polygon**: exposes each anchor for independent editing.
+- **Free polygon**: starts with a visible four-point contour when the viewport can hit the mesh and
+  exposes each anchor for independent editing.
 
 The **Free** flag is available for Square and Circle / ellipse. A free shape keeps its initial
 template points but then behaves as an editable polygon, so each anchor can be dragged to create
@@ -60,9 +62,9 @@ files are intentionally rejected while this editor is being developed.
 ## Editing a shape
 
 1. Open an MSH mesh and create a named shape.
-2. Create a Square or Circle / ellipse; it is placed at the viewport center when possible. If the
-   center ray does not hit the mesh, click the mesh to place it. A Free polygon is placed by adding
-   its surface points.
+2. Create a Square, Circle / ellipse, or Free polygon; it is placed at the viewport center when
+   possible. A Free polygon starts with a four-point contour. If the center ray does not hit the
+   mesh, click the mesh to begin placing its surface points.
 3. In locked mode, drag the center or one of the shape-specific resize handles. Enable Free when
    the contour should be edited point by point.
 4. For a free polygon, add at least three points and close the contour.

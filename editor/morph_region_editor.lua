@@ -43,7 +43,7 @@ local E={project=tProject.new(),projectPath=nil,mesh=nil,meshDebug=nil,topology=
     regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
-    pendingSurfacePick=nil,surfaceAxis=3}
+    pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -121,7 +121,7 @@ local function frameRegionCamera()
 end
 
 local function placeShapeAtViewportCenter(region)
-    if not region or tShapes.type(region)=='polygon' or not E.topology then return false end
+    if not region or not E.topology then return false end
     local ok,width,height=dpCall(mbm.getSizeScreen)
     if not ok or not width or not height then return false end
     local rayOk,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,width*0.5,height*0.5)
@@ -773,6 +773,77 @@ local function drawRegionTable()
     end
 end
 
+local function drawSelectedRegionSelector()
+    if #E.project.regions==0 then
+        tImGui.TextDisabled(L('no_shapes'))
+        return nil
+    end
+    tImGui.Separator()
+    tImGui.Text(L('selected_shape'))
+    refreshRegionNames()
+    local names=E.regionNames
+    local index=math.max(1,math.min(#names,E.project.selectedRegion))
+    tImGui.SetNextItemWidth(220)
+    local selectionChanged,selected=tImGui.Combo(L('select_region')..'##mreSelectedShape',index,names)
+    if selectionChanged then
+        E.project.selectedRegion=selected
+        E.selectedPoint=nil
+        E.overlayDirty=true
+        E.regionStatusDirty=true
+    end
+    return selectedRegion()
+end
+
+local function drawSelectedShapeEditControls(region,shapeTypes)
+    local selectedShapeIndex=shapeTypeIndex(region)
+    tImGui.SetNextItemWidth(220)
+    local selectedShapeChanged,newShapeIndex=tImGui.Combo(L('shape_type')..'##mreSelectedShapeType',
+        selectedShapeIndex,shapeTypes)
+    if selectedShapeChanged then
+        local newType=shapeTypeFromIndex(newShapeIndex)
+        local keepFree=newType=='polygon' or
+            (tShapes.type(region)~='polygon' and tShapes.isFree(region))
+        changeSelectedShape(region,newType,keepFree)
+    end
+    local shapeIsFree=tShapes.isFree(region)
+    tImGui.BeginDisabled(tShapes.type(region)=='polygon')
+    local selectedFree=tImGui.Checkbox(L('shape_free')..'##mreSelectedShapeFree',shapeIsFree)
+    tImGui.EndDisabled()
+    if tShapes.type(region)~='polygon' and selectedFree~=shapeIsFree then
+        changeSelectedShape(region,tShapes.type(region),selectedFree)
+    end
+    tImGui.Text(string.format(L('region_point_count'),#region.points))
+    tImGui.Text(string.format(L('region_weight_count'),#region.derivedVertexWeights))
+    tImGui.Text(L('region_status_'..E.selectedRegionStatus))
+    tImGui.Separator()
+    local surfaceAxes={L('surface_axis_x'),L('surface_axis_y'),L('surface_axis_z')}
+    tImGui.SetNextItemWidth(150)
+    local surfaceAxisChanged,surfaceAxis=tImGui.Combo(L('surface_axis')..'##mreSurfaceAxis',
+        E.surfaceAxis,surfaceAxes)
+    if surfaceAxisChanged then E.surfaceAxis=surfaceAxis end
+    showHelpTooltip(L('surface_snap_help'))
+    tImGui.BeginDisabled(not E.topology or #region.points==0)
+    if tImGui.Button(L('surface_snap')..'##mreSurfaceSnap') then
+        local ok,result=snapSelectedShapeToSurface(region)
+        if not ok then setStatus(L('surface_snap_failed'),true)
+        elseif result=='unchanged' then setStatus(L('surface_snap_already'),false)
+        else setStatus(L('surface_snapped'),false) end
+    end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(tShapes.isParametric(region))
+    if tImGui.Button((region.closed and L('open_contour') or L('close_contour'))..'##mreContourToggle') then
+        toggleClosed()
+    end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    tImGui.BeginDisabled(not E.selectedPoint)
+    if tImGui.Button(L('remove_point')..'##mreRemovePoint') then removeSelectedPoint() end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(not region.closed or #region.points<3)
+    if tImGui.Button(L('rebuild_region')..'##mreRebuildSelection') then rebuildRegion(region) end
+    tImGui.EndDisabled()
+end
+
 local function drawControls()
     tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
     if E.mesh then
@@ -783,93 +854,43 @@ local function drawControls()
     tImGui.Separator()
     if tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
             tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+    E.shapeMode=tImGui.RadioButton(L('mode_add')..'##mreShapeModeAdd',E.shapeMode,1)
+    tImGui.SameLine()
+    E.shapeMode=tImGui.RadioButton(L('mode_edit')..'##mreShapeModeEdit',E.shapeMode,2)
+    tImGui.SameLine()
+    E.shapeMode=tImGui.RadioButton(L('mode_remove')..'##mreShapeModeRemove',E.shapeMode,3)
     tImGui.TextWrapped(L('interaction_help'))
     if E.topology and E.project.topologySignature==E.topology.signature then
         tImGui.SetNextItemWidth(220)
-        local changed,name=tImGui.InputText(L('new_region_name')..'##mreNewShapeName',E.nameDraft)
-        if changed then E.nameDraft=name end
         local shapeTypes={L('shape_square'),L('shape_ellipse'),L('shape_polygon')}
-        tImGui.SetNextItemWidth(220)
-        local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type')..'##mreNewShapeType',E.newShapeType,shapeTypes)
-        if shapeChanged then
-            E.newShapeType=shapeIndex
-            if shapeIndex==3 then E.newShapeFree=false end
-        end
-        tImGui.BeginDisabled(E.newShapeType==3)
-        local free=tImGui.Checkbox(L('shape_free')..'##mreNewShapeFree',E.newShapeFree)
-        if free~=E.newShapeFree then E.newShapeFree=free end
-        tImGui.EndDisabled()
-        showHelpTooltip(L('shape_free_help'))
-        if tImGui.Button(L('add_region')..'##mreAddShape') then addRegion() end
-        if #E.project.regions>0 then
-            tImGui.Separator()
-            tImGui.Text(L('selected_shape'))
-            refreshRegionNames()
-            local names=E.regionNames
-            local index=math.max(1,math.min(#names,E.project.selectedRegion))
+        if E.shapeMode==1 then
+            local changed,name=tImGui.InputText(L('new_region_name')..'##mreNewShapeName',E.nameDraft)
+            if changed then E.nameDraft=name end
             tImGui.SetNextItemWidth(220)
-            local selectionChanged,selected=tImGui.Combo(L('select_region')..'##mreSelectedShape',index,names)
-            if selectionChanged then
-                E.project.selectedRegion=selected
-                E.selectedPoint=nil
-                E.overlayDirty=true
-                E.regionStatusDirty=true
+            local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type')..'##mreNewShapeType',E.newShapeType,shapeTypes)
+            if shapeChanged then
+                E.newShapeType=shapeIndex
+                if shapeIndex==3 then E.newShapeFree=false end
             end
-            local region=selectedRegion()
-            local selectedShapeIndex=shapeTypeIndex(region)
-            tImGui.SetNextItemWidth(220)
-            local selectedShapeChanged,newShapeIndex=tImGui.Combo(L('shape_type')..'##mreSelectedShapeType',selectedShapeIndex,shapeTypes)
-            if selectedShapeChanged then
-                local newType=shapeTypeFromIndex(newShapeIndex)
-                local keepFree=newType=='polygon' or
-                    (tShapes.type(region)~='polygon' and tShapes.isFree(region))
-                changeSelectedShape(region,newType,keepFree)
+            tImGui.BeginDisabled(E.newShapeType==3)
+            local free=tImGui.Checkbox(L('shape_free')..'##mreNewShapeFree',E.newShapeFree)
+            if free~=E.newShapeFree then E.newShapeFree=free end
+            tImGui.EndDisabled()
+            showHelpTooltip(L('shape_free_help'))
+            if tImGui.Button(L('add_region')..'##mreAddShape') then addRegion() end
+        elseif E.shapeMode==2 then
+            local region=drawSelectedRegionSelector()
+            if region then drawSelectedShapeEditControls(region,shapeTypes) end
+        else
+            local region=drawSelectedRegionSelector()
+            if region then
+                if tImGui.Button(L('delete_region')..'##mreDeleteShape') then deleteSelectedRegion() end
             end
-            local shapeIsFree=tShapes.isFree(region)
-            tImGui.BeginDisabled(tShapes.type(region)=='polygon')
-            local selectedFree=tImGui.Checkbox(L('shape_free')..'##mreSelectedShapeFree',shapeIsFree)
-            tImGui.EndDisabled()
-            if tShapes.type(region)~='polygon' and selectedFree~=shapeIsFree then
-                changeSelectedShape(region,tShapes.type(region),selectedFree)
-            end
-            tImGui.Text(string.format(L('region_point_count'),#region.points))
-            tImGui.Text(string.format(L('region_weight_count'),#region.derivedVertexWeights))
-            tImGui.Text(L('region_status_'..E.selectedRegionStatus))
-            tImGui.Separator()
-            local surfaceAxes={L('surface_axis_x'),L('surface_axis_y'),L('surface_axis_z')}
-            tImGui.SetNextItemWidth(150)
-            local surfaceAxisChanged,surfaceAxis=tImGui.Combo(L('surface_axis')..'##mreSurfaceAxis',
-                E.surfaceAxis,surfaceAxes)
-            if surfaceAxisChanged then E.surfaceAxis=surfaceAxis end
-            showHelpTooltip(L('surface_snap_help'))
-            tImGui.SameLine()
-            tImGui.BeginDisabled(not E.topology or #region.points==0)
-            if tImGui.Button(L('surface_snap')..'##mreSurfaceSnap') then
-                local ok,result=snapSelectedShapeToSurface(region)
-                if not ok then setStatus(L('surface_snap_failed'),true)
-                elseif result=='unchanged' then setStatus(L('surface_snap_already'),false)
-                else setStatus(L('surface_snapped'),false) end
-            end
-            tImGui.EndDisabled()
-            tImGui.BeginDisabled(tShapes.isParametric(region))
-            if tImGui.Button((region.closed and L('open_contour') or L('close_contour'))..'##mreContourToggle') then
-                toggleClosed()
-            end
-            tImGui.EndDisabled()
-            tImGui.SameLine()
-            tImGui.BeginDisabled(not E.selectedPoint)
-            if tImGui.Button(L('remove_point')..'##mreRemovePoint') then removeSelectedPoint() end
-            tImGui.EndDisabled()
-            tImGui.SameLine()
-            if tImGui.Button(L('delete_region')..'##mreDeleteShape') then deleteSelectedRegion() end
-            tImGui.BeginDisabled(not region.closed or #region.points<3)
-            if tImGui.Button(L('rebuild_region')..'##mreRebuildSelection') then rebuildRegion(region) end
-            tImGui.EndDisabled()
         end
+        if E.shapeMode~=1 then drawRegionTable() end
     elseif E.topology then
         tImGui.TextWrapped(L('topology_changed'))
     end
-    drawRegionTable()
     tImGui.TreePop()
     end
     if E.status~='' then

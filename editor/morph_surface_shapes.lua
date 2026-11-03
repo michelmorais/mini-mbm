@@ -123,7 +123,7 @@ end
 local function targetPoints(parameters)
     local center,right,up=parameters.center,parameters.right,parameters.up
     local radiusX,radiusY=parameters.radiusX,parameters.radiusY
-    if parameters.type=='square' then
+    if parameters.type=='square' or parameters.type=='polygon' then
         return {
             add(center,add(scale(right,-radiusX),scale(up,-radiusY))),
             add(center,add(scale(right,radiusX),scale(up,-radiusY))),
@@ -221,7 +221,7 @@ function M.seed(region,center,topology,camera,extent)
     local right,up=cameraBasis(camera)
     local size=math.max(tonumber(extent) or 1,0.001)
     local radiusX=size*0.08
-    local radiusY=shapeType(region)=='square' and radiusX or size*0.06
+    local radiusY=(shapeType(region)=='square' or shapeType(region)=='polygon') and radiusX or size*0.06
     local parameters={type=shapeType(region),center=copyPoint(center),right=right,up=up,
         radiusX=radiusX,radiusY=radiusY,segments=region.shape.segments}
     normalizeParameters(parameters)
