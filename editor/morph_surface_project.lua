@@ -23,10 +23,57 @@
 local tRegions=require 'morph_surface_regions'
 local M={}
 
-local PROJECT_VERSION=2
+local PROJECT_VERSION=3
 
-function M.new()
-    return {version=PROJECT_VERSION,meshPath='',topologySignature='',regions={},selectedRegion=1}
+local function validNumber(value,default)
+    local number=tonumber(value)
+    if not number or number~=number or number==math.huge or number==-math.huge then
+        return default
+    end
+    return number
+end
+
+local function clamp(value,minValue,maxValue)
+    return math.max(minValue,math.min(maxValue,value))
+end
+
+local function normalizeLanguage(language)
+    return language=='pt_br' and 'pt_br' or 'en'
+end
+
+local function normalizePreferences(preferences)
+    preferences=type(preferences)=='table' and preferences or {}
+    local camera=type(preferences.camera)=='table' and preferences.camera or nil
+    local normalized={
+        handleScale=clamp(validNumber(preferences.handleScale,1),0.05,5),
+        surfaceAxis=math.floor(clamp(validNumber(preferences.surfaceAxis,3),1,3)),
+        shapeMode=math.floor(clamp(validNumber(preferences.shapeMode,1),1,3)),
+        newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
+        newShapeFree=preferences.newShapeFree==true,
+        nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
+            preferences.nameDraft or 'region',
+        meshVisible=preferences.meshVisible~=false,
+    }
+    if camera then
+        normalized.camera={
+            fx=validNumber(camera.fx,0),
+            fy=validNumber(camera.fy,0),
+            fz=validNumber(camera.fz,0),
+            distance=math.max(validNumber(camera.distance,10),0.1),
+            azimuth=validNumber(camera.azimuth,0.45),
+            elevation=clamp(validNumber(camera.elevation,0.22),-1.45,1.45),
+        }
+    end
+    return normalized
+end
+
+function M.new(language)
+    return {
+        version=PROJECT_VERSION,
+        language=normalizeLanguage(language),
+        preferences=normalizePreferences(),
+        meshPath='',topologySignature='',regions={},selectedRegion=1,
+    }
 end
 
 function M.normalize(project)
@@ -35,6 +82,8 @@ function M.normalize(project)
         return nil,'unsupported_morph_project_version: '..tostring(project.version)
     end
     project.version=PROJECT_VERSION
+    project.language=normalizeLanguage(project.language)
+    project.preferences=normalizePreferences(project.preferences)
     project.meshPath=type(project.meshPath)=='string' and project.meshPath or ''
     project.topologySignature=type(project.topologySignature)=='string' and
         project.topologySignature or ''

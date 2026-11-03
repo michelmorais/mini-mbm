@@ -56,8 +56,13 @@ anchors, the selected shape, and rebuildable vertex selections. The derived sele
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
-automatically transferred. The current project schema is version 2; older Morph Editor project
+automatically transferred. The current project schema is version 3; older Morph Editor project
 files are intentionally rejected while this editor is being developed.
+
+The project also persists the editor preferences used to continue the same authoring session:
+language, Add/Edit/Remove mode, selector size, surface-snap axis, new-shape type and Free flag,
+the draft shape name, mesh visibility, and the Morph viewport camera. These settings are restored
+when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
 

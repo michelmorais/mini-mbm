@@ -36,14 +36,14 @@ local function dpCall(fn,...)
     return table.unpack(result,1,result.n)
 end
 
-local E={project=tProject.new(),projectPath=nil,mesh=nil,meshDebug=nil,topology=nil,
+local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,meshDebug=nil,topology=nil,
     meshBounds=nil,modified=false,status='',statusError=false,nameDraft='region',
     selectedPoint=nil,regionDrag=nil,cameraDrag=nil,cameraPan=nil,overlayDirty=true,
     regionOverlay={},regionNames={},regionNamesDirty=true,selectedRegionStatus='missing',
     regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
-    pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1}
+    pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -78,6 +78,59 @@ local function applyCamera()
         c.fy+math.sin(c.elevation)*c.distance,
         c.fz+math.cos(c.azimuth)*horizontal)
     camera:setFocus(c.fx,c.fy,c.fz)
+end
+
+local function saveEditorPreferences()
+    local preferences=type(E.project.preferences)=='table' and E.project.preferences or {}
+    preferences.handleScale=E.handleScale
+    preferences.surfaceAxis=E.surfaceAxis
+    preferences.shapeMode=E.shapeMode
+    preferences.newShapeType=E.newShapeType
+    preferences.newShapeFree=E.newShapeFree
+    preferences.nameDraft=E.nameDraft
+    if E.mesh then
+        preferences.meshVisible=E.mesh.visible~=false
+    elseif preferences.meshVisible==nil then
+        preferences.meshVisible=true
+    end
+    preferences.camera={
+        fx=E.camera.fx,fy=E.camera.fy,fz=E.camera.fz,
+        distance=E.camera.distance,azimuth=E.camera.azimuth,
+        elevation=E.camera.elevation,
+    }
+    E.project.language=tLang.getLanguage()
+    E.project.preferences=preferences
+end
+
+local function restoreEditorPreferences(project)
+    local preferences=project.preferences or {}
+    E.handleScale=tonumber(preferences.handleScale) or 1
+    E.surfaceAxis=math.max(1,math.min(3,math.floor(tonumber(preferences.surfaceAxis) or 3)))
+    E.shapeMode=math.max(1,math.min(3,math.floor(tonumber(preferences.shapeMode) or 1)))
+    E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
+    E.newShapeFree=preferences.newShapeFree==true
+    E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
+        preferences.nameDraft or 'region'
+    if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
+    local camera=preferences.camera
+    if type(camera)=='table' then
+        E.camera.fx=tonumber(camera.fx) or E.camera.fx
+        E.camera.fy=tonumber(camera.fy) or E.camera.fy
+        E.camera.fz=tonumber(camera.fz) or E.camera.fz
+        E.camera.distance=math.max(tonumber(camera.distance) or E.camera.distance,0.1)
+        E.camera.azimuth=tonumber(camera.azimuth) or E.camera.azimuth
+        E.camera.elevation=math.max(-1.45,math.min(1.45,
+            tonumber(camera.elevation) or E.camera.elevation))
+        applyCamera()
+    end
+    tLang.setLanguage(project.language)
+end
+
+local function syncLanguagePreference()
+    local language=tLang.getLanguage()
+    if E.project.language==language then return end
+    E.project.language=language
+    E.modified=true
 end
 
 local function fitCamera(bounds)
@@ -186,7 +239,7 @@ local function loadMesh(path,preserveProject)
     E.meshBounds=topology.bounds
     E.project.meshPath=path
     if not preserveProject then
-        E.project=tProject.new()
+        E.project=tProject.new(tLang.getLanguage())
         E.project.meshPath=path
         E.projectPath=nil
         E.modified=false
@@ -314,6 +367,7 @@ local function loadProject(path)
     else
         destroyMesh()
     end
+    restoreEditorPreferences(E.project)
     E.project.selectedRegion=math.max(1,math.min(#E.project.regions>0 and #E.project.regions or 1,
         E.project.selectedRegion or 1))
     E.overlayDirty=true
@@ -324,6 +378,7 @@ end
 local function saveProject(path)
     path=path or E.projectPath
     if not path or path=='' then return false end
+    saveEditorPreferences()
     if E.mesh and E.topology then
         E.project.topologySignature=E.project.topologySignature~='' and
             E.project.topologySignature or E.topology.signature
@@ -655,6 +710,7 @@ local function orbitCamera(x,y)
     E.cameraDrag={x=x,y=y}
     applyCamera()
     E.overlayDirty=true
+    E.modified=true
 end
 
 local function panCamera(x,y)
@@ -668,6 +724,7 @@ local function panCamera(x,y)
     c.fy=c.fy+dy
     E.cameraPan={x=x,y=y}
     applyCamera()
+    E.modified=true
 end
 
 local function drawConfirmPopup()
@@ -725,20 +782,30 @@ local function showCameraPanel()
     if opened then
         local canFrameRegion=selectedRegionBounds()~=nil
         tImGui.BeginDisabled(not E.meshBounds)
-        if tImGui.Button(L('frame_mesh')..'##mreFrameMesh') then fitCamera(E.meshBounds) end
+        if tImGui.Button(L('frame_mesh')..'##mreFrameMesh') then
+            fitCamera(E.meshBounds)
+            E.modified=true
+        end
         tImGui.SameLine()
         tImGui.BeginDisabled(not canFrameRegion)
-        if tImGui.Button(L('frame_region')..'##mreFrameRegion') then frameRegionCamera() end
+        if tImGui.Button(L('frame_region')..'##mreFrameRegion') then
+            frameRegionCamera()
+            E.modified=true
+        end
         tImGui.EndDisabled()
         tImGui.EndDisabled()
         tImGui.Separator()
         local meshVisible=E.mesh and E.mesh.visible or false
         local visible=tImGui.Checkbox(L('show_mesh')..'##mreShowMesh',meshVisible)
-        if E.mesh and visible~=meshVisible then E.mesh.visible=visible end
+        if E.mesh and visible~=meshVisible then
+            E.mesh.visible=visible
+            E.modified=true
+        end
         tImGui.Separator()
         if tUtil.drawOrbitGizmo(E.camera,{size=110}) then
             applyCamera()
             E.overlayDirty=true
+            E.modified=true
         end
         tImGui.Separator()
         tImGui.Text(string.format(L('camera_distance_fmt'),E.camera.distance))
@@ -778,7 +845,6 @@ local function drawSelectedRegionSelector()
         tImGui.TextDisabled(L('no_shapes'))
         return nil
     end
-    tImGui.Separator()
     tImGui.Text(L('selected_shape'))
     refreshRegionNames()
     local names=E.regionNames
@@ -790,6 +856,7 @@ local function drawSelectedRegionSelector()
         E.selectedPoint=nil
         E.overlayDirty=true
         E.regionStatusDirty=true
+        E.modified=true
     end
     return selectedRegion()
 end
@@ -820,7 +887,10 @@ local function drawSelectedShapeEditControls(region,shapeTypes)
     tImGui.SetNextItemWidth(150)
     local surfaceAxisChanged,surfaceAxis=tImGui.Combo(L('surface_axis')..'##mreSurfaceAxis',
         E.surfaceAxis,surfaceAxes)
-    if surfaceAxisChanged then E.surfaceAxis=surfaceAxis end
+    if surfaceAxisChanged then
+        E.surfaceAxis=surfaceAxis
+        E.modified=true
+    end
     showHelpTooltip(L('surface_snap_help'))
     tImGui.BeginDisabled(not E.topology or #region.points==0)
     if tImGui.Button(L('surface_snap')..'##mreSurfaceSnap') then
@@ -854,27 +924,47 @@ local function drawControls()
     tImGui.Separator()
     if tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
             tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+    local previousShapeMode=E.shapeMode
     E.shapeMode=tImGui.RadioButton(L('mode_add')..'##mreShapeModeAdd',E.shapeMode,1)
     tImGui.SameLine()
     E.shapeMode=tImGui.RadioButton(L('mode_edit')..'##mreShapeModeEdit',E.shapeMode,2)
     tImGui.SameLine()
     E.shapeMode=tImGui.RadioButton(L('mode_remove')..'##mreShapeModeRemove',E.shapeMode,3)
+    if E.shapeMode~=previousShapeMode then E.modified=true end
     tImGui.TextWrapped(L('interaction_help'))
+    tImGui.Separator()
+    tImGui.SetNextItemWidth(220)
+    local handleScaleChanged,handleScale=tImGui.DragFloat(L('handle_size')..'##mreHandleSize',
+        E.handleScale,0.05,0.05,5.0,'%.2f')
+    if handleScaleChanged then
+        E.handleScale=math.max(0.05,math.min(5.0,handleScale))
+        E.overlayDirty=true
+        E.modified=true
+    end
+    showHelpTooltip(L('handle_size_help'))
+    tImGui.Separator()
     if E.topology and E.project.topologySignature==E.topology.signature then
         tImGui.SetNextItemWidth(220)
         local shapeTypes={L('shape_square'),L('shape_ellipse'),L('shape_polygon')}
         if E.shapeMode==1 then
             local changed,name=tImGui.InputText(L('new_region_name')..'##mreNewShapeName',E.nameDraft)
-            if changed then E.nameDraft=name end
+            if changed then
+                E.nameDraft=name
+                E.modified=true
+            end
             tImGui.SetNextItemWidth(220)
             local shapeChanged,shapeIndex=tImGui.Combo(L('new_shape_type')..'##mreNewShapeType',E.newShapeType,shapeTypes)
             if shapeChanged then
                 E.newShapeType=shapeIndex
                 if shapeIndex==3 then E.newShapeFree=false end
+                E.modified=true
             end
             tImGui.BeginDisabled(E.newShapeType==3)
             local free=tImGui.Checkbox(L('shape_free')..'##mreNewShapeFree',E.newShapeFree)
-            if free~=E.newShapeFree then E.newShapeFree=free end
+            if free~=E.newShapeFree then
+                E.newShapeFree=free
+                E.modified=true
+            end
             tImGui.EndDisabled()
             showHelpTooltip(L('shape_free_help'))
             if tImGui.Button(L('add_region')..'##mreAddShape') then addRegion() end
@@ -924,6 +1014,7 @@ function onLoop()
         E.overlayDirty=false
     end
     showMenu()
+    syncLanguagePreference()
     drawControls()
     showCameraPanel()
     tUtil.showOverlayMessage()

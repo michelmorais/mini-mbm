@@ -160,7 +160,8 @@ function M.rebuild(state)
         (state.meshBounds.maxX-state.meshBounds.minX)^2+
         (state.meshBounds.maxY-state.meshBounds.minY)^2+
         (state.meshBounds.maxZ-state.meshBounds.minZ)^2) or 1
-    local half=math.max(extent*0.006,0.001)
+    local handleScale=math.max(0.05,math.min(5,tonumber(state.handleScale) or 1))
+    local half=math.max(extent*0.006*handleScale,1e-6)
     local right,up=tShapes.cameraBasis(state.camera)
     if tShapes.isParametric(selected) then
         local shapeHandlePaths,shapeCenter={},{ }
