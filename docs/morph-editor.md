@@ -10,7 +10,8 @@ On launch the editor opens to an empty workspace. Choose **File > Open Mesh** or
 Project** when ready; no file dialog appears automatically. **File > Quit** exits the editor, and
 **Options > Language** switches between English and Portuguese (Brazil).
 
-The first Morph Editor worktree is **Surface shapes**. It follows the interaction model of the
+The Morph Editor currently has two worktrees: **Surface shapes** and **Morph targets**. The first
+worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**, and
 **Remove shape**; each mode exposes only the controls needed for that operation.
@@ -50,19 +51,24 @@ shows the handles over the selected surface contour.
   axis is Z; X and Y are available for generic objects. Both directions of the selected axis are
   tested and the nearest surface is used.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
+- In **Morph targets**, create an independent target selection from a rebuilt shape selection,
+  inspect its source and topology status, regenerate it explicitly after source changes, and apply
+  a first weighted translation operation to its authored deltas.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
-anchors, the selected shape, and rebuildable vertex selections. The derived selection is binary at
+anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
+derived region selection is binary at
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
-automatically transferred. The current project schema is version 3; older Morph Editor project
+automatically transferred. The current project schema is version 4; older Morph Editor project
 files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
-language, Add/Edit/Remove mode, selector size, surface-snap axis, new-shape type and Free flag,
-the draft shape name, mesh visibility, and the Morph viewport camera. These settings are restored
-when the project is opened and are part of the project dirty state when changed.
+language, selected worktree, Add/Edit/Remove modes, selector size, surface-snap axis, new-shape
+type and Free flag, target name and translation drafts, the draft shape name, mesh visibility, and
+the Morph viewport camera. These settings are restored when the project is opened and are part of
+the project dirty state when changed.
 
 ## Editing a shape
 
@@ -76,6 +82,26 @@ when the project is opened and are part of the project dirty state when changed.
 5. Rebuild the selection to update the list of covered mesh vertices.
 6. Save the project. Reopen the `.morph.lua` file to continue authoring.
 
+## Morph targets
+
+1. Rebuild a closed shape selection until its status is ready.
+2. Open the **Morph targets** worktree, keep **Add target** selected, choose the source shape, and
+   create a target.
+3. Switch to **Edit target** to inspect the source fingerprint, topology status, selected vertex
+   count, and authored delta count.
+4. Apply a translation to create target deltas. The translation is multiplied by each source
+   vertex weight and is stored in the project.
+5. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
+   edited or silently regenerated.
+
+While **Morph targets** is active, the viewport is navigation-only; shape anchors are editable only
+in **Surface shapes**. Selecting a target selects its source shape for inspection without changing
+the source geometry.
+
+This initial target worktree stores generic authoring data only. Runtime preview, painting,
+smoothing, transforms beyond translation, mirroring, MSH export, and runtime reload are later
+Milestone 2.3 steps.
+
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
 the explicit operation that performs the potentially expensive mesh scan.
@@ -84,6 +110,6 @@ Adjusting a shape to the surface also invalidates its derived vertex selection. 
 changes the authored point offsets; it does not regenerate the covered-vertex list automatically.
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
-region modules; triangulation is not exposed as the meaning of the influence field. Morph target
-selection, weight painting, smoothing, transforms, mirroring, MSH export, and runtime playback
-belong to milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
+preview, painting, smoothing, transforms beyond the initial translation, mirroring, MSH export, and
+runtime playback remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

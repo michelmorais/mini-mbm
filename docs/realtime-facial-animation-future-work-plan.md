@@ -185,21 +185,27 @@ The generic implementation is split across `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, and `morph_surface_regions.lua`; the facial modules retain
 compatibility wrappers for facial-only callers.
 
-**Milestone 2.2 - non-facial surface-shape authoring (in progress).** The Morph Editor now has its
+**Milestone 2.2 - non-facial surface-shape authoring (implemented).** The Morph Editor has its
 first worktree, `Surface shapes`, with a shape-aware interaction model instead of exposing only a
 free polygon. New regions can be Square, Circle / ellipse, or Free polygon. Locked Square and
 Ellipse shapes retain their parametric form while the center controller moves the complete shape
 and the resize handles change its dimensions. The Free flag converts either template into an
 independently editable contour. Shape anchors and derived selections are persisted in Morph Editor
-project schema 2. The current implementation still needs the remaining editor worktree organization
-and broader visual acceptance on non-facial meshes. The Morph viewport now provides mesh/region framing,
-mesh visibility, camera distance, navigation help, and the orbit gizmo. Selection data is currently
-binary; falloff and morph-target editing remain for milestone 2.3. See
+project schema 4. The worktree is organized into Add, Edit, and Remove modes, and its viewport
+provides mesh/region framing, mesh visibility, camera distance, navigation help, and the orbit
+gizmo. Selector size, language, worktree mode, shape defaults, camera state, and other authoring
+preferences are persisted with the project. Selection data is currently binary; falloff and
+morph-target editing remain for milestone 2.3. See
 [Morph Editor](morph-editor.md).
 
-**Milestone 2.3 - morph workflow integration.** Connect generic regions to target selection,
-painting, smoothing, transforms, mirroring, MSH export, and reload. Keep derived selections
-rebuildable and require explicit regeneration after anchor or topology changes.
+**Milestone 2.3 - morph workflow integration (in progress).** The Morph Editor now has a separate
+`Morph targets` worktree. It creates an independent target selection from a ready surface region,
+retains the source region fingerprint and topology identity, explicitly rebuilds the target
+selection after source changes, and supports an initial weighted translation operation. The target
+record is generic and remains project data; it does not yet pretend to be a runtime MSH target.
+Next steps are target preview, painting, smoothing, transforms, mirroring, MSH export, and reload.
+Keep derived selections rebuildable and require explicit regeneration after anchor or topology
+changes.
 
 Acceptance: a non-facial MSH can create, preview, save, reload, export, and play a morph target
 using the same region tools, without requiring face origin, facial landmarks, or facial roles.

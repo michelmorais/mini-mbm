@@ -28,6 +28,7 @@ local tPolygon=require 'morph_surface_polygon'
 local tRegions=require 'morph_surface_regions'
 local tShapes=require 'morph_surface_shapes'
 local tProject=require 'morph_surface_project'
+local tTargets=require 'morph_surface_targets'
 local tOverlay=require 'morph_surface_overlay'
 
 local function dpCall(fn,...)
@@ -43,7 +44,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
-    pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1}
+    pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
+    worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -85,9 +87,15 @@ local function saveEditorPreferences()
     preferences.handleScale=E.handleScale
     preferences.surfaceAxis=E.surfaceAxis
     preferences.shapeMode=E.shapeMode
+    preferences.worktree=E.worktree
+    preferences.targetMode=E.targetMode
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
     preferences.nameDraft=E.nameDraft
+    preferences.targetNameDraft=E.targetNameDraft
+    preferences.targetDx=E.targetDx
+    preferences.targetDy=E.targetDy
+    preferences.targetDz=E.targetDz
     if E.mesh then
         preferences.meshVisible=E.mesh.visible~=false
     elseif preferences.meshVisible==nil then
@@ -107,10 +115,17 @@ local function restoreEditorPreferences(project)
     E.handleScale=tonumber(preferences.handleScale) or 1
     E.surfaceAxis=math.max(1,math.min(3,math.floor(tonumber(preferences.surfaceAxis) or 3)))
     E.shapeMode=math.max(1,math.min(3,math.floor(tonumber(preferences.shapeMode) or 1)))
+    E.worktree=math.max(1,math.min(2,math.floor(tonumber(preferences.worktree) or 1)))
+    E.targetMode=math.max(1,math.min(3,math.floor(tonumber(preferences.targetMode) or 1)))
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
         preferences.nameDraft or 'region'
+    E.targetNameDraft=type(preferences.targetNameDraft)=='string' and
+        preferences.targetNameDraft~='' and preferences.targetNameDraft or 'target'
+    E.targetDx=tonumber(preferences.targetDx) or 0
+    E.targetDy=tonumber(preferences.targetDy) or 0
+    E.targetDz=tonumber(preferences.targetDz) or 0
     if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
     local camera=preferences.camera
     if type(camera)=='table' then
@@ -517,6 +532,144 @@ local function refreshRegionTable()
     E.regionTableDirty=false
 end
 
+local function regionIndexById(id)
+    for index,region in ipairs(E.project.regions or {}) do
+        if region.id==id then return index,region end
+    end
+    return nil,nil
+end
+
+local function selectedTarget()
+    return E.project.targets[E.project.selectedTarget]
+end
+
+local function targetRegion(target)
+    if not target then return nil,nil end
+    return regionIndexById(target.sourceRegionId)
+end
+
+local function targetStatus(target)
+    local _,region=targetRegion(target)
+    return tTargets.status(target,region,E.topology)
+end
+
+local function newTargetId()
+    local suffix=1
+    while true do
+        local id='target_'..tostring(suffix)
+        local exists=false
+        for _,target in ipairs(E.project.targets or {}) do
+            if target.id==id then exists=true; break end
+        end
+        if not exists then return id end
+        suffix=suffix+1
+    end
+end
+
+local function uniqueTargetName(name)
+    local base=name~='' and name or string.format(L('target_default_name'),#E.project.targets+1)
+    local candidate=base
+    local suffix=2
+    local function exists(value)
+        for _,target in ipairs(E.project.targets or {}) do
+            if target.name==value then return true end
+        end
+        return false
+    end
+    while exists(candidate) do
+        candidate=base..'_'..tostring(suffix)
+        suffix=suffix+1
+    end
+    return candidate
+end
+
+local function selectTarget(index)
+    local target=E.project.targets[index]
+    if not target then return end
+    E.project.selectedTarget=index
+    local regionIndex=targetRegion(target)
+    if regionIndex then E.project.selectedRegion=regionIndex end
+    E.selectedPoint=nil
+    E.overlayDirty=true
+    E.regionStatusDirty=true
+    E.modified=true
+end
+
+local function createTargetFromRegion()
+    local region=selectedRegion()
+    if not region then setStatus(L('target_source_required'),true); return false end
+    local status=tRegions.status(region,E.topology)
+    if status~='ready' then
+        setStatus(L('target_source_not_ready'),true)
+        return false
+    end
+    local name=uniqueTargetName((E.targetNameDraft or ''):match('^%s*(.-)%s*$'))
+    local target=tTargets.new(name,region,newTargetId())
+    E.project.targets[#E.project.targets+1]=target
+    E.project.selectedTarget=#E.project.targets
+    E.targetMode=2
+    markChanged()
+    setStatus(string.format(L('target_created'),name),false)
+    return true
+end
+
+local function rebuildSelectedTarget()
+    local target=selectedTarget()
+    local _,region=targetRegion(target)
+    if not target or not region then setStatus(L('target_source_required'),true); return false end
+    if tRegions.status(region,E.topology)~='ready' then
+        setStatus(L('target_source_not_ready'),true)
+        return false
+    end
+    local ok,errorCode=tTargets.rebuildFromRegion(target,region)
+    if not ok then
+        setStatus(L('target_rebuild_failed')..': '..tostring(errorCode),true)
+        return false
+    end
+    markChanged()
+    setStatus(L('target_rebuilt'),false)
+    return true
+end
+
+local function applyTargetTranslation()
+    local target=selectedTarget()
+    if not target or targetStatus(target)~='ready' then
+        setStatus(L('target_not_ready'),true)
+        return false
+    end
+    local changed=tTargets.applyTranslation(target,E.targetDx,E.targetDy,E.targetDz)
+    if changed==0 then
+        setStatus(L('target_no_translation'),false)
+        return true
+    end
+    markChanged()
+    setStatus(string.format(L('target_translation_applied'),changed),false)
+    return true
+end
+
+local function resetSelectedTargetDeltas()
+    local target=selectedTarget()
+    if not target then return false end
+    if not tTargets.resetDeltas(target) then
+        setStatus(L('target_already_neutral'),false)
+        return true
+    end
+    markChanged()
+    setStatus(L('target_reset'),false)
+    return true
+end
+
+local function deleteSelectedTarget()
+    if not selectedTarget() then return false end
+    table.remove(E.project.targets,E.project.selectedTarget)
+    E.project.selectedTarget=math.max(1,math.min(#E.project.targets>0 and #E.project.targets or 1,
+        E.project.selectedTarget))
+    E.overlayDirty=true
+    markChanged()
+    setStatus(L('target_deleted'),false)
+    return true
+end
+
 local function containsAnchor(region,index,except)
     for pointIndex,point in ipairs(region.points or {}) do
         if pointIndex~=except and point.index==index then return true end
@@ -840,6 +993,140 @@ local function drawRegionTable()
     end
 end
 
+local function targetStatusLabel(status)
+    return L('target_status_'..tostring(status))
+end
+
+local function drawTargetTable()
+    if #(E.project.targets or {})==0 then
+        tImGui.TextDisabled(L('no_targets'))
+        return
+    end
+    tImGui.Separator()
+    if tImGui.BeginTable('mreTargetTable',5,
+            tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(L('target_table_name'))
+        tImGui.TableSetupColumn(L('target_table_source'))
+        tImGui.TableSetupColumn(L('target_table_vertices'))
+        tImGui.TableSetupColumn(L('target_table_deltas'))
+        tImGui.TableSetupColumn(L('target_table_status'))
+        tImGui.TableHeadersRow()
+        for index,target in ipairs(E.project.targets) do
+            local _,region=targetRegion(target)
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0)
+            if tImGui.Selectable((target.name or '')..'##mreTargetRow'..index,
+                    index==E.project.selectedTarget) then selectTarget(index) end
+            tImGui.TableSetColumnIndex(1); tImGui.Text(region and region.name or '-')
+            tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(#(target.vertices or {})))
+            tImGui.TableSetColumnIndex(3); tImGui.Text(tostring(tTargets.deltaCount(target)))
+            tImGui.TableSetColumnIndex(4); tImGui.Text(targetStatusLabel(targetStatus(target)))
+        end
+        tImGui.EndTable()
+    end
+end
+
+local function drawTargetSourceSelector()
+    if #(E.project.regions or {})==0 then
+        tImGui.TextDisabled(L('no_shapes'))
+        return nil
+    end
+    refreshRegionNames()
+    local index=math.max(1,math.min(#E.regionNames,E.project.selectedRegion))
+    tImGui.SetNextItemWidth(220)
+    local changed,selected=tImGui.Combo(L('target_source_region')..'##mreTargetSourceRegion',
+        index,E.regionNames)
+    if changed then
+        E.project.selectedRegion=selected
+        E.selectedPoint=nil
+        E.overlayDirty=true
+        E.regionStatusDirty=true
+        E.modified=true
+    end
+    return selectedRegion()
+end
+
+local function drawMorphTargets()
+    if not tImGui.TreeNodeEx(L('worktree_morph_targets')..'##mreMorphTargets',
+            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then return end
+    local previousMode=E.targetMode
+    E.targetMode=tImGui.RadioButton(L('target_mode_add')..'##mreTargetModeAdd',E.targetMode,1)
+    tImGui.SameLine()
+    E.targetMode=tImGui.RadioButton(L('target_mode_edit')..'##mreTargetModeEdit',E.targetMode,2)
+    tImGui.SameLine()
+    E.targetMode=tImGui.RadioButton(L('target_mode_remove')..'##mreTargetModeRemove',E.targetMode,3)
+    if E.targetMode~=previousMode then E.modified=true end
+    tImGui.TextWrapped(L('target_interaction_help'))
+    tImGui.Separator()
+    if not E.topology or E.project.topologySignature~=E.topology.signature then
+        tImGui.TextWrapped(L('target_mesh_required'))
+        tImGui.TreePop()
+        return
+    end
+    if E.targetMode==1 then
+        tImGui.SetNextItemWidth(220)
+        local changed,name=tImGui.InputText(L('target_name')..'##mreTargetName',E.targetNameDraft)
+        if changed then E.targetNameDraft=name; E.modified=true end
+        local region=drawTargetSourceSelector()
+        local sourceReady=region and tRegions.status(region,E.topology)=='ready'
+        if region then tImGui.Text(targetStatusLabel(region and
+            ('source_'..tRegions.status(region,E.topology)) or 'missing_source')) end
+        tImGui.BeginDisabled(not sourceReady)
+        if tImGui.Button(L('target_create')..'##mreTargetCreate') then createTargetFromRegion() end
+        tImGui.EndDisabled()
+        showHelpTooltip(L('target_create_help'))
+    else
+        local target=selectedTarget()
+        if #(E.project.targets or {})==0 then
+            tImGui.TextDisabled(L('no_targets'))
+        else
+            refreshRegionNames()
+            local names={}
+            for _,entry in ipairs(E.project.targets) do names[#names+1]=entry.name end
+            local targetIndex=math.max(1,math.min(#names,E.project.selectedTarget))
+            tImGui.SetNextItemWidth(220)
+            local changed,index=tImGui.Combo(L('target_select')..'##mreTargetSelect',targetIndex,names)
+            if changed then selectTarget(index); target=selectedTarget() end
+            if target then
+                local _,region=targetRegion(target)
+                tImGui.Text(string.format(L('target_source_info'),region and region.name or '-'))
+                tImGui.Text(string.format(L('target_vertex_count'),#(target.vertices or {})))
+                tImGui.Text(string.format(L('target_delta_count'),tTargets.deltaCount(target)))
+                tImGui.Text(targetStatusLabel(targetStatus(target)))
+                if E.targetMode==2 then
+                    tImGui.BeginDisabled(targetStatus(target)~='ready')
+                    if tImGui.Button(L('target_rebuild')..'##mreTargetRebuild') then
+                        rebuildSelectedTarget()
+                    end
+                    tImGui.EndDisabled()
+                    tImGui.Separator()
+                    tImGui.SetNextItemWidth(220)
+                    local deltaChanged,delta=tImGui.DragFloat3(L('target_translation')..'##mreTargetTranslation',
+                        {E.targetDx,E.targetDy,E.targetDz},0.001,-math.huge,math.huge,'%.4f')
+                    if deltaChanged then
+                        E.targetDx, E.targetDy, E.targetDz=delta[1] or 0,delta[2] or 0,delta[3] or 0
+                        E.modified=true
+                    end
+                    if tImGui.Button(L('target_apply_translation')..'##mreTargetApplyTranslation') then
+                        applyTargetTranslation()
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(L('target_reset_deltas')..'##mreTargetReset') then
+                        resetSelectedTargetDeltas()
+                    end
+                    showHelpTooltip(L('target_translation_help'))
+                else
+                    if tImGui.Button(L('target_delete')..'##mreTargetDelete') then
+                        deleteSelectedTarget()
+                    end
+                end
+            end
+        end
+    end
+    drawTargetTable()
+    tImGui.TreePop()
+end
+
 local function drawSelectedRegionSelector()
     if #E.project.regions==0 then
         tImGui.TextDisabled(L('no_shapes'))
@@ -922,7 +1209,21 @@ local function drawControls()
         tImGui.TextWrapped(L('load_mesh_help'))
     end
     tImGui.Separator()
-    if tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
+    if tImGui.TreeNodeEx(L('worktrees')..'##mreWorktrees',
+            tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+        local previousWorktree=E.worktree
+        E.worktree=tImGui.RadioButton(L('worktree_surface_shapes')..'##mreWorktreeShapes',E.worktree,1)
+        tImGui.SameLine()
+        E.worktree=tImGui.RadioButton(L('worktree_morph_targets')..'##mreWorktreeTargets',E.worktree,2)
+        if E.worktree~=previousWorktree then
+            E.regionDrag=nil
+            E.pendingSurfacePick=nil
+            E.modified=true
+            E.overlayDirty=true
+        end
+        tImGui.TreePop()
+    end
+    if E.worktree==1 and tImGui.TreeNodeEx(L('worktree_surface_shapes')..'##mreSurfaceShapes',
             tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
     local previousShapeMode=E.shapeMode
     E.shapeMode=tImGui.RadioButton(L('mode_add')..'##mreShapeModeAdd',E.shapeMode,1)
@@ -983,6 +1284,7 @@ local function drawControls()
     end
     tImGui.TreePop()
     end
+    if E.worktree==2 then drawMorphTargets() end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
         else tImGui.TextWrapped(E.status) end
@@ -1023,10 +1325,13 @@ end
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
     if key==0 then
-        if not pickPoint(x,y,false) then
-            E.cameraDrag={x=x,y=y,startX=x,startY=y,moved=false}
+        if E.worktree==1 and pickPoint(x,y,false) then
+            return
+        end
+        if E.worktree==1 then
             E.pendingSurfacePick={x=x,y=y}
         end
+        E.cameraDrag={x=x,y=y,startX=x,startY=y,moved=false}
     elseif key==1 then
         E.cameraDrag={x=x,y=y,startX=x,startY=y,moved=false}
     elseif key==2 then
@@ -1059,7 +1364,7 @@ function onTouchUp(key,x,y)
         elseif drag.changed then markChanged() end
         return
     end
-    if key==0 and E.pendingSurfacePick then
+    if key==0 and E.worktree==1 and E.pendingSurfacePick then
         local drag=E.cameraDrag
         local pending=E.pendingSurfacePick
         E.pendingSurfacePick=nil
@@ -1075,11 +1380,12 @@ function onTouchZoom(zoom)
     if tImGui.IsAnyWindowHovered() then return end
     E.camera.distance=math.max(0.01,E.camera.distance*(zoom>0 and 0.9 or 1.1))
     applyCamera()
+    E.modified=true
 end
 
 function onKeyDown(key)
     if tImGui.GetWantCaptureKeyboard() then return end
-    if key==mbm.getKeyCode('DELETE') then removeSelectedPoint() end
+    if E.worktree==1 and key==mbm.getKeyCode('DELETE') then removeSelectedPoint() end
 end
 
 function onEndScene()

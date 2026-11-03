@@ -21,9 +21,10 @@
 ]]--
 
 local tRegions=require 'morph_surface_regions'
+local tTargets=require 'morph_surface_targets'
 local M={}
 
-local PROJECT_VERSION=3
+local PROJECT_VERSION=4
 
 local function validNumber(value,default)
     local number=tonumber(value)
@@ -48,10 +49,17 @@ local function normalizePreferences(preferences)
         handleScale=clamp(validNumber(preferences.handleScale,1),0.05,5),
         surfaceAxis=math.floor(clamp(validNumber(preferences.surfaceAxis,3),1,3)),
         shapeMode=math.floor(clamp(validNumber(preferences.shapeMode,1),1,3)),
+        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,2)),
+        targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,3)),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
         nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
             preferences.nameDraft or 'region',
+        targetNameDraft=type(preferences.targetNameDraft)=='string' and
+            preferences.targetNameDraft~='' and preferences.targetNameDraft or 'target',
+        targetDx=validNumber(preferences.targetDx,0),
+        targetDy=validNumber(preferences.targetDy,0),
+        targetDz=validNumber(preferences.targetDz,0),
         meshVisible=preferences.meshVisible~=false,
     }
     if camera then
@@ -72,7 +80,7 @@ function M.new(language)
         version=PROJECT_VERSION,
         language=normalizeLanguage(language),
         preferences=normalizePreferences(),
-        meshPath='',topologySignature='',regions={},selectedRegion=1,
+        meshPath='',topologySignature='',regions={},selectedRegion=1,targets={},selectedTarget=1,
     }
 end
 
@@ -105,6 +113,24 @@ function M.normalize(project)
     project.regions=regions
     project.selectedRegion=math.max(1,math.min(#regions>0 and #regions or 1,
         math.floor(tonumber(project.selectedRegion) or 1)))
+    local targets,targetIds={},{}
+    for _,target in ipairs(type(project.targets)=='table' and project.targets or {}) do
+        if type(target)=='table' then
+            target.id=type(target.id)=='string' and target.id~='' and target.id or
+                ('target_'..(#targets+1))
+            if targetIds[target.id] then
+                local base=target.id
+                local suffix=2
+                repeat target.id=base..'_'..suffix; suffix=suffix+1 until not targetIds[target.id]
+            end
+            targetIds[target.id]=true
+            tTargets.normalize(target)
+            targets[#targets+1]=target
+        end
+    end
+    project.targets=targets
+    project.selectedTarget=math.max(1,math.min(#targets>0 and #targets or 1,
+        math.floor(tonumber(project.selectedTarget) or 1)))
     return project
 end
 
