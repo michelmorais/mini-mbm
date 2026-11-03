@@ -42,7 +42,8 @@ local E={project=tProject.new(),projectPath=nil,mesh=nil,meshDebug=nil,topology=
     regionOverlay={},regionNames={},regionNamesDirty=true,selectedRegionStatus='missing',
     regionStatusDirty=true,regionTableRows={},regionTableDirty=true,
     camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22},
-    pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false}
+    pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
+    pendingSurfacePick=nil,surfaceAxis=3}
 
 local function L(key) return tLang.L('mre_'..key) end
 
@@ -216,6 +217,78 @@ local function rebuildRegion(region)
     end
     setStatus(string.format(L('region_rebuilt'),#region.derivedVertexWeights),false)
     return true
+end
+
+local function axisKey(axisIndex)
+    return axisIndex==1 and 'x' or axisIndex==2 and 'y' or 'z'
+end
+
+local function axisBounds(bounds,axis)
+    if axis=='x' then return bounds.minX,bounds.maxX end
+    if axis=='y' then return bounds.minY,bounds.maxY end
+    return bounds.minZ,bounds.maxZ
+end
+
+local function snapSelectedShapeToSurface(region)
+    if not region or not E.topology or not E.meshBounds or #region.points==0 then
+        return false,'missing'
+    end
+    local axis=axisKey(E.surfaceAxis)
+    local minAxis,maxAxis=axisBounds(E.meshBounds,axis)
+    local span=math.max(E.meshBounds.maxX-E.meshBounds.minX,
+        E.meshBounds.maxY-E.meshBounds.minY,E.meshBounds.maxZ-E.meshBounds.minZ,1e-4)
+    local resolved=tPolygon.resolvePoints(region,E.topology)
+    if #resolved~=#region.points then return false,'invalid' end
+    local rawByIndex={}
+    for _,raw in ipairs(region.points) do rawByIndex[tonumber(raw.index)]=raw end
+    local changes={}
+    local changed=false
+    for _,resolvedPoint in ipairs(resolved) do
+        local raw=rawByIndex[resolvedPoint.index]
+        local vertex=E.topology.vertices[resolvedPoint.index]
+        if not raw or not vertex then return false,'invalid' end
+        local positiveOrigin={x=resolvedPoint.position.x,y=resolvedPoint.position.y,
+            z=resolvedPoint.position.z}
+        positiveOrigin[axis]=maxAxis+span*2
+        local negativeOrigin={x=resolvedPoint.position.x,y=resolvedPoint.position.y,
+            z=resolvedPoint.position.z}
+        negativeOrigin[axis]=minAxis-span*2
+        local positiveDirection={x=0,y=0,z=0}; positiveDirection[axis]=-1
+        local negativeDirection={x=0,y=0,z=0}; negativeDirection[axis]=1
+        local positiveHit=tTopology.intersectRaySurface(E.topology,positiveOrigin,positiveDirection)
+        local negativeHit=tTopology.intersectRaySurface(E.topology,negativeOrigin,negativeDirection)
+        local targetHit
+        if positiveHit and negativeHit then
+            local positiveDistance=math.abs(positiveHit.point[axis]-resolvedPoint.position[axis])
+            local negativeDistance=math.abs(negativeHit.point[axis]-resolvedPoint.position[axis])
+            targetHit=positiveDistance<=negativeDistance and positiveHit or negativeHit
+        else
+            targetHit=positiveHit or negativeHit
+        end
+        if not targetHit then return false,'missing_surface' end
+        local target={x=resolvedPoint.position.x,y=resolvedPoint.position.y,
+            z=resolvedPoint.position.z}
+        target[axis]=targetHit.point[axis]
+        local offset={x=target.x-vertex.x,y=target.y-vertex.y,z=target.z-vertex.z}
+        local old=raw.offset or {}
+        if math.abs(offset.x-(tonumber(old.x) or 0))>1e-8 or
+                math.abs(offset.y-(tonumber(old.y) or 0))>1e-8 or
+                math.abs(offset.z-(tonumber(old.z) or 0))>1e-8 then changed=true end
+        changes[#changes+1]={raw=raw,offset=offset}
+    end
+    if not changed then return true,'unchanged' end
+    for _,change in ipairs(changes) do
+        local offset=change.offset
+        if math.abs(offset.x)<=1e-8 and math.abs(offset.y)<=1e-8 and math.abs(offset.z)<=1e-8 then
+            change.raw.offset=nil
+        else
+            change.raw.offset=offset
+        end
+    end
+    region.derivedVertexWeights={}
+    region.geometryFingerprint=''
+    markChanged()
+    return true,'changed'
 end
 
 local function loadProject(path)
@@ -396,7 +469,7 @@ local function containsAnchor(region,index,except)
     return false
 end
 
-local function pickPoint(x,y)
+local function pickPoint(x,y,allowSurfaceAuthoring)
     if not E.topology then return false end
     local region=selectedRegion()
     if not region then return false end
@@ -406,10 +479,11 @@ local function pickPoint(x,y)
     local resolved=tPolygon.resolvePoints(region,E.topology)
     local extent=math.sqrt((E.meshBounds.maxX-E.meshBounds.minX)^2+
         (E.meshBounds.maxY-E.meshBounds.minY)^2+(E.meshBounds.maxZ-E.meshBounds.minZ)^2)
-    local radius=math.max(extent*0.024,0.001)
+    local markerRadius=math.max(extent*0.007,0.001)
+    local surfaceRadius=math.max(extent*0.024,0.001)
     if #region.points>0 and tShapes.isParametric(region) then
         local handle=tShapes.nearestHandleOnRay(tShapes.handles(region,E.topology,E.camera),
-            origin,direction,radius*1.8)
+            origin,direction,markerRadius*1.15)
         if handle then
             E.regionDrag={mode=handle.kind=='center' and 'shape_center' or 'shape_handle',
                 handleId=handle.id,base=tShapes.parameters(region,E.topology,E.camera),changed=false}
@@ -417,6 +491,23 @@ local function pickPoint(x,y)
             return true
         end
     end
+    if #region.points>0 and not tShapes.isParametric(region) then
+        local pointHandles={}
+        for index,point in ipairs(resolved) do
+            pointHandles[#pointHandles+1]={id=index,position=point.position}
+        end
+        local handle=tShapes.nearestHandleOnRay(pointHandles,origin,direction,markerRadius*1.15)
+        if handle then
+            local selected=resolved[handle.id]
+            E.selectedPoint=handle.id
+            E.regionDrag={mode='point',pointIndex=handle.id,
+                basePosition=selected and {x=selected.position.x,y=selected.position.y,z=selected.position.z},
+                changed=false}
+            E.overlayDirty=true
+            return true
+        end
+    end
+    if not allowSurfaceAuthoring then return false end
     local hit=tTopology.intersectRaySurface(E.topology,origin,direction)
     if not hit then return false end
     if #region.points==0 and tShapes.type(region)~='polygon' then
@@ -429,19 +520,12 @@ local function pickPoint(x,y)
     if tShapes.isParametric(region) then
         return false
     end
-    local nearest,distance=tPolygon.nearestPoint(resolved,hit.point,radius)
-    if nearest then
-        E.selectedPoint=nearest
-        E.regionDrag={pointIndex=nearest,changed=false}
-        E.overlayDirty=true
-        return true
-    end
     local vertex=tTopology.nearestVertexOnSurfaceHit(E.topology,hit)
     if not vertex then return true end
     if containsAnchor(region,vertex.index) then return true end
     if region.closed then
-        local edge,edgeDistance=tPolygon.nearestEdge(resolved,hit.point,true,radius)
-        if not edge or edgeDistance>radius then return true end
+        local edge,edgeDistance=tPolygon.nearestEdge(resolved,hit.point,true,surfaceRadius)
+        if not edge or edgeDistance>surfaceRadius then return true end
         table.insert(region.points,edge+1,{index=vertex.index})
         E.selectedPoint=edge+1
         rebuildRegion(region)
@@ -481,19 +565,38 @@ local function updatePointDrag(x,y)
         end
         return
     end
-    local surfaceHit=tTopology.intersectRaySurface(E.topology,
-        {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
-    local hit=tTopology.nearestVertexOnSurfaceHit(E.topology,surfaceHit)
-    if not hit or containsAnchor(region,hit.index,drag.pointIndex) then return end
     local point=region.points[drag.pointIndex]
-    if not point or point.index==hit.index then return end
-    point.index=hit.index
-    point.offset=nil
+    if not point or not drag.basePosition then return end
+    -- Keep free-anchor dragging interactive. A triangle-ray intersection scans
+    -- the complete mesh and is too expensive for every mouse-move event. The
+    -- anchor moves on the camera plane while dragging and is snapped to the
+    -- mesh once when the mouse button is released.
+    local planeHit=tShapes.intersectCameraPlane({x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz},
+        drag.basePosition,E.camera)
+    if not planeHit then return end
+    local vertex=E.topology.vertices[point.index]
+    if not vertex then return end
+    point.offset={x=planeHit.x-vertex.x,y=planeHit.y-vertex.y,z=planeHit.z-vertex.z}
     drag.changed=true
     region.derivedVertexWeights={}
     region.geometryFingerprint=''
     E.overlayDirty=true
     E.regionStatusDirty=true
+end
+
+local function snapDraggedPoint(drag,x,y,region)
+    if not drag or drag.mode~='point' or not drag.changed or
+            type(x)~='number' or type(y)~='number' then return end
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
+    if not ok or not ox or not dx then return end
+    local surfaceHit=tTopology.intersectRaySurface(E.topology,
+        {x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz})
+    local hit=tTopology.nearestVertexOnSurfaceHit(E.topology,surfaceHit)
+    if not hit or containsAnchor(region,hit.index,drag.pointIndex) then return end
+    local point=region.points[drag.pointIndex]
+    if not point then return end
+    point.index=hit.index
+    point.offset=nil
 end
 
 local function removeSelectedPoint()
@@ -502,12 +605,13 @@ local function removeSelectedPoint()
     table.remove(region.points,E.selectedPoint)
     E.selectedPoint=nil
     if region.closed and #region.points<3 then region.closed=false end
-    if region.closed then rebuildRegion(region)
-    else
-        region.derivedVertexWeights={}
-        region.geometryFingerprint=''
-        markChanged()
-    end
+    -- Removing an anchor invalidates the previous vertex selection, but must
+    -- not scan the complete mesh from inside a click/key event. The explicit
+    -- Rebuild selection button performs that expensive operation.
+    region.derivedVertexWeights={}
+    region.geometryFingerprint=''
+    markChanged()
+    if region.closed then setStatus(L('selection_needs_rebuild'),false) end
 end
 
 local function deleteSelectedRegion()
@@ -534,7 +638,10 @@ local function toggleClosed()
         markChanged()
     elseif #region.points>=3 then
         region.closed=true
-        rebuildRegion(region)
+        region.derivedVertexWeights={}
+        region.geometryFingerprint=''
+        markChanged()
+        setStatus(L('selection_needs_rebuild'),false)
     else
         setStatus(L('need_three_points'),true)
     end
@@ -695,9 +802,12 @@ local function drawControls()
         showHelpTooltip(L('shape_free_help'))
         if tImGui.Button(L('add_region')..'##mreAddShape') then addRegion() end
         if #E.project.regions>0 then
+            tImGui.Separator()
+            tImGui.Text(L('selected_shape'))
             refreshRegionNames()
             local names=E.regionNames
             local index=math.max(1,math.min(#names,E.project.selectedRegion))
+            tImGui.SetNextItemWidth(220)
             local selectionChanged,selected=tImGui.Combo(L('select_region')..'##mreSelectedShape',index,names)
             if selectionChanged then
                 E.project.selectedRegion=selected
@@ -725,6 +835,22 @@ local function drawControls()
             tImGui.Text(string.format(L('region_point_count'),#region.points))
             tImGui.Text(string.format(L('region_weight_count'),#region.derivedVertexWeights))
             tImGui.Text(L('region_status_'..E.selectedRegionStatus))
+            tImGui.Separator()
+            local surfaceAxes={L('surface_axis_x'),L('surface_axis_y'),L('surface_axis_z')}
+            tImGui.SetNextItemWidth(150)
+            local surfaceAxisChanged,surfaceAxis=tImGui.Combo(L('surface_axis')..'##mreSurfaceAxis',
+                E.surfaceAxis,surfaceAxes)
+            if surfaceAxisChanged then E.surfaceAxis=surfaceAxis end
+            showHelpTooltip(L('surface_snap_help'))
+            tImGui.SameLine()
+            tImGui.BeginDisabled(not E.topology or #region.points==0)
+            if tImGui.Button(L('surface_snap')..'##mreSurfaceSnap') then
+                local ok,result=snapSelectedShapeToSurface(region)
+                if not ok then setStatus(L('surface_snap_failed'),true)
+                elseif result=='unchanged' then setStatus(L('surface_snap_already'),false)
+                else setStatus(L('surface_snapped'),false) end
+            end
+            tImGui.EndDisabled()
             tImGui.BeginDisabled(tShapes.isParametric(region))
             if tImGui.Button((region.closed and L('open_contour') or L('close_contour'))..'##mreContourToggle') then
                 toggleClosed()
@@ -785,11 +911,12 @@ end
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
     if key==0 then
-        if not pickPoint(x,y) then
-            E.cameraDrag={x=x,y=y}
+        if not pickPoint(x,y,false) then
+            E.cameraDrag={x=x,y=y,startX=x,startY=y,moved=false}
+            E.pendingSurfacePick={x=x,y=y}
         end
     elseif key==1 then
-        E.cameraDrag={x=x,y=y}
+        E.cameraDrag={x=x,y=y,startX=x,startY=y,moved=false}
     elseif key==2 then
         E.cameraPan={x=x,y=y}
     end
@@ -797,18 +924,36 @@ end
 
 function onTouchMove(key,x,y)
     if E.regionDrag then updatePointDrag(x,y); return end
-    if E.cameraDrag then orbitCamera(x,y); return end
+    if E.cameraDrag then
+        if E.pendingSurfacePick then
+            local moved=math.abs(x-E.cameraDrag.startX)>2 or math.abs(y-E.cameraDrag.startY)>2
+            if not moved then return end
+            E.pendingSurfacePick=nil
+            E.cameraDrag.moved=true
+        end
+        orbitCamera(x,y)
+        return
+    end
     if E.cameraPan then panCamera(x,y) end
 end
 
-function onTouchUp(key)
+function onTouchUp(key,x,y)
     if key==0 and E.regionDrag then
         local drag=E.regionDrag
-        E.regionDrag=nil
         local region=selectedRegion()
+        if region and drag.mode=='point' then snapDraggedPoint(drag,x,y,region) end
+        E.regionDrag=nil
         if drag.changed and region and region.closed then rebuildRegion(region)
         elseif drag.changed then markChanged() end
         return
+    end
+    if key==0 and E.pendingSurfacePick then
+        local drag=E.cameraDrag
+        local pending=E.pendingSurfacePick
+        E.pendingSurfacePick=nil
+        if drag and not drag.moved then
+            pickPoint(x or pending.x,y or pending.y,true)
+        end
     end
     if key==0 or key==1 then E.cameraDrag=nil end
     if key==2 then E.cameraPan=nil end

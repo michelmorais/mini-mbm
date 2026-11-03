@@ -40,10 +40,13 @@ shows the handles over the selected surface contour.
 - Creating a Square or Circle / ellipse places it at the center of the current viewport when the
   mesh is hit there; drag its center or resize handles afterward.
 - Enable Free to drag individual anchors, insert points on a closed contour, and remove points.
-- Orbit with the right mouse button, pan with the middle button, and zoom with the wheel.
+- Orbit with the left or right mouse button, pan with the middle button, and zoom with the wheel.
 - Use the Morph viewport window to frame the mesh or selected region, toggle mesh visibility,
   orbit with the camera gizmo, and inspect the camera distance and navigation help.
 - Rebuild the shape's derived vertex selection and inspect the list of covered vertices.
+- Adjust the selected shape to the mesh surface, independently for every point. The default test
+  axis is Z; X and Y are available for generic objects. Both directions of the selected axis are
+  tested and the nearest surface is used.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
@@ -65,6 +68,13 @@ files are intentionally rejected while this editor is being developed.
 4. For a free polygon, add at least three points and close the contour.
 5. Rebuild the selection to update the list of covered mesh vertices.
 6. Save the project. Reopen the `.morph.lua` file to continue authoring.
+
+Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
+without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
+the explicit operation that performs the potentially expensive mesh scan.
+
+Adjusting a shape to the surface also invalidates its derived vertex selection. The operation only
+changes the authored point offsets; it does not regenerate the covered-vertex list automatically.
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Morph target
