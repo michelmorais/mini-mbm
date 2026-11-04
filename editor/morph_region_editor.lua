@@ -33,6 +33,7 @@ local tOverlay=require 'morph_surface_overlay'
 local tTargetPreview=require 'morph_surface_target_preview'
 local tTargetBrush=require 'morph_surface_target_brush'
 local tTargetGizmo=require 'morph_surface_target_gizmo'
+local tTargetMirror=require 'morph_surface_target_mirror'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -52,6 +53,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
+    targetMirrorPlaneX=0,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
+    targetMirrorNameDraft='target_mirror',targetMirrorPlan=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
@@ -138,6 +141,10 @@ local function saveEditorPreferences()
     preferences.targetRy=E.targetRy
     preferences.targetRz=E.targetRz
     preferences.targetFeatherRings=E.targetFeatherRings
+    preferences.targetMirrorPlaneX=E.targetMirrorPlaneX
+    preferences.targetMirrorTolerance=E.targetMirrorTolerance
+    preferences.targetMirrorAllowApprox=E.targetMirrorAllowApprox
+    preferences.targetMirrorNameDraft=E.targetMirrorNameDraft
     preferences.targetBrushMode=E.targetBrushMode
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
@@ -169,7 +176,7 @@ local function restoreEditorPreferences(project)
     E.surfaceAxis=math.max(1,math.min(3,math.floor(tonumber(preferences.surfaceAxis) or 3)))
     E.shapeMode=math.max(1,math.min(3,math.floor(tonumber(preferences.shapeMode) or 1)))
     E.worktree=math.max(1,math.min(2,math.floor(tonumber(preferences.worktree) or 1)))
-    E.targetMode=math.max(1,math.min(4,math.floor(tonumber(preferences.targetMode) or 1)))
+    E.targetMode=math.max(1,math.min(5,math.floor(tonumber(preferences.targetMode) or 1)))
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -184,6 +191,14 @@ local function restoreEditorPreferences(project)
     E.targetRy=tonumber(preferences.targetRy) or 0
     E.targetRz=tonumber(preferences.targetRz) or 0
     E.targetFeatherRings=math.max(0,math.min(8,math.floor(tonumber(preferences.targetFeatherRings) or 0)))
+    E.targetMirrorPlaneX=tonumber(preferences.targetMirrorPlaneX) or
+        (E.meshBounds and (E.meshBounds.minX+E.meshBounds.maxX)*0.5 or 0)
+    E.targetMirrorTolerance=math.max(0.00001,math.min(0.01,
+        tonumber(preferences.targetMirrorTolerance) or 0.005))
+    E.targetMirrorAllowApprox=preferences.targetMirrorAllowApprox==true
+    E.targetMirrorNameDraft=type(preferences.targetMirrorNameDraft)=='string' and
+        preferences.targetMirrorNameDraft~='' and preferences.targetMirrorNameDraft or 'target_mirror'
+    E.targetMirrorPlan=nil
     E.targetFeatherCache=nil
     E.targetEditDraft=nil
     E.targetEditDraftKey=nil
@@ -354,6 +369,11 @@ local function loadMesh(path,preserveProject)
         E.targetFeatherCache=nil
         E.targetEditDraft=nil
         E.targetEditDraftKey=nil
+        E.targetMirrorPlaneX=(topology.bounds.minX+topology.bounds.maxX)*0.5
+        E.targetMirrorTolerance=0.005
+        E.targetMirrorAllowApprox=false
+        E.targetMirrorNameDraft='target_mirror'
+        E.targetMirrorPlan=nil
         E.targetGizmo.dirty=true
         E.targetBrushMode=1
         E.targetBrushRadius=0.025
@@ -661,9 +681,16 @@ local function targetStatus(target)
     return tTargets.status(target,region,E.topology)
 end
 
-local function targetPreviewReady(target)
-    return E.worktree==2 and (E.targetMode==2 or E.targetMode==4) and target and
+local function mirrorPreviewReady(target)
+    local plan=E.targetMirrorPlan
+    return E.targetMode==5 and target and plan and plan.sourceId==target.id and plan.result and
         targetStatus(target)=='ready'
+end
+
+local function targetPreviewReady(target)
+    if E.worktree~=2 or not target or targetStatus(target)~='ready' then return false end
+    if E.targetMode==2 or E.targetMode==4 then return true end
+    return mirrorPreviewReady(target)
 end
 
 local function syncTargetEditDraft(target)
@@ -693,8 +720,19 @@ local function refreshTargetPreview()
         E.targetPreviewDirty=false
         return
     end
+    local previewTarget=target
+    if mirrorPreviewReady(target) then
+        previewTarget=tTargetMirror.create(target,E.targetMirrorPlan.result,E.targetMirrorPlaneX)
+        if not previewTarget then
+            tTargetPreview.destroy(E)
+            E.targetPreviewDirty=false
+            setStatus(L('target_mirror_invalid'),true)
+            return
+        end
+        previewTarget.id=target.id..':mirror_preview'
+    end
     tTargetPreview.destroy(E)
-    local ok,errorCode=tTargetPreview.build(E,target,E.targetPreviewWeight)
+    local ok,errorCode=tTargetPreview.build(E,previewTarget,E.targetPreviewWeight)
     E.targetPreviewDirty=false
     if not ok then
         setStatus(L('target_preview_failed')..': '..tostring(errorCode),true)
@@ -760,12 +798,168 @@ local function selectTarget(index)
     E.targetBrush.geometryKey=nil
     E.targetBrush.hoverHit=nil
     E.targetFeatherCache=nil
+    E.targetMirrorPlan=nil
     E.targetEditDraft=nil
     E.targetEditDraftKey=nil
     E.targetGizmo.dirty=true
     E.overlayDirty=true
     E.regionStatusDirty=true
     E.modified=true
+end
+
+local function targetMirrorExtent()
+    if not E.meshBounds then return 1 end
+    return math.max(E.meshBounds.maxX-E.meshBounds.minX,
+        E.meshBounds.maxY-E.meshBounds.minY,E.meshBounds.maxZ-E.meshBounds.minZ,1e-6)
+end
+
+local function targetMirrorPlanMatches(target)
+    local plan=E.targetMirrorPlan
+    return target and plan and plan.sourceId==target.id and
+        plan.name==((E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$')) and
+        math.abs((plan.planeX or 0)-E.targetMirrorPlaneX)<=1e-12 and
+        math.abs((plan.tolerance or 0)-E.targetMirrorTolerance)<=1e-12 and plan.result
+end
+
+local function analyzeTargetMirror(target)
+    if not target or targetStatus(target)~='ready' or not E.topology then
+        setStatus(L('target_mirror_source_not_ready'),true)
+        return false
+    end
+    local result,reason=tTargetMirror.analyze(target,E.topology.vertices,E.targetMirrorPlaneX,
+        math.max(targetMirrorExtent()*E.targetMirrorTolerance,1e-7))
+    E.targetMirrorPlan={sourceId=target.id,
+        name=(E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$'),
+        planeX=E.targetMirrorPlaneX,tolerance=E.targetMirrorTolerance,result=result,reason=reason}
+    E.targetPreviewDirty=true
+    if not result then
+        setStatus(L('target_mirror_invalid'),true)
+        return false
+    end
+    setStatus(L('target_mirror_analyzed'),false)
+    return true
+end
+
+local function createMirroredTarget(target)
+    if not target or not targetMirrorPlanMatches(target) then return false end
+    local plan=E.targetMirrorPlan
+    local result=plan.result
+    local approximateEligible=tTargetMirror.isApproximateEligible(result)
+    local exact=result.unmatchedActive==0 and result.ambiguous==0
+    if not exact and not (approximateEligible and E.targetMirrorAllowApprox==true) then
+        setStatus(L('target_mirror_invalid'),true)
+        return false
+    end
+    local name=plan.name or ''
+    if name=='' then
+        setStatus(L('target_mirror_name_required'),true)
+        return false
+    end
+    for _,entry in ipairs(E.project.targets or {}) do
+        if entry.name==name then
+            setStatus(L('target_mirror_name_taken'),true)
+            return false
+        end
+    end
+    local mirrored,errorCode=tTargetMirror.create(target,result,E.targetMirrorPlaneX)
+    if not mirrored then
+        setStatus(L('target_mirror_invalid')..': '..tostring(errorCode),true)
+        return false
+    end
+    local created={id=newTargetId(),name=name,sourceRegionId=target.sourceRegionId,
+        topologySignature=target.topologySignature,sourceFingerprint=target.sourceFingerprint,
+        vertices=mirrored.vertices,deltas=mirrored.deltas,pivot=mirrored.pivot}
+    tTargets.normalize(created,#E.topology.vertices)
+    E.project.targets[#E.project.targets+1]=created
+    E.project.selectedTarget=#E.project.targets
+    E.targetMode=2
+    E.targetEditMode=1
+    E.targetMirrorPlan=nil
+    E.targetPreviewDirty=true
+    markChanged()
+    setStatus(string.format(L('target_mirror_created'),name),false)
+    return true
+end
+
+local function drawTargetMirrorControls(target)
+    tImGui.Separator()
+    tImGui.Text(L('target_mirror_title'))
+    tImGui.TextWrapped(L('target_mirror_help'))
+    tImGui.SetNextItemWidth(220)
+    local nameChanged,name=tImGui.InputText(L('target_mirror_name')..'##mreTargetMirrorName',
+        E.targetMirrorNameDraft)
+    if nameChanged then
+        E.targetMirrorNameDraft=name
+        E.targetMirrorPlan=nil
+        E.modified=true
+    end
+    local extent=targetMirrorExtent()
+    tImGui.SetNextItemWidth(220)
+    local planeChanged,plane=tImGui.DragFloat(L('target_mirror_plane_x')..'##mreTargetMirrorPlaneX',
+        E.targetMirrorPlaneX,math.max(extent*0.0005,0.0001),-math.huge,math.huge,'%.5f')
+    showHelpTooltip(L('target_mirror_plane_x_help'))
+    if planeChanged then
+        E.targetMirrorPlaneX=plane
+        E.targetMirrorPlan=nil
+        E.modified=true
+    end
+    tImGui.SetNextItemWidth(220)
+    local toleranceChanged,tolerance=tImGui.SliderFloat(
+        L('target_mirror_tolerance')..'##mreTargetMirrorTolerance',E.targetMirrorTolerance,
+        0.00001,0.01,'%.5f')
+    showHelpTooltip(L('target_mirror_tolerance_help'))
+    if toleranceChanged then
+        E.targetMirrorTolerance=math.max(0.00001,math.min(0.01,tolerance))
+        E.targetMirrorPlan=nil
+        E.modified=true
+    end
+    tImGui.BeginDisabled(not target or targetStatus(target)~='ready')
+    if tImGui.Button(L('target_mirror_analyze')..'##mreTargetMirrorAnalyze') then
+        analyzeTargetMirror(target)
+    end
+    tImGui.EndDisabled()
+    showHelpTooltip(L('target_mirror_analyze_help'))
+    local plan=targetMirrorPlanMatches(target) and E.targetMirrorPlan or nil
+    if plan and plan.result then
+        local result=plan.result
+        tImGui.TextWrapped(string.format(L('target_mirror_report'),result.matched,result.total,
+            result.unmatchedActive,result.ambiguous))
+        local approximateEligible=tTargetMirror.isApproximateEligible(result)
+        if approximateEligible and (result.unmatchedActive>0 or result.ambiguous>0) then
+            local allow=tImGui.Checkbox(L('target_mirror_allow_approx')..'##mreTargetMirrorApprox',
+                E.targetMirrorAllowApprox)
+            if allow~=E.targetMirrorAllowApprox then
+                E.targetMirrorAllowApprox=allow
+                E.modified=true
+            end
+            showHelpTooltip(L('target_mirror_allow_approx_help'))
+        end
+        local name=(E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$')
+        local nameTaken=name==''
+        for _,entry in ipairs(E.project.targets or {}) do
+            if entry.name==name then nameTaken=true; break end
+        end
+        local exact=result.unmatchedActive==0 and result.ambiguous==0
+        local canCreate=not nameTaken and (exact or
+            approximateEligible and E.targetMirrorAllowApprox==true)
+        tImGui.BeginDisabled(not canCreate)
+        if tImGui.Button(L('target_mirror_create')..'##mreTargetMirrorCreate') then
+            createMirroredTarget(target)
+        end
+        tImGui.EndDisabled()
+        showHelpTooltip(L('target_mirror_create_help'))
+        if not canCreate then
+            if nameTaken then
+                tImGui.TextWrapped(L('target_mirror_name_taken'))
+            elseif result.ambiguous>0 then
+                tImGui.TextWrapped(L('target_mirror_ambiguous'))
+            elseif result.unmatchedActive>0 then
+                tImGui.TextWrapped(L('target_mirror_unmatched'))
+            else
+                tImGui.TextWrapped(L('target_mirror_approx_needed'))
+            end
+        end
+    end
 end
 
 local function createTargetFromRegion()
@@ -1463,6 +1657,8 @@ local function drawMorphTargets()
     tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_paint')..'##mreTargetModePaint',E.targetMode,4)
     tImGui.SameLine()
+    E.targetMode=tImGui.RadioButton(L('target_mode_mirror')..'##mreTargetModeMirror',E.targetMode,5)
+    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_remove')..'##mreTargetModeRemove',E.targetMode,3)
     if E.targetMode~=previousMode then
         E.targetPreviewDirty=true
@@ -1473,6 +1669,7 @@ local function drawMorphTargets()
         E.targetFeatherCache=nil
         E.targetEditDraft=nil
         E.targetEditDraftKey=nil
+        E.targetMirrorPlan=nil
         E.targetGizmo.dirty=true
         E.modified=true
     end
@@ -1649,6 +1846,8 @@ local function drawMorphTargets()
                         end
                         tImGui.TextWrapped(L('target_brush_interaction_help'))
                     end
+                elseif E.targetMode==5 then
+                    drawTargetMirrorControls(target)
                 else
                     if tImGui.Button(L('target_delete')..'##mreTargetDelete') then
                         deleteSelectedTarget()

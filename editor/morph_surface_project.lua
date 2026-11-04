@@ -50,7 +50,7 @@ local function normalizePreferences(preferences)
         surfaceAxis=math.floor(clamp(validNumber(preferences.surfaceAxis,3),1,3)),
         shapeMode=math.floor(clamp(validNumber(preferences.shapeMode,1),1,3)),
         worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,2)),
-        targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,4)),
+        targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,5)),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
         nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -65,6 +65,12 @@ local function normalizePreferences(preferences)
         targetRy=validNumber(preferences.targetRy,0),
         targetRz=validNumber(preferences.targetRz,0),
         targetFeatherRings=math.floor(clamp(validNumber(preferences.targetFeatherRings,0),0,8)),
+        targetMirrorPlaneX=preferences.targetMirrorPlaneX~=nil and
+            validNumber(preferences.targetMirrorPlaneX,0) or nil,
+        targetMirrorTolerance=clamp(validNumber(preferences.targetMirrorTolerance,0.005),0.00001,0.01),
+        targetMirrorAllowApprox=preferences.targetMirrorAllowApprox==true,
+        targetMirrorNameDraft=type(preferences.targetMirrorNameDraft)=='string' and
+            preferences.targetMirrorNameDraft~='' and preferences.targetMirrorNameDraft or 'target_mirror',
         targetBrushMode=math.floor(clamp(validNumber(preferences.targetBrushMode,1),1,2)),
         targetBrushRadius=clamp(validNumber(preferences.targetBrushRadius,0.025),0.001,0.15),
         targetBrushStrength=clamp(validNumber(preferences.targetBrushStrength,0.5),0.01,1),

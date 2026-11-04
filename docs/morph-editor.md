@@ -64,7 +64,9 @@ shows the handles over the selected surface contour.
   shows three colored rings and three axis handles: rings edit the rotation draft and axes move the
   persisted pivot. Soft edge rings include neighboring triangle-connected vertices with gradual
   influence. Edit mode also previews the selected target in the viewport with a neutral-to-full
-  contribution slider.
+  contribution slider. Mirror target analyzes neutral-vertex pairs across a configurable X plane,
+  reports unmatched or ambiguous pairs, and creates a separate target with mirrored selection,
+  position deltas, and explicit pivot when present. The source target is never modified.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
@@ -76,9 +78,10 @@ automatically transferred. The current project schema is version 4; older Morph 
 files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
-language, selected worktree, Add/Edit/Remove modes, selector size, surface-snap axis, new-shape
-type and Free flag, target name and translation drafts, the draft shape name, mesh visibility, the
-target preview weight, target displacement visibility, and the Morph viewport camera. These
+language, selected worktree, Add/Edit/Paint/Mirror/Remove modes, selector size, surface-snap axis, new-shape
+type and Free flag, target name and translation drafts, mirror name/plane/tolerance options, the
+draft shape name, mesh visibility, target preview weight, target displacement visibility, and the
+Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -111,7 +114,12 @@ settings are restored when the project is opened and are part of the project dir
 6. Switch to **Paint target**, choose **Move** or **Smooth**, adjust the brush radius and strength,
    then right-drag over the displaced target surface. Release the button to commit one stroke;
    left-drag still orbits and the middle button pans.
-7. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
+7. Switch to **Mirror target**, choose a new target name, confirm the X plane and match radius,
+   and press **Analyze mirror**. Review the matched, unmatched-active, and ambiguous counts before
+   pressing **Create mirrored target**. After analysis, the candidate is shown using the current
+   preview weight and displacement visualization settings. The approximate option is intentionally
+   limited and should be used only after reviewing the report.
+8. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 
 While **Morph targets** is active, **Edit target** remains navigation-only. **Paint target** uses
@@ -122,8 +130,9 @@ selects its source shape for inspection without changing the source geometry.
 This initial target worktree stores generic authoring data only. Its editor preview uses a dynamic
 in-memory surface overlay and does not modify or regenerate the source MSH while the preview weight
 changes. Paint strokes are accumulated in memory and committed when the right button is released;
-the preview rebuilds once per completed stroke. Smoothing, transforms beyond translation, mirroring,
-MSH export, and runtime reload remain later Milestone 2.3 steps.
+the preview rebuilds once per completed stroke. Smoothing, transforms beyond translation, MSH export,
+and runtime reload remain later Milestone 2.3 steps; mirroring is available through the explicit
+Analyze/Create workflow described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -134,5 +143,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback, richer smoothing, transforms beyond the initial translation, mirroring, MSH export, and
-runtime reload remain in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+playback, richer smoothing, MSH export, and runtime reload remain in milestone 2.3 of the [facial
+animation future work plan](realtime-facial-animation-future-work-plan.md).
