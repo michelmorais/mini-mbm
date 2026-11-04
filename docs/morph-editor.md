@@ -133,17 +133,26 @@ settings are restored when the project is opened and are part of the project dir
 8. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 
+Use **File > Export morph targets to MSH** to write a derived runtime mesh. The authoring mesh and
+Morph Editor project remain unchanged. The export copies the source mesh, replaces existing targets
+with the same names, materializes the generic sparse deltas as dense position deltas, and appends
+new targets as `Manual` targets. All targets must be ready before export. The derived file removes
+optional normal-map data because the current facial runtime path does not accept normal mapping
+together with facial morph targets. Texture files are not copied; their source references are
+preserved in the derived MSH.
+
 While **Morph targets** is active, **Edit target** remains navigation-only. **Paint target** uses
 right-drag on the displaced surface to apply local Move or Smooth edits; left-drag orbits and the
 middle button pans. Shape anchors are editable only in **Surface shapes**. Selecting a target
 selects its source shape for inspection without changing the source geometry.
 
-This initial target worktree stores generic authoring data only. Its editor preview uses a dynamic
+This initial target worktree stores generic authoring data. Its editor preview uses a dynamic
 in-memory surface overlay and does not modify or regenerate the source MSH while the preview weight
 changes. Paint strokes are accumulated in memory and committed when the right button is released;
-the preview rebuilds once per completed stroke. Smoothing, transforms beyond translation, MSH export,
-and runtime reload remain later Milestone 2.3 steps; mirroring is available through the explicit
-Analyze/Create workflow described above.
+the preview rebuilds once per completed stroke. The explicit MSH export copies the source mesh and
+writes the generic targets as dense runtime morph targets without changing the authoring source;
+runtime reload and richer smoothing remain later Milestone 2.3 steps. Mirroring is available
+through the explicit Analyze/Create workflow described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -154,5 +163,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback, richer smoothing, MSH export, and runtime reload remain in milestone 2.3 of the [facial
-animation future work plan](realtime-facial-animation-future-work-plan.md).
+playback, richer smoothing, and runtime reload remain in milestone 2.3 of the [facial animation
+future work plan](realtime-facial-animation-future-work-plan.md).

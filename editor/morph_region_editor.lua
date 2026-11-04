@@ -65,6 +65,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
         visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
 
+local targetStatus
 local function L(key) return tLang.L('mre_'..key) end
 
 local function setStatus(message,isError)
@@ -309,7 +310,6 @@ local function destroyMesh()
     tTargetPreview.destroy(E)
     tOverlay.destroy(E)
     if E.mesh then dpCall(function() E.mesh:destroy() end) end
-    if E.meshDebug then dpCall(function() E.meshDebug:destroy() end) end
     E.mesh=nil
     E.meshDebug=nil
     E.topology=nil
@@ -569,6 +569,119 @@ local function saveProjectAs()
     return false
 end
 
+local function exportMorphTargets()
+    if not E.meshDebug or not E.topology then
+        setStatus(L('export_msh_no_mesh'),true)
+        return false
+    end
+    if #(E.project.targets or {})==0 then
+        setStatus(L('export_msh_no_targets'),true)
+        return false
+    end
+    for _,target in ipairs(E.project.targets) do
+        if targetStatus(target)~='ready' then
+            setStatus(string.format(L('export_msh_target_stale'),target.name or ''),true)
+            return false
+        end
+    end
+    local sourcePath=tUtil.getTemporaryFilePath('_morph_export_source.msh')
+    local suggested=(E.project.meshPath or ''):gsub('%.msh$','')
+    if suggested=='' then suggested='morph-targets' else suggested=suggested..'-morph-targets' end
+    local outputPath=mbm.saveFile(suggested,'msh')
+    if not outputPath or outputPath=='' then return false end
+    local sourceFull=mbm.getFullPath(E.project.meshPath or '') or E.project.meshPath or ''
+    local outputFull=mbm.getFullPath(outputPath) or outputPath
+    if sourceFull~='' and outputFull==sourceFull then
+        setStatus(L('export_msh_source_same'),true)
+        return false
+    end
+    local copy
+    local function cleanup()
+        -- meshDebug userdata has no destroy method; dropping the reference lets Lua release it.
+        copy=nil
+        if sourcePath and sourcePath~='' then
+            dpCall(function() meshDebug:fakeRelease(sourcePath) end)
+            os.remove(sourcePath)
+        end
+    end
+    local savedOk,saved=dpCall(function()
+        return E.meshDebug:save(sourcePath,false,false,true)
+    end)
+    if not savedOk or saved~=true then
+        cleanup()
+        setStatus(L('export_msh_source_failed'),true)
+        return false
+    end
+    copy=meshDebug:new()
+    local loadedOk,loaded=dpCall(function() return copy:load(sourcePath) end)
+    if not loadedOk or loaded~=true then
+        cleanup()
+        setStatus(L('export_msh_source_failed'),true)
+        return false
+    end
+    dpCall(function() return copy:removeNormalMap() end)
+    local dataOk,exportData=dpCall(function() return copy:getFacialExportData() end)
+    if not dataOk or type(exportData)~='table' then
+        cleanup()
+        setStatus(L('export_msh_source_failed'),true)
+        return false
+    end
+    local existing={}
+    for index,entry in ipairs(exportData.targets or {}) do
+        if type(entry)=='table' and type(entry.name)=='string' and entry.name~='' then
+            existing[entry.name]={index=index,normalDeltas=entry.normalDeltas}
+        end
+    end
+    local vertexCount=#E.topology.vertices
+    local function densePositions(target)
+        local positions={}
+        for index=1,vertexCount do positions[index]={x=0,y=0,z=0} end
+        for _,delta in ipairs(target.deltas or {}) do
+            local index=math.floor(tonumber(delta.index) or 0)
+            if positions[index] then
+                positions[index]={x=tonumber(delta.x) or 0,y=tonumber(delta.y) or 0,
+                    z=tonumber(delta.z) or 0}
+            end
+        end
+        return positions
+    end
+    for _,target in ipairs(E.project.targets) do
+        local entry=existing[target.name]
+        local positions=densePositions(target)
+        local callOk,result
+        if entry then
+            callOk,result=dpCall(function()
+                return copy:updateFacialTarget(entry.index,target.name,'Manual',0,positions,
+                    entry.normalDeltas)
+            end)
+        else
+            callOk,result=dpCall(function()
+                return copy:addFacialTarget(target.name,'Manual',0,positions)
+            end)
+        end
+        local targetSaved=result==true or type(result)=='number'
+        if not callOk or not targetSaved then
+            cleanup()
+            setStatus(string.format(L('export_msh_target_failed'),target.name or ''),true)
+            return false
+        end
+        if not entry and type(result)=='number' then
+            existing[target.name]={index=result,normalDeltas=nil}
+        end
+    end
+    local outputOk,outputSaved=dpCall(function()
+        -- Preserve the source texture references; save() does not copy texture files.
+        return copy:save(outputPath,false,false,false)
+    end)
+    cleanup()
+    if not outputOk or outputSaved~=true then
+        setStatus(L('export_msh_save_failed'),true)
+        return false
+    end
+    setStatus(string.format(L('export_msh_done'),#E.project.targets,outputPath),false)
+    return true
+end
+
 local function performPending()
     local action=E.pendingAction
     E.pendingAction=nil
@@ -809,7 +922,7 @@ local function targetRegion(target)
     return regionIndexById(target.sourceRegionId)
 end
 
-local function targetStatus(target)
+targetStatus=function(target)
     local _,region=targetRegion(target)
     return tTargets.status(target,region,E.topology)
 end
@@ -1746,6 +1859,8 @@ local function showMenu()
             if E.projectPath then saveProject(E.projectPath) else saveProjectAs() end
         end
         if tImGui.MenuItem(L('save_as'),nil,false,true) then saveProjectAs() end
+        local canExport=E.meshDebug~=nil and #(E.project.targets or {})>0
+        if tImGui.MenuItem(L('export_msh'),nil,false,canExport) then exportMorphTargets() end
         tImGui.Separator()
         if tImGui.MenuItem(tLang.L('menu_quit')) then requestAction('quit') end
         tImGui.EndMenu()
