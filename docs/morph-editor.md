@@ -114,7 +114,9 @@ settings are restored when the project is opened and are part of the project dir
    count, authored delta count, and the target preview.
 4. In **Edit target**, choose **Translate**, **Rotate**, or **Reset to neutral**. Translation and
    rotation use the source selection weights; rotation uses the selection's weighted center as
-   its pivot. Press **Apply edit** to commit the chosen operation.
+   its pivot. A non-zero Translate or Rotate draft is shown immediately with the textured/default
+   material, including soft edge weights, but remains in memory. Press **Apply edit** to commit the
+   chosen operation; changing back to zero or applying the edit restores the selected preview mode.
 5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
    **Show target displacement** selects the visualization material: enabled uses the dynamic
    displacement shader, while disabled keeps the displaced geometry visible with its original
@@ -135,13 +137,16 @@ settings are restored when the project is opened and are part of the project dir
 8. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 
-Use **File > Export morph targets to MSH** to write a derived runtime mesh. The authoring mesh and
-Morph Editor project remain unchanged. The export copies the source mesh, replaces existing targets
-with the same names, materializes the generic sparse deltas as dense position deltas, and appends
-new targets as `Manual` targets. All targets must be ready before export. The derived file removes
-optional normal-map data because the current facial runtime path does not accept normal mapping
-together with facial morph targets. Texture files are not copied; their source references are
-preserved in the derived MSH.
+Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
+and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The
+export copies the source mesh, replaces existing targets with the same names, materializes the
+generic sparse deltas as dense position deltas, and appends new targets as `Manual` targets. All
+targets must be ready before export. The derived file removes optional normal-map data because the
+current facial runtime path does not accept normal mapping together with facial morph targets.
+Texture files are not copied; their source references are preserved in the derived MSH. **Preserve
+existing** keeps normal deltas already stored in source targets and writes zero normal deltas for
+new targets; **Recompute from surface** derives normal deltas from the deformed triangle surface
+for every exported target.
 
 While **Morph targets** is active, **Edit target** remains navigation-only. **Paint target** uses
 right-drag on the displaced surface to apply local Move or Smooth edits; left-drag orbits and the
@@ -153,9 +158,10 @@ in-memory surface overlay and does not modify or regenerate the source MSH while
 changes. Paint strokes are accumulated in memory and committed when the right button is released;
 the preview rebuilds once per completed stroke. The explicit MSH export copies the source mesh and
 writes the generic targets as dense runtime morph targets without changing the authoring source;
-runtime reload validation is complete for the exported MSH workflow, and smoothing now supports
-configurable surface-neighbor passes. Mirroring is available through the explicit Analyze/Create
-workflow described above.
+runtime reload validation is complete for the exported MSH workflow, smoothing now supports
+configurable surface-neighbor passes, and export supports explicit normal-delta preservation or
+surface recomputation. Mirroring is available through the explicit Analyze/Create workflow
+described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is

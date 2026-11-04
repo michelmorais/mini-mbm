@@ -34,6 +34,7 @@ local tTargetPreview=require 'morph_surface_target_preview'
 local tTargetBrush=require 'morph_surface_target_brush'
 local tTargetGizmo=require 'morph_surface_target_gizmo'
 local tTargetMirror=require 'morph_surface_target_mirror'
+local tSurfaceNormals=require 'morph_surface_normals'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -59,6 +60,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetMirrorNameDraft='target_mirror',targetMirrorNameTargetId=nil,
     targetMirrorNeedsPrepare=false,targetMirrorPlan=nil,targetMirrorCandidate=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,targetBrushSmoothPasses=1,
+    exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
@@ -155,6 +157,7 @@ local function saveEditorPreferences()
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
     preferences.targetBrushSmoothPasses=E.targetBrushSmoothPasses
+    preferences.exportNormalMode=E.exportNormalMode
     preferences.targetBrushDx=E.targetBrushDx
     preferences.targetBrushDy=E.targetBrushDy
     preferences.targetBrushDz=E.targetBrushDz
@@ -162,8 +165,9 @@ local function saveEditorPreferences()
     preferences.targetPreviewVisible=E.targetPreviewVisible
     if E.mesh then
         local preview=E.targetPreview
+        local shaderPreviewVisible=E.targetEditDraft==nil and E.targetPreviewVisible
         local visibleMesh=preview and preview.surface and
-            (E.targetPreviewVisible and preview.surface or preview.plainSurface) or E.mesh
+            (shaderPreviewVisible and preview.surface or preview.plainSurface) or E.mesh
         preferences.meshVisible=visibleMesh.visible~=false
     elseif preferences.meshVisible==nil then
         preferences.meshVisible=true
@@ -225,6 +229,7 @@ local function restoreEditorPreferences(project)
     E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
     E.targetBrushSmoothPasses=math.max(1,math.min(8,
         math.floor(tonumber(preferences.targetBrushSmoothPasses) or 1)))
+    E.exportNormalMode=math.max(1,math.min(2,math.floor(tonumber(preferences.exportNormalMode) or 1)))
     E.targetBrushDx=tonumber(preferences.targetBrushDx) or 0
     E.targetBrushDy=tonumber(preferences.targetBrushDy) or -0.01
     E.targetBrushDz=tonumber(preferences.targetBrushDz) or 0
@@ -629,6 +634,23 @@ local function exportMorphTargets()
         setStatus(L('export_msh_source_failed'),true)
         return false
     end
+    local baseNormals=nil
+    if E.exportNormalMode==2 then
+        if exportData.hasNormals~=true then
+            cleanup()
+            setStatus(L('export_msh_no_normals'),true)
+            return false
+        end
+        local normalsOk,normals=dpCall(function()
+            return tSurfaceNormals.readBaseNormals(copy,E.topology)
+        end)
+        if not normalsOk or type(normals)~='table' then
+            cleanup()
+            setStatus(L('export_msh_normal_failed'),true)
+            return false
+        end
+        baseNormals=normals
+    end
     local existing={}
     for index,entry in ipairs(exportData.targets or {}) do
         if type(entry)=='table' and type(entry.name)=='string' and entry.name~='' then
@@ -651,15 +673,27 @@ local function exportMorphTargets()
     for _,target in ipairs(E.project.targets) do
         local entry=existing[target.name]
         local positions=densePositions(target)
+        local normalDeltas=entry and entry.normalDeltas or nil
+        if E.exportNormalMode==2 then
+            local normalsOk,computed=dpCall(function()
+                return tSurfaceNormals.recomputeDeltas(E.topology,positions,baseNormals)
+            end)
+            if not normalsOk or type(computed)~='table' then
+                cleanup()
+                setStatus(string.format(L('export_msh_normal_target_failed'),target.name or ''),true)
+                return false
+            end
+            normalDeltas=computed
+        end
         local callOk,result
         if entry then
             callOk,result=dpCall(function()
                 return copy:updateFacialTarget(entry.index,target.name,'Manual',0,positions,
-                    entry.normalDeltas)
+                    normalDeltas)
             end)
         else
             callOk,result=dpCall(function()
-                return copy:addFacialTarget(target.name,'Manual',0,positions)
+                return copy:addFacialTarget(target.name,'Manual',0,positions,normalDeltas)
             end)
         end
         local targetSaved=result==true or type(result)=='number'
@@ -943,18 +977,34 @@ local function targetPreviewReady(target)
     return mirrorPreviewReady(target)
 end
 
+local targetEditSelection
+
 local function syncTargetEditDraft(target)
     local draft=nil
-    local key='none'
-    if targetPreviewReady(target) and E.targetMode==2 and E.targetEditMode==2 then
+    local key=table.concat({target and target.id or 'none',tostring(E.targetMode),
+        tostring(E.targetEditMode),tostring(E.targetFeatherRings)},':')
+    if targetPreviewReady(target) and E.targetMode==2 and
+            (E.targetEditMode==1 or E.targetEditMode==2) then
         local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
         local rx,ry,rz=E.targetRx,E.targetRy,E.targetRz
-        key=table.concat({target.id,string.format('%.5f',rx),string.format('%.5f',ry),
+        local dx,dy,dz=E.targetDx,E.targetDy,E.targetDz
+        key=table.concat({key,string.format('%.5f',dx),string.format('%.5f',dy),
+            string.format('%.5f',dz),string.format('%.5f',rx),string.format('%.5f',ry),
             string.format('%.5f',rz),string.format('%.5f',pivot.x),string.format('%.5f',pivot.y),
             string.format('%.5f',pivot.z)},':')
-        if math.abs(rx)>1e-8 or math.abs(ry)>1e-8 or math.abs(rz)>1e-8 then
-            draft={mode='rotate',pivot=pivot,
-                basis=tTargets.rotationBasis(math.rad(rx),math.rad(ry),math.rad(rz))}
+        local hasTransform=(E.targetEditMode==1 and
+            (math.abs(dx)>1e-8 or math.abs(dy)>1e-8 or math.abs(dz)>1e-8)) or
+            (E.targetEditMode==2 and
+            (math.abs(rx)>1e-8 or math.abs(ry)>1e-8 or math.abs(rz)>1e-8))
+        if hasTransform then
+            local _,weights=targetEditSelection(target)
+            draft={mode=E.targetEditMode==1 and 'translate' or 'rotate',weights=weights}
+        end
+        if E.targetEditMode==2 and draft then
+            draft.pivot=pivot
+            draft.basis=tTargets.rotationBasis(math.rad(rx),math.rad(ry),math.rad(rz))
+        elseif E.targetEditMode==1 and draft then
+            draft.dx,draft.dy,draft.dz=dx,dy,dz
         end
     end
     if E.targetEditDraftKey==key then return end
@@ -995,7 +1045,9 @@ local function syncTargetPreview()
     end
     if E.targetPreview.surface then
         tTargetPreview.setWeight(E,E.targetPreviewWeight)
-        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        -- A non-zero batch edit is intentionally shown with the original material
+        -- so the artist can inspect the actual textured deformation before commit.
+        tTargetPreview.setVisible(E,E.targetEditDraft==nil and E.targetPreviewVisible)
         tTargetPreview.update(E)
     end
 end
@@ -1349,8 +1401,6 @@ local function rebuildSelectedTarget()
     return true
 end
 
-local targetEditSelection
-
 local function applyTargetTranslation()
     local target=selectedTarget()
     if not target or targetStatus(target)~='ready' then
@@ -1363,6 +1413,9 @@ local function applyTargetTranslation()
         setStatus(L('target_no_translation'),false)
         return true
     end
+    -- The entered translation is a pending operation, not a persistent offset.
+    -- Clear it after commit so the live draft is not applied a second time.
+    E.targetDx,E.targetDy,E.targetDz=0,0,0
     markChanged()
     E.targetPreviewDirty=true
     setStatus(string.format(L('target_translation_applied'),changed),false)
@@ -1572,7 +1625,11 @@ end
 local function finishTargetBrush()
     local stroke=E.targetBrush.stroke
     E.targetBrush.stroke=nil
-    if not stroke or stroke.changed==0 then return false end
+    if not stroke then return false end
+    if stroke.changed==0 then
+        setStatus(L('target_brush_no_change'),false)
+        return false
+    end
     local target=selectedTarget()
     if not target then return false end
     target.deltas=stroke.edited.deltas
@@ -1852,6 +1909,42 @@ local function drawConfirmPopup()
     end
 end
 
+local function openExportDialog()
+    E.exportNormalDraft=E.exportNormalMode
+    E.exportDialogOpen=true
+end
+
+local function drawExportDialog()
+    if E.exportDialogOpen then
+        tImGui.OpenPopup('mreExportMshModal')
+        E.exportDialogOpen=false
+    end
+    local flags=tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local opened=tImGui.BeginPopupModal(L('export_msh_dialog_title')..'###mreExportMshModal',false,flags)
+    if not opened then return end
+    tImGui.TextWrapped(L('export_msh_dialog_help'))
+    tImGui.Separator()
+    tImGui.SetNextItemWidth(260)
+    local modeChanged,mode=tImGui.Combo(L('export_normal_mode')..'##mreExportNormalDraft',
+        E.exportNormalDraft,{L('export_normal_preserve'),L('export_normal_recompute')})
+    if modeChanged then E.exportNormalDraft=math.max(1,math.min(2,mode)) end
+    showHelpTooltip(L('export_normal_help'))
+    tImGui.Separator()
+    if tImGui.Button(L('export_msh_start')..'##mreExportMshStart') then
+        if E.exportNormalMode~=E.exportNormalDraft then
+            E.exportNormalMode=E.exportNormalDraft
+            E.modified=true
+        end
+        tImGui.CloseCurrentPopup()
+        exportMorphTargets()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('cancel')..'##mreExportMshCancel') then
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
+end
+
 local function showMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(tLang.L('menu_file')) then
@@ -1863,7 +1956,7 @@ local function showMenu()
         end
         if tImGui.MenuItem(L('save_as'),nil,false,true) then saveProjectAs() end
         local canExport=E.meshDebug~=nil and #(E.project.targets or {})>0
-        if tImGui.MenuItem(L('export_msh'),nil,false,canExport) then exportMorphTargets() end
+        if tImGui.MenuItem(L('export_msh'),nil,false,canExport) then openExportDialog() end
         tImGui.Separator()
         if tImGui.MenuItem(tLang.L('menu_quit')) then requestAction('quit') end
         tImGui.EndMenu()
@@ -2085,6 +2178,9 @@ local function drawMorphTargets()
                         E.targetPreviewVisible)
                     tImGui.EndDisabled()
                     showHelpTooltip(L('target_preview_displacement_help'))
+                    if E.targetEditDraft then
+                        tImGui.TextWrapped(L('target_preview_edit_draft'))
+                    end
                     if displacementVisible~=E.targetPreviewVisible then
                         E.targetPreviewVisible=displacementVisible
                         tTargetPreview.setVisible(E,E.targetPreviewVisible)
@@ -2497,6 +2593,7 @@ local function drawControls()
     end
     tImGui.End()
     drawConfirmPopup()
+    drawExportDialog()
 end
 
 function onInitScene()

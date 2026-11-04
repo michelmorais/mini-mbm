@@ -169,8 +169,21 @@ local function updateDynamicBuffer(state,start,count,_,vertex,uv)
         if entry then
             local delta=preview.deltas[index]
             local draft=state.targetEditDraft
-            if delta and draft and draft.mode=='rotate' then
-                delta=tTargets.rotatedDelta(point,delta,draft.pivot,draft.basis)
+            local selectionWeight=draft and draft.weights and draft.weights[index]
+            if draft and selectionWeight and selectionWeight>0 then
+                local old=delta and {x=delta.x,y=delta.y,z=delta.z} or {x=0,y=0,z=0}
+                local transformed
+                if draft.mode=='rotate' then
+                    transformed=tTargets.rotatedDelta(point,old,draft.pivot,draft.basis)
+                elseif draft.mode=='translate' then
+                    transformed={x=old.x+draft.dx,y=old.y+draft.dy,z=old.z+draft.dz}
+                end
+                if transformed then
+                    local blend=math.max(0,math.min(1,tonumber(selectionWeight) or 0))
+                    delta={x=old.x+(transformed.x-old.x)*blend,
+                        y=old.y+(transformed.y-old.y)*blend,
+                        z=old.z+(transformed.z-old.z)*blend}
+                end
             end
             entry.x=point.x+(delta and delta.x or 0)*weight
             entry.y=point.y+(delta and delta.y or 0)*weight

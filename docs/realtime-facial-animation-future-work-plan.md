@@ -207,7 +207,9 @@ selection after source changes, and supports weighted translation, rotation arou
 source-selection pivot, reset-to-neutral operations, and soft edge rings over triangle adjacency.
 Edit mode
 now uses paired dynamic in-memory surfaces: a shader heat map and a textured/default-material geometry
-view, selected by the displacement checkbox, with a neutral-to-full contribution slider. Paint target
+view, selected by the displacement checkbox, with a neutral-to-full contribution slider. A non-zero
+Translate or Rotate draft temporarily uses the textured/default-material view and applies the draft
+only in memory until Apply, including soft selection weights and the current pivot. Paint target
 mode now applies Move or Smooth strokes to selected target vertices on right-drag and commits the
 candidate only when the stroke ends; the source MSH remains unchanged. Mirror target now reflects
 the selected source polygon and target across the origin plane of a selected X/Y/Z axis, reports
@@ -219,7 +221,8 @@ the explicit MSH export action now copies the source mesh, materializes the gene
 as dense position deltas, replaces same-name targets, and leaves the authoring source unchanged.
 Paint Smooth now supports configurable surface-neighbor passes based on triangle adjacency while
 respecting the target selection boundary. Runtime reload and combined skeletal playback have been
-validated with the exported MSH; further runtime validation remains.
+validated with the exported MSH. Export now also offers explicit preservation of existing normal
+deltas or recomputation from each deformed triangle surface; further runtime validation remains.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
 changes.
 
@@ -303,10 +306,11 @@ must recover to the documented neutral or fallback state without leaving stale f
 
 ## Sculpt quality and feedback
 
-- Add an explicit choice to recompute normal deltas from the deformed surface or preserve authored
-  normal deltas. Check both modes at neutral, partial, and full target weight.
-- Show the textured deformation while a batch transform or pivot rotation is being adjusted, before
-  Apply. Preserve the current behavior in which Apply commits the target deltas.
+- Implemented an explicit export choice to recompute normal deltas from the deformed surface or
+  preserve authored normal deltas. Verify both modes at neutral, partial, and full target weight.
+- Implemented the textured draft preview while a batch transform or pivot rotation is being adjusted,
+  before Apply. Preserve the current behavior in which Apply commits the target deltas. Verify the
+  preview at partial weight and with soft edge rings before moving on to narrow-region sculpt quality.
 - Improve control over mouth-corner and other narrow-region corrections. Evaluate surface-aware
   smoothing that preserves an intentional lip opening; do not assume a selection mask can separate
   vertices that share one mesh index.

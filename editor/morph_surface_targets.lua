@@ -268,6 +268,12 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
         end
     end
     if #affected==0 then return 0 end
+    local beforePositions={}
+    if smooth then
+        for _,entry in ipairs(affected) do
+            beforePositions[entry.index]=copyDelta(positions[entry.index])
+        end
+    end
     local changed=0
     if smooth then
         local adjacency=topology and buildAdjacency(topology) or nil
@@ -307,7 +313,10 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
             for index,value in pairs(nextPositions) do positions[index]=value end
         end
         for _,entry in ipairs(affected) do
-            if nonZero(positions[entry.index] or {x=0,y=0,z=0}) then changed=changed+1 end
+            local before=beforePositions[entry.index]
+            local after=positions[entry.index] or {x=0,y=0,z=0}
+            if math.abs(after.x-before.x)>1e-8 or math.abs(after.y-before.y)>1e-8 or
+                    math.abs(after.z-before.z)>1e-8 then changed=changed+1 end
         end
     else
         for _,entry in ipairs(affected) do
