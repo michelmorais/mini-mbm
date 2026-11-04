@@ -121,8 +121,10 @@ settings are restored when the project is opened and are part of the project dir
    texture and material when available, without the custom shader. The source mesh remains
    unchanged and the target is updated in memory.
 6. Switch to **Paint target**, choose **Move** or **Smooth**, adjust the brush radius and strength,
-   then right-drag over the displaced target surface. Release the button to commit one stroke;
-   left-drag still orbits and the middle button pans.
+   then right-drag over the displaced target surface. In **Smooth**, choose the number of surface
+   smoothing passes; the operation follows triangle adjacency and remains inside the target
+   selection. Release the button to commit one stroke; left-drag still orbits and the middle button
+   pans.
 7. Switch to **Mirror target**. The new target name is initially suggested as
    `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
    across the origin plane of the selected axis (X by default). The source polygon remains visible
@@ -151,8 +153,9 @@ in-memory surface overlay and does not modify or regenerate the source MSH while
 changes. Paint strokes are accumulated in memory and committed when the right button is released;
 the preview rebuilds once per completed stroke. The explicit MSH export copies the source mesh and
 writes the generic targets as dense runtime morph targets without changing the authoring source;
-runtime reload and richer smoothing remain later Milestone 2.3 steps. Mirroring is available
-through the explicit Analyze/Create workflow described above.
+runtime reload validation is complete for the exported MSH workflow, and smoothing now supports
+configurable surface-neighbor passes. Mirroring is available through the explicit Analyze/Create
+workflow described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -163,5 +166,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback, richer smoothing, and runtime reload remain in milestone 2.3 of the [facial animation
-future work plan](realtime-facial-animation-future-work-plan.md).
+playback and further runtime validation remain in milestone 2.3 of the [facial animation future
+work plan](realtime-facial-animation-future-work-plan.md).

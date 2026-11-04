@@ -246,7 +246,8 @@ end
 
 -- Apply one local brush stamp to a target candidate. The caller owns the hit
 -- testing and supplies only vertices belonging to the target selection.
-function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,smooth,allowed,indices)
+function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,smooth,allowed,indices,
+    topology,smoothPasses)
     if not target or not baseVertices or not point or not normal or radius<=0 or strength<=0 then return 0 end
     local positions=copyDeltasByIndex(target.deltas)
     local affected={}
@@ -267,35 +268,57 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
         end
     end
     if #affected==0 then return 0 end
-    local average={x=0,y=0,z=0}
-    if smooth then
-        local sum=0
-        for _,entry in ipairs(affected) do
-            local delta=positions[entry.index] or {x=0,y=0,z=0}
-            average.x=average.x+delta.x*entry.weight
-            average.y=average.y+delta.y*entry.weight
-            average.z=average.z+delta.z*entry.weight
-            sum=sum+entry.weight
-        end
-        if sum>0 then
-            average.x,average.y,average.z=average.x/sum,average.y/sum,average.z/sum
-        end
-    end
     local changed=0
-    for _,entry in ipairs(affected) do
-        local old=positions[entry.index] or {x=0,y=0,z=0}
-        local weight=entry.weight
-        local nextPosition
-        if smooth then
-            nextPosition={x=old.x+(average.x-old.x)*weight,
-                y=old.y+(average.y-old.y)*weight,z=old.z+(average.z-old.z)*weight}
-        else
-            nextPosition={x=old.x+(offset.x or 0)*weight,
-                y=old.y+(offset.y or 0)*weight,z=old.z+(offset.z or 0)*weight}
+    if smooth then
+        local adjacency=topology and buildAdjacency(topology) or nil
+        smoothPasses=math.max(1,math.min(8,math.floor(tonumber(smoothPasses) or 1)))
+        for _=1,smoothPasses do
+            local nextPositions={}
+            for _,entry in ipairs(affected) do
+                local index=entry.index
+                local old=positions[index] or {x=0,y=0,z=0}
+                local average={x=old.x,y=old.y,z=old.z}
+                local sum=1
+                if adjacency then
+                    for neighbor in pairs(adjacency[index] or {}) do
+                        local neighborWeight=allowed and allowed[neighbor]
+                        if neighborWeight then
+                            local delta=positions[neighbor] or {x=0,y=0,z=0}
+                            average.x=average.x+delta.x*neighborWeight
+                            average.y=average.y+delta.y*neighborWeight
+                            average.z=average.z+delta.z*neighborWeight
+                            sum=sum+neighborWeight
+                        end
+                    end
+                else
+                    for _,other in ipairs(affected) do
+                        local delta=positions[other.index] or {x=0,y=0,z=0}
+                        average.x=average.x+delta.x*other.weight
+                        average.y=average.y+delta.y*other.weight
+                        average.z=average.z+delta.z*other.weight
+                        sum=sum+other.weight
+                    end
+                end
+                average.x,average.y,average.z=average.x/sum,average.y/sum,average.z/sum
+                local nextWeight=entry.weight
+                nextPositions[index]={x=old.x+(average.x-old.x)*nextWeight,
+                    y=old.y+(average.y-old.y)*nextWeight,z=old.z+(average.z-old.z)*nextWeight}
+            end
+            for index,value in pairs(nextPositions) do positions[index]=value end
         end
-        if math.abs(nextPosition.x-old.x)>1e-8 or math.abs(nextPosition.y-old.y)>1e-8 or
-                math.abs(nextPosition.z-old.z)>1e-8 then changed=changed+1 end
-        positions[entry.index]=nextPosition
+        for _,entry in ipairs(affected) do
+            if nonZero(positions[entry.index] or {x=0,y=0,z=0}) then changed=changed+1 end
+        end
+    else
+        for _,entry in ipairs(affected) do
+            local old=positions[entry.index] or {x=0,y=0,z=0}
+            local weight=entry.weight
+            local nextPosition={x=old.x+(offset.x or 0)*weight,
+                y=old.y+(offset.y or 0)*weight,z=old.z+(offset.z or 0)*weight}
+            if math.abs(nextPosition.x-old.x)>1e-8 or math.abs(nextPosition.y-old.y)>1e-8 or
+                    math.abs(nextPosition.z-old.z)>1e-8 then changed=changed+1 end
+            positions[entry.index]=nextPosition
+        end
     end
     target.deltas={}
     for index,delta in pairs(positions) do

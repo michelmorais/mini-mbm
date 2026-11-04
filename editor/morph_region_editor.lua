@@ -58,7 +58,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetMirrorAxis=1,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
     targetMirrorNameDraft='target_mirror',targetMirrorNameTargetId=nil,
     targetMirrorNeedsPrepare=false,targetMirrorPlan=nil,targetMirrorCandidate=nil,
-    targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
+    targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,targetBrushSmoothPasses=1,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
@@ -154,6 +154,7 @@ local function saveEditorPreferences()
     preferences.targetBrushMode=E.targetBrushMode
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
+    preferences.targetBrushSmoothPasses=E.targetBrushSmoothPasses
     preferences.targetBrushDx=E.targetBrushDx
     preferences.targetBrushDy=E.targetBrushDy
     preferences.targetBrushDz=E.targetBrushDz
@@ -222,6 +223,8 @@ local function restoreEditorPreferences(project)
     E.targetBrushMode=math.max(1,math.min(2,math.floor(tonumber(preferences.targetBrushMode) or 1)))
     E.targetBrushRadius=math.max(0.001,math.min(0.15,tonumber(preferences.targetBrushRadius) or 0.025))
     E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
+    E.targetBrushSmoothPasses=math.max(1,math.min(8,
+        math.floor(tonumber(preferences.targetBrushSmoothPasses) or 1)))
     E.targetBrushDx=tonumber(preferences.targetBrushDx) or 0
     E.targetBrushDy=tonumber(preferences.targetBrushDy) or -0.01
     E.targetBrushDz=tonumber(preferences.targetBrushDz) or 0
@@ -1548,7 +1551,7 @@ local function stampTargetBrush(x,y,stroke)
         stroke.allowed)
     local changed=tTargets.brushStamp(stroke.edited,stroke.geometry.vertices,hit.point,hit.normal,
         radius,E.targetBrushStrength,{x=E.targetBrushDx,y=E.targetBrushDy,z=E.targetBrushDz},
-        E.targetBrushMode==2,stroke.allowed,nearby)
+        E.targetBrushMode==2,stroke.allowed,nearby,E.topology,E.targetBrushSmoothPasses)
     stroke.changed=stroke.changed+changed
     stroke.lastX,stroke.lastY=x,y
     return true
@@ -2191,6 +2194,16 @@ local function drawMorphTargets()
                                 E.modified=true
                             end
                             showHelpTooltip(L('target_brush_offset_help'))
+                        else
+                            tImGui.SetNextItemWidth(220)
+                            local passesChanged,passes=tImGui.SliderInt(
+                                L('target_brush_smooth_passes')..'##mreTargetBrushSmoothPasses',
+                                E.targetBrushSmoothPasses,1,8)
+                            if passesChanged then
+                                E.targetBrushSmoothPasses=math.max(1,math.min(8,passes))
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_brush_smooth_passes_help'))
                         end
                         tImGui.TextWrapped(L('target_brush_interaction_help'))
                     end

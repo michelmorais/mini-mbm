@@ -217,7 +217,9 @@ pivot when present. The analyzed candidate is previewed through the existing in-
 surface without changing the source target. The target record is generic and remains project data;
 the explicit MSH export action now copies the source mesh, materializes the generic sparse targets
 as dense position deltas, replaces same-name targets, and leaves the authoring source unchanged.
-Next steps are richer smoothing and runtime reload validation.
+Paint Smooth now supports configurable surface-neighbor passes based on triangle adjacency while
+respecting the target selection boundary. Runtime reload and combined skeletal playback have been
+validated with the exported MSH; further runtime validation remains.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
 changes.
 
