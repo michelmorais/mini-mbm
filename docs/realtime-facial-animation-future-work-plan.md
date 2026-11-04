@@ -201,8 +201,9 @@ morph-target editing remain for milestone 2.3. See
 **Milestone 2.3 - morph workflow integration (in progress).** The Morph Editor now has a separate,
 sequential `Morph targets` worktree node after `Surface shapes`. It creates an independent target selection from a ready surface region,
 retains the source region fingerprint and topology identity, explicitly rebuilds the target
-selection after source changes, and supports weighted translation, rotation around the source-selection
-pivot, and reset-to-neutral operations. Edit mode
+selection after source changes, and supports weighted translation, rotation around a persisted
+source-selection pivot, reset-to-neutral operations, and soft edge rings over triangle adjacency.
+Edit mode
 now uses paired dynamic in-memory surfaces: a shader heat map and a textured/default-material geometry
 view, selected by the displacement checkbox, with a neutral-to-full contribution slider. Paint target
 mode now applies Move or Smooth strokes to selected target vertices on right-drag and commits the

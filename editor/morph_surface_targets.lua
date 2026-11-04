@@ -40,6 +40,17 @@ local function nonZero(value)
     return math.abs(value.x)>1e-8 or math.abs(value.y)>1e-8 or math.abs(value.z)>1e-8
 end
 
+local function copyPoint(value)
+    return {x=finite(value and value.x,0),y=finite(value and value.y,0),
+        z=finite(value and value.z,0)}
+end
+
+local function validPoint(value)
+    return type(value)=='table' and value.x==value.x and value.y==value.y and value.z==value.z and
+        value.x~=math.huge and value.x~=-math.huge and value.y~=math.huge and value.y~=-math.huge and
+        value.z~=math.huge and value.z~=-math.huge
+end
+
 local function copyDeltasByIndex(deltas)
     local result={}
     for _,raw in ipairs(type(deltas)=='table' and deltas or {}) do
@@ -66,6 +77,7 @@ function M.normalize(target,vertexCount)
     target.sourceRegionId=type(target.sourceRegionId)=='string' and target.sourceRegionId or ''
     target.topologySignature=type(target.topologySignature)=='string' and target.topologySignature or ''
     target.sourceFingerprint=type(target.sourceFingerprint)=='string' and target.sourceFingerprint or ''
+    target.pivot=validPoint(target.pivot) and copyPoint(target.pivot) or nil
     local vertices,seen={},{}
     for _,raw in ipairs(type(target.vertices)=='table' and target.vertices or {}) do
         local index=type(raw)=='table' and tonumber(raw.index) or tonumber(raw)
@@ -140,7 +152,7 @@ end
 
 function M.copyTargetData(target)
     if not target then return nil end
-    local result={vertices={},deltas={}}
+    local result={vertices={},deltas={},pivot=validPoint(target.pivot) and copyPoint(target.pivot) or nil}
     for _,vertex in ipairs(target.vertices or {}) do
         result.vertices[#result.vertices+1]={index=vertex.index,weight=vertex.weight}
     end
@@ -148,6 +160,88 @@ function M.copyTargetData(target)
         result.deltas[#result.deltas+1]={index=delta.index,x=delta.x,y=delta.y,z=delta.z}
     end
     return result
+end
+
+local adjacencyCache=setmetatable({}, {__mode='k'})
+
+local function buildAdjacency(topology)
+    local adjacency=adjacencyCache[topology]
+    if adjacency then return adjacency end
+    adjacency={}
+    for _,triangle in ipairs(topology and topology.triangles or {}) do
+        local a,b,c=triangle[1],triangle[2],triangle[3]
+        if topology.vertices[a] and topology.vertices[b] and topology.vertices[c] then
+            for edge=1,3 do
+                local first=triangle[edge]
+                local second=triangle[edge%3+1]
+                if first~=second then
+                    adjacency[first]=adjacency[first] or {}
+                    adjacency[second]=adjacency[second] or {}
+                    adjacency[first][second]=true
+                    adjacency[second][first]=true
+                end
+            end
+        end
+    end
+    adjacencyCache[topology]=adjacency
+    return adjacency
+end
+
+function M.featherSelection(topology,target,rings)
+    rings=math.max(0,math.min(8,math.floor(finite(rings,0))))
+    local weights,frontier={},{}
+    for _,vertex in ipairs(target and target.vertices or {}) do
+        local index=tonumber(vertex.index)
+        if index then
+            weights[index]=math.max(weights[index] or 0,math.max(0,math.min(1,finite(vertex.weight,1))))
+            frontier[#frontier+1]=index
+        end
+    end
+    if rings>0 and topology then
+        local adjacency=buildAdjacency(topology)
+        local visited={}
+        for index in pairs(weights) do visited[index]=true end
+        for ring=1,rings do
+            local nextFrontier={}
+            local t=ring/(rings+1)
+            local influence=1-t*t*(3-2*t)
+            for _,index in ipairs(frontier) do
+                for neighbor in pairs(adjacency[index] or {}) do
+                    if not visited[neighbor] then
+                        visited[neighbor]=true
+                        weights[neighbor]=influence
+                        nextFrontier[#nextFrontier+1]=neighbor
+                    end
+                end
+            end
+            frontier=nextFrontier
+            if #frontier==0 then break end
+        end
+    end
+    local indices={}
+    for index,weight in pairs(weights) do
+        if weight>0 and (not topology or topology.vertices[index]) then indices[#indices+1]=index end
+    end
+    table.sort(indices)
+    return indices,weights
+end
+
+function M.ensureSelection(target,indices,weights)
+    if not target or not indices then return end
+    local byIndex={}
+    for _,vertex in ipairs(target.vertices or {}) do byIndex[vertex.index]=vertex.weight end
+    for _,rawIndex in ipairs(indices) do
+        local index=tonumber(rawIndex)
+        local weight=weights and weights[index] or 1
+        if index and weight and weight>0 then
+            byIndex[index]=math.max(byIndex[index] or 0,math.min(1,weight))
+        end
+    end
+    target.vertices={}
+    for index,weight in pairs(byIndex) do
+        target.vertices[#target.vertices+1]={index=index,weight=weight}
+    end
+    table.sort(target.vertices,function(left,right) return left.index<right.index end)
 end
 
 -- Apply one local brush stamp to a target candidate. The caller owns the hit
@@ -213,20 +307,25 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
     return changed
 end
 
-function M.applyTranslation(target,dx,dy,dz)
+function M.applyTranslation(target,dx,dy,dz,indices,weights)
     if type(target)~='table' then return 0 end
+    if indices then M.ensureSelection(target,indices,weights) end
     local byIndex=copyDeltasByIndex(target.deltas)
     local changed=0
     dx,dy,dz=finite(dx,0),finite(dy,0),finite(dz,0)
-    for _,vertex in ipairs(target.vertices or {}) do
-        local delta=byIndex[vertex.index] or {x=0,y=0,z=0}
-        local weight=finite(vertex.weight,1)
+    local selection=indices
+    if not selection then selection=target.vertices end
+    for _,entry in ipairs(selection or {}) do
+        local index=type(entry)=='table' and entry.index or tonumber(entry)
+        local sourceWeight=type(entry)=='table' and entry.weight or weights and weights[index] or 1
+        local delta=byIndex[index] or {x=0,y=0,z=0}
+        local weight=finite(sourceWeight,1)
         delta={x=delta.x+dx*weight,y=delta.y+dy*weight,z=delta.z+dz*weight}
         if nonZero(delta) then
-            byIndex[vertex.index]=delta
+            byIndex[index]=delta
             changed=changed+1
         else
-            byIndex[vertex.index]=nil
+            byIndex[index]=nil
         end
     end
     target.deltas={}
@@ -248,7 +347,23 @@ local function rotateVector(value,rx,ry,rz)
     return {x=x,y=y,z=z}
 end
 
+function M.rotationBasis(rx,ry,rz)
+    return {x=rotateVector({x=1,y=0,z=0},rx,ry,rz),
+        y=rotateVector({x=0,y=1,z=0},rx,ry,rz),
+        z=rotateVector({x=0,y=0,z=1},rx,ry,rz)}
+end
+
+function M.rotatedDelta(base,delta,pivot,basis)
+    local x,y,z=base.x+delta.x-pivot.x,base.y+delta.y-pivot.y,base.z+delta.z-pivot.z
+    return {
+        x=pivot.x+x*basis.x.x+y*basis.y.x+z*basis.z.x-base.x,
+        y=pivot.y+x*basis.x.y+y*basis.y.y+z*basis.z.y-base.y,
+        z=pivot.z+x*basis.x.z+y*basis.y.z+z*basis.z.z-base.z,
+    }
+end
+
 function M.selectionPivot(target,baseVertices,bounds)
+    if validPoint(target and target.pivot) then return copyPoint(target.pivot) end
     local x,y,z,total=0,0,0,0
     for _,vertex in ipairs(target and target.vertices or {}) do
         local base=baseVertices and baseVertices[vertex.index]
@@ -266,25 +381,23 @@ function M.selectionPivot(target,baseVertices,bounds)
     return {x=0,y=0,z=0}
 end
 
-function M.applyRotation(target,baseVertices,rx,ry,rz,pivot)
+function M.applyRotation(target,baseVertices,rx,ry,rz,pivot,indices,weights)
     if type(target)~='table' or type(baseVertices)~='table' then return 0 end
+    if indices then M.ensureSelection(target,indices,weights) end
     local byIndex=copyDeltasByIndex(target.deltas)
-    local basis={x=rotateVector({x=1,y=0,z=0},rx,ry,rz),
-        y=rotateVector({x=0,y=1,z=0},rx,ry,rz),z=rotateVector({x=0,y=0,z=1},rx,ry,rz)}
+    local basis=M.rotationBasis(rx,ry,rz)
     pivot=pivot or {x=0,y=0,z=0}
     local changed=0
-    for _,vertex in ipairs(target.vertices or {}) do
-        local index=tonumber(vertex.index)
+    local selection=indices
+    if not selection then selection=target.vertices end
+    for _,entry in ipairs(selection or {}) do
+        local index=type(entry)=='table' and tonumber(entry.index) or tonumber(entry)
         local base=index and baseVertices[index]
         if index and base then
             local old=byIndex[index] or {x=0,y=0,z=0}
-            local x,y,z=base.x+old.x-pivot.x,base.y+old.y-pivot.y,base.z+old.z-pivot.z
-            local rotated={
-                x=pivot.x+x*basis.x.x+y*basis.y.x+z*basis.z.x-base.x,
-                y=pivot.y+x*basis.x.y+y*basis.y.y+z*basis.z.y-base.y,
-                z=pivot.z+x*basis.x.z+y*basis.y.z+z*basis.z.z-base.z,
-            }
-            local weight=math.max(0,math.min(1,finite(vertex.weight,1)))
+            local rotated=M.rotatedDelta(base,old,pivot,basis)
+            local sourceWeight=type(entry)=='table' and entry.weight or weights and weights[index] or 1
+            local weight=math.max(0,math.min(1,finite(sourceWeight,1)))
             local next={x=old.x+(rotated.x-old.x)*weight,
                 y=old.y+(rotated.y-old.y)*weight,z=old.z+(rotated.z-old.z)*weight}
             if math.abs(next.x-old.x)>1e-8 or math.abs(next.y-old.y)>1e-8 or

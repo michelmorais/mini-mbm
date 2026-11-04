@@ -22,6 +22,7 @@
 
 local M={}
 local SHADER_NAME='morph_target_overlay.ps'
+local tTargets=require 'morph_surface_targets'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -167,6 +168,10 @@ local function updateDynamicBuffer(state,start,count,_,vertex,uv)
         local entry=vertex[localIndex]
         if entry then
             local delta=preview.deltas[index]
+            local draft=state.targetEditDraft
+            if delta and draft and draft.mode=='rotate' then
+                delta=tTargets.rotatedDelta(point,delta,draft.pivot,draft.basis)
+            end
             entry.x=point.x+(delta and delta.x or 0)*weight
             entry.y=point.y+(delta and delta.y or 0)*weight
             entry.z=point.z+(delta and delta.z or 0)*weight

@@ -60,8 +60,11 @@ shows the handles over the selected surface contour.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
 - In **Morph targets**, create an independent target selection from a rebuilt shape selection,
   inspect its source and topology status, regenerate it explicitly after source changes, and apply
-  weighted Translate, Rotate, or Reset to neutral operations to its authored deltas. Edit mode
-  also previews the selected target in the viewport with a neutral-to-full contribution slider.
+  weighted Translate, Rotate, or Reset to neutral operations to its authored deltas. Rotate mode
+  shows three colored rings and three axis handles: rings edit the rotation draft and axes move the
+  persisted pivot. Soft edge rings include neighboring triangle-connected vertices with gradual
+  influence. Edit mode also previews the selected target in the viewport with a neutral-to-full
+  contribution slider.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The

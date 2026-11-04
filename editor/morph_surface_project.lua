@@ -64,6 +64,7 @@ local function normalizePreferences(preferences)
         targetRx=validNumber(preferences.targetRx,0),
         targetRy=validNumber(preferences.targetRy,0),
         targetRz=validNumber(preferences.targetRz,0),
+        targetFeatherRings=math.floor(clamp(validNumber(preferences.targetFeatherRings,0),0,8)),
         targetBrushMode=math.floor(clamp(validNumber(preferences.targetBrushMode,1),1,2)),
         targetBrushRadius=clamp(validNumber(preferences.targetBrushRadius,0.025),0.001,0.15),
         targetBrushStrength=clamp(validNumber(preferences.targetBrushStrength,0.5),0.01,1),

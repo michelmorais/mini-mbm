@@ -32,6 +32,7 @@ local tTargets=require 'morph_surface_targets'
 local tOverlay=require 'morph_surface_overlay'
 local tTargetPreview=require 'morph_surface_target_preview'
 local tTargetBrush=require 'morph_surface_target_brush'
+local tTargetGizmo=require 'morph_surface_target_gizmo'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -50,9 +51,12 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
+    targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
+    targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
+        visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
 
 local function L(key) return tLang.L('mre_'..key) end
@@ -94,6 +98,10 @@ local function markChanged()
     E.regionTableDirty=true
     E.targetAvailabilityDirty=true
     E.targetPreviewDirty=true
+    E.targetFeatherCache=nil
+    E.targetEditDraft=nil
+    E.targetEditDraftKey=nil
+    E.targetGizmo.dirty=true
     if E.targetBrush and not E.targetBrush.stroke then
         E.targetBrush.geometry=nil
         E.targetBrush.geometryKey=nil
@@ -129,6 +137,7 @@ local function saveEditorPreferences()
     preferences.targetRx=E.targetRx
     preferences.targetRy=E.targetRy
     preferences.targetRz=E.targetRz
+    preferences.targetFeatherRings=E.targetFeatherRings
     preferences.targetBrushMode=E.targetBrushMode
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
@@ -174,6 +183,11 @@ local function restoreEditorPreferences(project)
     E.targetRx=tonumber(preferences.targetRx) or 0
     E.targetRy=tonumber(preferences.targetRy) or 0
     E.targetRz=tonumber(preferences.targetRz) or 0
+    E.targetFeatherRings=math.max(0,math.min(8,math.floor(tonumber(preferences.targetFeatherRings) or 0)))
+    E.targetFeatherCache=nil
+    E.targetEditDraft=nil
+    E.targetEditDraftKey=nil
+    E.targetGizmo.dirty=true
     E.targetBrushMode=math.max(1,math.min(2,math.floor(tonumber(preferences.targetBrushMode) or 1)))
     E.targetBrushRadius=math.max(0.001,math.min(0.15,tonumber(preferences.targetBrushRadius) or 0.025))
     E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
@@ -277,6 +291,9 @@ local function destroyMesh()
     E.targetBrush.hoverX=nil
     E.targetBrush.hoverY=nil
     E.targetBrush.hoverTime=nil
+    tTargetGizmo.destroy(E.targetGizmo)
+    E.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
+        visible=false,dirty=true,drag=nil}
     E.targetPreviewDirty=true
     E.regionStatusDirty=true
     E.regionTableDirty=true
@@ -333,6 +350,11 @@ local function loadMesh(path,preserveProject)
         E.targetRx=0
         E.targetRy=0
         E.targetRz=0
+        E.targetFeatherRings=0
+        E.targetFeatherCache=nil
+        E.targetEditDraft=nil
+        E.targetEditDraftKey=nil
+        E.targetGizmo.dirty=true
         E.targetBrushMode=1
         E.targetBrushRadius=0.025
         E.targetBrushStrength=0.5
@@ -644,6 +666,26 @@ local function targetPreviewReady(target)
         targetStatus(target)=='ready'
 end
 
+local function syncTargetEditDraft(target)
+    local draft=nil
+    local key='none'
+    if targetPreviewReady(target) and E.targetMode==2 and E.targetEditMode==2 then
+        local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
+        local rx,ry,rz=E.targetRx,E.targetRy,E.targetRz
+        key=table.concat({target.id,string.format('%.5f',rx),string.format('%.5f',ry),
+            string.format('%.5f',rz),string.format('%.5f',pivot.x),string.format('%.5f',pivot.y),
+            string.format('%.5f',pivot.z)},':')
+        if math.abs(rx)>1e-8 or math.abs(ry)>1e-8 or math.abs(rz)>1e-8 then
+            draft={mode='rotate',pivot=pivot,
+                basis=tTargets.rotationBasis(math.rad(rx),math.rad(ry),math.rad(rz))}
+        end
+    end
+    if E.targetEditDraftKey==key then return end
+    E.targetEditDraftKey=key
+    E.targetEditDraft=draft
+    if E.targetPreview.surface then E.targetPreview.bufferDirty=true end
+end
+
 local function refreshTargetPreview()
     local target=selectedTarget()
     if not targetPreviewReady(target) then
@@ -661,6 +703,7 @@ end
 
 local function syncTargetPreview()
     local target=selectedTarget()
+    syncTargetEditDraft(target)
     if not targetPreviewReady(target) then
         if E.targetPreview.surface then tTargetPreview.destroy(E) end
         return
@@ -716,6 +759,10 @@ local function selectTarget(index)
     E.targetBrush.geometry=nil
     E.targetBrush.geometryKey=nil
     E.targetBrush.hoverHit=nil
+    E.targetFeatherCache=nil
+    E.targetEditDraft=nil
+    E.targetEditDraftKey=nil
+    E.targetGizmo.dirty=true
     E.overlayDirty=true
     E.regionStatusDirty=true
     E.modified=true
@@ -759,13 +806,16 @@ local function rebuildSelectedTarget()
     return true
 end
 
+local targetEditSelection
+
 local function applyTargetTranslation()
     local target=selectedTarget()
     if not target or targetStatus(target)~='ready' then
         setStatus(L('target_not_ready'),true)
         return false
     end
-    local changed=tTargets.applyTranslation(target,E.targetDx,E.targetDy,E.targetDz)
+    local indices,weights=targetEditSelection(target)
+    local changed=tTargets.applyTranslation(target,E.targetDx,E.targetDy,E.targetDz,indices,weights)
     if changed==0 then
         setStatus(L('target_no_translation'),false)
         return true
@@ -795,8 +845,9 @@ local function applyTargetRotation()
         return false
     end
     local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
+    local indices,weights=targetEditSelection(target)
     local changed=tTargets.applyRotation(target,E.topology.vertices,
-        math.rad(E.targetRx),math.rad(E.targetRy),math.rad(E.targetRz),pivot)
+        math.rad(E.targetRx),math.rad(E.targetRy),math.rad(E.targetRz),pivot,indices,weights)
     if changed==0 then
         setStatus(L('target_no_rotation'),false)
         return true
@@ -822,6 +873,94 @@ local function deleteSelectedTarget()
     markChanged()
     E.targetPreviewDirty=true
     setStatus(L('target_deleted'),false)
+    return true
+end
+
+targetEditSelection=function(target)
+    if not target or not E.topology then return {},{} end
+    local key=tostring(target.id)..':'..tostring(E.targetFeatherRings)..':'..tostring(E.topology.signature)
+    local cache=E.targetFeatherCache
+    if cache and cache.key==key then return cache.indices,cache.weights end
+    local indices,weights=tTargets.featherSelection(E.topology,target,E.targetFeatherRings)
+    E.targetFeatherCache={key=key,indices=indices,weights=weights}
+    return indices,weights
+end
+
+local function targetGizmoExtent()
+    local bounds=E.meshBounds
+    if not bounds then return 1 end
+    return math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ)
+end
+
+local function refreshTargetGizmo()
+    local gizmo=E.targetGizmo
+    local target=E.worktree==2 and E.targetMode==2 and E.targetEditMode==2 and selectedTarget() or nil
+    if not target or targetStatus(target)~='ready' or not E.mesh then
+        if gizmo.visible then tTargetGizmo.hide(gizmo) end
+        return
+    end
+    if gizmo.visible and not gizmo.dirty and gizmo.targetId==target.id then return end
+    local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
+    tTargetGizmo.refresh(gizmo,pivot,targetGizmoExtent(),gizmo.drag)
+    gizmo.targetId=target.id
+    gizmo.dirty=false
+end
+
+local function beginTargetGizmoDrag(x,y)
+    local gizmo=E.targetGizmo
+    if not gizmo.visible or not gizmo.origin then return false end
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
+    if not ok or not ox or not dx then return false end
+    local origin,direction={x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz}
+    local ring=tTargetGizmo.hitRing(origin,direction,gizmo.origin,gizmo.radius)
+    if ring then
+        local field=ring.name=='x' and 'targetRx' or ring.name=='y' and 'targetRy' or 'targetRz'
+        gizmo.drag={kind='ring',name=ring.name,axis=ring.axis,startDirection=ring.direction,
+            baseAngle=E[field] or 0,origin={x=gizmo.origin.x,y=gizmo.origin.y,z=gizmo.origin.z}}
+        return true
+    end
+    local axisName=tTargetGizmo.hitAxis(origin,direction,gizmo.origin,gizmo.length,
+        math.max(gizmo.radius*0.08,0.003))
+    if not axisName then return false end
+    local axis=tTargetGizmo.axes[axisName]
+    local parameter=tTargetGizmo.axisParameter(origin,direction,gizmo.origin,axis)
+    if not parameter then return false end
+    gizmo.drag={kind='axis',name=axisName,axis=axis,startParameter=parameter,
+        origin={x=gizmo.origin.x,y=gizmo.origin.y,z=gizmo.origin.z},moved=false}
+    return true
+end
+
+local function updateTargetGizmoDrag(x,y)
+    local drag=E.targetGizmo.drag
+    if not drag then return false end
+    local ok,ox,oy,oz,dx,dy,dz=dpCall(mbm.getPickRay,x,y)
+    if not ok or not ox or not dx then return true end
+    local origin,direction={x=ox,y=oy,z=oz},{x=dx,y=dy,z=dz}
+    if drag.kind=='axis' then
+        local parameter=tTargetGizmo.axisParameter(origin,direction,drag.origin,drag.axis)
+        if parameter then
+            local amount=parameter-drag.startParameter
+            if math.abs(amount)>1e-6 then
+                local target=selectedTarget()
+                if target then
+                    target.pivot={x=drag.origin.x+drag.axis.x*amount,
+                        y=drag.origin.y+drag.axis.y*amount,z=drag.origin.z+drag.axis.z*amount}
+                    drag.moved=true
+                    E.targetEditDraftKey=nil
+                    E.targetGizmo.dirty=true
+                    E.modified=true
+                end
+            end
+        end
+    else
+        local vector=tTargetGizmo.ringDirection(origin,direction,drag.origin,drag.axis)
+        if vector then
+            local field=drag.name=='x' and 'targetRx' or drag.name=='y' and 'targetRy' or 'targetRz'
+            E[field]=drag.baseAngle+tTargetGizmo.signedAngle(drag.axis,drag.startDirection,vector)
+            E.targetEditDraftKey=nil
+            E.modified=true
+        end
+    end
     return true
 end
 
@@ -1331,6 +1470,10 @@ local function drawMorphTargets()
         E.targetBrush.hoverHit=nil
         E.targetBrush.geometry=nil
         E.targetBrush.geometryKey=nil
+        E.targetFeatherCache=nil
+        E.targetEditDraft=nil
+        E.targetEditDraftKey=nil
+        E.targetGizmo.dirty=true
         E.modified=true
     end
     tImGui.TextWrapped(L('target_interaction_help'))
@@ -1401,6 +1544,15 @@ local function drawMorphTargets()
                         rebuildSelectedTarget()
                     end
                     tImGui.EndDisabled()
+                    tImGui.SetNextItemWidth(220)
+                    local ringsChanged,rings=tImGui.SliderInt(
+                        L('target_feather_rings')..'##mreTargetFeatherRings',E.targetFeatherRings,0,8)
+                    if ringsChanged then
+                        E.targetFeatherRings=math.max(0,math.min(8,rings))
+                        E.targetFeatherCache=nil
+                        E.modified=true
+                    end
+                    showHelpTooltip(L('target_feather_rings_help'))
                     tImGui.Separator()
                     if E.targetMode==2 then
                         tImGui.Text(L('target_edit_mode'))
@@ -1415,6 +1567,9 @@ local function drawMorphTargets()
                         showHelpTooltip(L('target_edit_reset_help'))
                         if editMode~=E.targetEditMode then
                             E.targetEditMode=editMode
+                            E.targetEditDraft=nil
+                            E.targetEditDraftKey=nil
+                            E.targetGizmo.dirty=true
                             E.modified=true
                         end
                         if E.targetEditMode==1 then
@@ -1439,6 +1594,13 @@ local function drawMorphTargets()
                             showHelpTooltip(L('target_rotation_help'))
                             local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
                             tImGui.Text(string.format(L('target_pivot'),pivot.x,pivot.y,pivot.z))
+                            if tImGui.Button(L('target_pivot_reset')..'##mreTargetPivotReset') then
+                                target.pivot=nil
+                                E.targetEditDraftKey=nil
+                                E.targetGizmo.dirty=true
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_pivot_reset_help'))
                         else
                             tImGui.TextWrapped(L('target_edit_reset_help'))
                         end
@@ -1728,6 +1890,7 @@ function onLoop()
         E.overlayDirty=false
     end
     syncTargetPreview()
+    refreshTargetGizmo()
     showMenu()
     syncLanguagePreference()
     drawControls()
@@ -1739,6 +1902,10 @@ end
 
 function onTouchDown(key,x,y)
     if tImGui.GetWantCaptureMouse() then return end
+    if key==0 and E.worktree==2 and E.targetMode==2 and E.targetEditMode==2 and
+            beginTargetGizmoDrag(x,y) then
+        return
+    end
     if key==1 and E.worktree==2 and E.targetMode==4 then
         beginTargetBrush(x,y)
         return
@@ -1763,6 +1930,10 @@ function onTouchMove(key,x,y)
         stampTargetBrush(x,y,E.targetBrush.stroke)
         return
     end
+    if key==0 and E.targetGizmo.drag then
+        updateTargetGizmoDrag(x,y)
+        return
+    end
     if E.regionDrag then updatePointDrag(x,y); return end
     if E.cameraDrag then
         if E.pendingSurfacePick then
@@ -1781,6 +1952,11 @@ function onTouchUp(key,x,y)
     if key==1 and E.targetMode==4 and E.targetBrush.stroke then
         stampTargetBrush(x,y,E.targetBrush.stroke)
         finishTargetBrush()
+        return
+    end
+    if key==0 and E.targetGizmo.drag then
+        E.targetGizmo.drag=nil
+        E.targetGizmo.dirty=true
         return
     end
     if key==1 and E.worktree==2 and E.targetMode==4 then return end
