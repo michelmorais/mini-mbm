@@ -64,9 +64,10 @@ shows the handles over the selected surface contour.
   shows three colored rings and three axis handles: rings edit the rotation draft and axes move the
   persisted pivot. Soft edge rings include neighboring triangle-connected vertices with gradual
   influence. Edit mode also previews the selected target in the viewport with a neutral-to-full
-  contribution slider. Mirror target analyzes neutral-vertex pairs across a configurable X plane,
-  reports unmatched or ambiguous pairs, and creates a separate target with mirrored selection,
-  position deltas, and explicit pivot when present. The source target is never modified.
+  contribution slider. Mirror target uses the selected target's source polygon, reflects it across
+  the origin plane of the selected X/Y/Z axis, and shows a temporary polygon and target preview.
+  It reports unmatched or ambiguous pairs; only confirmation creates the new polygon and target.
+  The source target is never modified.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
@@ -79,7 +80,7 @@ files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
 language, selected worktree, Add/Edit/Paint/Mirror/Remove modes, selector size, surface-snap axis, new-shape
-type and Free flag, target name and translation drafts, mirror name/plane/tolerance options, the
+type and Free flag, target name and translation drafts, mirror name/axis/tolerance options, the
 draft shape name, mesh visibility, target preview weight, target displacement visibility, and the
 Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
@@ -114,11 +115,13 @@ settings are restored when the project is opened and are part of the project dir
 6. Switch to **Paint target**, choose **Move** or **Smooth**, adjust the brush radius and strength,
    then right-drag over the displaced target surface. Release the button to commit one stroke;
    left-drag still orbits and the middle button pans.
-7. Switch to **Mirror target**, choose a new target name, confirm the X plane and match radius,
-   and press **Analyze mirror**. Review the matched, unmatched-active, and ambiguous counts before
-   pressing **Create mirrored target**. After analysis, the candidate is shown using the current
-   preview weight and displacement visualization settings. The approximate option is intentionally
-   limited and should be used only after reviewing the report.
+7. Switch to **Mirror target**. The new target name is initially suggested as
+   `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
+   across the origin plane of the selected axis (X by default). The source polygon remains visible
+   as a reference while the candidate is shown in orange. Adjust the name, axis, and match radius,
+   review the candidate and diagnostics, then press **Create mirrored target** to persist the new
+   polygon and target. The source remains unchanged. To repeat the operation with another target,
+   select it, choose X/Y/Z, and use **Analyze mirror** before confirming.
 8. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
 

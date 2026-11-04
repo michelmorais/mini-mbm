@@ -32,6 +32,10 @@ local function nonZero(delta)
         math.abs(finite(delta.y,0))>1e-8 or math.abs(finite(delta.z,0))>1e-8)
 end
 
+local function axisField(axis)
+    return axis==1 and 'x' or axis==2 and 'y' or 'z'
+end
+
 local function distanceSquared(first,second)
     local dx,dy,dz=first.x-second.x,first.y-second.y,first.z-second.z
     return dx*dx+dy*dy+dz*dz
@@ -106,9 +110,17 @@ end
 
 -- Analyze only the vertices selected by the source target. The neutral mesh is
 -- indexed once per analysis, so this operation never runs in the editor loop.
-function M.analyze(target,vertices,planeX,radius)
+function M.analyze(target,vertices,axisOrPlane,planeOrRadius,radiusArgument)
+    local axis,plane,radius
+    if radiusArgument==nil then
+        axis,plane,radius=1,tonumber(axisOrPlane) or 0,tonumber(planeOrRadius)
+    else
+        axis,plane,radius=math.floor(tonumber(axisOrPlane) or 1),tonumber(planeOrRadius) or 0,
+            tonumber(radiusArgument)
+    end
     if type(target)~='table' or type(vertices)~='table' or #vertices==0 or
-            type(planeX)~='number' or planeX~=planeX or type(radius)~='number' or radius<=0 then
+            axis<1 or axis>3 or type(plane)~='number' or plane~=plane or
+            type(radius)~='number' or radius<=0 then
         return nil,'invalid'
     end
     if #(target.vertices or {})==0 then return nil,'empty_target' end
@@ -124,7 +136,9 @@ function M.analyze(target,vertices,planeX,radius)
         local matched=nil
         local ambiguous=false
         if point then
-            local reflected={x=2*planeX-point.x,y=point.y,z=point.z}
+            local reflected={x=point.x,y=point.y,z=point.z}
+            local field=axisField(axis)
+            reflected[field]=2*plane-reflected[field]
             local candidates=findCandidates(vertices,index,reflected,radius)
             if #candidates>0 then
                 matched=candidates[1].index
@@ -166,9 +180,15 @@ function M.isApproximateEligible(result)
         result.ambiguous<=math.max(1,result.vertexCount*0.001)
 end
 
-function M.create(target,analysis,planeX)
+function M.create(target,analysis,axisOrPlane,planeArgument)
+    local axis,plane
+    if planeArgument==nil then
+        axis,plane=1,tonumber(axisOrPlane) or 0
+    else
+        axis,plane=math.floor(tonumber(axisOrPlane) or 1),tonumber(planeArgument) or 0
+    end
     if type(target)~='table' or type(analysis)~='table' or
-            type(analysis.mapping)~='table' then return nil,'invalid' end
+            type(analysis.mapping)~='table' or axis<1 or axis>3 then return nil,'invalid' end
     local deltas=deltaMap(target)
     local verticesByIndex={}
     local mirrored={vertices={},deltas={},pivot=nil}
@@ -181,7 +201,10 @@ function M.create(target,analysis,planeX)
             if not previous or weight>previous then verticesByIndex[destination]=weight end
             local delta=deltas[source]
             if delta and nonZero(delta) then
-                mirrored.deltas[#mirrored.deltas+1]={index=destination,x=-delta.x,y=delta.y,z=delta.z}
+                local reflectedDelta=copyDelta(delta)
+                reflectedDelta[axisField(axis)]=-reflectedDelta[axisField(axis)]
+                mirrored.deltas[#mirrored.deltas+1]={index=destination,x=reflectedDelta.x,
+                    y=reflectedDelta.y,z=reflectedDelta.z}
             end
         end
     end
@@ -191,8 +214,10 @@ function M.create(target,analysis,planeX)
     table.sort(mirrored.vertices,function(left,right) return left.index<right.index end)
     table.sort(mirrored.deltas,function(left,right) return left.index<right.index end)
     if validPoint(target.pivot) then
-        mirrored.pivot={x=2*finite(planeX,0)-finite(target.pivot.x,0),
-            y=finite(target.pivot.y,0),z=finite(target.pivot.z,0)}
+        mirrored.pivot={x=finite(target.pivot.x,0),y=finite(target.pivot.y,0),
+            z=finite(target.pivot.z,0)}
+        local field=axisField(axis)
+        mirrored.pivot[field]=2*plane-mirrored.pivot[field]
     end
     return mirrored
 end

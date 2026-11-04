@@ -229,6 +229,36 @@ function M.seed(region,center,topology,camera,extent)
     return parameters
 end
 
+local function mirrorCoordinate(point,axis,plane)
+    local reflected=copyPoint(point)
+    local field=axis==1 and 'x' or axis==2 and 'y' or 'z'
+    reflected[field]=2*plane-reflected[field]
+    return reflected
+end
+
+function M.mirror(region,topology,axis,plane)
+    if type(region)~='table' or not topology or type(topology.vertices)~='table' then return nil,'invalid' end
+    axis=math.floor(tonumber(axis) or 1)
+    if axis<1 or axis>3 then return nil,'invalid_axis' end
+    plane=tonumber(plane) or 0
+    local source=resolved(region,topology)
+    if #source<3 then return nil,'too_few_points' end
+    local points,used={},{}
+    for _,point in ipairs(source) do
+        local reflected=mirrorCoordinate(point.position,axis,plane)
+        local index=nearestVertex(topology,reflected,used)
+        if not index then return nil,'missing_vertex' end
+        used[index]=true
+        local neutral=topology.vertices[index]
+        points[#points+1]={index=index,offset={x=reflected.x-neutral.x,
+            y=reflected.y-neutral.y,z=reflected.z-neutral.z}}
+    end
+    local shape=region.shape or {}
+    return {points=points,closed=region.closed~=false,kind=region.kind,
+        shape={type=shape.type,free=shape.free==true,
+            segments=math.max(8,math.floor(tonumber(shape.segments) or DEFAULT_SEGMENTS))}},nil
+end
+
 function M.handles(region,topology,camera)
     if not M.isParametric(region) then return {} end
     local parameters=captureParameters(region,topology,camera)

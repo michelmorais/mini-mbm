@@ -65,8 +65,7 @@ local function normalizePreferences(preferences)
         targetRy=validNumber(preferences.targetRy,0),
         targetRz=validNumber(preferences.targetRz,0),
         targetFeatherRings=math.floor(clamp(validNumber(preferences.targetFeatherRings,0),0,8)),
-        targetMirrorPlaneX=preferences.targetMirrorPlaneX~=nil and
-            validNumber(preferences.targetMirrorPlaneX,0) or nil,
+        targetMirrorAxis=math.floor(clamp(validNumber(preferences.targetMirrorAxis,1),1,3)),
         targetMirrorTolerance=clamp(validNumber(preferences.targetMirrorTolerance,0.005),0.00001,0.01),
         targetMirrorAllowApprox=preferences.targetMirrorAllowApprox==true,
         targetMirrorNameDraft=type(preferences.targetMirrorNameDraft)=='string' and

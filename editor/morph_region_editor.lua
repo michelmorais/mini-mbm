@@ -53,8 +53,9 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
-    targetMirrorPlaneX=0,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
-    targetMirrorNameDraft='target_mirror',targetMirrorPlan=nil,
+    targetMirrorAxis=1,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
+    targetMirrorNameDraft='target_mirror',targetMirrorNameTargetId=nil,
+    targetMirrorNeedsPrepare=false,targetMirrorPlan=nil,targetMirrorCandidate=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
@@ -141,7 +142,7 @@ local function saveEditorPreferences()
     preferences.targetRy=E.targetRy
     preferences.targetRz=E.targetRz
     preferences.targetFeatherRings=E.targetFeatherRings
-    preferences.targetMirrorPlaneX=E.targetMirrorPlaneX
+    preferences.targetMirrorAxis=E.targetMirrorAxis
     preferences.targetMirrorTolerance=E.targetMirrorTolerance
     preferences.targetMirrorAllowApprox=E.targetMirrorAllowApprox
     preferences.targetMirrorNameDraft=E.targetMirrorNameDraft
@@ -191,14 +192,16 @@ local function restoreEditorPreferences(project)
     E.targetRy=tonumber(preferences.targetRy) or 0
     E.targetRz=tonumber(preferences.targetRz) or 0
     E.targetFeatherRings=math.max(0,math.min(8,math.floor(tonumber(preferences.targetFeatherRings) or 0)))
-    E.targetMirrorPlaneX=tonumber(preferences.targetMirrorPlaneX) or
-        (E.meshBounds and (E.meshBounds.minX+E.meshBounds.maxX)*0.5 or 0)
+    E.targetMirrorAxis=math.max(1,math.min(3,math.floor(tonumber(preferences.targetMirrorAxis) or 1)))
     E.targetMirrorTolerance=math.max(0.00001,math.min(0.01,
         tonumber(preferences.targetMirrorTolerance) or 0.005))
     E.targetMirrorAllowApprox=preferences.targetMirrorAllowApprox==true
     E.targetMirrorNameDraft=type(preferences.targetMirrorNameDraft)=='string' and
         preferences.targetMirrorNameDraft~='' and preferences.targetMirrorNameDraft or 'target_mirror'
+    E.targetMirrorNameTargetId=nil
+    E.targetMirrorNeedsPrepare=E.targetMode==5
     E.targetMirrorPlan=nil
+    E.targetMirrorCandidate=nil
     E.targetFeatherCache=nil
     E.targetEditDraft=nil
     E.targetEditDraftKey=nil
@@ -310,6 +313,9 @@ local function destroyMesh()
     E.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil}
     E.targetPreviewDirty=true
+    E.targetMirrorPlan=nil
+    E.targetMirrorCandidate=nil
+    E.targetMirrorNeedsPrepare=false
     E.regionStatusDirty=true
     E.regionTableDirty=true
     E.targetAvailabilityDirty=true
@@ -369,11 +375,14 @@ local function loadMesh(path,preserveProject)
         E.targetFeatherCache=nil
         E.targetEditDraft=nil
         E.targetEditDraftKey=nil
-        E.targetMirrorPlaneX=(topology.bounds.minX+topology.bounds.maxX)*0.5
+        E.targetMirrorAxis=1
         E.targetMirrorTolerance=0.005
         E.targetMirrorAllowApprox=false
         E.targetMirrorNameDraft='target_mirror'
+        E.targetMirrorNameTargetId=nil
+        E.targetMirrorNeedsPrepare=false
         E.targetMirrorPlan=nil
+        E.targetMirrorCandidate=nil
         E.targetGizmo.dirty=true
         E.targetBrushMode=1
         E.targetBrushRadius=0.025
@@ -588,6 +597,24 @@ local function newRegionId()
     end
 end
 
+local function uniqueRegionName(name)
+    local base=(name or ''):match('^%s*(.-)%s*$')
+    if base=='' then base=string.format(L('region_default_name'),#E.project.regions+1) end
+    local candidate=base
+    local suffix=2
+    local function exists(value)
+        for _,region in ipairs(E.project.regions or {}) do
+            if region.name==value then return true end
+        end
+        return false
+    end
+    while exists(candidate) do
+        candidate=base..'_'..tostring(suffix)
+        suffix=suffix+1
+    end
+    return candidate
+end
+
 local function shapeTypeFromIndex(index)
     return index==1 and 'square' or index==2 and 'ellipse' or 'polygon'
 end
@@ -684,6 +711,7 @@ end
 local function mirrorPreviewReady(target)
     local plan=E.targetMirrorPlan
     return E.targetMode==5 and target and plan and plan.sourceId==target.id and plan.result and
+        E.targetMirrorCandidate and E.targetMirrorCandidate.target and
         targetStatus(target)=='ready'
 end
 
@@ -722,14 +750,8 @@ local function refreshTargetPreview()
     end
     local previewTarget=target
     if mirrorPreviewReady(target) then
-        previewTarget=tTargetMirror.create(target,E.targetMirrorPlan.result,E.targetMirrorPlaneX)
-        if not previewTarget then
-            tTargetPreview.destroy(E)
-            E.targetPreviewDirty=false
-            setStatus(L('target_mirror_invalid'),true)
-            return
-        end
-        previewTarget.id=target.id..':mirror_preview'
+        previewTarget=E.targetMirrorCandidate.target
+        previewTarget.id=target.id
     end
     tTargetPreview.destroy(E)
     local ok,errorCode=tTargetPreview.build(E,previewTarget,E.targetPreviewWeight)
@@ -786,9 +808,18 @@ local function uniqueTargetName(name)
     return candidate
 end
 
+local function suggestMirrorTargetName(target)
+    if not target then return end
+    local sourceName=(target.name or ''):match('^%s*(.-)%s*$')
+    if sourceName=='' then sourceName='target' end
+    E.targetMirrorNameDraft=sourceName..'_mirror'
+    E.targetMirrorNameTargetId=target.id
+end
+
 local function selectTarget(index)
     local target=E.project.targets[index]
     if not target then return end
+    suggestMirrorTargetName(target)
     E.project.selectedTarget=index
     local regionIndex=targetRegion(target)
     if regionIndex then E.project.selectedRegion=regionIndex end
@@ -799,6 +830,8 @@ local function selectTarget(index)
     E.targetBrush.hoverHit=nil
     E.targetFeatherCache=nil
     E.targetMirrorPlan=nil
+    E.targetMirrorCandidate=nil
+    E.targetMirrorNeedsPrepare=E.targetMode==5
     E.targetEditDraft=nil
     E.targetEditDraftKey=nil
     E.targetGizmo.dirty=true
@@ -817,27 +850,83 @@ local function targetMirrorPlanMatches(target)
     local plan=E.targetMirrorPlan
     return target and plan and plan.sourceId==target.id and
         plan.name==((E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$')) and
-        math.abs((plan.planeX or 0)-E.targetMirrorPlaneX)<=1e-12 and
+        plan.axis==E.targetMirrorAxis and
         math.abs((plan.tolerance or 0)-E.targetMirrorTolerance)<=1e-12 and plan.result
 end
 
-local function analyzeTargetMirror(target)
-    if not target or targetStatus(target)~='ready' or not E.topology then
+local function prepareTargetMirrorCandidate(target)
+    local sourceTarget=selectedTarget()
+    local _,sourceRegion=targetRegion(target or sourceTarget)
+    sourceTarget=target or sourceTarget
+    if sourceTarget and E.targetMirrorNameTargetId~=sourceTarget.id then
+        suggestMirrorTargetName(sourceTarget)
+    end
+    E.targetMirrorNeedsPrepare=false
+    E.targetMirrorCandidate=nil
+    E.targetMirrorPlan=nil
+    if not sourceTarget or not sourceRegion or targetStatus(sourceTarget)~='ready' then
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
         setStatus(L('target_mirror_source_not_ready'),true)
         return false
     end
-    local result,reason=tTargetMirror.analyze(target,E.topology.vertices,E.targetMirrorPlaneX,
-        math.max(targetMirrorExtent()*E.targetMirrorTolerance,1e-7))
-    E.targetMirrorPlan={sourceId=target.id,
-        name=(E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$'),
-        planeX=E.targetMirrorPlaneX,tolerance=E.targetMirrorTolerance,result=result,reason=reason}
-    E.targetPreviewDirty=true
-    if not result then
+    local mirroredShape,errorCode=tShapes.mirror(sourceRegion,E.topology,E.targetMirrorAxis,0)
+    if not mirroredShape then
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
+        setStatus(L('target_mirror_polygon_failed')..': '..tostring(errorCode),true)
+        return false
+    end
+    local analysis,analysisError=tTargetMirror.analyze(sourceTarget,E.topology.vertices,
+        E.targetMirrorAxis,0,math.max(targetMirrorExtent()*E.targetMirrorTolerance,1e-7))
+    if not analysis then
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
+        setStatus(L('target_mirror_invalid')..': '..tostring(analysisError),true)
+        return false
+    end
+    local previewRegion=tRegions.new((sourceRegion.name or 'region')..'_mirror_preview',
+        sourceRegion.kind,mirroredShape.points)
+    previewRegion.id='mirror_preview'
+    previewRegion.closed=mirroredShape.closed
+    previewRegion.shape=mirroredShape.shape
+    previewRegion.topologySignature=E.topology.signature
+    if sourceRegion.falloff then
+        previewRegion.falloff={mode=sourceRegion.falloff.mode,
+            radius=sourceRegion.falloff.radius,curve=sourceRegion.falloff.curve}
+    end
+    local rebuilt,rebuildError=tRegions.rebuild(previewRegion,E.topology)
+    if not rebuilt then
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
+        setStatus(L('target_mirror_polygon_failed')..': '..tostring(rebuildError),true)
+        return false
+    end
+    local mirroredData=tTargetMirror.create(sourceTarget,analysis,E.targetMirrorAxis,0)
+    if not mirroredData then
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
         setStatus(L('target_mirror_invalid'),true)
         return false
     end
+    local targetName=(E.targetMirrorNameDraft or ''):match('^%s*(.-)%s*$')
+    local previewTarget={id=sourceTarget.id,name=targetName,
+        sourceRegionId=previewRegion.id,topologySignature=E.topology.signature,
+        sourceFingerprint=previewRegion.geometryFingerprint,vertices=mirroredData.vertices,
+        deltas=mirroredData.deltas,pivot=mirroredData.pivot}
+    tTargets.normalize(previewTarget,#E.topology.vertices)
+    E.targetMirrorPlan={sourceId=sourceTarget.id,name=targetName,
+        axis=E.targetMirrorAxis,tolerance=E.targetMirrorTolerance,result=analysis,
+        candidateRegion=previewRegion,candidateTarget=previewTarget}
+    E.targetMirrorCandidate={region=previewRegion,target=previewTarget,sourceId=sourceTarget.id}
+    E.targetPreviewDirty=true
+    E.overlayDirty=true
     setStatus(L('target_mirror_analyzed'),false)
     return true
+end
+
+local function analyzeTargetMirror(target)
+    return prepareTargetMirrorCandidate(target)
 end
 
 local function createMirroredTarget(target)
@@ -861,23 +950,44 @@ local function createMirroredTarget(target)
             return false
         end
     end
-    local mirrored,errorCode=tTargetMirror.create(target,result,E.targetMirrorPlaneX)
-    if not mirrored then
-        setStatus(L('target_mirror_invalid')..': '..tostring(errorCode),true)
+    local candidate=E.targetMirrorCandidate
+    if not candidate or not candidate.region or not candidate.target then
+        setStatus(L('target_mirror_invalid'),true)
         return false
     end
-    local created={id=newTargetId(),name=name,sourceRegionId=target.sourceRegionId,
-        topologySignature=target.topologySignature,sourceFingerprint=target.sourceFingerprint,
-        vertices=mirrored.vertices,deltas=mirrored.deltas,pivot=mirrored.pivot}
+    local _,sourceRegion=targetRegion(target)
+    local regionName=uniqueRegionName((sourceRegion and sourceRegion.name or 'region')..'_mirror')
+    local mirroredRegion=candidate.region
+    mirroredRegion.name=regionName
+    mirroredRegion.id=newRegionId()
+    local rebuilt,rebuildError=tRegions.rebuild(mirroredRegion,E.topology)
+    if not rebuilt then
+        setStatus(L('target_mirror_polygon_failed')..': '..tostring(rebuildError),true)
+        return false
+    end
+    local created=candidate.target
+    created.id=newTargetId()
+    created.name=name
+    created.sourceRegionId=mirroredRegion.id
+    created.topologySignature=E.topology.signature
+    created.sourceFingerprint=mirroredRegion.geometryFingerprint
+    created.mirrorSourceId=target.id
+    created.mirrorAxis=E.targetMirrorAxis
     tTargets.normalize(created,#E.topology.vertices)
+    E.project.regions[#E.project.regions+1]=mirroredRegion
     E.project.targets[#E.project.targets+1]=created
+    E.project.selectedRegion=#E.project.regions
     E.project.selectedTarget=#E.project.targets
     E.targetMode=2
     E.targetEditMode=1
+    E.regionNamesDirty=true
+    E.selectedPoint=nil
     E.targetMirrorPlan=nil
+    E.targetMirrorCandidate=nil
+    E.targetMirrorNeedsPrepare=false
     E.targetPreviewDirty=true
     markChanged()
-    setStatus(string.format(L('target_mirror_created'),name),false)
+    setStatus(string.format(L('target_mirror_committed'),regionName,name),false)
     return true
 end
 
@@ -891,18 +1001,13 @@ local function drawTargetMirrorControls(target)
     if nameChanged then
         E.targetMirrorNameDraft=name
         E.targetMirrorPlan=nil
+        E.targetMirrorCandidate=nil
+        E.targetMirrorNeedsPrepare=false
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
         E.modified=true
     end
     local extent=targetMirrorExtent()
-    tImGui.SetNextItemWidth(220)
-    local planeChanged,plane=tImGui.DragFloat(L('target_mirror_plane_x')..'##mreTargetMirrorPlaneX',
-        E.targetMirrorPlaneX,math.max(extent*0.0005,0.0001),-math.huge,math.huge,'%.5f')
-    showHelpTooltip(L('target_mirror_plane_x_help'))
-    if planeChanged then
-        E.targetMirrorPlaneX=plane
-        E.targetMirrorPlan=nil
-        E.modified=true
-    end
     tImGui.SetNextItemWidth(220)
     local toleranceChanged,tolerance=tImGui.SliderFloat(
         L('target_mirror_tolerance')..'##mreTargetMirrorTolerance',E.targetMirrorTolerance,
@@ -911,6 +1016,9 @@ local function drawTargetMirrorControls(target)
     if toleranceChanged then
         E.targetMirrorTolerance=math.max(0.00001,math.min(0.01,tolerance))
         E.targetMirrorPlan=nil
+        E.targetMirrorCandidate=nil
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
         E.modified=true
     end
     tImGui.BeginDisabled(not target or targetStatus(target)~='ready')
@@ -940,7 +1048,7 @@ local function drawTargetMirrorControls(target)
             if entry.name==name then nameTaken=true; break end
         end
         local exact=result.unmatchedActive==0 and result.ambiguous==0
-        local canCreate=not nameTaken and (exact or
+        local canCreate=E.targetMirrorCandidate~=nil and not nameTaken and (exact or
             approximateEligible and E.targetMirrorAllowApprox==true)
         tImGui.BeginDisabled(not canCreate)
         if tImGui.Button(L('target_mirror_create')..'##mreTargetMirrorCreate') then
@@ -962,6 +1070,24 @@ local function drawTargetMirrorControls(target)
     end
 end
 
+local function drawTargetMirrorAxisControl()
+    if E.targetMode~=2 and E.targetMode~=5 then return end
+    if #(E.project.targets or {})==0 then return end
+    local axes={L('target_mirror_axis_x'),L('target_mirror_axis_y'),L('target_mirror_axis_z')}
+    tImGui.SetNextItemWidth(220)
+    local axisChanged,axis=tImGui.Combo(L('target_mirror_axis')..'##mreTargetMirrorAxis',
+        E.targetMirrorAxis,axes)
+    showHelpTooltip(L('target_mirror_axis_help'))
+    if axisChanged then
+        E.targetMirrorAxis=math.max(1,math.min(3,axis))
+        E.targetMirrorPlan=nil
+        E.targetMirrorCandidate=nil
+        E.targetPreviewDirty=true
+        E.overlayDirty=true
+        E.modified=true
+    end
+end
+
 local function createTargetFromRegion()
     local region=selectedRegion()
     if not region then setStatus(L('target_source_required'),true); return false end
@@ -972,6 +1098,7 @@ local function createTargetFromRegion()
     end
     local name=uniqueTargetName((E.targetNameDraft or ''):match('^%s*(.-)%s*$'))
     local target=tTargets.new(name,region,newTargetId())
+    suggestMirrorTargetName(target)
     E.project.targets[#E.project.targets+1]=target
     E.project.selectedTarget=#E.project.targets
     E.targetMode=2
@@ -1650,16 +1777,14 @@ local function drawTargetSourceSelector()
 end
 
 local function drawMorphTargets()
+    drawTargetMirrorAxisControl()
     local previousMode=E.targetMode
     E.targetMode=tImGui.RadioButton(L('target_mode_add')..'##mreTargetModeAdd',E.targetMode,1)
-    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_edit')..'##mreTargetModeEdit',E.targetMode,2)
-    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_paint')..'##mreTargetModePaint',E.targetMode,4)
-    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_mirror')..'##mreTargetModeMirror',E.targetMode,5)
-    tImGui.SameLine()
     E.targetMode=tImGui.RadioButton(L('target_mode_remove')..'##mreTargetModeRemove',E.targetMode,3)
+    local enteredMirror=E.targetMode==5 and previousMode~=5
     if E.targetMode~=previousMode then
         E.targetPreviewDirty=true
         E.targetBrush.stroke=nil
@@ -1670,8 +1795,13 @@ local function drawMorphTargets()
         E.targetEditDraft=nil
         E.targetEditDraftKey=nil
         E.targetMirrorPlan=nil
+        E.targetMirrorCandidate=nil
+        E.overlayDirty=true
         E.targetGizmo.dirty=true
         E.modified=true
+    end
+    if enteredMirror or (E.targetMode==5 and E.targetMirrorNeedsPrepare) then
+        prepareTargetMirrorCandidate()
     end
     tImGui.TextWrapped(L('target_interaction_help'))
     tImGui.Separator()
@@ -1756,10 +1886,8 @@ local function drawMorphTargets()
                         local editMode=E.targetEditMode
                         editMode=tImGui.RadioButton(L('target_edit_translate')..'##mreTargetEditTranslate',editMode,1)
                         showHelpTooltip(L('target_edit_translate_help'))
-                        tImGui.SameLine()
                         editMode=tImGui.RadioButton(L('target_edit_rotate')..'##mreTargetEditRotate',editMode,2)
                         showHelpTooltip(L('target_edit_rotate_help'))
-                        tImGui.SameLine()
                         editMode=tImGui.RadioButton(L('target_edit_reset')..'##mreTargetEditReset',editMode,3)
                         showHelpTooltip(L('target_edit_reset_help'))
                         if editMode~=E.targetEditMode then
@@ -1808,7 +1936,6 @@ local function drawMorphTargets()
                         tImGui.Text(L('target_brush_title'))
                         local brushMode=E.targetBrushMode
                         brushMode=tImGui.RadioButton(L('target_brush_move')..'##mreTargetBrushMove',brushMode,1)
-                        tImGui.SameLine()
                         brushMode=tImGui.RadioButton(L('target_brush_smooth')..'##mreTargetBrushSmooth',brushMode,2)
                         if brushMode~=E.targetBrushMode then
                             E.targetBrushMode=brushMode
@@ -1974,9 +2101,7 @@ end
 local function drawSurfaceShapes()
     local previousShapeMode=E.shapeMode
     E.shapeMode=tImGui.RadioButton(L('mode_add')..'##mreShapeModeAdd',E.shapeMode,1)
-    tImGui.SameLine()
     E.shapeMode=tImGui.RadioButton(L('mode_edit')..'##mreShapeModeEdit',E.shapeMode,2)
-    tImGui.SameLine()
     E.shapeMode=tImGui.RadioButton(L('mode_remove')..'##mreShapeModeRemove',E.shapeMode,3)
     if E.shapeMode~=previousShapeMode then E.modified=true end
     tImGui.TextWrapped(L('interaction_help'))

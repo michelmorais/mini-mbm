@@ -207,12 +207,13 @@ Edit mode
 now uses paired dynamic in-memory surfaces: a shader heat map and a textured/default-material geometry
 view, selected by the displacement checkbox, with a neutral-to-full contribution slider. Paint target
 mode now applies Move or Smooth strokes to selected target vertices on right-drag and commits the
-candidate only when the stroke ends; the source MSH remains unchanged. Mirror target now analyzes
-neutral-vertex pairs across a configurable X plane, reports unmatched/ambiguous matches, and creates
-a separate target with mirrored selection, position deltas, and explicit pivot when present. The
-analyzed candidate is previewed through the existing in-memory target surface without changing the
-source target. The target record is generic and remains project data; it does not yet pretend to be a
-runtime MSH target.
+candidate only when the stroke ends; the source MSH remains unchanged. Mirror target now reflects
+the selected source polygon and target across the origin plane of a selected X/Y/Z axis, reports
+unmatched/ambiguous matches, and presents a temporary polygon and target candidate. The explicit
+Create action commits a separate polygon and target with mirrored selection, position deltas, and
+pivot when present. The analyzed candidate is previewed through the existing in-memory target
+surface without changing the source target. The target record is generic
+and remains project data; it does not yet pretend to be a runtime MSH target.
 Next steps are richer smoothing, MSH export, and reload.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
 changes.

@@ -27,6 +27,8 @@ local SELECTED_COLOR={0.1,0.85,1,1}
 local OTHER_COLOR={0.45,0.5,0.6,1}
 local INACTIVE_SELECTED_COLOR={0.28,0.34,0.42,1}
 local INACTIVE_OTHER_COLOR={0.22,0.26,0.32,1}
+local MIRROR_SOURCE_COLOR={0.1,0.85,1,1}
+local MIRROR_PREVIEW_COLOR={1,0.62,0.15,1}
 
 local function destroy(object)
     if object then pcall(function() object:destroy() end) end
@@ -43,6 +45,8 @@ end
 
 function M.destroy(state)
     for _,entry in pairs(state.regionOverlay or {}) do destroy(entry.line) end
+    destroy(state.regionMirrorPreviewLine)
+    state.regionMirrorPreviewLine=nil
     destroyCollection(state.regionMarkers)
     destroyCollection(state.regionShapeHandles)
     destroy(state.regionShapeCenter)
@@ -91,11 +95,11 @@ local function updateLine(object,segments,color,priority)
     if not object then
         object=line:new('3d',0,0,0)
         object:add(segments)
-        object.alwaysOnTop=true
-        object.alwaysRender=true
     else
         object:set(segments,1)
     end
+    object.alwaysOnTop=true
+    object.alwaysRender=true
     object.alwaysOnTopPriority=priority or 1
     object:setColor(table.unpack(color))
     object.visible=true
@@ -132,22 +136,28 @@ function M.rebuild(state)
             if not entry.line then
                 entry.line=line:new('3d',0,0,0)
                 entry.line:add(segments)
-                entry.line.alwaysOnTop=true
-                entry.line.alwaysRender=true
-                entry.line.alwaysOnTopPriority=1
             else
                 entry.line:set(segments,1)
             end
+            -- Reapply overlay state on every rebuild. A line can survive a
+            -- preview/worktree transition and must never fall back behind the mesh.
+            entry.line.alwaysOnTop=true
+            entry.line.alwaysRender=true
             local color
+            local mirrorSource=state.worktree==2 and state.targetMode==5 and
+                regionIndex==state.project.selectedRegion
             if editingShapes then
                 color=regionIndex==state.project.selectedRegion and SELECTED_COLOR or OTHER_COLOR
+            elseif mirrorSource then
+                color=MIRROR_SOURCE_COLOR
             else
                 color=regionIndex==state.project.selectedRegion and INACTIVE_SELECTED_COLOR or
                     INACTIVE_OTHER_COLOR
             end
             entry.line:setColor(table.unpack(color))
             entry.line.alwaysOnTopPriority=editingShapes and
-                (regionIndex==state.project.selectedRegion and 2 or 1) or 1
+                (regionIndex==state.project.selectedRegion and 2 or 1) or
+                (mirrorSource and 4 or 1)
             entry.line.visible=true
         else
             destroy(entry.line)
@@ -157,6 +167,18 @@ function M.rebuild(state)
     for id,entry in pairs(state.regionOverlay) do
         if not activeIds[id] then destroy(entry.line); state.regionOverlay[id]=nil end
     end
+
+    local mirrorCandidate=state.worktree==2 and state.targetMirrorCandidate
+    local mirrorRegion=mirrorCandidate and mirrorCandidate.region
+    local mirrorPoints=mirrorRegion and tPolygon.resolvePoints(mirrorRegion,state.topology) or {}
+    local mirrorSegments={}
+    local mirrorEdgeCount=mirrorRegion and mirrorRegion.closed and #mirrorPoints or #mirrorPoints-1
+    for index=1,mirrorEdgeCount do
+        local nextIndex=index%#mirrorPoints+1
+        appendSegment(mirrorSegments,mirrorPoints[index].position,mirrorPoints[nextIndex].position)
+    end
+    state.regionMirrorPreviewLine=updateLine(state.regionMirrorPreviewLine,mirrorSegments,
+        MIRROR_PREVIEW_COLOR,5)
 
     local selected=state.project.regions[state.project.selectedRegion]
     if not selected then
