@@ -228,6 +228,22 @@ function M.setWeight(state,weight)
     return true
 end
 
+function M.setDeltas(state,target)
+    local preview=state.targetPreview
+    if not preview or not preview.surface or not target then return false end
+    local deltas={}
+    for _,delta in ipairs(target.deltas or {}) do
+        local index=math.floor(tonumber(delta.index) or 0)
+        if index>0 then
+            deltas[index]={x=tonumber(delta.x) or 0,y=tonumber(delta.y) or 0,
+                z=tonumber(delta.z) or 0}
+        end
+    end
+    preview.deltas=deltas
+    preview.bufferDirty=true
+    return true
+end
+
 function M.build(state,target,weight)
     if not state.mesh or not state.topology or not target then
         return false,'missing_preview_input'

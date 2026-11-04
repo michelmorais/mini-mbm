@@ -986,6 +986,13 @@ local function targetPreviewReady(target)
     return mirrorPreviewReady(target)
 end
 
+local function restoreTargetPreviewDeltas()
+    local target=selectedTarget()
+    if target and E.targetPreview.surface then
+        tTargetPreview.setDeltas(E,target)
+    end
+end
+
 local targetEditSelection
 
 local function syncTargetEditDraft(target)
@@ -1616,6 +1623,7 @@ local function stampTargetBrush(x,y,stroke)
         E.targetBrushMode==2,stroke.allowed,nearby,E.topology,E.targetBrushSmoothPasses,
         E.targetBrushSmoothProtectCreases,E.targetBrushSmoothAngle)
     stroke.changed=stroke.changed+changed
+    tTargetPreview.setDeltas(E,stroke.edited)
     stroke.lastX,stroke.lastY=x,y
     return true
 end
@@ -1637,17 +1645,31 @@ local function finishTargetBrush()
     E.targetBrush.stroke=nil
     if not stroke then return false end
     if stroke.changed==0 then
+        restoreTargetPreviewDeltas()
         setStatus(L('target_brush_no_change'),false)
         return false
     end
     local target=selectedTarget()
-    if not target then return false end
+    if not target then
+        restoreTargetPreviewDeltas()
+        return false
+    end
     target.deltas=stroke.edited.deltas
+    tTargetPreview.setDeltas(E,target)
     E.targetBrush.geometry=nil
     E.targetBrush.geometryKey=nil
     markChanged()
     setStatus(string.format(L('target_brush_applied'),stroke.changed),false)
     return true
+end
+
+local function stampTargetBrushAtRelease(x,y,stroke)
+    if not stroke then return false end
+    local lastX,lastY=stroke.lastX,stroke.lastY
+    if lastX and lastY and math.abs(x-lastX)<=0.5 and math.abs(y-lastY)<=0.5 then
+        return false
+    end
+    return stampTargetBrush(x,y,stroke)
 end
 
 local function updateTargetBrushHover()
@@ -2114,6 +2136,7 @@ local function drawMorphTargets()
     local enteredMirror=E.targetMode==5 and previousMode~=5
     if E.targetMode~=previousMode then
         E.targetPreviewDirty=true
+        if E.targetBrush.stroke then restoreTargetPreviewDeltas() end
         E.targetBrush.stroke=nil
         E.targetBrush.hoverHit=nil
         E.targetBrush.geometry=nil
@@ -2331,6 +2354,9 @@ local function drawMorphTargets()
                             showHelpTooltip(L('target_brush_smooth_angle_help'))
                         end
                         tImGui.TextWrapped(L('target_brush_interaction_help'))
+                        if E.targetBrush.stroke then
+                            tImGui.TextWrapped(L('target_brush_candidate_preview'))
+                        end
                     end
                 elseif E.targetMode==5 then
                     drawTargetMirrorControls(target)
@@ -2497,6 +2523,7 @@ local function selectWorktree(worktree)
     E.regionDrag=nil
     E.pendingSurfacePick=nil
     clearStatus()
+    if E.targetBrush.stroke then restoreTargetPreviewDeltas() end
     E.targetBrush.stroke=nil
     E.targetBrush.hoverHit=nil
     E.targetBrush.hoverX=nil
@@ -2708,7 +2735,7 @@ end
 
 function onTouchUp(key,x,y)
     if key==1 and E.targetMode==4 and E.targetBrush.stroke then
-        stampTargetBrush(x,y,E.targetBrush.stroke)
+        stampTargetBrushAtRelease(x,y,E.targetBrush.stroke)
         finishTargetBrush()
         return
     end

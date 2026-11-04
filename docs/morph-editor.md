@@ -128,8 +128,9 @@ settings are restored when the project is opened and are part of the project dir
    across sharp triangle-normal changes, which helps preserve lip openings, eyelids, nostrils, and
    other narrow folds. Adjust **Max surface angle** for the mesh or disable the protection when
    smoothing across a crease is intentional. The operation follows triangle adjacency and remains
-   inside the target selection. Release the button to commit one stroke; left-drag still orbits and
-   the middle button pans.
+   inside the target selection. The candidate deformation is shown in memory while the right button
+   is held; release the button to commit one stroke, or leave it unchanged when the stroke produces
+   no delta. Left-drag still orbits and the middle button pans.
 7. Switch to **Mirror target**. The new target name is initially suggested as
    `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
    across the origin plane of the selected axis (X by default). The source polygon remains visible
