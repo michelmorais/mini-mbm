@@ -164,24 +164,80 @@ end
 
 local adjacencyCache=setmetatable({}, {__mode='k'})
 
+local function vectorDot(left,right)
+    return left.x*right.x+left.y*right.y+left.z*right.z
+end
+
+local function vectorCross(left,right)
+    return {x=left.y*right.z-left.z*right.y,
+        y=left.z*right.x-left.x*right.z,z=left.x*right.y-left.y*right.x}
+end
+
+local function triangleNormal(topology,triangle)
+    local first,second,third=topology.vertices[triangle[1]],topology.vertices[triangle[2]],
+        topology.vertices[triangle[3]]
+    if not first or not second or not third then return nil end
+    local cross=vectorCross({x=second.x-first.x,y=second.y-first.y,z=second.z-first.z},
+        {x=third.x-first.x,y=third.y-first.y,z=third.z-first.z})
+    local length=math.sqrt(vectorDot(cross,cross))
+    if length<=1e-10 then return nil end
+    return {x=cross.x/length,y=cross.y/length,z=cross.z/length}
+end
+
+local function edgeKey(first,second)
+    if first>second then first,second=second,first end
+    return tostring(first)..':'..tostring(second)
+end
+
 local function buildAdjacency(topology)
     local adjacency=adjacencyCache[topology]
     if adjacency then return adjacency end
     adjacency={}
+    local edges={}
+    local vertexFaces={}
     for _,triangle in ipairs(topology and topology.triangles or {}) do
         local a,b,c=triangle[1],triangle[2],triangle[3]
         if topology.vertices[a] and topology.vertices[b] and topology.vertices[c] then
+            local normal=triangleNormal(topology,triangle)
+            if normal then
+                for _,index in ipairs({a,b,c}) do
+                    vertexFaces[index]=vertexFaces[index] or {}
+                    vertexFaces[index][#vertexFaces[index]+1]=normal
+                end
+            end
             for edge=1,3 do
                 local first=triangle[edge]
                 local second=triangle[edge%3+1]
                 if first~=second then
-                    adjacency[first]=adjacency[first] or {}
-                    adjacency[second]=adjacency[second] or {}
-                    adjacency[first][second]=true
-                    adjacency[second][first]=true
+                    local key=edgeKey(first,second)
+                    local record=edges[key]
+                    if not record then
+                        record={first=first,second=second,normals={}}
+                        edges[key]=record
+                    end
+                    if normal then record.normals[#record.normals+1]=normal end
                 end
             end
         end
+    end
+    for _,record in pairs(edges) do
+        local cosine=1
+        for first=1,#record.normals do
+            for second=first+1,#record.normals do
+                cosine=math.min(cosine,vectorDot(record.normals[first],record.normals[second]))
+            end
+        end
+        for _,normal in ipairs(record.normals) do
+            for _,index in ipairs({record.first,record.second}) do
+                for _,incident in ipairs(vertexFaces[index] or {}) do
+                    cosine=math.min(cosine,vectorDot(normal,incident))
+                end
+            end
+        end
+        adjacency[record.first]=adjacency[record.first] or {}
+        adjacency[record.second]=adjacency[record.second] or {}
+        adjacency[record.first][record.second]={cosine=cosine}
+        adjacency[record.second][record.first]={cosine=cosine}
     end
     adjacencyCache[topology]=adjacency
     return adjacency
@@ -247,7 +303,7 @@ end
 -- Apply one local brush stamp to a target candidate. The caller owns the hit
 -- testing and supplies only vertices belonging to the target selection.
 function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,smooth,allowed,indices,
-    topology,smoothPasses)
+    topology,smoothPasses,protectCreases,smoothAngle)
     if not target or not baseVertices or not point or not normal or radius<=0 or strength<=0 then return 0 end
     local positions=copyDeltasByIndex(target.deltas)
     local affected={}
@@ -278,6 +334,7 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
     if smooth then
         local adjacency=topology and buildAdjacency(topology) or nil
         smoothPasses=math.max(1,math.min(8,math.floor(tonumber(smoothPasses) or 1)))
+        local smoothCosine=math.cos(math.rad(math.max(0,math.min(180,tonumber(smoothAngle) or 60))))
         for _=1,smoothPasses do
             local nextPositions={}
             for _,entry in ipairs(affected) do
@@ -288,7 +345,10 @@ function M.brushStamp(target,baseVertices,point,normal,radius,strength,offset,sm
                 if adjacency then
                     for neighbor in pairs(adjacency[index] or {}) do
                         local neighborWeight=allowed and allowed[neighbor]
-                        if neighborWeight then
+                        local edge=adjacency[index][neighbor]
+                        local smoothEdge=not protectCreases or not edge or
+                            (edge.cosine or 1)>=smoothCosine
+                        if neighborWeight and smoothEdge then
                             local delta=positions[neighbor] or {x=0,y=0,z=0}
                             average.x=average.x+delta.x*neighborWeight
                             average.y=average.y+delta.y*neighborWeight

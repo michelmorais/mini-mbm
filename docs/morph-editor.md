@@ -124,9 +124,12 @@ settings are restored when the project is opened and are part of the project dir
    unchanged and the target is updated in memory.
 6. Switch to **Paint target**, choose **Move** or **Smooth**, adjust the brush radius and strength,
    then right-drag over the displaced target surface. In **Smooth**, choose the number of surface
-   smoothing passes; the operation follows triangle adjacency and remains inside the target
-   selection. Release the button to commit one stroke; left-drag still orbits and the middle button
-   pans.
+   smoothing passes. **Protect surface creases** is enabled by default: it prevents averaging
+   across sharp triangle-normal changes, which helps preserve lip openings, eyelids, nostrils, and
+   other narrow folds. Adjust **Max surface angle** for the mesh or disable the protection when
+   smoothing across a crease is intentional. The operation follows triangle adjacency and remains
+   inside the target selection. Release the button to commit one stroke; left-drag still orbits and
+   the middle button pans.
 7. Switch to **Mirror target**. The new target name is initially suggested as
    `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
    across the origin plane of the selected axis (X by default). The source polygon remains visible

@@ -220,7 +220,10 @@ surface without changing the source target. The target record is generic and rem
 the explicit MSH export action now copies the source mesh, materializes the generic sparse targets
 as dense position deltas, replaces same-name targets, and leaves the authoring source unchanged.
 Paint Smooth now supports configurable surface-neighbor passes based on triangle adjacency while
-respecting the target selection boundary. Runtime reload and combined skeletal playback have been
+respecting the target selection boundary. Smooth also protects sharp surface creases by comparing
+the normals of the incident triangles, with an adjustable angle for low-poly meshes. This avoids
+blending across likely lip openings or other narrow folds while retaining an explicit opt-out for
+intentional cross-crease smoothing. Runtime reload and combined skeletal playback have been
 validated with the exported MSH. Export now also offers explicit preservation of existing normal
 deltas or recomputation from each deformed triangle surface; further runtime validation remains.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
@@ -311,9 +314,10 @@ must recover to the documented neutral or fallback state without leaving stale f
 - Implemented the textured draft preview while a batch transform or pivot rotation is being adjusted,
   before Apply. Preserve the current behavior in which Apply commits the target deltas. Verify the
   preview at partial weight and with soft edge rings before moving on to narrow-region sculpt quality.
-- Improve control over mouth-corner and other narrow-region corrections. Evaluate surface-aware
-  smoothing that preserves an intentional lip opening; do not assume a selection mask can separate
-  vertices that share one mesh index.
+- Implemented surface-aware smoothing for mouth-corner and other narrow-region corrections. Smooth
+  can protect sharp triangle creases by normal angle, preserving likely lip openings while leaving
+  an explicit opt-out. A shared mesh vertex is still one vertex; this does not split topology or
+  pretend a selection mask can separate coincident surfaces.
 - Evaluate face-region selection presets and a direct in-memory candidate preview bridge. These are
   workflow and performance improvements, not prerequisites for saving a target.
 

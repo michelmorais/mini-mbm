@@ -60,6 +60,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetMirrorNameDraft='target_mirror',targetMirrorNameTargetId=nil,
     targetMirrorNeedsPrepare=false,targetMirrorPlan=nil,targetMirrorCandidate=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,targetBrushSmoothPasses=1,
+    targetBrushSmoothProtectCreases=true,targetBrushSmoothAngle=60,
     exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
@@ -157,6 +158,8 @@ local function saveEditorPreferences()
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
     preferences.targetBrushSmoothPasses=E.targetBrushSmoothPasses
+    preferences.targetBrushSmoothProtectCreases=E.targetBrushSmoothProtectCreases
+    preferences.targetBrushSmoothAngle=E.targetBrushSmoothAngle
     preferences.exportNormalMode=E.exportNormalMode
     preferences.targetBrushDx=E.targetBrushDx
     preferences.targetBrushDy=E.targetBrushDy
@@ -229,6 +232,9 @@ local function restoreEditorPreferences(project)
     E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
     E.targetBrushSmoothPasses=math.max(1,math.min(8,
         math.floor(tonumber(preferences.targetBrushSmoothPasses) or 1)))
+    E.targetBrushSmoothProtectCreases=preferences.targetBrushSmoothProtectCreases~=false
+    E.targetBrushSmoothAngle=math.max(5,math.min(180,
+        tonumber(preferences.targetBrushSmoothAngle) or 60))
     E.exportNormalMode=math.max(1,math.min(2,math.floor(tonumber(preferences.exportNormalMode) or 1)))
     E.targetBrushDx=tonumber(preferences.targetBrushDx) or 0
     E.targetBrushDy=tonumber(preferences.targetBrushDy) or -0.01
@@ -414,6 +420,9 @@ local function loadMesh(path,preserveProject)
         E.targetBrushMode=1
         E.targetBrushRadius=0.025
         E.targetBrushStrength=0.5
+        E.targetBrushSmoothPasses=1
+        E.targetBrushSmoothProtectCreases=true
+        E.targetBrushSmoothAngle=60
         E.targetBrushDx=0
         E.targetBrushDy=-0.01
         E.targetBrushDz=0
@@ -1604,7 +1613,8 @@ local function stampTargetBrush(x,y,stroke)
         stroke.allowed)
     local changed=tTargets.brushStamp(stroke.edited,stroke.geometry.vertices,hit.point,hit.normal,
         radius,E.targetBrushStrength,{x=E.targetBrushDx,y=E.targetBrushDy,z=E.targetBrushDz},
-        E.targetBrushMode==2,stroke.allowed,nearby,E.topology,E.targetBrushSmoothPasses)
+        E.targetBrushMode==2,stroke.allowed,nearby,E.topology,E.targetBrushSmoothPasses,
+        E.targetBrushSmoothProtectCreases,E.targetBrushSmoothAngle)
     stroke.changed=stroke.changed+changed
     stroke.lastX,stroke.lastY=x,y
     return true
@@ -2300,6 +2310,25 @@ local function drawMorphTargets()
                                 E.modified=true
                             end
                             showHelpTooltip(L('target_brush_smooth_passes_help'))
+                            local protectCreases=tImGui.Checkbox(
+                                L('target_brush_smooth_protect_creases')..'##mreTargetBrushSmoothProtect',
+                                E.targetBrushSmoothProtectCreases)
+                            if protectCreases~=E.targetBrushSmoothProtectCreases then
+                                E.targetBrushSmoothProtectCreases=protectCreases
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_brush_smooth_protect_creases_help'))
+                            tImGui.BeginDisabled(not E.targetBrushSmoothProtectCreases)
+                            tImGui.SetNextItemWidth(220)
+                            local angleChanged,angle=tImGui.SliderFloat(
+                                L('target_brush_smooth_angle')..'##mreTargetBrushSmoothAngle',
+                                E.targetBrushSmoothAngle,5,180,'%.0f')
+                            if angleChanged then
+                                E.targetBrushSmoothAngle=math.max(5,math.min(180,angle))
+                                E.modified=true
+                            end
+                            tImGui.EndDisabled()
+                            showHelpTooltip(L('target_brush_smooth_angle_help'))
                         end
                         tImGui.TextWrapped(L('target_brush_interaction_help'))
                     end

@@ -77,6 +77,8 @@ local function normalizePreferences(preferences)
         targetBrushRadius=clamp(validNumber(preferences.targetBrushRadius,0.025),0.001,0.15),
         targetBrushStrength=clamp(validNumber(preferences.targetBrushStrength,0.5),0.01,1),
         targetBrushSmoothPasses=math.floor(clamp(validNumber(preferences.targetBrushSmoothPasses,1),1,8)),
+        targetBrushSmoothProtectCreases=preferences.targetBrushSmoothProtectCreases~=false,
+        targetBrushSmoothAngle=clamp(validNumber(preferences.targetBrushSmoothAngle,60),5,180),
         exportNormalMode=math.floor(clamp(validNumber(preferences.exportNormalMode,1),1,2)),
         targetBrushDx=validNumber(preferences.targetBrushDx,0),
         targetBrushDy=validNumber(preferences.targetBrushDy,-0.01),
