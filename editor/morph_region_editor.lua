@@ -2711,8 +2711,10 @@ function onTouchDown(key,x,y)
 end
 
 function onTouchMove(key,x,y)
-    if key==1 and E.targetBrush.stroke then
-        stampTargetBrush(x,y,E.targetBrush.stroke)
+    if E.targetBrush.stroke then
+        local stroke=E.targetBrush.stroke
+        local dx,dy=x-stroke.lastX,y-stroke.lastY
+        if dx*dx+dy*dy>=16 then stampTargetBrush(x,y,stroke) end
         return
     end
     if key==0 and E.targetGizmo.drag then
