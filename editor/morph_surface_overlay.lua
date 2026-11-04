@@ -168,7 +168,8 @@ function M.rebuild(state)
         if not activeIds[id] then destroy(entry.line); state.regionOverlay[id]=nil end
     end
 
-    local mirrorCandidate=state.worktree==2 and state.targetMirrorCandidate
+    local mirrorCandidate=state.worktree==2 and state.targetMirrorCandidate or
+        state.worktree==1 and state.shapeMode==4 and state.shapeMirrorCandidate
     local mirrorRegion=mirrorCandidate and mirrorCandidate.region
     local mirrorPoints=mirrorRegion and tPolygon.resolvePoints(mirrorRegion,state.topology) or {}
     local mirrorSegments={}

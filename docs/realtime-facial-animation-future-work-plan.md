@@ -191,7 +191,9 @@ free polygon. New regions can be Square, Circle / ellipse, or Free polygon. Lock
 Ellipse shapes retain their parametric form while the center controller moves the complete shape
 and the resize handles change its dimensions. The Free flag converts either template into an
 independently editable contour. Shape anchors and derived selections are persisted in Morph Editor
-project schema 4. The worktree is organized into Add, Edit, and Remove modes, and its viewport
+project schema 4. The worktree is organized into Add, Edit, Mirror, and Remove modes. Mirror mode
+previews a reflected copy of the selected shape across an X/Y/Z origin plane and creates it only
+after explicit confirmation, leaving the source available for comparison. The viewport
 provides mesh/region framing, mesh visibility, camera distance, navigation help, and the orbit
 gizmo. Selector size, language, worktree mode, shape defaults, camera state, and other authoring
 preferences are persisted with the project. Selection data is currently binary; falloff and

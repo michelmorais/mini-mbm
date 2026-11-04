@@ -48,7 +48,10 @@ local function normalizePreferences(preferences)
     local normalized={
         handleScale=clamp(validNumber(preferences.handleScale,1),0.05,5),
         surfaceAxis=math.floor(clamp(validNumber(preferences.surfaceAxis,3),1,3)),
-        shapeMode=math.floor(clamp(validNumber(preferences.shapeMode,1),1,3)),
+        shapeMode=math.floor(clamp(validNumber(preferences.shapeMode,1),1,4)),
+        shapeMirrorAxis=math.floor(clamp(validNumber(preferences.shapeMirrorAxis,1),1,3)),
+        shapeMirrorNameDraft=type(preferences.shapeMirrorNameDraft)=='string' and
+            preferences.shapeMirrorNameDraft~='' and preferences.shapeMirrorNameDraft or 'region_mirror',
         worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,2)),
         targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,5)),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),

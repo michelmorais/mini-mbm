@@ -13,8 +13,10 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 The Morph Editor currently presents two sequential worktree nodes: **Surface shapes** and
 **Morph targets**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
-and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**, and
-**Remove shape**; each mode exposes only the controls needed for that operation.
+and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**,
+**Mirror shape**, and **Remove shape**; each mode exposes only the controls needed for that
+operation. Mirror shape previews a reflected copy across the origin plane of the selected X/Y/Z
+axis, keeps the source unchanged, and creates the new shape only after explicit confirmation.
 
 **Morph targets** is enabled only after at least one non-empty surface selection has been rebuilt.
 Each worktree is a separate editor node; the Add/Edit/Remove radios belong to the currently
@@ -57,6 +59,9 @@ shows the handles over the selected surface contour.
 - Adjust the selected shape to the mesh surface, independently for every point. The default test
   axis is Z; X and Y are available for generic objects. Both directions of the selected axis are
   tested and the nearest surface is used.
+- In **Mirror shape**, select a source shape, review the temporary orange mirrored contour, adjust
+  its suggested `<source_name>_mirror` name or mirror axis, and press **Create mirrored shape**.
+  The new shape is selected in **Edit shape** afterward for small adjustments.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
 - In **Morph targets**, create an independent target selection from a rebuilt shape selection,
   inspect its source and topology status, regenerate it explicitly after source changes, and apply
@@ -79,10 +84,10 @@ automatically transferred. The current project schema is version 4; older Morph 
 files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
-language, selected worktree, Add/Edit/Paint/Mirror/Remove modes, selector size, surface-snap axis, new-shape
-type and Free flag, target name and translation drafts, mirror name/axis/tolerance options, the
-draft shape name, mesh visibility, target preview weight, target displacement visibility, and the
-Morph viewport camera. These
+language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surface-snap axis,
+new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
+mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
+target displacement visibility, and the Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -95,7 +100,10 @@ settings are restored when the project is opened and are part of the project dir
    the contour should be edited point by point.
 4. For a free polygon, add at least three points and close the contour.
 5. Rebuild the selection to update the list of covered mesh vertices.
-6. Save the project. Reopen the `.morph.lua` file to continue authoring.
+6. To duplicate a shape symmetrically, switch to **Mirror shape**, review the temporary orange
+   contour, and press **Create mirrored shape**. The source remains unchanged and the new shape
+   opens in **Edit shape**.
+7. Save the project. Reopen the `.morph.lua` file to continue authoring.
 
 ## Morph targets
 
