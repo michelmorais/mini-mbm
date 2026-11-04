@@ -60,8 +60,8 @@ shows the handles over the selected surface contour.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
 - In **Morph targets**, create an independent target selection from a rebuilt shape selection,
   inspect its source and topology status, regenerate it explicitly after source changes, and apply
-  a first weighted translation operation to its authored deltas. Edit mode also previews the
-  selected target in the viewport with a neutral-to-full contribution slider.
+  weighted Translate, Rotate, or Reset to neutral operations to its authored deltas. Edit mode
+  also previews the selected target in the viewport with a neutral-to-full contribution slider.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
@@ -97,8 +97,9 @@ settings are restored when the project is opened and are part of the project dir
    create a target.
 3. Switch to **Edit target** to inspect the source fingerprint, topology status, selected vertex
    count, authored delta count, and the target preview.
-4. Apply a translation to create target deltas. The translation is multiplied by each source
-   vertex weight and is stored in the project.
+4. In **Edit target**, choose **Translate**, **Rotate**, or **Reset to neutral**. Translation and
+   rotation use the source selection weights; rotation uses the selection's weighted center as
+   its pivot. Press **Apply edit** to commit the chosen operation.
 5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
    **Show target displacement** selects the visualization material: enabled uses the dynamic
    displacement shader, while disabled keeps the displaced geometry visible with its original

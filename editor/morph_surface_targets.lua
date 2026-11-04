@@ -237,6 +237,69 @@ function M.applyTranslation(target,dx,dy,dz)
     return changed
 end
 
+local function rotateVector(value,rx,ry,rz)
+    local x,y,z=value.x,value.y,value.z
+    local cx,sx=math.cos(rx),math.sin(rx)
+    y,z=y*cx-z*sx,y*sx+z*cx
+    local cy,sy=math.cos(ry),math.sin(ry)
+    x,z=x*cy+z*sy,-x*sy+z*cy
+    local cz,sz=math.cos(rz),math.sin(rz)
+    x,y=x*cz-y*sz,x*sz+y*cz
+    return {x=x,y=y,z=z}
+end
+
+function M.selectionPivot(target,baseVertices,bounds)
+    local x,y,z,total=0,0,0,0
+    for _,vertex in ipairs(target and target.vertices or {}) do
+        local base=baseVertices and baseVertices[vertex.index]
+        if base then
+            local weight=math.max(0,finite(vertex.weight,1))
+            x,y,z=x+base.x*weight,y+base.y*weight,z+base.z*weight
+            total=total+weight
+        end
+    end
+    if total>0 then return {x=x/total,y=y/total,z=z/total} end
+    if bounds then
+        return {x=(bounds.minX+bounds.maxX)*0.5,y=(bounds.minY+bounds.maxY)*0.5,
+            z=(bounds.minZ+bounds.maxZ)*0.5}
+    end
+    return {x=0,y=0,z=0}
+end
+
+function M.applyRotation(target,baseVertices,rx,ry,rz,pivot)
+    if type(target)~='table' or type(baseVertices)~='table' then return 0 end
+    local byIndex=copyDeltasByIndex(target.deltas)
+    local basis={x=rotateVector({x=1,y=0,z=0},rx,ry,rz),
+        y=rotateVector({x=0,y=1,z=0},rx,ry,rz),z=rotateVector({x=0,y=0,z=1},rx,ry,rz)}
+    pivot=pivot or {x=0,y=0,z=0}
+    local changed=0
+    for _,vertex in ipairs(target.vertices or {}) do
+        local index=tonumber(vertex.index)
+        local base=index and baseVertices[index]
+        if index and base then
+            local old=byIndex[index] or {x=0,y=0,z=0}
+            local x,y,z=base.x+old.x-pivot.x,base.y+old.y-pivot.y,base.z+old.z-pivot.z
+            local rotated={
+                x=pivot.x+x*basis.x.x+y*basis.y.x+z*basis.z.x-base.x,
+                y=pivot.y+x*basis.x.y+y*basis.y.y+z*basis.z.y-base.y,
+                z=pivot.z+x*basis.x.z+y*basis.y.z+z*basis.z.z-base.z,
+            }
+            local weight=math.max(0,math.min(1,finite(vertex.weight,1)))
+            local next={x=old.x+(rotated.x-old.x)*weight,
+                y=old.y+(rotated.y-old.y)*weight,z=old.z+(rotated.z-old.z)*weight}
+            if math.abs(next.x-old.x)>1e-8 or math.abs(next.y-old.y)>1e-8 or
+                    math.abs(next.z-old.z)>1e-8 then changed=changed+1 end
+            if nonZero(next) then byIndex[index]=next else byIndex[index]=nil end
+        end
+    end
+    target.deltas={}
+    for index,delta in pairs(byIndex) do
+        target.deltas[#target.deltas+1]={index=index,x=delta.x,y=delta.y,z=delta.z}
+    end
+    table.sort(target.deltas,function(left,right) return left.index<right.index end)
+    return changed
+end
+
 function M.resetDeltas(target)
     if not target or #(target.deltas or {})==0 then return false end
     target.deltas={}

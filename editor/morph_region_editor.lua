@@ -49,6 +49,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     pendingAction=nil,confirmOpen=false,newShapeType=1,newShapeFree=false,
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
+    targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
@@ -59,8 +60,23 @@ local function L(key) return tLang.L('mre_'..key) end
 local function setStatus(message,isError)
     E.status=message or ''
     E.statusError=isError==true
-    tUtil.sMessageOverlay=E.status
-    tUtil.bWarnMessage=E.statusError
+    if E.status=='' then
+        tUtil.sMessageOverlay=false
+        tUtil.bWarnMessage=false
+        if tUtil.tTimerOverlay then tUtil.tTimerOverlay:stop() end
+    elseif E.statusError then
+        tUtil.showMessageWarn(E.status,5)
+    else
+        tUtil.showMessage(E.status,3)
+    end
+end
+
+local function clearStatus()
+    E.status=''
+    E.statusError=false
+    tUtil.sMessageOverlay=false
+    tUtil.bWarnMessage=false
+    if tUtil.tTimerOverlay then tUtil.tTimerOverlay:stop() end
 end
 
 local function showHelpTooltip(message)
@@ -109,6 +125,10 @@ local function saveEditorPreferences()
     preferences.targetDx=E.targetDx
     preferences.targetDy=E.targetDy
     preferences.targetDz=E.targetDz
+    preferences.targetEditMode=E.targetEditMode
+    preferences.targetRx=E.targetRx
+    preferences.targetRy=E.targetRy
+    preferences.targetRz=E.targetRz
     preferences.targetBrushMode=E.targetBrushMode
     preferences.targetBrushRadius=E.targetBrushRadius
     preferences.targetBrushStrength=E.targetBrushStrength
@@ -150,6 +170,10 @@ local function restoreEditorPreferences(project)
     E.targetDx=tonumber(preferences.targetDx) or 0
     E.targetDy=tonumber(preferences.targetDy) or 0
     E.targetDz=tonumber(preferences.targetDz) or 0
+    E.targetEditMode=math.max(1,math.min(3,math.floor(tonumber(preferences.targetEditMode) or 1)))
+    E.targetRx=tonumber(preferences.targetRx) or 0
+    E.targetRy=tonumber(preferences.targetRy) or 0
+    E.targetRz=tonumber(preferences.targetRz) or 0
     E.targetBrushMode=math.max(1,math.min(2,math.floor(tonumber(preferences.targetBrushMode) or 1)))
     E.targetBrushRadius=math.max(0.001,math.min(0.15,tonumber(preferences.targetBrushRadius) or 0.025))
     E.targetBrushStrength=math.max(0.01,math.min(1,tonumber(preferences.targetBrushStrength) or 0.5))
@@ -305,6 +329,10 @@ local function loadMesh(path,preserveProject)
         E.modified=false
         E.targetPreviewWeight=1
         E.targetPreviewVisible=true
+        E.targetEditMode=1
+        E.targetRx=0
+        E.targetRy=0
+        E.targetRz=0
         E.targetBrushMode=1
         E.targetBrushRadius=0.025
         E.targetBrushStrength=0.5
@@ -760,6 +788,31 @@ local function resetSelectedTargetDeltas()
     return true
 end
 
+local function applyTargetRotation()
+    local target=selectedTarget()
+    if not target or targetStatus(target)~='ready' or not E.topology then
+        setStatus(L('target_not_ready'),true)
+        return false
+    end
+    local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
+    local changed=tTargets.applyRotation(target,E.topology.vertices,
+        math.rad(E.targetRx),math.rad(E.targetRy),math.rad(E.targetRz),pivot)
+    if changed==0 then
+        setStatus(L('target_no_rotation'),false)
+        return true
+    end
+    E.targetRx,E.targetRy,E.targetRz=0,0,0
+    markChanged()
+    setStatus(string.format(L('target_rotation_applied'),changed),false)
+    return true
+end
+
+local function applySelectedTargetEdit()
+    if E.targetEditMode==2 then return applyTargetRotation() end
+    if E.targetEditMode==3 then return resetSelectedTargetDeltas() end
+    return applyTargetTranslation()
+end
+
 local function deleteSelectedTarget()
     if not selectedTarget() then return false end
     table.remove(E.project.targets,E.project.selectedTarget)
@@ -852,7 +905,7 @@ local function updateTargetBrushHover()
     local brush=E.targetBrush
     if E.worktree~=2 or E.targetMode~=4 or brush.stroke or not targetPreviewReady(selectedTarget()) or
             tImGui.GetWantCaptureMouse() then
-        brush.hoverHit=nil
+        if not brush.stroke then brush.hoverHit=nil end
         return
     end
     local mouse=tImGui.GetMousePos()
@@ -870,7 +923,8 @@ end
 
 local function drawTargetBrushCursor()
     local brush=E.targetBrush
-    if E.worktree~=2 or E.targetMode~=4 or not brush.hoverHit or tImGui.GetWantCaptureMouse() then return end
+    if E.worktree~=2 or E.targetMode~=4 or not brush.hoverHit or
+            (not brush.stroke and tImGui.GetWantCaptureMouse()) then return end
     local mouse=tImGui.GetMousePos()
     if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) then return end
     local radius=math.max(6,math.min(96,(E.targetBrushRadius/0.025)*20))
@@ -1349,21 +1403,48 @@ local function drawMorphTargets()
                     tImGui.EndDisabled()
                     tImGui.Separator()
                     if E.targetMode==2 then
-                        tImGui.SetNextItemWidth(220)
-                        local deltaChanged,delta=tImGui.DragFloat3(L('target_translation')..'##mreTargetTranslation',
-                            {E.targetDx,E.targetDy,E.targetDz},0.001,-math.huge,math.huge,'%.4f')
-                        if deltaChanged then
-                            E.targetDx, E.targetDy, E.targetDz=delta[1] or 0,delta[2] or 0,delta[3] or 0
+                        tImGui.Text(L('target_edit_mode'))
+                        local editMode=E.targetEditMode
+                        editMode=tImGui.RadioButton(L('target_edit_translate')..'##mreTargetEditTranslate',editMode,1)
+                        showHelpTooltip(L('target_edit_translate_help'))
+                        tImGui.SameLine()
+                        editMode=tImGui.RadioButton(L('target_edit_rotate')..'##mreTargetEditRotate',editMode,2)
+                        showHelpTooltip(L('target_edit_rotate_help'))
+                        tImGui.SameLine()
+                        editMode=tImGui.RadioButton(L('target_edit_reset')..'##mreTargetEditReset',editMode,3)
+                        showHelpTooltip(L('target_edit_reset_help'))
+                        if editMode~=E.targetEditMode then
+                            E.targetEditMode=editMode
                             E.modified=true
                         end
-                        if tImGui.Button(L('target_apply_translation')..'##mreTargetApplyTranslation') then
-                            applyTargetTranslation()
+                        if E.targetEditMode==1 then
+                            tImGui.SetNextItemWidth(220)
+                            local deltaChanged,delta=tImGui.DragFloat3(
+                                L('target_translation')..'##mreTargetTranslation',
+                                {E.targetDx,E.targetDy,E.targetDz},0.001,-math.huge,math.huge,'%.4f')
+                            if deltaChanged then
+                                E.targetDx, E.targetDy, E.targetDz=delta[1] or 0,delta[2] or 0,delta[3] or 0
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_translation_help'))
+                        elseif E.targetEditMode==2 then
+                            tImGui.SetNextItemWidth(220)
+                            local rotationChanged,rotation=tImGui.DragFloat3(
+                                L('target_rotation')..'##mreTargetRotation',
+                                {E.targetRx,E.targetRy,E.targetRz},1,-math.huge,math.huge,'%.2f')
+                            if rotationChanged then
+                                E.targetRx,E.targetRy,E.targetRz=rotation[1] or 0,rotation[2] or 0,rotation[3] or 0
+                                E.modified=true
+                            end
+                            showHelpTooltip(L('target_rotation_help'))
+                            local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
+                            tImGui.Text(string.format(L('target_pivot'),pivot.x,pivot.y,pivot.z))
+                        else
+                            tImGui.TextWrapped(L('target_edit_reset_help'))
                         end
-                        tImGui.SameLine()
-                        if tImGui.Button(L('target_reset_deltas')..'##mreTargetReset') then
-                            resetSelectedTargetDeltas()
+                        if tImGui.Button(L('target_apply_edit')..'##mreTargetApplyEdit') then
+                            applySelectedTargetEdit()
                         end
-                        showHelpTooltip(L('target_translation_help'))
                     else
                         tImGui.Text(L('target_brush_title'))
                         local brushMode=E.targetBrushMode
@@ -1518,6 +1599,7 @@ local function selectWorktree(worktree)
     E.selectedPoint=nil
     E.regionDrag=nil
     E.pendingSurfacePick=nil
+    clearStatus()
     E.targetBrush.stroke=nil
     E.targetBrush.hoverHit=nil
     E.targetBrush.hoverX=nil
