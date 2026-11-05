@@ -249,6 +249,53 @@ without changing saved keys. Use **Capture current key** afterward to store that
 the selected time, for example as the first key before inserting a composed FACS expression at the
 end of the clip.
 
+## Open capture replay
+
+FACS projects also expose an **Open capture** workspace. It is a deterministic, session-only replay
+adapter for newline-delimited JSON packets and does not require a camera, network transport, or a
+paid SDK. Each packet contains a non-negative `timestamp` and a `weights` object whose keys are
+normalized named facial targets. Existing mesh target names and common ARKit/Faceit aliases are
+resolved; values outside `0..1` are clamped, while unknown names are shown as diagnostics.
+
+### Replay packet semantics
+
+Each JSONL line is a sparse update, not an implicit full snapshot. A target present in `weights`
+replaces its current manual facial weight; a target omitted from the line keeps its previous value.
+To clear one target, send it explicitly with weight `0`. To clear every target, use **Reset replay**,
+stop the replay with **Reset to neutral on stop or end** enabled, or leave the workspace. This
+replacement-plus-persistence behavior lets a producer send only the targets that changed while
+still composing brow, nose, mouth, and other targets across packets.
+
+Packet timestamps are non-negative and non-decreasing. `sequence`, when present, is a non-negative
+increasing integer used only for diagnostics. Values must be finite and are clamped to `0..1`.
+Source names are resolved against the loaded MSH target catalog; exact target names take precedence
+over aliases. The replay currently consumes named target weights directly; it does not evaluate
+Action Unit profiles.
+
+Use **Open capture replay** to load the file, then **Start replay**. **Loop replay** repeats a file
+with a positive duration. **Reset to neutral on stop or end** is enabled by default and clears the
+current facial weights at EOF, when stopping, or when leaving the workspace. The replay does not
+change the saved facial project or MSH. This adapter defines the deterministic packet contract for
+future OSC or webcam adapters; AU-to-profile evaluation and live transport are separate milestones.
+
+Two reproducible fixtures are included under `editor/fixtures/`:
+
+- `facial_capture_megan_targets.jsonl` contains a neutral-to-expression sequence for the targets
+  `brow_left_test` and `nose_test` present in the generated `Megan-facial-weighted.msh` asset.
+- `facial_capture_megan_diagnostics.jsonl` exercises clamping, an ARKit-style alias without a
+  matching target, and an unknown source name.
+
+For the visual test, open a project whose loaded MSH contains those two targets, open **Open
+capture**, load the first fixture, and start the replay. The `Megan-facs-rig.lua` project must point
+to the target-bearing MSH for this fixture to produce visible movement; if it still points to the
+neutral `Megan.msh`, the workspace will correctly report that the replay names are not mapped.
+Then repeat with the diagnostics fixture and inspect the packet report. The replay file is not
+saved into the project.
+
+The runtime also ignores optional normal-map tangent batches and normal texture slots when loading
+a facial MSH, because facial morph rendering uses the geometric-normal path. The source MSH is not
+rewritten; export still removes those optional sections from the derived facial MSH.
+
 The optional assisted Blender target-generation section is available only in the classic **Vertex
 mask** workflow. It uses the classic rig bridge and landmark roles to create starter Shape Keys;
 it does not consume FACS surface polygons or Action Unit profiles. FACS projects

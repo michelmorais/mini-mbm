@@ -8,9 +8,10 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 - [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1)
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
-The Facial Rig Editor can author facial morph targets. The generic Morph Editor remains partial;
-the current project priority is to complete the facial FACS authoring workflow first. Generic region
-and project modules, along with facial compatibility wrappers, remain in place for later work.
+The Facial Rig Editor can author facial morph targets. The generic Morph Editor is implemented
+through milestone 2.3, including non-facial surface regions, target sculpting, mirroring, smoothing,
+and runtime export validation. Generic region and project modules remain reusable for future editor
+tools; the next milestone is coverage and hardening of the Morph Editor before expanding capture.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -200,7 +201,7 @@ preferences are persisted with the project. Selection data is currently binary; 
 morph-target editing remain for milestone 2.3. See
 [Morph Editor](morph-editor.md).
 
-**Milestone 2.3 - morph workflow integration (in progress).** The Morph Editor now has a separate,
+**Milestone 2.3 - morph workflow integration (implemented).** The Morph Editor now has a separate,
 sequential `Morph targets` worktree node after `Surface shapes`. It creates an independent target selection from a ready surface region,
 retains the source region fingerprint and topology identity, explicitly rebuilds the target
 selection after source changes, and supports weighted translation, rotation around a persisted
@@ -229,17 +230,34 @@ the normals of the incident triangles, with an adjustable angle for low-poly mes
 blending across likely lip openings or other narrow folds while retaining an explicit opt-out for
 intentional cross-crease smoothing. Runtime reload and combined skeletal playback have been
 validated with the exported MSH. Export now also offers explicit preservation of existing normal
-deltas or recomputation from each deformed triangle surface; further runtime validation remains.
+deltas or recomputation from each deformed triangle surface; both policies were visually checked
+after runtime reload.
 Keep derived selections rebuildable and require explicit regeneration after anchor or topology
 changes.
 
 Acceptance: a non-facial MSH can create, preview, save, reload, export, and play a morph target
 using the same region tools, without requiring face origin, facial landmarks, or facial roles.
+This acceptance has been validated with MeshDebug and a runtime mesh instance, including combined
+skeletal playback.
+
+**Milestone 2.4 - Morph Editor coverage and hardening (next).** Close the remaining authoring
+coverage with a repeatable validation matrix for locked and free Square / Ellipse / Free polygon
+shapes, Add / Edit / Mirror / Remove modes, surface fitting, region rebuilds, target translation,
+rotation, painting, smoothing, soft edge rings, undo/redo, project reload, and MSH export. Verify
+that inactive worktrees do not retain visible selectors or modify the active mesh, and that camera
+orbit, pan, shortcuts, selector sizing, language, and other persisted preferences remain consistent.
+The matrix must include a non-facial mesh and a facial mesh, partial target weights, combined
+skeletal playback, and both normal-delta export policies.
+
+Acceptance: each Morph Editor operation has a documented manual case with its expected viewport,
+project, and exported-MSH result; repeated strokes do not double-apply; idle frames do not rebuild
+geometry; and reopening the project preserves the authored shapes, targets, preferences, and
+selection state without requiring the Facial Rig Editor.
 
 ## Phase 3 - FACS authoring profiles
 
-**Milestone 3.1 - project Action Unit profiles (implemented; runtime use still needs visual
-verification).** The Facial Rig Editor now has a FACS Profiles workspace persisted in facial project
+**Milestone 3.1 - project Action Unit profiles (implemented).** The Facial Rig Editor now has a
+FACS Profiles workspace persisted in facial project
 schema 21. A profile defines:
 
 - semantic name and optional left/right side;
@@ -298,8 +316,8 @@ alternative rule.
 Phase completion acceptance: an artist can author a brow, eye, or mouth Action Unit, inspect its
 primary and secondary target effects, combine it with another Action Unit, and carry the result
 through the existing expression/clip and MSH export workflow. Missing references block preview or
-export with an actionable diagnostic. Runtime visual verification of the new workspace remains
-pending; this phase is not considered closed until that review is complete.
+export with an actionable diagnostic. Runtime visual verification was completed with combined AU
+profiles, facial clips, MSH export, and MeshDebug playback.
 
 ## Phase 4 - open capture adapters
 
@@ -310,6 +328,30 @@ weights. OSC and recorded data are valid first adapters; no vendor SDK is requir
 The adapter contract must define connection state, packet timeout, neutral reset, calibration,
 target/action diagnostics, replacement versus mixing, and deterministic recording/replay. A timeout
 must recover to the documented neutral or fallback state without leaving stale facial weights active.
+
+**Milestone 4.1 - deterministic recorded replay (implemented and visually validated).** The Facial Rig Editor has an
+optional **Open capture** workspace in FACS projects. It loads a newline-delimited JSON replay in
+which each packet contains a non-negative `timestamp` and a `weights` object. Source names are
+normalized and mapped to the loaded mesh's existing facial targets; common ARKit/Faceit-style
+aliases are accepted, values are clamped to `0..1`, and unknown or ambiguous names are reported
+without aborting the packet. Replay is session state, not project or MSH data.
+
+Packets are sparse updates: names present in a packet replace their current weights, while omitted
+names retain their previous values. A producer clears one target by sending `0`; the editor clears
+all targets on explicit reset or, by default, when replay stops, reaches EOF, or leaves the capture
+workspace. This is the current replacement-plus-persistence contract; full snapshot packets are
+also valid when the producer includes every target on each line.
+
+The workspace supports start, stop, reset, looping, packet counters, mapping diagnostics, and a
+neutral reset when the file ends, the replay is stopped, or the user changes worktrees. The final
+packet remains visible until the next time step confirms EOF, avoiding a one-frame disappearance.
+The replay decoder is dependency-free and deterministic, so it is also the reference contract for
+future OSC or webcam adapters. This first adapter accepts named-target values; AU-to-profile
+evaluation remains the next capture milestone.
+
+Acceptance: a recorded replay can drive existing facial targets, expose unknown-name diagnostics,
+loop deterministically, and return to neutral at EOF without changing the project schema or MSH
+format.
 
 ## Sculpt quality and feedback
 
@@ -385,8 +427,11 @@ and record/replay deterministic clip data without a Mesh V11 format change.
 
 - Complete facial runtime acceptance on supported platforms without a documented GPU/CPU morph
   verification, including iOS Metal. Preserve the CPU reference and fallback behavior.
-- Define shader inputs, lighting interactions, validation, and fallback behavior before enabling
-  custom shader or normal-mapped facial meshes.
+- Keep custom shader and normal-mapped facial composition out of the current runtime contract:
+  facial loads use geometric normals and discard optional normal-map inputs in memory, while
+  derived facial exports omit those sections. A future facial-plus-normal-map implementation must
+  define shader inputs, lighting interactions, validation, and fallback behavior before enabling
+  composition.
 
 Acceptance: equivalent facial weights and skeletal poses produce the same supported deformation
 contract across the accepted backends. When a future change alters a binary section or Lua API,

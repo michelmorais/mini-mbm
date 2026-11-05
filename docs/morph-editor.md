@@ -151,7 +151,9 @@ and then choose the output path. The authoring mesh and Morph Editor project rem
 export copies the source mesh, replaces existing targets with the same names, materializes the
 generic sparse deltas as dense position deltas, and appends new targets as `Manual` targets. All
 targets must be ready before export. The derived file removes optional normal-map data because the
-current facial runtime path does not accept normal mapping together with facial morph targets.
+facial runtime uses the geometric normal path for meshes with morph targets. When such a facial MSH
+is loaded, the runtime also ignores optional tangent batches, normal-map material settings, and
+normal texture slots in its in-memory render copy; the source MSH is not rewritten.
 Texture files are not copied; their source references are preserved in the derived MSH. **Preserve
 existing** keeps normal deltas already stored in source targets and writes zero normal deltas for
 new targets; **Recompute from surface** derives normal deltas from the deformed triangle surface
@@ -181,5 +183,5 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback and further runtime validation remain in milestone 2.3 of the [facial animation future
-work plan](realtime-facial-animation-future-work-plan.md).
+playback and combined skeletal playback were validated in MeshDebug and in a runtime mesh instance;
+the completed scope is tracked in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

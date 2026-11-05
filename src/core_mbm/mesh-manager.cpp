@@ -13384,6 +13384,23 @@ namespace mbm
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
         impl->facialAsset = std::move(in.facialAsset);
+        if (impl->facialAsset.meshId)
+        {
+            // Facial morph rendering uses the geometric normals from the bind mesh and its
+            // dedicated morph shader. Prepared tangent batches and normal texture slots select
+            // the incompatible static normal-mapping shader variant, so discard those optional
+            // inputs from this runtime copy before buffers and textures are prepared. The source
+            // MSH remains untouched; MeshDebug can still inspect and explicitly remove them.
+            in.normalMapFrames.clear();
+            in.normalMapMaterials.clear();
+            for (auto &frame : in.frames)
+                for (auto &subset : frame.subsets)
+                    subset.extraSlots.erase(std::remove_if(subset.extraSlots.begin(), subset.extraSlots.end(),
+                        [](const IntermediateExtraSlotV11 &slot)
+                        {
+                            return slot.legacyType == util::MATERIAL_TEXTURE_SLOT_NORMAL;
+                        }), subset.extraSlots.end());
+        }
         impl->normalMapFrames = std::make_shared<const normal_map::ASSET_FRAMES>(std::move(in.normalMapFrames));
         impl->normalMapMaterials = std::move(in.normalMapMaterials);
         if (impl->canonicalSkeleton.skeletonId != 0 || impl->canonicalWeights.skeletonId != 0)

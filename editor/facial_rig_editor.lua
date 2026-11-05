@@ -46,6 +46,7 @@ tFacialActionTemplates = require "facial_rig_action_templates"
 tSurfaceControlEditor = require "facial_surface_control_editor"
 tSurfacePointGizmo = require "facial_surface_point_gizmo"
 tFacialPlayback = require "facial_mesh_playback"
+tFacialCapture = require "facial_capture_editor"
 tBlender = require "blender_cli_wrapper"
 tMeshImporter = require "blender_mesh_importer"
 tFacialMeshExport = require "facial_rig_blender_mesh_export"
@@ -115,6 +116,7 @@ local state = {
     mirrorGuide={line=nil,rings=nil,sourceIndex=nil,showLine=false,showRadius=false,dirty=true},
     targetBrushHover={pendingX=nil,pendingY=nil,lastHit=nil,lastX=nil,lastY=nil},
     exportWindow={open=false,target=1,includeProjectFacialClips=true},
+    capture=tFacialCapture.new(),
     facialComparison={mesh=nil,enabled=false,ready=false,layoutActive=false},
     expressions={catalogDirty=true,catalog={},selectedTarget=1,selectedPose=1,nameDraft='',renameDraft='',editMode=1,lastEditMode=1},
     facsProfileEditor={nameDraft='',actionUnitDraft='AU1',sideDraft=1,
@@ -861,6 +863,7 @@ releaseMirrorPreview=function()
 end
 
 local function destroyPreview()
+    state.capture=tFacialCapture.reset(state.capture,state.mesh,dpCall)
     releaseMirrorPreview()
     destroyMirrorGuide()
     destroyRigPreview()
@@ -3806,7 +3809,11 @@ local function selectWorkspace(workspace)
     if workspace~='setup' and not workflow then return end
     if workspace=='rig' and workflow~='regions' then return end
     if workspace=='facs_profiles' and workflow~='facs' then return end
+    if workspace=='capture' and workflow~='facs' then return end
     local nextWorkspace=state.workspace==workspace and nil or workspace
+    if state.workspace=='capture' and nextWorkspace~='capture' then
+        tFacialCapture.stop(state.capture,state.mesh,dpCall,true)
+    end
     if nextWorkspace~='targets' then
         releaseMirrorPreview()
         state.targetAuthoring.mirrorPlan=nil
@@ -6382,6 +6389,7 @@ local function showWorkspaceTree()
         if workflow=='facs' then workspaces[#workspaces+1]={'facs_profiles','fre_facs_profiles'} end
         workspaces[#workspaces+1]={'expressions','fre_expressions'}
         workspaces[#workspaces+1]={'clips','fre_clips'}
+        if workflow=='facs' then workspaces[#workspaces+1]={'capture','fre_capture'} end
         workspaces[#workspaces+1]={'preview','fre_preview'}
     end
     for _,entry in ipairs(workspaces) do
@@ -6401,6 +6409,9 @@ local function showWorkspaceTree()
                 elseif entry[1]=='facs_profiles' then showFACSProfiles()
                 elseif entry[1]=='expressions' then showExpressions()
                 elseif entry[1]=='clips' then showClips()
+                elseif entry[1]=='capture' then
+                    tFacialCapture.show(state.capture,state.project,state.mesh,tImGui,tLang.L,
+                        mbm.openFile,dpCall,setStatus)
                 elseif entry[1]=='preview' then showPreview() end
             end
             tImGui.TreePop()
@@ -6557,6 +6568,8 @@ function onLoop(delta)
     end
     updateMaskBrushHover()
     updateTargetBrushHover()
+    tFacialCapture.update(state.capture,state.workspace,delta,state.mesh,dpCall,
+        syncFacialComparisonWeights,setStatus,tLang.L)
     updateFacialClipPlayback(delta)
     updatePreviewAuthoredClipPlayback(delta)
     updateFacialComparisonVisibility()
