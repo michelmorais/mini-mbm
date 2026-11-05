@@ -104,6 +104,7 @@ local function normalizePreferences(preferences)
         targetPreviewWeight=clamp(validNumber(preferences.targetPreviewWeight,
             validNumber(preferences.previewWeight,1)),0,1),
         targetPreviewVisible=preferences.targetPreviewVisible~=false,
+        exportIncludeClips=preferences.exportIncludeClips~=false,
         meshVisible=preferences.meshVisible~=false,
     }
     if camera then

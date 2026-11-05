@@ -104,13 +104,14 @@ shows the handles over the selected surface contour.
 - In **Expressions**, create a named expression from one or more Morph Target weights. Edit the
   target sliders to inspect the composed preview, then create the expression explicitly. Select an
   existing expression in Edit mode to change its name or weights. Remove mode deletes the selected
-  expression without changing its targets. Expressions are generic Morph data and are not exported
-  to MSH yet.
+  expression without changing its targets. Expressions remain project-only data; their weights can
+  be captured into Morph clip keys for runtime export.
 - In **Clips**, create a named timeline after at least one valid Expression exists. Insert the
   selected Expression or a neutral pose at the current time, edit duration, frame rate, looping,
   and Step/Linear interpolation, then use Play, Stop, and the time slider to inspect the sampled
   composition. Clip preview uses the same in-memory target overlay and does not rewrite the source
-  MSH. Clips are generic Morph data and are not exported to MSH in this milestone.
+  MSH. Clips remain persisted in the project and can optionally be embedded as native facial clips
+  when exporting an MSH.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, named expressions, Morph clips, and rebuildable vertex selections. The
@@ -127,8 +128,9 @@ language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surfac
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
 target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
-selected clip key, clip preview weight, Preview mode and source selections, and the Morph viewport
-camera. These settings are restored when the project is opened and are part of the project dirty
+selected clip key, clip preview weight, Preview mode and source selections, the MSH export clip
+option, and the Morph viewport camera. These settings are restored when the project is opened and
+are part of the project dirty
 state when changed.
 
 ## Editing a shape
@@ -210,8 +212,9 @@ state when changed.
    expression**, delete only the selected expression. Missing or stale target references are reported
    in the table and are not silently removed.
 
-Expressions are generic Morph data. They do not evaluate FACS profiles and are not exported to MSH
-in this milestone. The Clips worktree consumes the saved expressions as keyframe sources.
+Expressions are generic Morph data. They do not evaluate FACS profiles and are not stored as a
+separate runtime object in MSH. The Clips worktree consumes the saved expressions as keyframe
+sources; exporting a clip serializes the resulting target weights as native facial clip keys.
 
 ## Clips
 
@@ -230,7 +233,9 @@ in this milestone. The Clips worktree consumes the saved expressions as keyframe
    missing. **Remove clip** deletes only the selected clip.
 
 Clips retain stable Morph Target IDs and report missing or stale target references. They do not
-introduce FACS metadata, modify saved Expressions or Morph Targets, or export to MSH yet.
+introduce FACS metadata or modify saved Expressions or Morph Targets. The MSH export dialog can
+optionally convert valid project clips to native facial clips; existing embedded clips with the
+same name are replaced in the derived MSH.
 
 ## Preview
 
@@ -264,8 +269,9 @@ the preview does not generate a temporary mesh on every frame. Runtime compariso
 playback use a temporary runtime MSH generated from the source and project Morph Targets. The source
 MSH and project data are not changed.
 
-Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
-and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The
+Use **File > Export morph targets and clips to MSH** to open the export window. Choose the normal policy and
+whether to include project Morph clips, then choose the output path. The authoring mesh and Morph
+Editor project remain unchanged. The
 export copies the source mesh, replaces existing targets with the same names, materializes the
 generic sparse deltas as dense position deltas, and appends new targets as `Manual` targets. All
 targets must be ready before export. The derived file removes optional normal-map data because the
@@ -277,6 +283,12 @@ existing** keeps normal deltas already stored in source targets and writes zero 
 new targets; **Recompute from surface** derives normal deltas from the deformed triangle surface
 for every exported target.
 
+When **Include project Morph clips in MSH** is enabled, the exporter validates every project clip,
+maps its stable target IDs to the final target order in the derived MSH, and writes its keys through
+the native facial clip format. Existing source clips are preserved unless a project clip has the
+same name, in which case the project clip replaces it. Expressions themselves remain in the
+`.morph.lua` project and are not embedded separately.
+
 While **Morph targets** is active, **Edit target** remains navigation-only. **Paint target** uses
 right-drag on the displaced surface to apply local Move or Smooth edits; left-drag orbits and the
 middle button pans. Shape anchors are editable only in **Surface shapes**. Selecting a target
@@ -287,10 +299,10 @@ in-memory surface overlay and does not modify or regenerate the source MSH while
 changes. Paint strokes are accumulated in memory and committed when the right button is released;
 the preview rebuilds once per completed stroke. The explicit MSH export copies the source mesh and
 writes the generic targets as dense runtime morph targets without changing the authoring source;
-runtime reload validation is complete for the exported MSH workflow, smoothing now supports
-configurable surface-neighbor passes, and export supports explicit normal-delta preservation or
-surface recomputation. Mirroring is available through the explicit Analyze/Create workflow
-described above.
+runtime reload validation is complete for the exported MSH workflow, including project Morph clips,
+smoothing now supports configurable surface-neighbor passes, and export supports explicit
+normal-delta preservation or surface recomputation. Mirroring is available through the explicit
+Analyze/Create workflow described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -306,5 +318,5 @@ The complete authoring workflow was also covered manually with the Megan mesh: l
 shapes, shape and target mirroring, target painting and smoothing, undo/redo, project reload, MSH
 export, and both normal-delta policies. Expressions were then validated with project reload and
 composed preview. The current implementation also includes the Clips worktree described above;
-its visual acceptance is the next manual test in milestone 2.6 of the
+its visual acceptance and runtime MSH reload are covered by milestone 2.6 of the
 [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

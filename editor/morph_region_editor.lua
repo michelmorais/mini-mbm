@@ -70,7 +70,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetMirrorNeedsPrepare=false,targetMirrorPlan=nil,targetMirrorCandidate=nil,
     targetBrushMode=1,targetBrushRadius=0.025,targetBrushStrength=0.5,targetBrushSmoothPasses=1,
     targetBrushSmoothProtectCreases=true,targetBrushSmoothAngle=60,
-    exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
+    exportNormalMode=1,exportNormalDraft=1,exportIncludeClips=true,exportIncludeClipsDraft=true,
+    exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
     targetBrushHistory={undo={},redo={}},targetEditHistory={undo={},redo={}},controlDown=false,
@@ -209,6 +210,7 @@ local function saveEditorPreferences()
     preferences.targetBrushSmoothProtectCreases=E.targetBrushSmoothProtectCreases
     preferences.targetBrushSmoothAngle=E.targetBrushSmoothAngle
     preferences.exportNormalMode=E.exportNormalMode
+    preferences.exportIncludeClips=E.exportIncludeClips
     preferences.targetBrushDx=E.targetBrushDx
     preferences.targetBrushDy=E.targetBrushDy
     preferences.targetBrushDz=E.targetBrushDz
@@ -315,6 +317,8 @@ local function restoreEditorPreferences(project)
     E.targetBrushSmoothAngle=math.max(5,math.min(180,
         tonumber(preferences.targetBrushSmoothAngle) or 60))
     E.exportNormalMode=math.max(1,math.min(2,math.floor(tonumber(preferences.exportNormalMode) or 1)))
+    E.exportIncludeClips=preferences.exportIncludeClips~=false
+    E.exportIncludeClipsDraft=E.exportIncludeClips
     E.targetBrushDx=tonumber(preferences.targetBrushDx) or 0
     E.targetBrushDy=tonumber(preferences.targetBrushDy) or -0.01
     E.targetBrushDz=tonumber(preferences.targetBrushDz) or 0
@@ -695,6 +699,28 @@ local function exportMorphTargets()
             return false
         end
     end
+    local projectClips={}
+    if E.exportIncludeClips then
+        local clipNames={}
+        for _,clip in ipairs(E.project.clips or {}) do
+            local validation=tClips.validate(clip)
+            if validation.ok~=true then
+                setStatus(string.format(L('export_msh_clip_invalid'),clip.name or ''),true)
+                return false
+            end
+            local report=tClips.inspect(clip,E.project.targets,targetStatus)
+            if report.missing>0 or report.stale>0 then
+                setStatus(string.format(L('export_msh_clip_stale'),clip.name or ''),true)
+                return false
+            end
+            if clipNames[clip.name] then
+                setStatus(string.format(L('export_msh_clip_duplicate'),clip.name or ''),true)
+                return false
+            end
+            clipNames[clip.name]=true
+            projectClips[#projectClips+1]=clip
+        end
+    end
     local sourcePath=tUtil.getTemporaryFilePath('_morph_export_source.msh')
     local suggested=(E.project.meshPath or ''):gsub('%.msh$','')
     if suggested=='' then suggested='morph-targets' else suggested=suggested..'-morph-targets' end
@@ -809,6 +835,82 @@ local function exportMorphTargets()
             existing[target.name]={index=result,normalDeltas=nil}
         end
     end
+    local exportedClipCount=0
+    if #projectClips>0 then
+        local finalDataOk,finalData=dpCall(function() return copy:getFacialExportData() end)
+        if not finalDataOk or type(finalData)~='table' then
+            cleanup()
+            setStatus(L('export_msh_clip_data_failed'),true)
+            return false
+        end
+        local targetNames={}
+        for _,entry in ipairs(finalData.targets or {}) do
+            if type(entry)=='table' and type(entry.name)=='string' and entry.name~='' then
+                targetNames[#targetNames+1]=entry.name
+            end
+        end
+        if #targetNames==0 then
+            cleanup()
+            setStatus(L('export_msh_clip_data_failed'),true)
+            return false
+        end
+        local projectTargetsById={}
+        for _,target in ipairs(E.project.targets or {}) do
+            projectTargetsById[target.id]=target
+        end
+        local function findEmbeddedClipIndex(clipName)
+            local totalOk,total=dpCall(function() return copy:getTotalFacialClips() end)
+            if not totalOk then return nil,false end
+            for index=1,tonumber(total) or 0 do
+                local nameOk,name=dpCall(function() return copy:getFacialClipName(index) end)
+                if not nameOk then return nil,false end
+                if name==clipName then return index,true end
+            end
+            return nil,true
+        end
+        for _,clip in ipairs(projectClips) do
+            local oldIndex,lookupOk=findEmbeddedClipIndex(clip.name)
+            if not lookupOk then
+                cleanup()
+                setStatus(string.format(L('export_msh_clip_failed'),clip.name or ''),true)
+                return false
+            end
+            if oldIndex then
+                local removeOk,removed=dpCall(function() return copy:removeFacialClip(oldIndex) end)
+                if not removeOk or removed~=true then
+                    cleanup()
+                    setStatus(string.format(L('export_msh_clip_failed'),clip.name or ''),true)
+                    return false
+                end
+            end
+            local keys={}
+            for _,key in ipairs(clip.keys or {}) do
+                local weightsByName={}
+                for _,entry in ipairs(key.weights or {}) do
+                    local target=projectTargetsById[entry.targetId]
+                    local name=target and target.name or entry.targetName
+                    if name and name~='' then
+                        weightsByName[name]=tonumber(entry.weight) or 0
+                    end
+                end
+                local weights={}
+                for _,targetName in ipairs(targetNames) do
+                    weights[#weights+1]=weightsByName[targetName] or 0
+                end
+                keys[#keys+1]={time=key.time,weights=weights}
+            end
+            local addOk,clipIndex=dpCall(function()
+                return copy:addFacialClip(clip.name,clip.duration,clip.loop==true,
+                    clip.interpolation==0 and 0 or 1,keys)
+            end)
+            if not addOk or type(clipIndex)~='number' then
+                cleanup()
+                setStatus(string.format(L('export_msh_clip_failed'),clip.name or ''),true)
+                return false
+            end
+            exportedClipCount=exportedClipCount+1
+        end
+    end
     local outputOk,outputSaved=dpCall(function()
         -- Preserve the source texture references; save() does not copy texture files.
         return copy:save(outputPath,false,false,false)
@@ -818,7 +920,7 @@ local function exportMorphTargets()
         setStatus(L('export_msh_save_failed'),true)
         return false
     end
-    setStatus(string.format(L('export_msh_done'),#E.project.targets,outputPath),false)
+    setStatus(string.format(L('export_msh_done'),#E.project.targets,exportedClipCount,outputPath),false)
     return true
 end
 
@@ -2690,6 +2792,7 @@ end
 
 local function openExportDialog()
     E.exportNormalDraft=E.exportNormalMode
+    E.exportIncludeClipsDraft=E.exportIncludeClips
     E.exportDialogOpen=true
 end
 
@@ -2709,9 +2812,18 @@ local function drawExportDialog()
     if modeChanged then E.exportNormalDraft=math.max(1,math.min(2,mode)) end
     showHelpTooltip(L('export_normal_help'))
     tImGui.Separator()
+    local hasProjectClips=#(E.project.clips or {})>0
+    tImGui.BeginDisabled(not hasProjectClips)
+    local clipsChanged,includeClips=tImGui.Checkbox(L('export_include_clips')..'##mreExportIncludeClips',
+        E.exportIncludeClipsDraft~=false)
+    if clipsChanged then E.exportIncludeClipsDraft=includeClips end
+    tImGui.EndDisabled()
+    showHelpTooltip(L('export_include_clips_help'))
+    tImGui.Separator()
     if tImGui.Button(L('export_msh_start')..'##mreExportMshStart') then
-        if E.exportNormalMode~=E.exportNormalDraft then
+        if E.exportNormalMode~=E.exportNormalDraft or E.exportIncludeClips~=E.exportIncludeClipsDraft then
             E.exportNormalMode=E.exportNormalDraft
+            E.exportIncludeClips=E.exportIncludeClipsDraft~=false
             E.modified=true
         end
         tImGui.CloseCurrentPopup()

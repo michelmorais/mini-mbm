@@ -268,8 +268,8 @@ Remove mode deletes only the expression. The viewport composes all valid target 
 shows the result through the existing neutral-to-full preview weight without rewriting the source
 MSH or materializing an export. Missing or stale target references are reported instead of being
 silently discarded. Expressions are persisted in Morph Editor project schema 6, including the
-selected worktree, expression mode, and name draft preferences. Expression export remains out of
-scope until generic Morph clip export is implemented.
+selected worktree, expression mode, and name draft preferences. Expressions remain project-only
+data; their weights are materialized into generic Morph clip keys when a clip is exported.
 
 Acceptance: a generic Morph Editor project can create, preview, edit, save, reload, and remove a
 named multi-target expression; each target weight is clamped to `0..1`; the source targets and MSH
@@ -286,12 +286,15 @@ Editor interaction pattern and exposes Insert expression key, Capture current ke
 weights, Play, and Stop in the same order. Remove mode deletes only the selected clip. During playback, the preview updates
 the existing dynamic surface buffers instead of rebuilding temporary geometry every frame. Missing
 or stale target references are reported and prevent a complete clip preview. Clips are persisted
-in Morph Editor project schema 6 and are not exported to MSH in this milestone.
+in Morph Editor project schema 6 and can be optionally exported as native facial clips in the
+derived MSH. The export maps stable target IDs to the final MSH target order and replaces same-name
+clips without modifying the source asset.
 
 Acceptance: a generic Morph Editor project can create, edit, save, reload, and remove a clip;
 insert Expression and neutral keys; sample a clip at zero, partial, and full times; play a looping
-and a non-looping clip; and preserve stable target references. The source MSH, Morph Targets, and
-Expressions remain unchanged. Invalid target references are visible before preview or later export.
+and a non-looping clip; preserve stable target references; export selected clips to MSH; reload the
+derived MSH; and play the exported clips in MeshDebug. The source MSH, Morph Targets, and
+Expressions remain unchanged. Invalid target references are visible before preview or export.
 
 **Milestone 2.7 - generic Morph preview (implemented).** Add the sequential `Preview` worktree
 after `Clips`. Preview is a read-only inspection stage that composes either a saved Expression or a
