@@ -8,7 +8,9 @@ Its topology, shape geometry, and region data come from `morph_surface_topology.
 Linux and macOS builds with Lua also create the `morph_editor` shell alias in `shortcuts.sh`.
 On launch the editor opens to an empty workspace. Choose **File > Open Mesh** or **File > Open
 Project** when ready; no file dialog appears automatically. **File > Quit** exits the editor, and
-**Options > Language** switches between English and Portuguese (Brazil).
+**Options > Language** switches between English and Portuguese (Brazil). **Ctrl+N** starts a blank
+project, **Ctrl+O** opens a project, and **Ctrl+S** saves the current project. **Ctrl+Z** and
+**Ctrl+Y** undo and redo completed paint strokes.
 
 The Morph Editor currently presents two sequential worktree nodes: **Surface shapes** and
 **Morph targets**. The first worktree follows the interaction model of the
@@ -53,6 +55,7 @@ shows the handles over the selected surface contour.
   mesh is hit there; drag its center or resize handles afterward.
 - Enable Free to drag individual anchors, insert points on a closed contour, and remove points.
 - Orbit with the left or right mouse button, pan with the middle button, and zoom with the wheel.
+  Horizontal orbit follows the same direction as the Facial Rig Editor.
 - Use the Morph viewport window to frame the mesh or selected region, toggle mesh visibility,
   orbit with the camera gizmo, and inspect the camera distance and navigation help.
 - Rebuild the shape's derived vertex selection and inspect the list of covered vertices.

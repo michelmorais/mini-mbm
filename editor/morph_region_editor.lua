@@ -64,7 +64,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
-    targetBrushHistory={undo={},redo={}},
+    targetBrushHistory={undo={},redo={}},controlDown=false,
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
@@ -736,6 +736,31 @@ local function exportMorphTargets()
     return true
 end
 
+local function newProject()
+    destroyMesh()
+    E.project=tProject.new(tLang.getLanguage())
+    E.projectPath=nil
+    E.modified=false
+    E.selectedPoint=nil
+    E.regionDrag=nil
+    E.cameraDrag=nil
+    E.cameraPan=nil
+    E.pendingSurfacePick=nil
+    E.camera={fx=0,fy=0,fz=0,distance=10,azimuth=0.45,elevation=0.22}
+    E.overlayDirty=true
+    E.regionNamesDirty=true
+    E.regionStatusDirty=true
+    E.regionTableDirty=true
+    E.targetAvailabilityDirty=true
+    E.targetPreviewDirty=true
+    E.shapeMirrorCandidate=nil
+    E.targetMirrorPlan=nil
+    E.targetMirrorCandidate=nil
+    E.targetBrushHistory={undo={},redo={}}
+    restoreEditorPreferences(E.project)
+    setStatus(L('new_project'),false)
+end
+
 local function performPending()
     local action=E.pendingAction
     E.pendingAction=nil
@@ -745,6 +770,8 @@ local function performPending()
         loadMesh(action.path,false)
     elseif action.kind=='project' then
         loadProject(action.path)
+    elseif action.kind=='new' then
+        newProject()
     elseif action.kind=='quit' then
         mbm.quit()
     end
@@ -1961,7 +1988,7 @@ end
 
 local function orbitCamera(x,y)
     if not E.cameraDrag then return end
-    E.camera.azimuth=E.camera.azimuth+(E.cameraDrag.x-x)*0.008
+    E.camera.azimuth=E.camera.azimuth+(x-E.cameraDrag.x)*0.008
     E.camera.elevation=math.max(-1.45,math.min(1.45,
         E.camera.elevation+(y-E.cameraDrag.y)*0.008))
     E.cameraDrag={x=x,y=y}
@@ -2048,15 +2075,25 @@ end
 local function showMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(tLang.L('menu_file')) then
+        if tImGui.MenuItem(L('new_project'),'Ctrl+N') then requestAction('new') end
+        if tImGui.MenuItem(L('open_project'),'Ctrl+O') then openProjectDialog() end
         if tImGui.MenuItem(L('open_mesh')) then openMeshDialog() end
-        if tImGui.MenuItem(L('open_project')) then openProjectDialog() end
         tImGui.Separator()
-        if tImGui.MenuItem(L('save'),nil,false,E.modified) then
+        if tImGui.MenuItem(L('save'),'Ctrl+S',false,E.modified) then
             if E.projectPath then saveProject(E.projectPath) else saveProjectAs() end
         end
         if tImGui.MenuItem(L('save_as'),nil,false,true) then saveProjectAs() end
         local canExport=E.meshDebug~=nil and #(E.project.targets or {})>0
         if tImGui.MenuItem(L('export_msh'),nil,false,canExport) then openExportDialog() end
+        tImGui.Separator()
+        local canUndo=not E.targetBrush.stroke and #E.targetBrushHistory.undo>0
+        local canRedo=not E.targetBrush.stroke and #E.targetBrushHistory.redo>0
+        if tImGui.MenuItem(L('target_brush_undo'),'Ctrl+Z',false,canUndo) then
+            applyTargetBrushHistory(false)
+        end
+        if tImGui.MenuItem(L('target_brush_redo'),'Ctrl+Y',false,canRedo) then
+            applyTargetBrushHistory(true)
+        end
         tImGui.Separator()
         if tImGui.MenuItem(tLang.L('menu_quit')) then requestAction('quit') end
         tImGui.EndMenu()
@@ -2857,8 +2894,28 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key==mbm.getKeyCode('control') then
+        E.controlDown=true
+        return
+    end
     if tImGui.GetWantCaptureKeyboard() then return end
-    if E.worktree==1 and key==mbm.getKeyCode('DELETE') then removeSelectedPoint() end
+    if E.controlDown and key==mbm.getKeyCode('Z') and not tImGui.IsAnyItemActive() then
+        applyTargetBrushHistory(false)
+    elseif E.controlDown and key==mbm.getKeyCode('Y') and not tImGui.IsAnyItemActive() then
+        applyTargetBrushHistory(true)
+    elseif E.controlDown and key==mbm.getKeyCode('N') then
+        requestAction('new')
+    elseif E.controlDown and key==mbm.getKeyCode('O') then
+        openProjectDialog()
+    elseif E.controlDown and key==mbm.getKeyCode('S') then
+        if E.projectPath then saveProject(E.projectPath) else saveProjectAs() end
+    elseif E.worktree==1 and key==mbm.getKeyCode('DELETE') then
+        removeSelectedPoint()
+    end
+end
+
+function onKeyUp(key)
+    if key==mbm.getKeyCode('control') then E.controlDown=false end
 end
 
 function onEndScene()
