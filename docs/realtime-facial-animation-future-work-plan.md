@@ -8,10 +8,11 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 - [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1)
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
-The Facial Rig Editor can author facial morph targets. The generic Morph Editor is implemented
-through milestone 2.4, including non-facial surface regions, target sculpting, mirroring, smoothing,
-runtime export validation, and the complete manual coverage pass. Generic region and project modules
-remain reusable for future editor tools; capture expansion remains a separate future milestone.
+The Facial Rig Editor can author facial morph targets. The generic Morph Editor implementation now
+reaches milestone 2.5, including non-facial surface regions, target sculpting, mirroring, smoothing,
+runtime export validation, the complete manual coverage pass, and generic named expressions. Generic
+region and project modules remain reusable for future editor tools; capture expansion remains a
+separate future milestone.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -256,6 +257,22 @@ selection state without requiring the Facial Rig Editor. This acceptance was val
 the Megan facial mesh, including target preview, painting, smoothing, mirrored shapes and targets,
 project reload, MSH export, MeshDebug playback, combined skeletal playback, and the two normal-delta
 export policies. The generic workflow remains independent of facial landmarks and FACS metadata.
+
+**Milestone 2.5 - generic Morph expressions (implemented; visual validation pending).** Add the sequential `Expressions`
+worktree after `Morph targets`. An expression is a named generic pose composed only from normalized
+weights referencing Morph Targets by stable target ID; it does not evaluate FACS Action Units,
+profiles, anatomy, or muscle relationships. Add mode edits an in-memory draft and creates a named
+expression explicitly. Edit mode changes the selected expression's name and target weights, while
+Remove mode deletes only the expression. The viewport composes all valid target deltas in memory and
+shows the result through the existing neutral-to-full preview weight without rewriting the source
+MSH or materializing an export. Missing or stale target references are reported instead of being
+silently discarded. Expressions are persisted in Morph Editor project schema 5, including the
+selected worktree, expression mode, and name draft preferences. Expression export remains out of
+scope until the generic clip workflow is implemented.
+
+Acceptance: a generic Morph Editor project can create, preview, edit, save, reload, and remove a
+named multi-target expression; each target weight is clamped to `0..1`; the source targets and MSH
+remain unchanged; and an invalid target reference is visible in the expression status.
 
 ## Phase 3 - FACS authoring profiles
 

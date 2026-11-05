@@ -12,8 +12,8 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 project, **Ctrl+O** opens a project, and **Ctrl+S** saves the current project. **Ctrl+Z** and
 **Ctrl+Y** undo and redo completed paint strokes.
 
-The Morph Editor currently presents two sequential worktree nodes: **Surface shapes** and
-**Morph targets**. The first worktree follows the interaction model of the
+The Morph Editor currently presents three sequential worktree nodes: **Surface shapes**,
+**Morph targets**, and **Expressions**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**,
 **Mirror shape**, and **Remove shape**; each mode exposes only the controls needed for that
@@ -26,6 +26,15 @@ opened worktree and are not worktree selectors.
 When **Morph targets** is active, the source shapes remain visible only as inactive reference
 geometry: their handles cannot be selected or edited, and the active point selection is cleared
 when changing worktrees.
+
+**Expressions** is enabled after at least one ready Morph Target exists. It stores named generic
+poses as normalized weights referencing targets by stable target ID. It has Add, Edit, and Remove
+modes. Add mode edits a temporary weight draft and creates the expression explicitly. Edit mode
+changes the selected expression name and weights; Remove mode deletes only the expression. FACS
+Action Units, profiles, anatomy, and muscle relationships are not evaluated in this worktree.
+The viewport composes the referenced target deltas in memory and applies the existing preview-weight
+slider from neutral at `0` to the complete expression at `1`. The source MSH and target records are
+not changed by preview. Missing or stale target references remain visible in the expression status.
 
 ## Shape modes
 
@@ -76,21 +85,26 @@ shows the handles over the selected surface contour.
   the origin plane of the selected X/Y/Z axis, and shows a temporary polygon and target preview.
   It reports unmatched or ambiguous pairs; only confirmation creates the new polygon and target.
   The source target is never modified.
+- In **Expressions**, create a named expression from one or more Morph Target weights. Edit the
+  target sliders to inspect the composed preview, then create the expression explicitly. Select an
+  existing expression in Edit mode to change its name or weights. Remove mode deletes the selected
+  expression without changing its targets. Expressions are generic Morph data and are not exported
+  to MSH yet; the future Clips worktree will consume them.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
-anchors, the selected shape, morph-target selections, and rebuildable vertex selections. The
+anchors, the selected shape, morph-target selections, named expressions, and rebuildable vertex selections. The
 derived region selection is binary at
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
-automatically transferred. The current project schema is version 4; older Morph Editor project
+automatically transferred. The current project schema is version 5; older Morph Editor project
 files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
 language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surface-snap axis,
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
-target displacement visibility, and the Morph viewport camera. These
+target displacement visibility, expression mode/name draft, and the Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -145,6 +159,20 @@ settings are restored when the project is opened and are part of the project dir
    select it, choose X/Y/Z, and use **Analyze mirror** before confirming.
 8. If the source shape changes, use **Rebuild target selection** explicitly. A stale target is not
    edited or silently regenerated.
+
+## Expressions
+
+1. Rebuild at least one surface shape and create a ready Morph Target.
+2. Open the **Expressions** worktree. In **Add expression**, enter a name and set one or more target
+   weights. The composed result is shown in memory through the preview-weight slider.
+3. Press **Create expression** to persist the named pose. The expression stores target IDs and
+   normalized weights; it does not copy or modify target deltas.
+4. In **Edit expression**, select an expression to change its name or weights. In **Remove
+   expression**, delete only the selected expression. Missing or stale target references are reported
+   in the table and are not silently removed.
+
+Expressions are generic Morph data. They do not evaluate FACS profiles and are not exported to MSH
+in this milestone. The future Clips worktree will consume the saved expressions.
 
 Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
 and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The

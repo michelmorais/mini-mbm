@@ -22,9 +22,10 @@
 
 local tRegions=require 'morph_surface_regions'
 local tTargets=require 'morph_surface_targets'
+local tExpressions=require 'morph_surface_expressions'
 local M={}
 
-local PROJECT_VERSION=4
+local PROJECT_VERSION=5
 
 local function validNumber(value,default)
     local number=tonumber(value)
@@ -52,8 +53,11 @@ local function normalizePreferences(preferences)
         shapeMirrorAxis=math.floor(clamp(validNumber(preferences.shapeMirrorAxis,1),1,3)),
         shapeMirrorNameDraft=type(preferences.shapeMirrorNameDraft)=='string' and
             preferences.shapeMirrorNameDraft~='' and preferences.shapeMirrorNameDraft or 'region_mirror',
-        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,2)),
+        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,3)),
         targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,5)),
+        expressionMode=math.floor(clamp(validNumber(preferences.expressionMode,1),1,3)),
+        expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
+            preferences.expressionNameDraft~='' and preferences.expressionNameDraft or 'expression',
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
         nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -106,6 +110,7 @@ function M.new(language)
         language=normalizeLanguage(language),
         preferences=normalizePreferences(),
         meshPath='',topologySignature='',regions={},selectedRegion=1,targets={},selectedTarget=1,
+        expressions={},selectedExpression=1,
     }
 end
 
@@ -156,6 +161,24 @@ function M.normalize(project)
     project.targets=targets
     project.selectedTarget=math.max(1,math.min(#targets>0 and #targets or 1,
         math.floor(tonumber(project.selectedTarget) or 1)))
+    local expressions,expressionIds={},{}
+    for _,expression in ipairs(type(project.expressions)=='table' and project.expressions or {}) do
+        if type(expression)=='table' then
+            expression.id=type(expression.id)=='string' and expression.id~='' and expression.id or
+                ('expression_'..(#expressions+1))
+            if expressionIds[expression.id] then
+                local base=expression.id
+                local suffix=2
+                repeat expression.id=base..'_'..suffix; suffix=suffix+1 until not expressionIds[expression.id]
+            end
+            expressionIds[expression.id]=true
+            tExpressions.normalize(expression)
+            expressions[#expressions+1]=expression
+        end
+    end
+    project.expressions=expressions
+    project.selectedExpression=math.max(1,math.min(#expressions>0 and #expressions or 1,
+        math.floor(tonumber(project.selectedExpression) or 1)))
     return project
 end
 

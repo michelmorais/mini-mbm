@@ -29,6 +29,7 @@ local tRegions=require 'morph_surface_regions'
 local tShapes=require 'morph_surface_shapes'
 local tProject=require 'morph_surface_project'
 local tTargets=require 'morph_surface_targets'
+local tExpressions=require 'morph_surface_expressions'
 local tOverlay=require 'morph_surface_overlay'
 local tTargetPreview=require 'morph_surface_target_preview'
 local tTargetBrush=require 'morph_surface_target_brush'
@@ -54,6 +55,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     shapeMirrorAxis=1,shapeMirrorNameDraft='region_mirror',shapeMirrorNameSourceId=nil,
     shapeMirrorNeedsPrepare=false,shapeMirrorCandidate=nil,
     worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
+    expressionMode=1,expressionNameDraft='expression',expressionDraft=nil,
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
     targetMirrorAxis=1,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
@@ -67,7 +69,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetBrushHistory={undo={},redo={}},controlDown=false,
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil},
-    targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
+    targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={},
+    expressionPreview={key=nil,target=nil,report=nil}}
 
 local targetStatus
 local function L(key) return tLang.L('mre_'..key) end
@@ -118,6 +121,7 @@ local function markChanged()
     E.targetEditDraft=nil
     E.targetEditDraftKey=nil
     E.targetGizmo.dirty=true
+    if E.expressionPreview then E.expressionPreview.key=nil end
     if E.targetBrush and not E.targetBrush.stroke then
         E.targetBrush.geometry=nil
         E.targetBrush.geometryKey=nil
@@ -144,6 +148,8 @@ local function saveEditorPreferences()
     preferences.shapeMirrorNameDraft=E.shapeMirrorNameDraft
     preferences.worktree=E.worktree
     preferences.targetMode=E.targetMode
+    preferences.expressionMode=E.expressionMode
+    preferences.expressionNameDraft=E.expressionNameDraft
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
     preferences.nameDraft=E.nameDraft
@@ -202,8 +208,12 @@ local function restoreEditorPreferences(project)
     E.shapeMirrorNameSourceId=E.shapeMode==4 and selectedShape and selectedShape.id or nil
     E.shapeMirrorNeedsPrepare=E.shapeMode==4
     E.shapeMirrorCandidate=nil
-    E.worktree=math.max(1,math.min(2,math.floor(tonumber(preferences.worktree) or 1)))
+    E.worktree=math.max(1,math.min(3,math.floor(tonumber(preferences.worktree) or 1)))
     E.targetMode=math.max(1,math.min(5,math.floor(tonumber(preferences.targetMode) or 1)))
+    E.expressionMode=math.max(1,math.min(3,math.floor(tonumber(preferences.expressionMode) or 1)))
+    E.expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
+        preferences.expressionNameDraft~='' and preferences.expressionNameDraft or 'expression'
+    E.expressionDraft=nil
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -250,6 +260,7 @@ local function restoreEditorPreferences(project)
     E.targetBrush.hoverHit=nil
     E.targetPreviewWeight=math.max(0,math.min(1,tonumber(preferences.targetPreviewWeight) or 1))
     E.targetPreviewVisible=preferences.targetPreviewVisible~=false
+    E.expressionPreview={key=nil,target=nil,report=nil}
     if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
     local camera=preferences.camera
     if type(camera)=='table' then
@@ -346,6 +357,7 @@ local function destroyMesh()
     E.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil}
     E.targetPreviewDirty=true
+    E.expressionPreview={key=nil,target=nil,report=nil}
     E.targetMirrorPlan=nil
     E.targetMirrorCandidate=nil
     E.targetMirrorNeedsPrepare=false
@@ -1005,6 +1017,147 @@ local function targetById(id)
     return nil,nil
 end
 
+local function selectedExpression()
+    return E.project.expressions[E.project.selectedExpression]
+end
+
+local function newExpressionId()
+    local suffix=1
+    while true do
+        local id='expression_'..tostring(suffix)
+        local exists=false
+        for _,expression in ipairs(E.project.expressions or {}) do
+            if expression.id==id then exists=true; break end
+        end
+        if not exists then return id end
+        suffix=suffix+1
+    end
+end
+
+local function uniqueExpressionName(name)
+    local base=(name or ''):match('^%s*(.-)%s*$')
+    if base=='' then base=string.format(L('expression_default_name'),#E.project.expressions+1) end
+    local candidate=base
+    local suffix=2
+    local function exists(value)
+        for _,expression in ipairs(E.project.expressions or {}) do
+            if expression.name==value then return true end
+        end
+        return false
+    end
+    while exists(candidate) do
+        candidate=base..'_'..tostring(suffix)
+        suffix=suffix+1
+    end
+    return candidate
+end
+
+local function ensureExpressionDraft()
+    if E.expressionMode~=1 then return nil end
+    if not E.expressionDraft then
+        E.expressionDraft=tExpressions.new('expression_preview','expression_preview')
+    end
+    E.expressionDraft.name=(E.expressionNameDraft or ''):match('^%s*(.-)%s*$')
+    return E.expressionDraft
+end
+
+local function expressionPreviewExpression()
+    if E.expressionMode==1 then return ensureExpressionDraft() end
+    return selectedExpression()
+end
+
+local function expressionPreviewKey(expression)
+    if not expression then return 'none' end
+    local parts={expression.id or 'expression'}
+    for _,entry in ipairs(expression.weights or {}) do
+        parts[#parts+1]=entry.targetId..':'..string.format('%.6f',entry.weight or 0)
+    end
+    return table.concat(parts,'|')
+end
+
+local function expressionPreviewData()
+    local expression=expressionPreviewExpression()
+    if not expression then return nil,nil end
+    local key=expressionPreviewKey(expression)
+    if E.expressionPreview.key==key and E.expressionPreview.target then
+        return E.expressionPreview.target,E.expressionPreview.report
+    end
+    local report=tExpressions.compose(expression,E.project.targets,targetStatus)
+    local target={id=expression.id,name=expression.name,deltas={}}
+    for index,delta in pairs(report.deltas or {}) do
+        if math.abs(delta.x)>1e-8 or math.abs(delta.y)>1e-8 or math.abs(delta.z)>1e-8 then
+            target.deltas[#target.deltas+1]={index=index,x=delta.x,y=delta.y,z=delta.z}
+        end
+    end
+    table.sort(target.deltas,function(left,right) return left.index<right.index end)
+    E.expressionPreview={key=key,target=target,report=report}
+    return target,report
+end
+
+local function invalidateExpressionPreview()
+    E.expressionPreview.key=nil
+    E.expressionPreview.target=nil
+    E.expressionPreview.report=nil
+    E.targetPreviewDirty=true
+end
+
+local function setExpressionWeight(expression,target,value)
+    if not expression or not target then return false end
+    local before=tExpressions.getWeight(expression,target.id)
+    local clamped=math.max(0,math.min(1,tonumber(value) or 0))
+    if math.abs(before-clamped)<=1e-6 then return false end
+    tExpressions.setWeight(expression,target.id,target.name,clamped)
+    invalidateExpressionPreview()
+    if E.expressionMode~=1 then markChanged() end
+    return true
+end
+
+local function createExpression()
+    local draft=ensureExpressionDraft()
+    local name=uniqueExpressionName(E.expressionNameDraft)
+    local _,report=expressionPreviewData()
+    if not draft or not report or report.active==0 then
+        setStatus(L('expression_requires_weight'),true)
+        return false
+    end
+    if report.missing>0 or report.stale>0 then
+        setStatus(L('expression_invalid_targets'),true)
+        return false
+    end
+    local expression=tExpressions.new(name,newExpressionId())
+    expression.weights=tExpressions.copyWeights(draft)
+    E.project.expressions[#E.project.expressions+1]=expression
+    E.project.selectedExpression=#E.project.expressions
+    E.expressionMode=2
+    E.expressionDraft=nil
+    E.expressionNameDraft=name
+    markChanged()
+    invalidateExpressionPreview()
+    setStatus(string.format(L('expression_created'),name),false)
+    return true
+end
+
+local function deleteSelectedExpression()
+    if not selectedExpression() then return false end
+    table.remove(E.project.expressions,E.project.selectedExpression)
+    E.project.selectedExpression=math.max(1,math.min(#E.project.expressions>0 and #E.project.expressions or 1,
+        E.project.selectedExpression))
+    E.expressionDraft=nil
+    markChanged()
+    invalidateExpressionPreview()
+    setStatus(L('expression_deleted'),false)
+    return true
+end
+
+local function selectExpression(index)
+    if not E.project.expressions[index] then return end
+    E.project.selectedExpression=index
+    E.expressionDraft=nil
+    E.expressionNameDraft=E.project.expressions[index].name or 'expression'
+    invalidateExpressionPreview()
+    E.modified=true
+end
+
 local function pushTargetBrushHistory(target,before,after)
     if not target or not before or not after then return end
     local history=E.targetBrushHistory
@@ -1072,8 +1225,14 @@ local function targetPreviewReady(target)
     return mirrorPreviewReady(target)
 end
 
+local function expressionPreviewReady()
+    if E.worktree~=3 then return false end
+    local _,report=expressionPreviewData()
+    return report and report.active>0
+end
+
 local function restoreTargetPreviewDeltas()
-    local target=selectedTarget()
+    local target=E.worktree==3 and expressionPreviewData() or selectedTarget()
     if target and E.targetPreview.surface then
         tTargetPreview.setDeltas(E,target)
     end
@@ -1085,7 +1244,7 @@ local function syncTargetEditDraft(target)
     local draft=nil
     local key=table.concat({target and target.id or 'none',tostring(E.targetMode),
         tostring(E.targetEditMode),tostring(E.targetFeatherRings)},':')
-    if targetPreviewReady(target) and E.targetMode==2 and
+    if E.worktree==2 and targetPreviewReady(target) and E.targetMode==2 and
             (E.targetEditMode==1 or E.targetEditMode==2) then
         local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
         local rx,ry,rz=E.targetRx,E.targetRy,E.targetRz
@@ -1117,6 +1276,21 @@ end
 
 local function refreshTargetPreview()
     local target=selectedTarget()
+    if E.worktree==3 then
+        local expressionTarget=expressionPreviewData()
+        if not expressionTarget or not expressionPreviewReady() then
+            tTargetPreview.destroy(E)
+            E.targetPreviewDirty=false
+            return
+        end
+        tTargetPreview.destroy(E)
+        local ok,errorCode=tTargetPreview.build(E,expressionTarget,E.targetPreviewWeight)
+        E.targetPreviewDirty=false
+        if not ok then
+            setStatus(L('expression_preview_failed')..': '..tostring(errorCode),true)
+        end
+        return
+    end
     if not targetPreviewReady(target) then
         tTargetPreview.destroy(E)
         E.targetPreviewDirty=false
@@ -1138,6 +1312,22 @@ end
 local function syncTargetPreview()
     local target=selectedTarget()
     syncTargetEditDraft(target)
+    if E.worktree==3 then
+        local expressionTarget=expressionPreviewData()
+        if not expressionTarget or not expressionPreviewReady() then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            return
+        end
+        if E.targetPreviewDirty or E.targetPreview.targetId~=expressionTarget.id then
+            refreshTargetPreview()
+        end
+        if E.targetPreview.surface then
+            tTargetPreview.setWeight(E,E.targetPreviewWeight)
+            tTargetPreview.setVisible(E,E.targetPreviewVisible)
+            tTargetPreview.update(E)
+        end
+        return
+    end
     if not targetPreviewReady(target) then
         if E.targetPreview.surface then tTargetPreview.destroy(E) end
         return
@@ -2489,6 +2679,209 @@ local function drawMorphTargets()
     drawTargetTable()
 end
 
+local function expressionReport(expression)
+    if not expression then return nil end
+    return tExpressions.inspect(expression,E.project.targets,targetStatus)
+end
+
+local function expressionStatusText(expression)
+    local report=expressionReport(expression)
+    if not report or report.active==0 then return L('expression_status_empty') end
+    if report.missing>0 then return string.format(L('expression_status_missing'),report.missing) end
+    if report.stale>0 then return string.format(L('expression_status_stale'),report.stale) end
+    return L('expression_status_ready')
+end
+
+local function drawExpressionWeights(expression,editable)
+    if not expression then
+        tImGui.TextDisabled(L('no_expressions'))
+        return
+    end
+    local targets=E.project.targets or {}
+    if #targets==0 then
+        tImGui.TextDisabled(L('no_targets'))
+        return
+    end
+    tImGui.Separator()
+    if tImGui.BeginTable('mreExpressionWeights',4,
+            tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(L('expression_table_target'))
+        tImGui.TableSetupColumn(L('expression_table_weight'))
+        tImGui.TableSetupColumn(L('expression_table_vertices'))
+        tImGui.TableSetupColumn(L('expression_table_status'))
+        tImGui.TableHeadersRow()
+        for index,target in ipairs(targets) do
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0); tImGui.Text(target.name or '')
+            tImGui.TableSetColumnIndex(1)
+            local weight=tExpressions.getWeight(expression,target.id)
+            if editable then
+                tImGui.SetNextItemWidth(150)
+                local changed,value=tImGui.SliderFloat(
+                    L('expression_weight')..'##mreExpressionWeight'..index,weight,0,1,'%.2f')
+                if changed then setExpressionWeight(expression,target,value) end
+            else
+                tImGui.Text(string.format('%.2f',weight))
+            end
+            tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(#(target.vertices or {})))
+            tImGui.TableSetColumnIndex(3)
+            tImGui.Text(targetStatusLabel(targetStatus(target)))
+        end
+        tImGui.EndTable()
+    end
+end
+
+local function drawExpressionList()
+    if #(E.project.expressions or {})==0 then
+        tImGui.TextDisabled(L('no_expressions'))
+        return
+    end
+    tImGui.Separator()
+    if tImGui.BeginTable('mreExpressionTable',4,
+            tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(L('expression_table_name'))
+        tImGui.TableSetupColumn(L('expression_table_targets'))
+        tImGui.TableSetupColumn(L('expression_table_status'))
+        tImGui.TableSetupColumn(L('expression_table_select'))
+        tImGui.TableHeadersRow()
+        for index,expression in ipairs(E.project.expressions) do
+            local report=expressionReport(expression)
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0); tImGui.Text(expression.name or '')
+            tImGui.TableSetColumnIndex(1); tImGui.Text(tostring(report and report.active or 0))
+            tImGui.TableSetColumnIndex(2); tImGui.Text(expressionStatusText(expression))
+            tImGui.TableSetColumnIndex(3)
+            if tImGui.Selectable(L('expression_select')..'##mreExpressionRow'..index,
+                    index==E.project.selectedExpression) then
+                selectExpression(index)
+            end
+        end
+        tImGui.EndTable()
+    end
+end
+
+local function drawExpressionNode()
+    local previousMode=E.expressionMode
+    E.expressionMode=tImGui.RadioButton(L('expression_mode_add')..'##mreExpressionModeAdd',E.expressionMode,1)
+    E.expressionMode=tImGui.RadioButton(L('expression_mode_edit')..'##mreExpressionModeEdit',E.expressionMode,2)
+    E.expressionMode=tImGui.RadioButton(L('expression_mode_remove')..'##mreExpressionModeRemove',E.expressionMode,3)
+    if E.expressionMode~=previousMode then
+        E.expressionDraft=nil
+        if E.expressionMode==2 or E.expressionMode==3 then
+            local expression=selectedExpression()
+            E.expressionNameDraft=expression and expression.name or 'expression'
+        end
+        invalidateExpressionPreview()
+        E.modified=true
+    end
+    tImGui.TextWrapped(L('expression_interaction_help'))
+    tImGui.Separator()
+    local expression
+    if E.expressionMode==1 then
+        expression=ensureExpressionDraft()
+        tImGui.SetNextItemWidth(220)
+        local changed,name=tImGui.InputText(L('expression_name')..'##mreExpressionNameAdd',E.expressionNameDraft)
+        if changed then
+            E.expressionNameDraft=name
+            invalidateExpressionPreview()
+        end
+        drawExpressionWeights(expression,true)
+        tImGui.BeginDisabled(not expression or #(E.project.targets or {})==0)
+        if tImGui.Button(L('expression_create')..'##mreExpressionCreate') then createExpression() end
+        tImGui.EndDisabled()
+        showHelpTooltip(L('expression_create_help'))
+        local _,report=expressionPreviewData()
+        if report and (report.missing>0 or report.stale>0) then
+            tImGui.TextWrapped(L('expression_invalid_targets'))
+        end
+    elseif E.expressionMode==2 then
+        local expressions=E.project.expressions or {}
+        if #expressions==0 then
+            tImGui.TextDisabled(L('no_expressions'))
+        else
+            local names={}
+            for _,entry in ipairs(expressions) do names[#names+1]=entry.name end
+            tImGui.SetNextItemWidth(220)
+            local changed,index=tImGui.Combo(L('expression_select')..'##mreExpressionSelect',
+                math.max(1,math.min(#names,E.project.selectedExpression)),names)
+            if changed then selectExpression(index) end
+            expression=selectedExpression()
+            if expression then
+                tImGui.SetNextItemWidth(220)
+                local nameChanged,name=tImGui.InputText(L('expression_name')..'##mreExpressionNameEdit',
+                    expression.name or '')
+                if nameChanged then
+                    local trimmed=(name or ''):match('^%s*(.-)%s*$')
+                    local taken=trimmed==''
+                    for index,other in ipairs(expressions) do
+                        if index~=E.project.selectedExpression and other.name==trimmed then taken=true; break end
+                    end
+                    if not taken then
+                        expression.name=trimmed
+                        E.expressionNameDraft=trimmed
+                        markChanged()
+                        invalidateExpressionPreview()
+                    else
+                        setStatus(L('expression_name_invalid'),true)
+                    end
+                end
+                drawExpressionWeights(expression,true)
+                local _,report=expressionPreviewData()
+                if report and (report.missing>0 or report.stale>0) then
+                    tImGui.TextWrapped(L('expression_invalid_targets'))
+                end
+            end
+        end
+    else
+        local expressions=E.project.expressions or {}
+        if #expressions==0 then
+            tImGui.TextDisabled(L('no_expressions'))
+        else
+            local names={}
+            for _,entry in ipairs(expressions) do names[#names+1]=entry.name end
+            tImGui.SetNextItemWidth(220)
+            local changed,index=tImGui.Combo(L('expression_select')..'##mreExpressionSelectRemove',
+                math.max(1,math.min(#names,E.project.selectedExpression)),names)
+            if changed then selectExpression(index) end
+            expression=selectedExpression()
+            if expression then
+                tImGui.Text(string.format(L('expression_selected'),expression.name or ''))
+                tImGui.BeginDisabled(false)
+                if tImGui.Button(L('expression_delete')..'##mreExpressionDelete') then
+                    deleteSelectedExpression()
+                end
+                tImGui.EndDisabled()
+                showHelpTooltip(L('expression_delete_help'))
+            end
+        end
+    end
+    tImGui.SetNextItemWidth(220)
+    local previewChanged,previewWeight=tImGui.SliderFloat(
+        L('expression_preview_weight')..'##mreExpressionPreviewWeight',E.targetPreviewWeight,0,1,'%.2f')
+    if previewChanged then
+        E.targetPreviewWeight=math.max(0,math.min(1,previewWeight))
+        tTargetPreview.setWeight(E,E.targetPreviewWeight)
+        E.modified=true
+    end
+    showHelpTooltip(L('expression_preview_weight_help'))
+    local _,previewReport=expressionPreviewData()
+    if previewReport then
+        tImGui.Text(string.format(L('expression_preview_summary'),previewReport.active,
+            previewReport.missing,previewReport.stale))
+    end
+    tImGui.BeginDisabled(not previewReport or previewReport.active==0)
+    local displacementVisible=tImGui.Checkbox(
+        L('target_preview_displacement')..'##mreExpressionPreviewDisplacement',E.targetPreviewVisible)
+    tImGui.EndDisabled()
+    showHelpTooltip(L('target_preview_displacement_help'))
+    if previewReport and previewReport.active>0 and displacementVisible~=E.targetPreviewVisible then
+        E.targetPreviewVisible=displacementVisible
+        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        E.modified=true
+    end
+    drawExpressionList()
+end
+
 local function drawSelectedRegionSelector()
     if #E.project.regions==0 then
         tImGui.TextDisabled(L('no_shapes'))
@@ -2630,9 +3023,21 @@ local function hasReadyRegion()
     return E.targetAvailability
 end
 
+local function hasReadyTarget()
+    if not E.topology or E.project.topologySignature~=E.topology.signature then return false end
+    for _,target in ipairs(E.project.targets or {}) do
+        if targetStatus(target)=='ready' then return true end
+    end
+    return false
+end
+
 local function selectWorktree(worktree)
     if worktree==2 and not hasReadyRegion() then
         setStatus(L('target_worktree_sequence_help'),true)
+        return
+    end
+    if worktree==3 and not hasReadyTarget() then
+        setStatus(L('expression_worktree_sequence_help'),true)
         return
     end
     if E.worktree==worktree then return end
@@ -2648,6 +3053,7 @@ local function selectWorktree(worktree)
     E.targetBrush.hoverY=nil
     E.targetBrush.hoverTime=nil
     E.targetPreviewDirty=true
+    invalidateExpressionPreview()
     if worktree~=1 then
         E.shapeMirrorCandidate=nil
         E.shapeMirrorNeedsPrepare=false
@@ -2761,6 +3167,9 @@ local function drawControls()
     local targetsEnabled=hasReadyRegion()
     drawWorktreeNode(2,L('worktree_morph_targets'),drawMorphTargets,targetsEnabled)
     if not targetsEnabled then tImGui.TextDisabled(L('target_worktree_sequence_help')) end
+    local expressionsEnabled=hasReadyTarget()
+    drawWorktreeNode(3,L('worktree_expressions'),drawExpressionNode,expressionsEnabled)
+    if not expressionsEnabled then tImGui.TextDisabled(L('expression_worktree_sequence_help')) end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
         else tImGui.TextWrapped(E.status) end
