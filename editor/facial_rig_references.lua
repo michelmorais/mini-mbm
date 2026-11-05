@@ -18,13 +18,13 @@
 | OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                                                                          |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Inspect and migrate named target references in authored expressions and facial clips.
+   Inspect and migrate named target references in FACS profiles, expressions, and facial clips.
 ]]--
 
 local M={}
 
 function M.inspect(project,name)
-    local report={poses={},clips={},keyCount=0}
+    local report={poses={},clips={},profiles={},keyCount=0,profileOutputCount=0}
     for _,pose in ipairs(project and project.expressions and project.expressions.poses or {}) do
         if pose.weights and pose.weights[name]~=nil then report.poses[#report.poses+1]=pose.name end
     end
@@ -36,6 +36,16 @@ function M.inspect(project,name)
         if count>0 then
             report.clips[#report.clips+1]={name=clip.name,count=count}
             report.keyCount=report.keyCount+count
+        end
+    end
+    for _,profile in ipairs(project and project.facsProfiles and project.facsProfiles.profiles or {}) do
+        local count=0
+        for _,output in ipairs(profile.outputs or {}) do
+            if output.target==name then count=count+1 end
+        end
+        if count>0 then
+            report.profiles[#report.profiles+1]={name=profile.name,count=count}
+            report.profileOutputCount=report.profileOutputCount+count
         end
     end
     return report
@@ -57,6 +67,11 @@ function M.rename(project,oldName,newName)
             end
         end
     end
+    for _,profile in ipairs(project and project.facsProfiles and project.facsProfiles.profiles or {}) do
+        for _,output in ipairs(profile.outputs or {}) do
+            if output.target==oldName then output.target=newName end
+        end
+    end
 end
 
 function M.remove(project,name)
@@ -66,6 +81,12 @@ function M.remove(project,name)
     for _,clip in ipairs(project and project.clips or {}) do
         for _,key in ipairs(clip.keys or {}) do
             if key.weights then key.weights[name]=nil end
+        end
+    end
+    for _,profile in ipairs(project and project.facsProfiles and project.facsProfiles.profiles or {}) do
+        local outputs=profile.outputs or {}
+        for index=#outputs,1,-1 do
+            if outputs[index].target==name then table.remove(outputs,index) end
         end
     end
 end

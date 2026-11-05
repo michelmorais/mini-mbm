@@ -24,8 +24,7 @@ namespace mbm
 	// take a look into CAMERA::updateCam for 2d zNear and zFar usage
 	//That gives about 100,000 ordered 2D slots
 	constexpr float z2dIncrement = {0.001f};
-    ORDER_RENDER::ORDER_RENDER() noexcept : nextZOrderControl3d(0.0f),
-                                        nextZOrderControl2d(0.0f),
+    ORDER_RENDER::ORDER_RENDER() noexcept : nextZOrderControl2d(0.0f),
                                         nextZOrderControl2dBackground(100.0f),
                                         Z2dsFont(-9.0f),
                                         Z2ds(z2dIncrement),
@@ -34,17 +33,11 @@ namespace mbm
     }
     void ORDER_RENDER::reInit() noexcept
     {
-        this->nextZOrderControl3d           = 0.0f;
         this->nextZOrderControl2d           = 0.0f;
         this->nextZOrderControl2dBackground = 100.0f;
         this->Z2dsFont                      = -9.0f;
         this->Z2ds                          = z2dIncrement;
         this->Z2dw                          = 0.0f;
-    }
-    float ORDER_RENDER::getNextZOrderControl3d() noexcept
-    {
-        this->nextZOrderControl3d += 0.01f;
-        return this->nextZOrderControl3d;
     }
     float ORDER_RENDER::getNextZOrderControl2d(const bool is2dS, const bool isFont) noexcept
     {

@@ -21,8 +21,7 @@ Facial shape-key animation is implemented as a separate runtime capability. The 
 workflow is documented in the [Facial Rig Editor](facial-rig-editor.md); the runtime, MSH format,
 and Lua contract are documented in [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md),
 [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1), and the
-[Lua API](lua-api.md#facial-targets-and-clips-mesh). Optional extensions are listed in the
-[facial animation future work](realtime-facial-animation-future-work-plan.md).
+[Lua API](lua-api.md#facial-targets-and-clips-mesh).
 
 ## Quick Mental Model (Read This First)
 
@@ -528,20 +527,13 @@ nickname and different colors both read back the identical, *last-set* color via
 anything that varies per-instance (including just its *color*) needs a genuinely unique nickname per
 instance, not just per distinct geometry.
 
-### `DEVICE::addRenderizable` silently overwrites `position.z == 0.0` on 3D objects
+### 3D zero-depth positions in `DEVICE::addRenderizable`
 
-Also hit building the Bones node's gizmo, not skinning-specific, but worth flagging here since it's
-exactly the kind of thing that looks like a skinning/skeleton bug from the outside: any 3D object
-created with `z` exactly `0.0` gets that `z` silently replaced with an ever-incrementing internal
-"z order control" counter (`ORDER_RENDER::getNextZOrderControl3d()`, `+0.01` per call) — a
-convenience for objects that don't care about their own depth, not something a deliberately-placed
-gizmo wants. A humanoid rig routinely has several bones sitting exactly on the character's own
-sagittal (`z=0`) plane (root, hips, spine, chest, head), and rebuilding a gizmo on every interaction
-(e.g. every Highlight-checkbox click) meant every rebuild of a `z==0` bone silently drifted further
-along `+Z` — this is literally the bug the user remembered as "the Z being overwritten when we
-change the bones positions." Fix: nudge any exactly-zero world Z by a visually negligible epsilon
-(`0.0001`) before it ever reaches `shape:new`, at the call site — not the shared engine mechanism,
-which other, unrelated 2D sorting code intentionally still relies on.
+The engine previously replaced `position.z == 0.0` on 3D objects with an increasing
+order counter. Recreating a bone gizmo could therefore move a joint away from its
+authored sagittal plane. Registration now preserves the exact 3D position,
+including Z zero. Skeletal editor visuals no longer need a small Z offset. The
+automatic Z ordering for 2D objects remains separate.
 
 ### A precomputed section count silently truncates a whole file
 

@@ -233,7 +233,10 @@ function M.newReplay(packets, options)
             end
             if self.index <= #self.packets then break end
             if not self.loop then
-                self:stop(mesh, mapping)
+                -- Keep the final packet visible for one frame. The next step
+                -- with no new packet is the disconnect/EOF transition and
+                -- performs the configured neutral reset.
+                if result.applied==0 then self:stop(mesh, mapping) end
                 break
             end
             self.time = self.time - self.duration

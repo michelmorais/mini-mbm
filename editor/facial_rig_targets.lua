@@ -158,9 +158,19 @@ end
 
 function M.maskIndices(mask,vertexCount,topologySignature)
     if type(mask)~='table' or mask.enabled==false or
-            mask.topologySignature~=nil and mask.topologySignature~=topologySignature then return {} end
+            mask.topologySignature~=nil and mask.topologySignature~='' and
+            mask.topologySignature~=topologySignature then return {} end
     local result,seen={},{}
-    for _,rawIndex in ipairs(mask.vertices or {}) do
+    local source=mask.vertices or {}
+    if mask.representation=='polygon' then
+        local polygon=mask.polygon
+        local polygonSignature=type(polygon)=='table' and
+            (type(polygon.topologySignature)=='string' and polygon.topologySignature or '') or ''
+        if type(polygon)~='table' or polygonSignature~='' and polygonSignature~=topologySignature then return {} end
+        source=polygon and polygon.derivedVertexWeights or {}
+    end
+    for _,rawIndex in ipairs(source) do
+        if mask.representation=='polygon' then rawIndex=type(rawIndex)=='table' and rawIndex.index or nil end
         local index=tonumber(rawIndex)
         if index and index>=1 and index<=vertexCount and not seen[index] then
             seen[index]=true

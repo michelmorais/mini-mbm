@@ -66,15 +66,17 @@ The engine then iterates the sorted list and calls `ptr->render()` for each obje
 
 ### Depth rules for 2-D world objects
 
-`DEVICE::addRenderizable()` auto-assigns `position.z` via `ORDER_RENDER` if it is
-`0.0` at registration time.  Values decrease by `0.1` per object, so the first
-object registered gets `z = -0.1`, the next `z = -0.2`, and so on (drawn front-to-
-back from a z-sort perspective).
+For 2-D world objects, `DEVICE::addRenderizable()` assigns `position.z` via
+`ORDER_RENDER` when it is `0.0` at registration time. Values decrease by
+`0.001` per object, so the first 2-D world object gets `z = -0.001`, the next
+`z = -0.002`, and so on.
 
 > **Tip:** If you want a specific z value, set `position.z` to a non-zero value
 > *before* calling `DEVICE::addRenderizable(this)`.
 
-For **3-D** objects the sort key is the Euclidean distance from the camera, not `z`.
+For **3-D** objects, registration preserves `position.z`, including zero. The sort key
+is the Euclidean distance from the camera; the depth buffer and explicit
+`alwaysOnTopPriority` layers determine visibility.
 
 ---
 
