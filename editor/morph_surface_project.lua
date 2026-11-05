@@ -54,7 +54,7 @@ local function normalizePreferences(preferences)
         shapeMirrorAxis=math.floor(clamp(validNumber(preferences.shapeMirrorAxis,1),1,3)),
         shapeMirrorNameDraft=type(preferences.shapeMirrorNameDraft)=='string' and
             preferences.shapeMirrorNameDraft~='' and preferences.shapeMirrorNameDraft or 'region_mirror',
-        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,4)),
+        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,5)),
         targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,5)),
         expressionMode=math.floor(clamp(validNumber(preferences.expressionMode,1),1,3)),
         expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
@@ -66,6 +66,10 @@ local function normalizePreferences(preferences)
         clipKeySelected=math.max(1,math.floor(validNumber(preferences.clipKeySelected,1))),
         clipPreviewWeight=clamp(validNumber(preferences.clipPreviewWeight,1),0,1),
         clipTimelineVisible=preferences.clipTimelineVisible~=false,
+        previewMode=math.floor(clamp(validNumber(preferences.previewMode,1),1,2)),
+        previewExpressionSelected=math.max(1,math.floor(validNumber(preferences.previewExpressionSelected,1))),
+        previewClipSelected=math.max(1,math.floor(validNumber(preferences.previewClipSelected,1))),
+        previewWeight=clamp(validNumber(preferences.previewWeight,1),0,1),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
         nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -95,7 +99,8 @@ local function normalizePreferences(preferences)
         targetBrushDx=validNumber(preferences.targetBrushDx,0),
         targetBrushDy=validNumber(preferences.targetBrushDy,-0.01),
         targetBrushDz=validNumber(preferences.targetBrushDz,0),
-        targetPreviewWeight=clamp(validNumber(preferences.targetPreviewWeight,1),0,1),
+        targetPreviewWeight=clamp(validNumber(preferences.targetPreviewWeight,
+            validNumber(preferences.previewWeight,1)),0,1),
         targetPreviewVisible=preferences.targetPreviewVisible~=false,
         meshVisible=preferences.meshVisible~=false,
     }

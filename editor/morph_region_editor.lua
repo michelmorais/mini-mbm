@@ -60,6 +60,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     clipMode=1,clipNameDraft='clip',clipSelectedExpression=1,clipTime=0,clipKeySelected=1,clipPlaying=false,
     clipTimelineVisible=true,
     clipPreviewWeight=1,clipPreview={key=nil,target=nil,report=nil},
+    previewMode=1,previewExpressionSelected=1,previewClipSelected=1,previewClipTime=0,
+    previewClipPlaying=false,preview={key=nil,target=nil,report=nil},
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
     targetMirrorAxis=1,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
@@ -140,6 +142,7 @@ local function markChanged()
     E.targetGizmo.dirty=true
     if E.expressionPreview then E.expressionPreview.key=nil end
     if E.clipPreview then E.clipPreview.key=nil end
+    if E.preview then E.preview.key=nil end
     if E.targetBrush and not E.targetBrush.stroke then
         E.targetBrush.geometry=nil
         E.targetBrush.geometryKey=nil
@@ -175,6 +178,10 @@ local function saveEditorPreferences()
     preferences.clipKeySelected=E.clipKeySelected
     preferences.clipPreviewWeight=E.clipPreviewWeight
     preferences.clipTimelineVisible=E.clipTimelineVisible
+    preferences.previewMode=E.previewMode
+    preferences.previewExpressionSelected=E.previewExpressionSelected
+    preferences.previewClipSelected=E.previewClipSelected
+    preferences.previewWeight=E.targetPreviewWeight
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
     preferences.nameDraft=E.nameDraft
@@ -233,7 +240,7 @@ local function restoreEditorPreferences(project)
     E.shapeMirrorNameSourceId=E.shapeMode==4 and selectedShape and selectedShape.id or nil
     E.shapeMirrorNeedsPrepare=E.shapeMode==4
     E.shapeMirrorCandidate=nil
-    E.worktree=math.max(1,math.min(4,math.floor(tonumber(preferences.worktree) or 1)))
+    E.worktree=math.max(1,math.min(5,math.floor(tonumber(preferences.worktree) or 1)))
     E.targetMode=math.max(1,math.min(5,math.floor(tonumber(preferences.targetMode) or 1)))
     E.targetNameSourceId=nil
     E.expressionMode=math.max(1,math.min(3,math.floor(tonumber(preferences.expressionMode) or 1)))
@@ -250,6 +257,12 @@ local function restoreEditorPreferences(project)
     E.clipPreviewWeight=math.max(0,math.min(1,tonumber(preferences.clipPreviewWeight) or 1))
     E.clipTimelineVisible=preferences.clipTimelineVisible~=false
     E.clipPreview={key=nil,target=nil,report=nil}
+    E.previewMode=math.max(1,math.min(2,math.floor(tonumber(preferences.previewMode) or 1)))
+    E.previewExpressionSelected=math.max(1,math.floor(tonumber(preferences.previewExpressionSelected) or 1))
+    E.previewClipSelected=math.max(1,math.floor(tonumber(preferences.previewClipSelected) or 1))
+    E.previewClipTime=0
+    E.previewClipPlaying=false
+    E.preview={key=nil,target=nil,report=nil}
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -294,7 +307,8 @@ local function restoreEditorPreferences(project)
     E.targetBrush.geometry=nil
     E.targetBrush.geometryKey=nil
     E.targetBrush.hoverHit=nil
-    E.targetPreviewWeight=math.max(0,math.min(1,tonumber(preferences.targetPreviewWeight) or 1))
+    E.targetPreviewWeight=math.max(0,math.min(1,
+        tonumber(preferences.targetPreviewWeight or preferences.previewWeight) or 1))
     E.targetPreviewVisible=preferences.targetPreviewVisible~=false
     E.expressionPreview={key=nil,target=nil,report=nil}
     if E.mesh then E.mesh.visible=preferences.meshVisible~=false end
@@ -396,9 +410,12 @@ local function destroyMesh()
     E.targetPreviewDirty=true
     E.expressionPreview={key=nil,target=nil,report=nil}
     E.clipPreview={key=nil,target=nil,report=nil}
+    E.preview={key=nil,target=nil,report=nil}
     E.clipTime=0
     E.clipKeySelected=1
     E.clipPlaying=false
+    E.previewClipTime=0
+    E.previewClipPlaying=false
     E.targetMirrorPlan=nil
     E.targetMirrorCandidate=nil
     E.targetMirrorNeedsPrepare=false
@@ -1349,6 +1366,60 @@ local function updateClipPlayback(delta)
     invalidateClipPreview()
 end
 
+local function invalidateMorphPreview()
+    E.preview.key=nil
+    E.preview.target=nil
+    E.preview.report=nil
+    E.targetPreviewDirty=true
+end
+
+local function morphPreviewData()
+    local sourceId,sourceName,expression
+    if E.previewMode==1 then
+        local expressions=E.project.expressions or {}
+        local index=math.max(1,math.min(#expressions,E.previewExpressionSelected))
+        expression=expressions[index]
+        if not expression then return nil,nil end
+        E.previewExpressionSelected=index
+        sourceId='expression_'..tostring(expression.id)
+        sourceName=expression.name
+    else
+        local clips=E.project.clips or {}
+        local index=math.max(1,math.min(#clips,E.previewClipSelected))
+        local clip=clips[index]
+        if not clip then return nil,nil end
+        E.previewClipSelected=index
+        sourceId='clip_'..tostring(clip.id)
+        sourceName=clip.name
+        expression={id=clip.id,name=clip.name,weights=tClips.sample(clip,E.previewClipTime)}
+    end
+    local key=table.concat({sourceId or 'preview',string.format('%.5f',E.previewClipTime),
+        tostring(E.previewMode)},':')
+    if E.preview.key==key and E.preview.target then return E.preview.target,E.preview.report end
+    local report=tExpressions.compose(expression,E.project.targets,targetStatus)
+    local target={id='morph_preview_'..sourceId,name=sourceName,deltas={}}
+    for index,delta in pairs(report.deltas or {}) do
+        if math.abs(delta.x)>1e-8 or math.abs(delta.y)>1e-8 or math.abs(delta.z)>1e-8 then
+            target.deltas[#target.deltas+1]={index=index,x=delta.x,y=delta.y,z=delta.z}
+        end
+    end
+    table.sort(target.deltas,function(left,right) return left.index<right.index end)
+    E.preview={key=key,target=target,report=report}
+    return target,report
+end
+
+local function updateMorphPreviewPlayback(delta)
+    if E.worktree~=5 or E.previewMode~=2 or not E.previewClipPlaying then return end
+    local clip=(E.project.clips or {})[E.previewClipSelected]
+    if not clip then E.previewClipPlaying=false;return end
+    E.previewClipTime=E.previewClipTime+math.max(tonumber(delta) or 0,0)
+    if E.previewClipTime>clip.duration then
+        if clip.loop then E.previewClipTime=E.previewClipTime%clip.duration
+        else E.previewClipTime=clip.duration;E.previewClipPlaying=false end
+    end
+    invalidateMorphPreview()
+end
+
 local function pushTargetBrushHistory(target,before,after)
     if not target or not before or not after then return end
     local history=E.targetBrushHistory
@@ -1454,7 +1525,8 @@ end
 
 local function restoreTargetPreviewDeltas()
     local target=E.worktree==3 and expressionPreviewData() or
-        E.worktree==4 and clipPreviewData() or selectedTarget()
+        E.worktree==4 and clipPreviewData() or
+        E.worktree==5 and morphPreviewData() or selectedTarget()
     if target and E.targetPreview.surface then
         tTargetPreview.setDeltas(E,target)
     end
@@ -1579,6 +1651,28 @@ local function syncTargetPreview()
         end
         if E.targetPreview.surface then
             tTargetPreview.setWeight(E,E.clipPreviewWeight)
+            tTargetPreview.setVisible(E,E.targetPreviewVisible)
+            tTargetPreview.update(E)
+        end
+        return
+    end
+    if E.worktree==5 then
+        local previewTarget,previewReport=morphPreviewData()
+        if not previewTarget or not previewReport or previewReport.active==0 or previewReport.missing>0 or
+                previewReport.stale>0 then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            E.targetPreviewDirty=false
+            return
+        end
+        if E.targetPreviewDirty and E.targetPreview.surface and
+                E.targetPreview.targetId==previewTarget.id then
+            tTargetPreview.setDeltas(E,previewTarget)
+            E.targetPreviewDirty=false
+        elseif E.targetPreviewDirty or E.targetPreview.targetId~=previewTarget.id then
+            refreshTargetPreview()
+        end
+        if E.targetPreview.surface then
+            tTargetPreview.setWeight(E,E.targetPreviewWeight)
             tTargetPreview.setVisible(E,E.targetPreviewVisible)
             tTargetPreview.update(E)
         end
@@ -3446,6 +3540,107 @@ local function drawClipsNode()
     end
 end
 
+local function drawPreviewNode()
+    local previousMode=E.previewMode
+    E.previewMode=tImGui.RadioButton(L('preview_mode_expression')..'##mrePreviewModeExpression',E.previewMode,1)
+    local clips=E.project.clips or {}
+    tImGui.BeginDisabled(#clips==0)
+    E.previewMode=tImGui.RadioButton(L('preview_mode_clip')..'##mrePreviewModeClip',E.previewMode,2)
+    tImGui.EndDisabled()
+    if E.previewMode~=previousMode then
+        E.previewClipPlaying=false
+        invalidateMorphPreview()
+        E.modified=true
+    end
+    tImGui.TextWrapped(L('preview_interaction_help'))
+    tImGui.Separator()
+    if E.previewMode==1 then
+        local names={}
+        for _,expression in ipairs(E.project.expressions or {}) do names[#names+1]=expression.name end
+        if #names==0 then
+            tImGui.TextDisabled(L('preview_no_expressions'))
+        else
+            E.previewExpressionSelected=math.max(1,math.min(#names,E.previewExpressionSelected))
+            tImGui.SetNextItemWidth(260)
+            local changed,index=tImGui.Combo(L('preview_expression')..'##mrePreviewExpression',
+                E.previewExpressionSelected,names)
+            if changed then
+                E.previewExpressionSelected=index
+                invalidateMorphPreview()
+                E.modified=true
+            end
+            showHelpTooltip(L('preview_expression_help'))
+        end
+    else
+        local names={}
+        for _,clip in ipairs(clips) do names[#names+1]=clip.name end
+        if #names==0 then
+            tImGui.TextDisabled(L('preview_no_clips'))
+        else
+            E.previewClipSelected=math.max(1,math.min(#names,E.previewClipSelected))
+            tImGui.SetNextItemWidth(260)
+            local changed,index=tImGui.Combo(L('preview_clip')..'##mrePreviewClip',E.previewClipSelected,names)
+            if changed then
+                E.previewClipSelected=index
+                E.previewClipTime=0
+                E.previewClipPlaying=false
+                invalidateMorphPreview()
+                E.modified=true
+            end
+            showHelpTooltip(L('preview_clip_help'))
+            local clip=clips[E.previewClipSelected]
+            if clip then
+                local duration=math.max(tonumber(clip.duration) or 1,0.001)
+                tImGui.SetNextItemWidth(260)
+                local timeChanged,time=tImGui.SliderFloat(L('preview_time')..'##mrePreviewTime',
+                    E.previewClipTime,0,duration,'%.3f s')
+                if timeChanged then
+                    E.previewClipTime=time
+                    E.previewClipPlaying=false
+                    invalidateMorphPreview()
+                end
+                tImGui.SameLine()
+                if tImGui.Button(L('preview_play')..'##mrePreviewPlay',{x=110,y=0}) then
+                    E.previewClipPlaying=not E.previewClipPlaying
+                end
+                tImGui.SameLine()
+                if tImGui.Button(L('preview_stop')..'##mrePreviewStop',{x=90,y=0}) then
+                    E.previewClipPlaying=false
+                    E.previewClipTime=0
+                    invalidateMorphPreview()
+                end
+            end
+        end
+    end
+    local previewTarget,report=morphPreviewData()
+    tImGui.SetNextItemWidth(260)
+    local weightChanged,weight=tImGui.SliderFloat(L('preview_weight')..'##mrePreviewWeight',
+        E.targetPreviewWeight,0,1,'%.2f')
+    if weightChanged then
+        E.targetPreviewWeight=math.max(0,math.min(1,weight))
+        tTargetPreview.setWeight(E,E.targetPreviewWeight)
+        E.modified=true
+    end
+    showHelpTooltip(L('preview_weight_help'))
+    local visible=tImGui.Checkbox(L('preview_displacement')..'##mrePreviewDisplacement',E.targetPreviewVisible)
+    showHelpTooltip(L('preview_displacement_help'))
+    if visible~=E.targetPreviewVisible then
+        E.targetPreviewVisible=visible
+        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        E.modified=true
+    end
+    if report then
+        tImGui.Text(string.format(L('preview_summary'),report.active,report.missing,report.stale))
+        if report.missing>0 or report.stale>0 then
+            tImGui.TextWrapped(L('preview_invalid'))
+        elseif report.active==0 then
+            tImGui.TextDisabled(L('preview_empty'))
+        elseif previewTarget then
+            tImGui.Text(L('preview_ready'))
+        end
+    end
+end
+
 local function drawSelectedRegionSelector()
     if #E.project.regions==0 then
         tImGui.TextDisabled(L('no_shapes'))
@@ -3608,6 +3803,10 @@ local function selectWorktree(worktree)
         setStatus(L('clip_worktree_sequence_help'),true)
         return
     end
+    if worktree==5 and not hasReadyExpression() then
+        setStatus(L('preview_worktree_sequence_help'),true)
+        return
+    end
     if E.worktree==worktree then return end
     E.worktree=worktree
     E.selectedPoint=nil
@@ -3623,7 +3822,9 @@ local function selectWorktree(worktree)
     E.targetPreviewDirty=true
     invalidateExpressionPreview()
     invalidateClipPreview()
+    invalidateMorphPreview()
     E.clipPlaying=false
+    E.previewClipPlaying=false
     if worktree~=1 then
         E.shapeMirrorCandidate=nil
         E.shapeMirrorNeedsPrepare=false
@@ -3743,6 +3944,9 @@ local function drawControls()
     local clipsEnabled=hasReadyExpression()
     drawWorktreeNode(4,L('worktree_clips'),drawClipsNode,clipsEnabled)
     if not clipsEnabled then tImGui.TextDisabled(L('clip_worktree_sequence_help')) end
+    local previewEnabled=hasReadyExpression()
+    drawWorktreeNode(5,L('worktree_preview'),drawPreviewNode,previewEnabled)
+    if not previewEnabled then tImGui.TextDisabled(L('preview_worktree_sequence_help')) end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
         else tImGui.TextWrapped(E.status) end
@@ -3762,6 +3966,7 @@ end
 
 function onLoop(delta)
     updateClipPlayback(delta)
+    updateMorphPreviewPlayback(delta)
     if E.regionStatusDirty then
         local region=selectedRegion()
         E.selectedRegionStatus=region and tRegions.status(region,E.topology) or 'missing'

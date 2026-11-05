@@ -117,7 +117,7 @@ end
 
 function M.rebuild(state)
     if not state.topology then M.destroy(state); return end
-    if state.worktree==3 or state.worktree==4 then
+    if state.worktree==3 or state.worktree==4 or state.worktree==5 then
         for _,entry in pairs(state.regionOverlay or {}) do destroy(entry.line) end
         state.regionOverlay={}
         destroy(state.regionMirrorPreviewLine)

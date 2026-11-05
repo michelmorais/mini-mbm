@@ -9,10 +9,10 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
 The Facial Rig Editor can author facial morph targets. The generic Morph Editor implementation now
-reaches milestone 2.5, including non-facial surface regions, target sculpting, mirroring, smoothing,
-runtime export validation, the complete manual coverage pass, and generic named expressions. Generic
-region and project modules remain reusable for future editor tools; capture expansion remains a
-separate future milestone.
+reaches milestone 2.7, including non-facial surface regions, target sculpting, mirroring, smoothing,
+runtime export validation, the complete manual coverage pass, generic named expressions, clips, and
+read-only expression/clip preview. Generic region and project modules remain reusable for future
+editor tools; capture expansion remains a separate future milestone.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -291,6 +291,26 @@ Acceptance: a generic Morph Editor project can create, edit, save, reload, and r
 insert Expression and neutral keys; sample a clip at zero, partial, and full times; play a looping
 and a non-looping clip; and preserve stable target references. The source MSH, Morph Targets, and
 Expressions remain unchanged. Invalid target references are visible before preview or later export.
+
+**Milestone 2.7 - generic Morph preview (implemented).** Add the sequential `Preview` worktree
+after `Clips`. Preview is a read-only inspection stage that composes either a saved Expression or a
+sampled Morph clip from stable target IDs. Expression mode selects a saved pose; Clip mode exposes
+source selection, time scrubbing, Play, Stop, and the clip's saved looping/interpolation behavior.
+Both modes share the neutral-to-full preview weight and the shader/textured displacement toggle.
+Surface-shape contours and selectors are hidden while Preview is active. Invalid or stale target
+references are reported and do not produce a misleading partial pose.
+
+The preview reuses the dynamic in-memory target surface. Changing the source or scrub time updates
+its sparse deltas; it does not create a temporary mesh on every frame. Preview playback changes only
+transient editor state and never modifies the source MSH, Morph Targets, Expressions, or Clips.
+Preview mode, source selections, and preview weight are persisted as editor preferences in project
+schema 6; playback is always stopped after reopening.
+
+Acceptance: a generic Morph Editor project with valid Expressions can inspect an Expression at zero,
+partial, and full weight; inspect a Clip at zero, partial, and full time; play looping and
+non-looping clips; toggle shader/textured displacement; hide the source shape controls; report
+invalid references; and reopen with the selected Preview settings restored. Idle and playback frames
+must not rebuild temporary preview geometry.
 
 ## Phase 3 - FACS authoring profiles
 

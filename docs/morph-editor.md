@@ -12,8 +12,8 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 project, **Ctrl+O** opens a project, and **Ctrl+S** saves the current project. **Ctrl+Z** and
 **Ctrl+Y** undo and redo completed paint strokes.
 
-The Morph Editor currently presents four sequential worktree nodes: **Surface shapes**,
-**Morph targets**, **Expressions**, and **Clips**. The first worktree follows the interaction model of the
+The Morph Editor currently presents five sequential worktree nodes: **Surface shapes**,
+**Morph targets**, **Expressions**, **Clips**, and **Preview**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**,
 **Mirror shape**, and **Remove shape**; each mode exposes only the controls needed for that
@@ -127,8 +127,9 @@ language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surfac
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
 target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
-selected clip key, clip preview weight, timeline visibility, and the Morph viewport camera. These
-settings are restored when the project is opened and are part of the project dirty state when changed.
+selected clip key, clip preview weight, Preview mode and source selections, and the Morph viewport
+camera. These settings are restored when the project is opened and are part of the project dirty
+state when changed.
 
 ## Editing a shape
 
@@ -230,6 +231,25 @@ in this milestone. The Clips worktree consumes the saved expressions as keyframe
 
 Clips retain stable Morph Target IDs and report missing or stale target references. They do not
 introduce FACS metadata, modify saved Expressions or Morph Targets, or export to MSH yet.
+
+## Preview
+
+1. Create at least one valid Expression. The **Preview** worktree becomes available after the
+   expression is ready; it is intentionally read-only with respect to authored Morph data.
+2. Select **Preview expression** and choose a saved Expression. Inspect the composed pose with
+   **Preview weight**, from neutral at `0` to the complete pose at `1`.
+3. Select **Preview clip** and choose a saved Morph clip. Scrub **Time**, or use **Play** and
+   **Stop** to inspect the sampled clip pose. Looping and interpolation follow the saved clip.
+4. Toggle **Show displacement** to compare the displacement shader visualization with the textured
+   displaced mesh. Surface shapes and their selectors remain hidden in this worktree.
+5. Save and reopen the project. The selected Preview mode, Expression/Clip source, preview weight,
+   language, worktree, and other editor preferences are restored; Preview playback itself is not
+   persisted and restarts stopped.
+
+Preview composes stable target IDs in memory and reports missing or stale references instead of
+silently dropping them. During clip playback it updates the existing dynamic surface buffers, so
+the preview does not generate a temporary mesh on every frame. It does not change Expressions,
+Clips, Morph Targets, or the source MSH.
 
 Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
 and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The
