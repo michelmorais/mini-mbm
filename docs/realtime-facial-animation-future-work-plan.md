@@ -10,8 +10,10 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 
 The Facial Rig Editor can author facial morph targets. The generic Morph Editor implementation now
 reaches milestone 2.7, including non-facial surface regions, target sculpting, mirroring, smoothing,
-runtime export validation, the complete manual coverage pass, generic named expressions, clips, and
-read-only expression/clip preview with runtime skinning comparison and skeletal playback controls.
+runtime export validation, the complete manual coverage pass, generic named expressions, clips,
+native MSH clip export, and read-only expression/clip preview with runtime skinning comparison and
+skeletal playback controls. Morph clips were manually reloaded from MSH and validated together with
+skeletal clips in MeshDebug.
 Generic region and project modules remain reusable for future editor tools; capture expansion remains
 a separate future milestone.
 
@@ -275,7 +277,7 @@ Acceptance: a generic Morph Editor project can create, preview, edit, save, relo
 named multi-target expression; each target weight is clamped to `0..1`; the source targets and MSH
 remain unchanged; and an invalid target reference is visible in the expression status.
 
-**Milestone 2.6 - generic Morph clips (implemented).** Add the sequential `Clips` worktree after
+**Milestone 2.6 - generic Morph clips (implemented and validated).** Add the sequential `Clips` worktree after
 `Expressions`. A clip stores ordered keys with stable Morph Target IDs and normalized weights; it
 does not store FACS metadata and does not require a facial mesh. Add mode creates a named clip with
 neutral keys at time zero and at the end of its initial duration. Edit mode can insert a saved
@@ -296,7 +298,7 @@ and a non-looping clip; preserve stable target references; export selected clips
 derived MSH; and play the exported clips in MeshDebug. The source MSH, Morph Targets, and
 Expressions remain unchanged. Invalid target references are visible before preview or export.
 
-**Milestone 2.7 - generic Morph preview (implemented).** Add the sequential `Preview` worktree
+**Milestone 2.7 - generic Morph preview (implemented and validated).** Add the sequential `Preview` worktree
 after `Clips`. Preview is a read-only inspection stage that composes either a saved Expression or a
 sampled Morph clip from stable target IDs. Expression mode selects a saved pose; Clip mode exposes
 source selection, time scrubbing, Play, Stop, and the clip's saved looping/interpolation behavior.
