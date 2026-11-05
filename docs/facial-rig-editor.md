@@ -18,7 +18,7 @@ The **Morph Targets** worktree has four modes:
 
 The convention field stores a label: `ARKit`, `FACS`, or `Manual`. It does not convert channels or
 change the deformation. FACS uses facial Action Unit names; the editor does not implement an
-automatic Action Unit solver. Existing imported convention labels remain intact until changed.
+automatic Action Unit solver.
 
 Edit Target can apply a batch transform to all vertices, a selected vertex, or a facial selection
 mask. Masked translation and rotation can use a soft edge over adjacent connected triangle rings.
@@ -98,7 +98,7 @@ list already includes the chin and both jaw hinges; they are optional rig refere
 jaw polygon is a separate influence region.
 
 All mask outlines remain visible. The shared default palette uses cyan for influence areas on both
-sides and for future facial templates. Group controllers use green. The group controller is a
+sides and for facial templates. Group controllers use green. The group controller is a
 larger green square with a cross. Only the selected mask
 displays square anchors for editing. Each square faces the camera in the view plane through its
 polygon vertex, so its visible corners stay at the vertex's camera depth while the camera orbits.
@@ -152,20 +152,19 @@ stale; the editor reports that state and requires explicit regeneration before t
 used. **Create Morph Target mask** creates an independent, editable snapshot of a current
 region's selected vertices and opens it for visual review. The copy does not remain linked to the
 source. The **Vertex mask** workflow instead shows Rig role management and classic vertex
-masks here; it does not show FACS region generation. Surface falloff,
-automatic rig-weight assignment, and Blender bridge transport of generated regions remain future
-work.
+masks here; it does not show FACS region generation. Surface falloff, automatic rig-weight
+assignment, and Blender bridge transport of generated regions are not part of FACS region
+generation.
 
 For FACS regions, the target operation is explicit: **Create Target** creates a new independent
 Morph Target selection mask, while **Update Target** reveals the **Target mask to update** combo and
 replaces the selected mask's vertices. In Update Target mode, **Regenerate region and update target**
 performs both operations in one action; the combo is not shown in Create Target mode.
 
-Generated regions also carry the generic region fields used by the upcoming Morph Editor:
+Generated regions also carry generic region fields used by the Morph Editor:
 polygon kind, canonical surface anchors, topology identity, and rebuildable vertex weights. Facial
-generation retains its front-depth and mesh-subset rules; the generic polygon core is being prepared
-for non-facial meshes separately. This first generic core derives binary vertex selections. Its
-stored falloff settings do not affect weights yet.
+generation retains its front-depth and mesh-subset rules. The generated region derives binary
+vertex selections, and its stored falloff settings do not affect weights.
 
 Projects choose one authoring workflow in **Setup**: **Vertex mask** uses classic facial
 landmarks, Rig roles, and vertex masks, while **FACS mask** uses surface-action templates, generated
@@ -276,8 +275,8 @@ Action Unit profiles.
 Use **Open capture replay** to load the file, then **Start replay**. **Loop replay** repeats a file
 with a positive duration. **Reset to neutral on stop or end** is enabled by default and clears the
 current facial weights at EOF, when stopping, or when leaving the workspace. The replay does not
-change the saved facial project or MSH. This adapter defines the deterministic packet contract for
-future OSC or webcam adapters; AU-to-profile evaluation and live transport are separate milestones.
+change the saved facial project or MSH. The packet contract is deterministic and independent of
+the authoring project.
 
 Two reproducible fixtures are included under `editor/fixtures/`:
 
@@ -302,7 +301,7 @@ mask** workflow. It uses the classic rig bridge and landmark roles to create sta
 it does not consume FACS surface polygons or Action Unit profiles. FACS projects
 create or import Morph Targets in the **Morph Targets** workspace and export the runtime MSH
 without the classic skeleton and vertex-weight materialization step. The Blender bridge export is
-also hidden in the FACS workflow until a FACS-specific interchange is implemented.
+not available in the FACS workflow.
 
 ## Project and MSH persistence
 
@@ -324,7 +323,13 @@ mapping; geometric vertex normals remain available for facial normal deltas. Mes
 runtime mesh instance can read the exported targets. A new project opened on an MSH that already
 has targets does not remove them.
 
-The current format and runtime contracts are in [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1),
+The format and runtime contracts are in [Mesh V11 format](mesh-v11-format.md#facial-sections-45-46-version-1),
 [Real-Time Skeletal Animation and Editor](realtime-skeletal-animation.md#facial-composition-on-the-same-mesh),
-and the [Lua API](lua-api.md#facial-targets-and-clips-mesh). Remaining work is listed in the
-[facial animation plan](realtime-facial-animation-future-work-plan.md).
+and the [Lua API](lua-api.md#facial-targets-and-clips-mesh).
+
+## Future notes
+
+Possible extensions include live capture transports, replay inputs expressed as Action Units
+resolved through FACS profiles, and a FACS-specific Blender interchange. These are optional
+integrations; the current editor operates with authored targets, project profiles, deterministic
+named-target replay, and MSH export without them.

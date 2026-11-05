@@ -2,7 +2,7 @@
 
 The Morph Editor is a generic tool for authoring surface shapes on any MSH mesh. It does not
 require a face origin, facial landmarks, facial roles, or FACS data. The launcher entry is
-`Morph Editor`, implemented by `editor/morph_region_editor.lua`.
+`Morph Editor` and its main implementation is `editor/morph_region_editor.lua`.
 Its topology, shape geometry, and region data come from `morph_surface_topology.lua`,
 `morph_surface_polygon.lua`, `morph_surface_shapes.lua`, and `morph_surface_regions.lua`.
 Linux and macOS builds with Lua also create the `morph_editor` shell alias in `shortcuts.sh`.
@@ -12,7 +12,7 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 project, **Ctrl+O** opens a project, and **Ctrl+S** saves the current project. **Ctrl+Z** and
 **Ctrl+Y** undo and redo completed paint strokes.
 
-The Morph Editor currently presents five sequential worktree nodes: **Surface shapes**,
+The Morph Editor presents five sequential worktree nodes: **Surface shapes**,
 **Morph targets**, **Expressions**, **Clips**, and **Preview**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**,
@@ -71,7 +71,7 @@ The center controller moves the complete shape. Resize controllers change only t
 dimensions. All shape controls are drawn in the current camera plane and the selected worktree
 shows the handles over the selected surface contour.
 
-## Current scope
+## Capabilities
 
 - Open a mesh and create named Square, Circle / ellipse, or Free polygon shapes.
 - Creating a Square or Circle / ellipse places it at the center of the current viewport when the
@@ -120,8 +120,8 @@ offset changes the polygon point but does not force its original neutral vertex 
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
-automatically transferred. The current project schema is version 6; older Morph Editor project
-files are intentionally rejected while this editor is being developed.
+automatically transferred. The project schema is version 6; files with another version are
+rejected.
 
 The project also persists the editor preferences used to continue the same authoring session:
 language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surface-snap axis,
@@ -129,9 +129,8 @@ new-shape type and Free flag, mirror-shape name/axis, target name and translatio
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
 target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
 selected clip key, clip preview weight, Preview mode and source selections, the MSH export clip
-option, and the Morph viewport camera. These settings are restored when the project is opened and
-are part of the project dirty
-state when changed.
+option, and the Morph viewport camera. These settings are restored when the project is opened.
+Changing them marks the project as modified.
 
 ## Editing a shape
 
@@ -294,15 +293,13 @@ right-drag on the displaced surface to apply local Move or Smooth edits; left-dr
 middle button pans. Shape anchors are editable only in **Surface shapes**. Selecting a target
 selects its source shape for inspection without changing the source geometry.
 
-This initial target worktree stores generic authoring data. Its editor preview uses a dynamic
-in-memory surface overlay and does not modify or regenerate the source MSH while the preview weight
-changes. Paint strokes are accumulated in memory and committed when the right button is released;
-the preview rebuilds once per completed stroke. The explicit MSH export copies the source mesh and
-writes the generic targets as dense runtime morph targets without changing the authoring source;
-runtime reload validation is complete for the exported MSH workflow, including project Morph clips,
-smoothing now supports configurable surface-neighbor passes, and export supports explicit
-normal-delta preservation or surface recomputation. Mirroring is available through the explicit
-Analyze/Create workflow described above.
+The editor preview uses a dynamic in-memory surface overlay and does not modify or regenerate the
+source MSH while the preview weight changes. Paint strokes are accumulated in memory and committed
+when the right button is released; the preview rebuilds once per completed stroke. MSH export copies
+the source mesh, writes generic targets as dense runtime morph targets, and can include project
+Morph clips without changing the authoring source. Export supports explicit normal-delta
+preservation or surface recomputation. Mirroring uses the explicit Analyze/Create workflow
+described above.
 
 Opening or closing a free contour and removing an anchor invalidate the derived vertex selection
 without scanning the mesh immediately. Use **Rebuild selection** when the contour is ready; this is
@@ -312,11 +309,13 @@ Adjusting a shape to the surface also invalidates its derived vertex selection. 
 changes the authored point offsets; it does not regenerate the covered-vertex list automatically.
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
-region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback and combined skeletal playback were validated in MeshDebug and in a runtime mesh instance.
-The complete authoring workflow was also covered manually with the Megan mesh: locked and free
-shapes, shape and target mirroring, target painting and smoothing, undo/redo, project reload, MSH
-export, and both normal-delta policies. Expressions were then validated with project reload and
-composed preview. The current implementation also includes the Clips worktree described above;
-its visual acceptance and runtime MSH reload are covered by milestone 2.6 of the
-[facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+modules; triangulation is not exposed as the meaning of the influence field. Morph targets and
+native facial clips can be loaded by MeshDebug and runtime mesh instances, including simultaneous
+facial and skeletal playback.
+
+## Future notes
+
+Possible extensions include weighted region falloff for generic surface selections, additional
+shape primitives, and interchange with tools that use a separate expression or clip format. These
+are optional extensions; the current project, target, expression, clip, preview, and MSH export
+workflows do not depend on them.
