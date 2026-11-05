@@ -43,7 +43,8 @@ of stable Morph Target IDs and normalized weights. Add mode creates a clip with 
 time zero and at the end of its initial duration. Edit mode inserts Expression or neutral keys,
 changes duration, frame rate, looping, and interpolation, and previews the sampled pose in memory.
 Remove mode deletes only the selected clip. The clip worktree does not evaluate FACS Action Units,
-does not change Expressions or Morph Targets, and hides surface-shape contours and handles.
+does not change Expressions or Morph Targets, and hides surface-shape contours and handles. Its
+timeline is shown in a separate window, matching the Facial Rig Editor workflow.
 
 ## Shape modes
 
@@ -126,7 +127,7 @@ language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surfac
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
 target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
-clip preview weight, and the Morph viewport camera. These
+clip preview weight, timeline visibility, and the Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -220,7 +221,7 @@ in this milestone. The Clips worktree consumes the saved expressions as keyframe
    neutral key** to define a neutral pose. Existing keys at the same time are replaced.
 4. Adjust duration, frame rate, looping, and Step/Linear interpolation. The editor scales key
    times when duration changes so the authored timing remains proportional.
-5. Move the time slider or press **Play**. The preview samples target weights in memory and uses
+5. Use the separate clip timeline window to move the time slider or press **Play**. The preview samples target weights in memory and uses
    the clip preview weight to blend from neutral to the sampled pose. Stop returns to time `0`.
 6. Use the key table to inspect and select keys. **Remove clip** deletes only the selected clip.
 

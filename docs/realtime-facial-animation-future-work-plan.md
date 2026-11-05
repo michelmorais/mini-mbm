@@ -280,7 +280,8 @@ does not store FACS metadata and does not require a facial mesh. Add mode create
 neutral keys at time zero and at the end of its initial duration. Edit mode can insert a saved
 Expression or a neutral key at the current time, change duration, frame rate, looping, and
 Step/Linear interpolation, and preview the sampled composition through the existing in-memory
-Morph overlay. Remove mode deletes only the selected clip. During playback, the preview updates
+Morph overlay. The clip timeline is displayed in a separate window, following the Facial Rig
+Editor interaction pattern. Remove mode deletes only the selected clip. During playback, the preview updates
 the existing dynamic surface buffers instead of rebuilding temporary geometry every frame. Missing
 or stale target references are reported and prevent a complete clip preview. Clips are persisted
 in Morph Editor project schema 6 and are not exported to MSH in this milestone.

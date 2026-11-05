@@ -58,6 +58,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     worktree=1,targetMode=1,targetNameDraft='target',targetNameSourceId=nil,targetDx=0,targetDy=0,targetDz=0,
     expressionMode=1,expressionNameDraft='expression',expressionDraft=nil,
     clipMode=1,clipNameDraft='clip',clipSelectedExpression=1,clipTime=0,clipPlaying=false,
+    clipTimelineVisible=true,
     clipPreviewWeight=1,clipPreview={key=nil,target=nil,report=nil},
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
@@ -172,6 +173,7 @@ local function saveEditorPreferences()
     preferences.clipNameDraft=E.clipNameDraft
     preferences.clipSelectedExpression=E.clipSelectedExpression
     preferences.clipPreviewWeight=E.clipPreviewWeight
+    preferences.clipTimelineVisible=E.clipTimelineVisible
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
     preferences.nameDraft=E.nameDraft
@@ -244,6 +246,7 @@ local function restoreEditorPreferences(project)
     E.clipTime=0
     E.clipPlaying=false
     E.clipPreviewWeight=math.max(0,math.min(1,tonumber(preferences.clipPreviewWeight) or 1))
+    E.clipTimelineVisible=preferences.clipTimelineVisible~=false
     E.clipPreview={key=nil,target=nil,report=nil}
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
@@ -3212,8 +3215,27 @@ local function drawClipKeys(clip)
     end
 end
 
-local function drawClipTimeline(clip)
-    if not clip then return end
+local function drawClipTimelineWindow(clip)
+    if E.worktree~=4 or not E.clipTimelineVisible or not clip then return end
+    local screenWidth,screenHeight=mbm.getRealSizeScreen()
+    local windowHeight=300
+    local left=math.max(400,math.min(520,screenWidth-460))
+    tImGui.SetNextWindowPos({x=left,y=math.max(0,screenHeight-windowHeight)},tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x=math.max(460,screenWidth-left),y=windowHeight},tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=460,y=230},
+        {x=math.max(460,screenWidth),y=math.max(230,screenHeight)})
+    local opened,closed=tImGui.Begin(L('clip_timeline_window')..'###MorphClipTimeline',true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if closed then
+        E.clipTimelineVisible=false
+        E.modified=true
+    end
+    if not opened then
+        tImGui.End()
+        return
+    end
+    tImGui.Text(string.format(L('clip_timeline_selection'),clip.name or ''))
+    tImGui.TextWrapped(L('clip_timeline_help'))
     local duration=math.max(tonumber(clip.duration) or 1,0.001)
     tImGui.SetNextItemWidth(220)
     local timeChanged,time=tImGui.SliderFloat(L('clip_time')..'##mreClipTime',E.clipTime,0,duration,'%.3f s')
@@ -3263,6 +3285,16 @@ local function drawClipTimeline(clip)
         tImGui.TextDisabled(L('clip_requires_expression'))
     end
     drawClipKeys(clip)
+    local report=clipReport(clip)
+    if report then
+        tImGui.Text(string.format(L('clip_preview_summary'),report.active,report.missing,report.stale))
+        local validation=tClips.validate(clip)
+        if not validation.ok then
+            tImGui.TextWrapped(L('clip_invalid'))
+            for _,message in ipairs(validation.errors) do tImGui.BulletText(message) end
+        end
+    end
+    tImGui.End()
 end
 
 local function drawClipsNode()
@@ -3332,7 +3364,12 @@ local function drawClipsNode()
                 local interpolationChanged,interpolation=tImGui.Combo(L('clip_interpolation')..'##mreClipInterpolation',
                     clip.interpolation==0 and 1 or 2,interpolationLabels)
                 if interpolationChanged then clip.interpolation=interpolation==1 and 0 or 1;markChanged();invalidateClipPreview() end
-                drawClipTimeline(clip)
+                local timelineText=E.clipTimelineVisible and L('clip_timeline_hide') or L('clip_timeline_show')
+                if tImGui.Button(timelineText..'##mreClipTimelineToggle') then
+                    E.clipTimelineVisible=not E.clipTimelineVisible
+                    E.modified=true
+                end
+                showHelpTooltip(L('clip_timeline_toggle_help'))
             end
         end
     end
@@ -3695,6 +3732,7 @@ function onLoop(delta)
     showMenu()
     syncLanguagePreference()
     drawControls()
+    drawClipTimelineWindow(selectedClip())
     showCameraPanel()
     updateTargetBrushHover()
     drawTargetBrushCursor()
