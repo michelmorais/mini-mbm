@@ -36,14 +36,16 @@ end
 
 local function ensureShader()
     if mbm.existShader(SHADER_NAME) then return true end
+    -- Keep zero-displacement vertices visible against the dark editor background.
+    -- Targets without deltas must still show the neutral mesh silhouette.
     local code
     if mbm.get('USE_METAL') then
         code=[=[
         fragment float4 frag_main(VOut in [[stage_in]])
         {
             float selected=clamp(in.uv.x,0.0f,1.0f);
-            float3 color=mix(float3(0.12f,0.15f,0.20f),float3(0.05f,0.85f,1.00f),selected);
-            return float4(color,mix(0.35f,0.92f,selected));
+            float3 color=mix(float3(0.38f,0.42f,0.48f),float3(0.05f,0.85f,1.00f),selected);
+            return float4(color,mix(0.90f,0.92f,selected));
         }
         ]=]
     elseif mbm.get('USE_DIRECTX11') then
@@ -57,8 +59,8 @@ local function ensureShader()
         float4 main(PSInput input) : SV_TARGET
         {
             float selected=saturate(input.texCoord.x);
-            float3 color=lerp(float3(0.12,0.15,0.20),float3(0.05,0.85,1.00),selected);
-            return float4(color,lerp(0.35,0.92,selected));
+            float3 color=lerp(float3(0.38,0.42,0.48),float3(0.05,0.85,1.00),selected);
+            return float4(color,lerp(0.90,0.92,selected));
         }
         ]]
     elseif mbm.get('USE_DIRECTX9') then
@@ -66,8 +68,8 @@ local function ensureShader()
         float4 main(float2 texCoord : TEXCOORD0) : COLOR0
         {
             float selected=saturate(texCoord.x);
-            float3 color=lerp(float3(0.12,0.15,0.20),float3(0.05,0.85,1.00),selected);
-            return float4(color,lerp(0.35,0.92,selected));
+            float3 color=lerp(float3(0.38,0.42,0.48),float3(0.05,0.85,1.00),selected);
+            return float4(color,lerp(0.90,0.92,selected));
         }
         ]]
     else
@@ -78,8 +80,8 @@ local function ensureShader()
         void main()
         {
             float selected=clamp(vTexCoord.x,0.0,1.0);
-            vec3 color=mix(vec3(0.12,0.15,0.20),vec3(0.05,0.85,1.00),selected);
-            gl_FragColor=vec4(color,mix(0.35,0.92,selected));
+            vec3 color=mix(vec3(0.38,0.42,0.48),vec3(0.05,0.85,1.00),selected);
+            gl_FragColor=vec4(color,mix(0.90,0.92,selected));
         }
         ]]
     end
