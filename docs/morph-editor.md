@@ -127,7 +127,7 @@ language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surfac
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
 target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
-clip preview weight, timeline visibility, and the Morph viewport camera. These
+selected clip key, clip preview weight, timeline visibility, and the Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -217,13 +217,15 @@ in this milestone. The Clips worktree consumes the saved expressions as keyframe
 1. Create and save at least one valid Expression, then open the **Clips** worktree.
 2. In **Add clip**, enter a unique name and create the clip. The initial clip contains neutral
    keys at time `0` and at the end of its one-second duration.
-3. In **Edit clip**, choose an Expression source and insert it at the current time. Use **Insert
-   neutral key** to define a neutral pose. Existing keys at the same time are replaced.
+3. In the separate timeline window, choose an Expression source and insert it at the current
+   time. **Capture current key** stores the currently sampled Morph pose; use **Reset Morph weights**
+   before capturing when a neutral key is needed. Existing keys at the same time are replaced.
 4. Adjust duration, frame rate, looping, and Step/Linear interpolation. The editor scales key
    times when duration changes so the authored timing remains proportional.
 5. Use the separate clip timeline window to move the time slider or press **Play**. The preview samples target weights in memory and uses
    the clip preview weight to blend from neutral to the sampled pose. Stop returns to time `0`.
-6. Use the key table to inspect and select keys. **Remove clip** deletes only the selected clip.
+6. Use the key table to inspect and select keys. **Remove selected key** removes an intermediate
+   key; the required time-zero and end keys remain. **Remove clip** deletes only the selected clip.
 
 Clips retain stable Morph Target IDs and report missing or stale target references. They do not
 introduce FACS metadata, modify saved Expressions or Morph Targets, or export to MSH yet.

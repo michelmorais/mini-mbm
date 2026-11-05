@@ -57,7 +57,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     shapeMirrorNeedsPrepare=false,shapeMirrorCandidate=nil,
     worktree=1,targetMode=1,targetNameDraft='target',targetNameSourceId=nil,targetDx=0,targetDy=0,targetDz=0,
     expressionMode=1,expressionNameDraft='expression',expressionDraft=nil,
-    clipMode=1,clipNameDraft='clip',clipSelectedExpression=1,clipTime=0,clipPlaying=false,
+    clipMode=1,clipNameDraft='clip',clipSelectedExpression=1,clipTime=0,clipKeySelected=1,clipPlaying=false,
     clipTimelineVisible=true,
     clipPreviewWeight=1,clipPreview={key=nil,target=nil,report=nil},
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
@@ -172,6 +172,7 @@ local function saveEditorPreferences()
     preferences.clipMode=E.clipMode
     preferences.clipNameDraft=E.clipNameDraft
     preferences.clipSelectedExpression=E.clipSelectedExpression
+    preferences.clipKeySelected=E.clipKeySelected
     preferences.clipPreviewWeight=E.clipPreviewWeight
     preferences.clipTimelineVisible=E.clipTimelineVisible
     preferences.newShapeType=E.newShapeType
@@ -244,6 +245,7 @@ local function restoreEditorPreferences(project)
         preferences.clipNameDraft~='' and preferences.clipNameDraft or 'clip'
     E.clipSelectedExpression=math.max(1,math.floor(tonumber(preferences.clipSelectedExpression) or 1))
     E.clipTime=0
+    E.clipKeySelected=math.max(1,math.floor(tonumber(preferences.clipKeySelected) or 1))
     E.clipPlaying=false
     E.clipPreviewWeight=math.max(0,math.min(1,tonumber(preferences.clipPreviewWeight) or 1))
     E.clipTimelineVisible=preferences.clipTimelineVisible~=false
@@ -395,6 +397,7 @@ local function destroyMesh()
     E.expressionPreview={key=nil,target=nil,report=nil}
     E.clipPreview={key=nil,target=nil,report=nil}
     E.clipTime=0
+    E.clipKeySelected=1
     E.clipPlaying=false
     E.targetMirrorPlan=nil
     E.targetMirrorCandidate=nil
@@ -1288,6 +1291,7 @@ local function selectClip(index)
     E.project.selectedClip=index
     E.clipNameDraft=E.project.clips[index].name or 'clip'
     E.clipTime=0
+    E.clipKeySelected=1
     E.clipPlaying=false
     invalidateClipPreview()
     E.modified=true
@@ -1325,6 +1329,9 @@ local function insertClipKey(weights)
     local clip=selectedClip()
     if not clip then return false end
     tClips.insertKey(clip,E.clipTime,weights)
+    for index,key in ipairs(clip.keys or {}) do
+        if math.abs((key.time or 0)-E.clipTime)<0.000001 then E.clipKeySelected=index;break end
+    end
     invalidateClipPreview()
     markChanged()
     return true
@@ -3205,7 +3212,8 @@ local function drawClipKeys(clip)
             tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(count))
             tImGui.TableSetColumnIndex(3)
             if tImGui.Selectable(L('clip_select_key')..'##mreClipKey'..tostring(index),
-                    math.abs((E.clipTime or 0)-(key.time or 0))<0.000001) then
+                    index==E.clipKeySelected) then
+                E.clipKeySelected=index
                 E.clipTime=math.max(0,math.min(clip.duration,key.time or 0))
                 E.clipPlaying=false
                 invalidateClipPreview()
@@ -3218,12 +3226,12 @@ end
 local function drawClipTimelineWindow(clip)
     if E.worktree~=4 or not E.clipTimelineVisible or not clip then return end
     local screenWidth,screenHeight=mbm.getRealSizeScreen()
-    local windowHeight=300
-    local left=math.max(400,math.min(520,screenWidth-460))
+    local windowHeight=280
+    local left=math.max(0,math.min(390,screenWidth-420))
     tImGui.SetNextWindowPos({x=left,y=math.max(0,screenHeight-windowHeight)},tImGui.Flags('ImGuiCond_Once'))
-    tImGui.SetNextWindowSize({x=math.max(460,screenWidth-left),y=windowHeight},tImGui.Flags('ImGuiCond_Once'))
-    tImGui.SetNextWindowSizeConstraints({x=460,y=230},
-        {x=math.max(460,screenWidth),y=math.max(230,screenHeight)})
+    tImGui.SetNextWindowSize({x=math.max(420,screenWidth-left),y=windowHeight},tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSizeConstraints({x=420,y=210},
+        {x=math.max(420,screenWidth),y=math.max(210,screenHeight)})
     local opened,closed=tImGui.Begin(L('clip_timeline_window')..'###MorphClipTimeline',true,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if closed then
@@ -3235,35 +3243,32 @@ local function drawClipTimelineWindow(clip)
         return
     end
     tImGui.Text(string.format(L('clip_timeline_selection'),clip.name or ''))
+    tImGui.SameLine()
+    tImGui.Text(string.format(L('clip_timeline_key_selection'),E.clipKeySelected or 1))
     tImGui.TextWrapped(L('clip_timeline_help'))
+    local names={}
+    for _,expression in ipairs(E.project.expressions or {}) do names[#names+1]=expression.name end
+    if #names>0 then
+        E.clipSelectedExpression=math.max(1,math.min(#names,E.clipSelectedExpression))
+        tImGui.SetNextItemWidth(280)
+        local changed,index=tImGui.Combo(L('clip_expression_source')..'##mreClipExpressionSource',
+            E.clipSelectedExpression,names)
+        if changed then E.clipSelectedExpression=index;E.modified=true end
+        showHelpTooltip(L('clip_expression_source_help'))
+    else
+        tImGui.TextDisabled(L('clip_requires_expression'))
+    end
     local duration=math.max(tonumber(clip.duration) or 1,0.001)
-    tImGui.SetNextItemWidth(220)
+    tImGui.SetNextItemWidth(420)
     local timeChanged,time=tImGui.SliderFloat(L('clip_time')..'##mreClipTime',E.clipTime,0,duration,'%.3f s')
+    showHelpTooltip(L('clip_time_help'))
     if timeChanged then
         E.clipTime=time
         E.clipPlaying=false
         invalidateClipPreview()
     end
-    tImGui.SameLine()
-    if tImGui.Button((E.clipPlaying and L('clip_pause') or L('clip_play'))..'##mreClipPlay') then
-        E.clipPlaying=not E.clipPlaying
-    end
-    tImGui.SameLine()
-    if tImGui.Button(L('clip_stop')..'##mreClipStop') then
-        E.clipPlaying=false
-        E.clipTime=0
-        invalidateClipPreview()
-    end
-    local names={}
-    for _,expression in ipairs(E.project.expressions or {}) do names[#names+1]=expression.name end
-    if #names>0 then
-        E.clipSelectedExpression=math.max(1,math.min(#names,E.clipSelectedExpression))
-        tImGui.SetNextItemWidth(220)
-        local changed,index=tImGui.Combo(L('clip_expression_source')..'##mreClipExpressionSource',
-            E.clipSelectedExpression,names)
-        if changed then E.clipSelectedExpression=index;E.modified=true end
-        showHelpTooltip(L('clip_expression_source_help'))
-        if tImGui.Button(L('clip_insert_expression_key')..'##mreClipInsertExpression') then
+    tImGui.BeginDisabled(#names==0)
+    if tImGui.Button(L('clip_insert_expression_key')..'##mreClipInsertExpression',{x=230,y=0}) then
             local expression=E.project.expressions[E.clipSelectedExpression]
             if expression then
                 local report=tExpressions.inspect(expression,E.project.targets,targetStatus)
@@ -3274,17 +3279,60 @@ local function drawClipTimelineWindow(clip)
                     setStatus(L('clip_key_inserted'),false)
                 end
             end
-        end
-        showHelpTooltip(L('clip_insert_expression_key_help'))
-        tImGui.SameLine()
-        if tImGui.Button(L('clip_insert_neutral_key')..'##mreClipInsertNeutral') then
-            insertClipKey({})
-            setStatus(L('clip_key_inserted'),false)
-        end
-    else
-        tImGui.TextDisabled(L('clip_requires_expression'))
     end
+    tImGui.EndDisabled()
+    showHelpTooltip(L('clip_insert_expression_key_help'))
+    tImGui.SameLine()
+    if tImGui.Button(L('clip_capture_key')..'##mreClipCapture',{x=190,y=0}) then
+        local weights=tClips.sample(clip,E.clipTime)
+        local previewWeight=math.max(0,math.min(1,E.clipPreviewWeight))
+        if previewWeight<0.999999 then
+            local scaled={}
+            for _,entry in ipairs(weights) do
+                scaled[#scaled+1]={targetId=entry.targetId,targetName=entry.targetName,
+                    weight=entry.weight*previewWeight}
+            end
+            weights=scaled
+        end
+        insertClipKey(weights)
+        setStatus(L('clip_key_captured'),false)
+    end
+    showHelpTooltip(L('clip_capture_key_help'))
+    tImGui.SameLine()
+    if tImGui.Button(L('clip_reset_weights')..'##mreClipResetWeights',{x=190,y=0}) then
+        E.clipPreviewWeight=0
+        tTargetPreview.setWeight(E,0)
+        E.modified=true
+        setStatus(L('clip_weights_reset'),false)
+    end
+    showHelpTooltip(L('clip_reset_weights_help'))
+    tImGui.SameLine()
+    if tImGui.Button(L('clip_play')..'##mreClipPlay',{x=110,y=0}) then
+        E.clipPlaying=not E.clipPlaying
+    end
+    showHelpTooltip(L('clip_play_help'))
+    tImGui.SameLine()
+    if tImGui.Button(L('clip_stop')..'##mreClipStop',{x=90,y=0}) then
+        E.clipPlaying=false
+        E.clipTime=0
+        E.clipKeySelected=1
+        invalidateClipPreview()
+    end
+    showHelpTooltip(L('clip_stop_help'))
     drawClipKeys(clip)
+    local keys=clip.keys or {}
+    tImGui.BeginDisabled(#keys<=2)
+    if tImGui.Button(L('clip_remove_key')..'##mreClipRemoveKey',{x=170,y=0}) then
+        if tClips.removeKey(clip,E.clipKeySelected) then
+            E.clipKeySelected=math.max(1,math.min(E.clipKeySelected,#keys-1))
+            E.clipTime=math.min(E.clipTime,clip.duration)
+            invalidateClipPreview()
+            markChanged()
+            setStatus(L('clip_key_removed'),false)
+        end
+    end
+    tImGui.EndDisabled()
+    showHelpTooltip(L('clip_remove_key_help'))
     local report=clipReport(clip)
     if report then
         tImGui.Text(string.format(L('clip_preview_summary'),report.active,report.missing,report.stale))

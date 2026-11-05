@@ -278,10 +278,11 @@ remain unchanged; and an invalid target reference is visible in the expression s
 `Expressions`. A clip stores ordered keys with stable Morph Target IDs and normalized weights; it
 does not store FACS metadata and does not require a facial mesh. Add mode creates a named clip with
 neutral keys at time zero and at the end of its initial duration. Edit mode can insert a saved
-Expression or a neutral key at the current time, change duration, frame rate, looping, and
+Expression or capture the current sampled Morph pose at the current time, change duration, frame rate, looping, and
 Step/Linear interpolation, and preview the sampled composition through the existing in-memory
 Morph overlay. The clip timeline is displayed in a separate window, following the Facial Rig
-Editor interaction pattern. Remove mode deletes only the selected clip. During playback, the preview updates
+Editor interaction pattern and exposes Insert expression key, Capture current key, Reset Morph
+weights, Play, and Stop in the same order. Remove mode deletes only the selected clip. During playback, the preview updates
 the existing dynamic surface buffers instead of rebuilding temporary geometry every frame. Missing
 or stale target references are reported and prevent a complete clip preview. Clips are persisted
 in Morph Editor project schema 6 and are not exported to MSH in this milestone.

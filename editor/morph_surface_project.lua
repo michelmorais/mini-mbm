@@ -63,6 +63,7 @@ local function normalizePreferences(preferences)
         clipNameDraft=type(preferences.clipNameDraft)=='string' and
             preferences.clipNameDraft~='' and preferences.clipNameDraft or 'clip',
         clipSelectedExpression=math.max(1,math.floor(validNumber(preferences.clipSelectedExpression,1))),
+        clipKeySelected=math.max(1,math.floor(validNumber(preferences.clipKeySelected,1))),
         clipPreviewWeight=clamp(validNumber(preferences.clipPreviewWeight,1),0,1),
         clipTimelineVisible=preferences.clipTimelineVisible~=false,
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
