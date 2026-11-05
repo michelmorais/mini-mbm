@@ -37,6 +37,7 @@ local tTargetBrush=require 'morph_surface_target_brush'
 local tTargetGizmo=require 'morph_surface_target_gizmo'
 local tTargetMirror=require 'morph_surface_target_mirror'
 local tSurfaceNormals=require 'morph_surface_normals'
+local tPreviewRuntime=require 'morph_preview_runtime'
 
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
@@ -76,7 +77,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={},
-    expressionPreview={key=nil,target=nil,report=nil}}
+    expressionPreview={key=nil,target=nil,report=nil},
+    previewRuntime=tPreviewRuntime.new(),dqsSupported=false}
 
 local targetStatus
 local function L(key) return tLang.L('mre_'..key) end
@@ -181,6 +183,8 @@ local function saveEditorPreferences()
     preferences.previewMode=E.previewMode
     preferences.previewExpressionSelected=E.previewExpressionSelected
     preferences.previewClipSelected=E.previewClipSelected
+    preferences.previewComparisonMode=E.previewRuntime and E.previewRuntime.comparisonMode or 1
+    preferences.previewSkeletalSelected=E.previewRuntime and E.previewRuntime.selectedSkeletal or 1
     preferences.previewWeight=E.targetPreviewWeight
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
@@ -215,6 +219,11 @@ local function saveEditorPreferences()
         local shaderPreviewVisible=E.targetEditDraft==nil and E.targetPreviewVisible
         local visibleMesh=preview and preview.surface and
             (shaderPreviewVisible and preview.surface or preview.plainSurface) or E.mesh
+        local nativePreviewActive=E.worktree==5 and E.previewRuntime and
+            (E.previewRuntime.comparisonMode~=1 or E.previewRuntime.skeletalPlaying)
+        if nativePreviewActive and E.previewRuntime.previewReady then
+            visibleMesh=E.previewRuntime.previewMesh
+        end
         preferences.meshVisible=visibleMesh.visible~=false
     elseif preferences.meshVisible==nil then
         preferences.meshVisible=true
@@ -263,6 +272,11 @@ local function restoreEditorPreferences(project)
     E.previewClipTime=0
     E.previewClipPlaying=false
     E.preview={key=nil,target=nil,report=nil}
+    E.previewRuntime=tPreviewRuntime.new()
+    E.previewRuntime.comparisonMode=math.max(1,math.min(3,
+        math.floor(tonumber(preferences.previewComparisonMode) or 1)))
+    E.previewRuntime.selectedSkeletal=math.max(1,
+        math.floor(tonumber(preferences.previewSkeletalSelected) or 1))
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -388,6 +402,7 @@ local function placeShapeAtViewportCenter(region)
 end
 
 local function destroyMesh()
+    tPreviewRuntime.destroy(E.previewRuntime,E.mesh,dpCall)
     tTargetPreview.destroy(E)
     tOverlay.destroy(E)
     if E.mesh then dpCall(function() E.mesh:destroy() end) end
@@ -1370,6 +1385,7 @@ local function invalidateMorphPreview()
     E.preview.key=nil
     E.preview.target=nil
     E.preview.report=nil
+    E.preview.source=nil
     E.targetPreviewDirty=true
 end
 
@@ -1395,7 +1411,9 @@ local function morphPreviewData()
     end
     local key=table.concat({sourceId or 'preview',string.format('%.5f',E.previewClipTime),
         tostring(E.previewMode)},':')
-    if E.preview.key==key and E.preview.target then return E.preview.target,E.preview.report end
+    if E.preview.key==key and E.preview.target then
+        return E.preview.target,E.preview.report,E.preview.source
+    end
     local report=tExpressions.compose(expression,E.project.targets,targetStatus)
     local target={id='morph_preview_'..sourceId,name=sourceName,deltas={}}
     for index,delta in pairs(report.deltas or {}) do
@@ -1404,8 +1422,8 @@ local function morphPreviewData()
         end
     end
     table.sort(target.deltas,function(left,right) return left.index<right.index end)
-    E.preview={key=key,target=target,report=report}
-    return target,report
+    E.preview={key=key,target=target,report=report,source=expression}
+    return target,report,expression
 end
 
 local function updateMorphPreviewPlayback(delta)
@@ -1599,6 +1617,30 @@ local function refreshTargetPreview()
         if not ok then setStatus(L('clip_preview_failed')..': '..tostring(errorCode),true) end
         return
     end
+    if E.worktree==5 then
+        if E.previewRuntime and E.previewRuntime.skeletalPlaying then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            E.targetPreviewDirty=false
+            return
+        end
+        if E.previewRuntime and E.previewRuntime.comparisonMode~=1 then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            E.targetPreviewDirty=false
+            return
+        end
+        local previewTarget,previewReport=morphPreviewData()
+        if not previewTarget or not previewReport or previewReport.active==0 or previewReport.missing>0 or
+                previewReport.stale>0 then
+            tTargetPreview.destroy(E)
+            E.targetPreviewDirty=false
+            return
+        end
+        tTargetPreview.destroy(E)
+        local ok,errorCode=tTargetPreview.build(E,previewTarget,E.targetPreviewWeight)
+        E.targetPreviewDirty=false
+        if not ok then setStatus(L('preview_failed')..': '..tostring(errorCode),true) end
+        return
+    end
     if not targetPreviewReady(target) then
         tTargetPreview.destroy(E)
         E.targetPreviewDirty=false
@@ -1657,9 +1699,54 @@ local function syncTargetPreview()
         return
     end
     if E.worktree==5 then
-        local previewTarget,previewReport=morphPreviewData()
+        local previewTarget,previewReport,previewSource=morphPreviewData()
         if not previewTarget or not previewReport or previewReport.active==0 or previewReport.missing>0 or
                 previewReport.stale>0 then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            E.targetPreviewDirty=false
+            if E.previewRuntime and E.previewRuntime.previewReady then
+                tPreviewRuntime.applyMorphWeights(E.previewRuntime,E.mesh,nil,E.project.targets,0,dpCall)
+            end
+            return
+        end
+        local nativeNeeded=E.previewRuntime and
+            (E.previewRuntime.comparisonMode~=1 or E.previewRuntime.skeletalPlaying)
+        if not nativeNeeded then
+            if E.targetPreviewDirty and E.targetPreview.surface and
+                    E.targetPreview.targetId==previewTarget.id then
+                tTargetPreview.setDeltas(E,previewTarget)
+                E.targetPreviewDirty=false
+            elseif E.targetPreviewDirty or E.targetPreview.targetId~=previewTarget.id then
+                refreshTargetPreview()
+            end
+            if E.targetPreview.surface then
+                tTargetPreview.setWeight(E,E.targetPreviewWeight)
+                tTargetPreview.setVisible(E,E.targetPreviewVisible)
+                tTargetPreview.update(E)
+            end
+            return
+        end
+        local runtimeOk=true
+        if E.targetPreviewDirty or not E.previewRuntime.previewReady then
+            runtimeOk=tPreviewRuntime.ensure(E.previewRuntime,E.mesh,E.meshDebug,E.topology,
+                E.project.targets,E.project.meshPath,dpCall)
+        end
+        if not runtimeOk and E.previewRuntime.lastError and
+                E.previewRuntime.lastReportedError~=E.previewRuntime.lastError then
+            setStatus(L(E.previewRuntime.lastError),true)
+            E.previewRuntime.lastReportedError=E.previewRuntime.lastError
+        end
+        if runtimeOk then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            local applied=tPreviewRuntime.applyMorphWeights(E.previewRuntime,E.mesh,previewSource,
+                E.project.targets,E.targetPreviewWeight,dpCall)
+            if applied then
+                E.targetPreviewDirty=false
+                return
+            end
+        end
+        -- Keep the dynamic overlay as a fallback if the temporary runtime MSH cannot be built.
+        if E.previewRuntime and E.previewRuntime.comparisonMode~=1 then
             if E.targetPreview.surface then tTargetPreview.destroy(E) end
             E.targetPreviewDirty=false
             return
@@ -3599,7 +3686,7 @@ local function drawPreviewNode()
                     E.previewClipPlaying=false
                     invalidateMorphPreview()
                 end
-                tImGui.SameLine()
+                tImGui.NewLine()
                 if tImGui.Button(L('preview_play')..'##mrePreviewPlay',{x=110,y=0}) then
                     E.previewClipPlaying=not E.previewClipPlaying
                 end
@@ -3619,6 +3706,7 @@ local function drawPreviewNode()
     if weightChanged then
         E.targetPreviewWeight=math.max(0,math.min(1,weight))
         tTargetPreview.setWeight(E,E.targetPreviewWeight)
+        E.targetPreviewDirty=true
         E.modified=true
     end
     showHelpTooltip(L('preview_weight_help'))
@@ -3626,7 +3714,15 @@ local function drawPreviewNode()
     showHelpTooltip(L('preview_displacement_help'))
     if visible~=E.targetPreviewVisible then
         E.targetPreviewVisible=visible
-        tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        local nativePreviewActive=E.previewRuntime and
+            (E.previewRuntime.comparisonMode~=1 or E.previewRuntime.skeletalPlaying)
+        if nativePreviewActive and E.previewRuntime.previewReady then
+            -- Native runtime previews are textured directly; the displacement checkbox
+            -- controls only the static overlay visualization.
+            E.previewRuntime.previewVisible=true
+        else
+            tTargetPreview.setVisible(E,E.targetPreviewVisible)
+        end
         E.modified=true
     end
     if report then
@@ -3639,6 +3735,38 @@ local function drawPreviewNode()
             tImGui.Text(L('preview_ready'))
         end
     end
+    local function rebuildPreviewRuntime(mode)
+        if mode~=1 and E.targetPreview.surface then tTargetPreview.destroy(E) end
+        if mode~=1 then E.targetPreviewDirty=true end
+        local ok,bounds,reason=tPreviewRuntime.rebuild(E.previewRuntime,E.mesh,E.meshDebug,E.topology,
+            E.project.targets,E.project.meshPath,E.meshBounds,mode,E.dqsSupported,dpCall)
+        if ok then
+            fitCamera(bounds or E.meshBounds)
+            E.targetPreviewDirty=true
+            E.modified=true
+        end
+        return ok,bounds,reason
+    end
+    local function prepareSkeletalPlayback()
+        if E.targetPreview.surface then tTargetPreview.destroy(E) end
+        local _,_,previewSource=morphPreviewData()
+        local runtimeOk=tPreviewRuntime.ensure(E.previewRuntime,E.mesh,E.meshDebug,E.topology,
+            E.project.targets,E.project.meshPath,dpCall)
+        if runtimeOk and E.previewRuntime.previewReady then
+            tPreviewRuntime.applyMorphWeights(E.previewRuntime,E.mesh,previewSource,E.project.targets,
+                E.targetPreviewWeight,dpCall)
+            E.previewRuntime.previewVisible=true
+            E.targetPreviewDirty=false
+        elseif E.mesh then
+            E.mesh.visible=true
+            E.targetPreviewDirty=false
+        end
+    end
+    local function finishSkeletalPlayback()
+        if not E.previewRuntime.previewReady then E.targetPreviewDirty=true end
+    end
+    tPreviewRuntime.draw(E.previewRuntime,E.mesh,true,E.dqsSupported,dpCall,rebuildPreviewRuntime,setStatus,
+        prepareSkeletalPlayback,finishSkeletalPlayback,function() E.modified=true end)
 end
 
 local function drawSelectedRegionSelector()
@@ -3808,6 +3936,9 @@ local function selectWorktree(worktree)
         return
     end
     if E.worktree==worktree then return end
+    if E.previewRuntime and E.previewRuntime.skeletalPlaying then
+        tPreviewRuntime.stop(E.previewRuntime,E.mesh,dpCall)
+    end
     E.worktree=worktree
     E.selectedPoint=nil
     E.regionDrag=nil
@@ -3958,6 +4089,8 @@ end
 
 function onInitScene()
     mbm.setColor(0.12,0.12,0.14)
+    E.dqsSupported=mbm.get('USE_OPENGL_ES') or mbm.get('USE_DIRECTX9') or
+        mbm.get('USE_DIRECTX11') or mbm.get('USE_METAL')
     local camera=mbm.getCamera('3d')
     camera:setFar(9999999)
     tUtil.setInitialWindowPositionLeft('MorphRegionEditor',0,25,390)
@@ -3967,6 +4100,9 @@ end
 function onLoop(delta)
     updateClipPlayback(delta)
     updateMorphPreviewPlayback(delta)
+    local nativePreviewActive=E.worktree==5 and E.previewRuntime and
+        (E.previewRuntime.comparisonMode~=1 or E.previewRuntime.skeletalPlaying)
+    tPreviewRuntime.update(E.previewRuntime,E.mesh,E.worktree==5,nativePreviewActive,E.meshBounds,dpCall)
     if E.regionStatusDirty then
         local region=selectedRegion()
         E.selectedRegionStatus=region and tRegions.status(region,E.topology) or 'missing'

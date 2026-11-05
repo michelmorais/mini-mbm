@@ -241,15 +241,28 @@ introduce FACS metadata, modify saved Expressions or Morph Targets, or export to
 3. Select **Preview clip** and choose a saved Morph clip. Scrub **Time**, or use **Play** and
    **Stop** to inspect the sampled clip pose. Looping and interpolation follow the saved clip.
 4. Toggle **Show displacement** to compare the displacement shader visualization with the textured
-   displaced mesh. Surface shapes and their selectors remain hidden in this worktree.
-5. Save and reopen the project. The selected Preview mode, Expression/Clip source, preview weight,
-   language, worktree, and other editor preferences are restored; Preview playback itself is not
-   persisted and restarts stopped.
+   displaced mesh. This toggle applies to the static overlay path; runtime comparison and skeletal
+   playback use the textured runtime MSH directly. Surface shapes and their selectors remain hidden
+   in this worktree.
+5. Use **Runtime comparison** to inspect the loaded skeletal mesh with **facial CPU vs GPU** or
+   **facial LBS vs DQS**. The editor creates a runtime copy with the project Morph Targets loaded
+   as native facial targets, places the two resolved paths side by side, and reports the execution
+   path and skinning method for each copy. The selected Expression/Clip pose and preview weight are
+   applied to both copies. LBS/DQS is available only on backends that support DQS and only when the
+   mesh resolves a skeletal method.
+6. Use **Skeletal animation** to select a skeletal clip and press **Play**, **Pause**, **Resume**,
+   **Stop**, or scrub its time. The Morph pose and skeletal animation are applied to the same runtime
+   mesh, so they can be inspected together. In comparison mode, the selected skeletal clip and time
+   are synchronized across both runtime meshes.
+7. Save and reopen the project. The selected Preview mode, Expression/Clip source, preview weight,
+   runtime comparison mode, skeletal clip selection, language, worktree, and other editor preferences
+   are restored; playback itself is not persisted and restarts stopped.
 
 Preview composes stable target IDs in memory and reports missing or stale references instead of
 silently dropping them. During clip playback it updates the existing dynamic surface buffers, so
-the preview does not generate a temporary mesh on every frame. It does not change Expressions,
-Clips, Morph Targets, or the source MSH.
+the preview does not generate a temporary mesh on every frame. Runtime comparison and skeletal
+playback use a temporary runtime MSH generated from the source and project Morph Targets. The source
+MSH and project data are not changed.
 
 Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
 and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The

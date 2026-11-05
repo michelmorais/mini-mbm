@@ -11,8 +11,9 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 The Facial Rig Editor can author facial morph targets. The generic Morph Editor implementation now
 reaches milestone 2.7, including non-facial surface regions, target sculpting, mirroring, smoothing,
 runtime export validation, the complete manual coverage pass, generic named expressions, clips, and
-read-only expression/clip preview. Generic region and project modules remain reusable for future
-editor tools; capture expansion remains a separate future milestone.
+read-only expression/clip preview with runtime skinning comparison and skeletal playback controls.
+Generic region and project modules remain reusable for future editor tools; capture expansion remains
+a separate future milestone.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -303,14 +304,25 @@ references are reported and do not produce a misleading partial pose.
 The preview reuses the dynamic in-memory target surface. Changing the source or scrub time updates
 its sparse deltas; it does not create a temporary mesh on every frame. Preview playback changes only
 transient editor state and never modifies the source MSH, Morph Targets, Expressions, or Clips.
-Preview mode, source selections, and preview weight are persisted as editor preferences in project
-schema 6; playback is always stopped after reopening.
+Preview mode, source selections, preview weight, runtime comparison mode, and skeletal clip selection
+are persisted as editor preferences in project schema 6; playback is always stopped after reopening.
+
+The Preview worktree also provides a runtime-only comparison of facial CPU versus GPU execution and
+facial LBS versus DQS. The source MSH is loaded twice and the resolved execution path and skinning
+method are shown for the two copies. LBS/DQS is offered only when the backend supports DQS. Skeletal
+clips can be selected, played, paused, resumed, stopped, and scrubbed; comparison copies are kept in
+sync. The editor materializes the project Morph Targets into a temporary runtime MSH once per
+source/target revision, loads them as native facial targets, and applies the same Morph pose to the
+runtime mesh and comparison copy. This allows a Morph expression or clip to play together with
+skeletal animation without rebuilding geometry every frame; the temporary MSH is removed when the
+preview is released.
 
 Acceptance: a generic Morph Editor project with valid Expressions can inspect an Expression at zero,
 partial, and full weight; inspect a Clip at zero, partial, and full time; play looping and
 non-looping clips; toggle shader/textured displacement; hide the source shape controls; report
-invalid references; and reopen with the selected Preview settings restored. Idle and playback frames
-must not rebuild temporary preview geometry.
+invalid references; compare CPU/GPU and LBS/DQS when supported; play a skeletal clip; and reopen with
+the selected Preview settings restored. Idle and playback frames must not rebuild temporary preview
+geometry.
 
 ## Phase 3 - FACS authoring profiles
 

@@ -69,6 +69,8 @@ local function normalizePreferences(preferences)
         previewMode=math.floor(clamp(validNumber(preferences.previewMode,1),1,2)),
         previewExpressionSelected=math.max(1,math.floor(validNumber(preferences.previewExpressionSelected,1))),
         previewClipSelected=math.max(1,math.floor(validNumber(preferences.previewClipSelected,1))),
+        previewComparisonMode=math.floor(clamp(validNumber(preferences.previewComparisonMode,1),1,3)),
+        previewSkeletalSelected=math.max(1,math.floor(validNumber(preferences.previewSkeletalSelected,1))),
         previewWeight=clamp(validNumber(preferences.previewWeight,1),0,1),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
