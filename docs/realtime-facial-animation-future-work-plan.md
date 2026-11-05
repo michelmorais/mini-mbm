@@ -9,9 +9,9 @@ The current facial runtime, Mesh V11 format, Lua API, and native authoring workf
 - [Lua API - Facial targets and clips](lua-api.md#facial-targets-and-clips-mesh)
 
 The Facial Rig Editor can author facial morph targets. The generic Morph Editor is implemented
-through milestone 2.3, including non-facial surface regions, target sculpting, mirroring, smoothing,
-and runtime export validation. Generic region and project modules remain reusable for future editor
-tools; the next milestone is coverage and hardening of the Morph Editor before expanding capture.
+through milestone 2.4, including non-facial surface regions, target sculpting, mirroring, smoothing,
+runtime export validation, and the complete manual coverage pass. Generic region and project modules
+remain reusable for future editor tools; capture expansion remains a separate future milestone.
 
 ## Expansion decisions: semantic facial actions and generic morph regions
 
@@ -240,7 +240,7 @@ using the same region tools, without requiring face origin, facial landmarks, or
 This acceptance has been validated with MeshDebug and a runtime mesh instance, including combined
 skeletal playback.
 
-**Milestone 2.4 - Morph Editor coverage and hardening (next).** Close the remaining authoring
+**Milestone 2.4 - Morph Editor coverage and hardening (implemented and validated).** Closed the remaining authoring
 coverage with a repeatable validation matrix for locked and free Square / Ellipse / Free polygon
 shapes, Add / Edit / Mirror / Remove modes, surface fitting, region rebuilds, target translation,
 rotation, painting, smoothing, soft edge rings, undo/redo, project reload, and MSH export. Verify
@@ -252,7 +252,10 @@ skeletal playback, and both normal-delta export policies.
 Acceptance: each Morph Editor operation has a documented manual case with its expected viewport,
 project, and exported-MSH result; repeated strokes do not double-apply; idle frames do not rebuild
 geometry; and reopening the project preserves the authored shapes, targets, preferences, and
-selection state without requiring the Facial Rig Editor.
+selection state without requiring the Facial Rig Editor. This acceptance was validated manually with
+the Megan facial mesh, including target preview, painting, smoothing, mirrored shapes and targets,
+project reload, MSH export, MeshDebug playback, combined skeletal playback, and the two normal-delta
+export policies. The generic workflow remains independent of facial landmarks and FACS metadata.
 
 ## Phase 3 - FACS authoring profiles
 

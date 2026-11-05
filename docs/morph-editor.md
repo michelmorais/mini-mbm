@@ -183,5 +183,8 @@ changes the authored point offsets; it does not regenerate the covered-vertex li
 
 Contours can be concave. The region uses the polygon selection algorithm from the shared surface
 region modules; triangulation is not exposed as the meaning of the influence field. Runtime target
-playback and combined skeletal playback were validated in MeshDebug and in a runtime mesh instance;
-the completed scope is tracked in milestone 2.3 of the [facial animation future work plan](realtime-facial-animation-future-work-plan.md).
+playback and combined skeletal playback were validated in MeshDebug and in a runtime mesh instance.
+The complete authoring workflow was also covered manually with the Megan mesh: locked and free
+shapes, shape and target mirroring, target painting and smoothing, undo/redo, project reload, MSH
+export, and both normal-delta policies. This closes milestone 2.4 of the
+[facial animation future work plan](realtime-facial-animation-future-work-plan.md).
