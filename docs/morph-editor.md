@@ -101,7 +101,8 @@ shows the handles over the selected surface contour.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
 anchors, the selected shape, morph-target selections, named expressions, and rebuildable vertex selections. The
-derived region selection is binary at
+derived region selection is calculated from neutral mesh vertices near the resolved polygon plane; an authoring
+offset changes the polygon point but does not force its original neutral vertex into the selection. The derived region selection is binary at
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
@@ -153,6 +154,9 @@ settings are restored when the project is opened and are part of the project dir
    polygon must be the strict limit. If a target was already authored with extra rings, apply a
    new edit or rebuild its target selection after changing the ring count to discard those old
    feather vertices.
+   If the editor reports the source region as stale after this selection algorithm change, rebuild
+   the region first and then rebuild the target selection; this removes stale anchor-derived
+   vertices from an older project state.
 5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
    **Show target displacement** selects the visualization material: enabled uses the dynamic
    displacement shader, while disabled keeps the displaced geometry visible with its original

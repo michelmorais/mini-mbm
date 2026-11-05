@@ -49,7 +49,7 @@ local function copyPoint(point)
 end
 
 function M.resolvePoints(polygon,topology)
-    local result,seen={},{}
+    local result={}
     if type(polygon)~='table' or not topology or type(topology.vertices)~='table' then return result end
     for _,rawPoint in ipairs(polygon.points or {}) do
         local index=type(rawPoint)=='table' and tonumber(rawPoint.index) or tonumber(rawPoint)
@@ -173,13 +173,12 @@ function M.deriveVertexWeights(topology,points,closed)
             local x,y=project(point,origin,axis,tangent)
             if pointInPolygon(x,y,projected) then
                 result[#result+1]={index=index,weight=1}
-                seen[index]=true
             end
         end
     end
-    for _,point in ipairs(points) do
-        if not seen[point.index] then result[#result+1]={index=point.index,weight=1} end
-    end
+    -- An anchor may be offset for authoring and its neutral vertex can belong to
+    -- another visible part of the mesh.  The offset point defines the polygon,
+    -- but must not force the unrelated neutral vertex into the target selection.
     table.sort(result,function(left,right) return left.index<right.index end)
     return result
 end

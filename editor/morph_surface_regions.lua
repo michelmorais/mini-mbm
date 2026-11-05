@@ -22,7 +22,7 @@
 
 local tSurfacePolygon=require 'morph_surface_polygon'
 local tShapes=require 'morph_surface_shapes'
-local M={}
+local M={selectionAlgorithmVersion=2}
 
 local function finite(value)
     return type(value)=='number' and value==value and value~=math.huge and value~=-math.huge
@@ -30,7 +30,7 @@ end
 
 local function fingerprint(region)
     local parts={region.name or '',region.kind or '',region.closed and '1' or '0',
-        region.topologySignature or ''}
+        region.topologySignature or '', 'derived-selection-v'..tostring(M.selectionAlgorithmVersion)}
     local falloff=region.falloff or {}
     parts[#parts+1]=falloff.mode or 'surface'
     parts[#parts+1]=string.format('%.17g',tonumber(falloff.radius) or 2)
