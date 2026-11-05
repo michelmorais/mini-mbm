@@ -3259,7 +3259,7 @@ local function drawClipTimelineWindow(clip)
         tImGui.TextDisabled(L('clip_requires_expression'))
     end
     local duration=math.max(tonumber(clip.duration) or 1,0.001)
-    tImGui.SetNextItemWidth(420)
+    tImGui.SetNextItemWidth(-1)
     local timeChanged,time=tImGui.SliderFloat(L('clip_time')..'##mreClipTime',E.clipTime,0,duration,'%.3f s')
     showHelpTooltip(L('clip_time_help'))
     if timeChanged then
@@ -3321,10 +3321,10 @@ local function drawClipTimelineWindow(clip)
     showHelpTooltip(L('clip_stop_help'))
     drawClipKeys(clip)
     local keys=clip.keys or {}
-    tImGui.BeginDisabled(#keys<=2)
+    tImGui.BeginDisabled(#keys==0)
     if tImGui.Button(L('clip_remove_key')..'##mreClipRemoveKey',{x=170,y=0}) then
         if tClips.removeKey(clip,E.clipKeySelected) then
-            E.clipKeySelected=math.max(1,math.min(E.clipKeySelected,#keys-1))
+            E.clipKeySelected=math.max(1,math.min(E.clipKeySelected,#keys))
             E.clipTime=math.min(E.clipTime,clip.duration)
             invalidateClipPreview()
             markChanged()

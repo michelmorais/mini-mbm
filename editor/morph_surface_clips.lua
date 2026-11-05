@@ -136,7 +136,6 @@ end
 
 function M.removeKey(clip,index)
     if type(clip)~='table' or type(clip.keys)~='table' or index<1 or index>#clip.keys then return false end
-    if #clip.keys<=2 then return false end
     table.remove(clip.keys,index)
     return true
 end

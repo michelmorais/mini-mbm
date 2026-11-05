@@ -5807,7 +5807,7 @@ local function showFacialClipTimelineWindow()
         tImGui.SameLine()
         tImGui.Text(string.format(tLang.L('fre_clip_timeline_selection_fmt'),state.clipEditor.keySelected or 1))
         tImGui.TextWrapped(tLang.L('fre_clip_timeline_help'))
-        tImGui.SetNextItemWidth(420)
+        tImGui.SetNextItemWidth(-1)
         local timeChanged,time=tImGui.SliderFloat(tLang.L('fre_clip_time')..'##freClipTimelineTime',state.clipEditor.time,0,clip.duration,'%.3f s')
         showHelpTooltip(tLang.L('fre_clip_time_tooltip'))
         if timeChanged then
@@ -5833,6 +5833,7 @@ local function showFacialClipTimelineWindow()
             pushUndoSnapshot(); tFacialClips.insertKey(clip,state.clipEditor.time,weights); markModified(); state.clipEditor.dirty=true
         end
         showHelpTooltip(tLang.L('fre_clip_capture_key_tooltip'))
+        tImGui.SameLine()
         tImGui.BeginDisabled(not state.mesh)
         if tImGui.Button(tLang.L('fre_clip_reset_weights')..'##freClipResetWeights',{x=190,y=0}) then
             local ok,reset=dpCall(function() return state.mesh:resetFacialWeights() end)

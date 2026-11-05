@@ -224,8 +224,9 @@ in this milestone. The Clips worktree consumes the saved expressions as keyframe
    times when duration changes so the authored timing remains proportional.
 5. Use the separate clip timeline window to move the time slider or press **Play**. The preview samples target weights in memory and uses
    the clip preview weight to blend from neutral to the sampled pose. Stop returns to time `0`.
-6. Use the key table to inspect and select keys. **Remove selected key** removes an intermediate
-   key; the required time-zero and end keys remain. **Remove clip** deletes only the selected clip.
+6. Use the key table to inspect and select keys. **Remove selected key** can remove any key,
+   including an endpoint; the clip validation reports when the required time-zero or end key is
+   missing. **Remove clip** deletes only the selected clip.
 
 Clips retain stable Morph Target IDs and report missing or stale target references. They do not
 introduce FACS metadata, modify saved Expressions or Morph Targets, or export to MSH yet.
