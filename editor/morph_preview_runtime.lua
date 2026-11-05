@@ -160,13 +160,13 @@ local function densePositions(target,vertexCount)
     return positions
 end
 
-local function buildRuntimeSource(runtime,meshDebug,topology,targets,call)
-    if not meshDebug or not topology or type(meshDebug.save)~='function' then
+local function buildRuntimeSource(runtime,sourceDebug,topology,targets,call)
+    if not sourceDebug or not topology or type(sourceDebug.save)~='function' then
         return false,nil,'preview_runtime_source_unavailable'
     end
     local sourcePath=tUtil.getTemporaryFilePath('_morph_runtime_source.msh')
     local savedOk,saved=call(function()
-        return meshDebug:save(sourcePath,false,false,true)
+        return sourceDebug:save(sourcePath,false,false,true)
     end)
     if not savedOk or saved~=true then
         os.remove(sourcePath)
@@ -263,12 +263,12 @@ local function resolvedSkinning(primary,call)
     return method,execution,report
 end
 
-local function ensureSource(runtime,primary,meshDebug,topology,targets,sourcePath,call)
+local function ensureSource(runtime,primary,sourceDebug,topology,targets,sourcePath,call)
     local key=targetSourceKey(sourcePath,targets)
     if runtime.previewTempPath and runtime.previewSourceKey==key then return true,runtime.previewTempPath,nil end
     releaseComparison(runtime,call)
     releasePreviewMesh(runtime,call,true)
-    local ok,path,reason=buildRuntimeSource(runtime,meshDebug,topology,targets,call)
+    local ok,path,reason=buildRuntimeSource(runtime,sourceDebug,topology,targets,call)
     if not ok then return false,nil,reason end
     runtime.previewSourceKey=key
     return true,path,nil
