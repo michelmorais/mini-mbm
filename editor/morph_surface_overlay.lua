@@ -117,6 +117,16 @@ end
 
 function M.rebuild(state)
     if not state.topology then M.destroy(state); return end
+    if state.worktree==3 then
+        for _,entry in pairs(state.regionOverlay or {}) do destroy(entry.line) end
+        state.regionOverlay={}
+        destroy(state.regionMirrorPreviewLine)
+        state.regionMirrorPreviewLine=nil
+        destroyCollection(state.regionMarkers); state.regionMarkers=nil
+        destroyCollection(state.regionShapeHandles); state.regionShapeHandles=nil
+        destroy(state.regionShapeCenter); state.regionShapeCenter=nil
+        return
+    end
     state.regionOverlay=state.regionOverlay or {}
     local editingShapes=state.worktree==1
     local activeIds={}

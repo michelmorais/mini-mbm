@@ -54,7 +54,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     pendingSurfacePick=nil,surfaceAxis=3,shapeMode=1,handleScale=1,
     shapeMirrorAxis=1,shapeMirrorNameDraft='region_mirror',shapeMirrorNameSourceId=nil,
     shapeMirrorNeedsPrepare=false,shapeMirrorCandidate=nil,
-    worktree=1,targetMode=1,targetNameDraft='target',targetDx=0,targetDy=0,targetDz=0,
+    worktree=1,targetMode=1,targetNameDraft='target',targetNameSourceId=nil,targetDx=0,targetDy=0,targetDz=0,
     expressionMode=1,expressionNameDraft='expression',expressionDraft=nil,
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
@@ -66,7 +66,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
-    targetBrushHistory={undo={},redo={}},controlDown=false,
+    targetBrushHistory={undo={},redo={}},targetEditHistory={undo={},redo={}},controlDown=false,
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={},
@@ -100,6 +100,19 @@ end
 local function clearTargetBrushHistory()
     E.targetBrushHistory.undo={}
     E.targetBrushHistory.redo={}
+end
+
+local function clearTargetEditHistory()
+    E.targetEditHistory.undo={}
+    E.targetEditHistory.redo={}
+end
+
+local function projectDisplayName()
+    local path=type(E.projectPath)=='string' and E.projectPath or ''
+    local name=path:match('([^/\\]+)$') or ''
+    name=name:gsub('%.morph%.lua$','')
+    if name=='' then return L('untitled_project') end
+    return name
 end
 
 local function showHelpTooltip(message)
@@ -148,6 +161,7 @@ local function saveEditorPreferences()
     preferences.shapeMirrorNameDraft=E.shapeMirrorNameDraft
     preferences.worktree=E.worktree
     preferences.targetMode=E.targetMode
+    preferences.targetNameSourceId=nil
     preferences.expressionMode=E.expressionMode
     preferences.expressionNameDraft=E.expressionNameDraft
     preferences.newShapeType=E.newShapeType
@@ -210,6 +224,7 @@ local function restoreEditorPreferences(project)
     E.shapeMirrorCandidate=nil
     E.worktree=math.max(1,math.min(3,math.floor(tonumber(preferences.worktree) or 1)))
     E.targetMode=math.max(1,math.min(5,math.floor(tonumber(preferences.targetMode) or 1)))
+    E.targetNameSourceId=nil
     E.expressionMode=math.max(1,math.min(3,math.floor(tonumber(preferences.expressionMode) or 1)))
     E.expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
         preferences.expressionNameDraft~='' and preferences.expressionNameDraft or 'expression'
@@ -353,6 +368,7 @@ local function destroyMesh()
     E.targetBrush.hoverY=nil
     E.targetBrush.hoverTime=nil
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     tTargetGizmo.destroy(E.targetGizmo)
     E.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil}
@@ -559,6 +575,7 @@ local function loadProject(path)
     E.projectPath=path
     E.modified=false
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     E.selectedPoint=nil
     E.regionNamesDirty=true
     E.regionStatusDirty=true
@@ -769,6 +786,7 @@ local function newProject()
     E.targetMirrorPlan=nil
     E.targetMirrorCandidate=nil
     E.targetBrushHistory={undo={},redo={}}
+    E.targetEditHistory={undo={},redo={}}
     restoreEditorPreferences(E.project)
     setStatus(L('new_project'),false)
 end
@@ -851,8 +869,7 @@ end
 
 local function addRegion()
     if not E.topology then setStatus(L('load_mesh_first'),true); return end
-    local name=E.nameDraft:match('^%s*(.-)%s*$')
-    if name=='' then name=string.format(L('region_default_name'),#E.project.regions+1) end
+    local name=uniqueRegionName(E.nameDraft)
     local shapeType=shapeTypeFromIndex(E.newShapeType)
     local region=tRegions.new(name,'polygon',{})
     region.shape=tShapes.new(shapeType,shapeType=='polygon' and true or E.newShapeFree)
@@ -861,6 +878,7 @@ local function addRegion()
     region.topologySignature=E.topology.signature
     E.project.regions[#E.project.regions+1]=region
     E.project.selectedRegion=#E.project.regions
+    E.shapeMode=2
     E.selectedPoint=nil
     E.regionNamesDirty=true
     markChanged()
@@ -1008,6 +1026,14 @@ end
 
 local function selectedTarget()
     return E.project.targets[E.project.selectedTarget]
+end
+
+local function suggestTargetName(region)
+    if not region or E.targetNameSourceId==region.id then return end
+    local sourceName=(region.name or ''):match('^%s*(.-)%s*$')
+    if sourceName=='' then sourceName='region' end
+    E.targetNameDraft=sourceName..'_target'
+    E.targetNameSourceId=region.id
 end
 
 local function targetById(id)
@@ -1177,6 +1203,36 @@ local function restoreTargetBrushSnapshot(target,snapshot)
         target.deltas[#target.deltas+1]={index=delta.index,x=delta.x,y=delta.y,z=delta.z}
     end
     target.pivot=snapshot.pivot and {x=snapshot.pivot.x,y=snapshot.pivot.y,z=snapshot.pivot.z} or nil
+    return true
+end
+
+local function pushTargetEditHistory(target,before,after,kind)
+    if not target or not before or not after then return end
+    local history=E.targetEditHistory
+    history.undo[#history.undo+1]={targetId=target.id,before=before,after=after,kind=kind or 'edit'}
+    while #history.undo>30 do table.remove(history.undo,1) end
+    history.redo={}
+end
+
+local function applyTargetEditHistory(redo)
+    local history=E.targetEditHistory
+    local source=redo and history.redo or history.undo
+    local destination=redo and history.undo or history.redo
+    local entry=source[#source]
+    if not entry then return false end
+    local index,target=targetById(entry.targetId)
+    if not target then
+        clearTargetEditHistory()
+        setStatus(L('target_edit_history_invalid'),true)
+        return false
+    end
+    local snapshot=redo and entry.after or entry.before
+    if not restoreTargetBrushSnapshot(target,snapshot) then return false end
+    table.remove(source)
+    destination[#destination+1]=entry
+    E.project.selectedTarget=index
+    markChanged()
+    setStatus(L(redo and 'target_edit_redo_done' or 'target_edit_undo_done'),false)
     return true
 end
 
@@ -1386,7 +1442,10 @@ local function selectTarget(index)
     local target=E.project.targets[index]
     if not target then return end
     suggestMirrorTargetName(target)
-    if E.project.selectedTarget~=index then clearTargetBrushHistory() end
+    if E.project.selectedTarget~=index then
+        clearTargetBrushHistory()
+        clearTargetEditHistory()
+    end
     E.project.selectedTarget=index
     local regionIndex=targetRegion(target)
     if regionIndex then E.project.selectedRegion=regionIndex end
@@ -1554,10 +1613,13 @@ local function createMirroredTarget(target)
     E.targetMirrorNeedsPrepare=false
     E.targetPreviewDirty=true
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     markChanged()
     setStatus(string.format(L('target_mirror_committed'),regionName,name),false)
     return true
 end
+
+local drawTargetMirrorAxisControl
 
 local function drawTargetMirrorControls(target)
     tImGui.Separator()
@@ -1575,7 +1637,6 @@ local function drawTargetMirrorControls(target)
         E.overlayDirty=true
         E.modified=true
     end
-    local extent=targetMirrorExtent()
     tImGui.SetNextItemWidth(220)
     local toleranceChanged,tolerance=tImGui.SliderFloat(
         L('target_mirror_tolerance')..'##mreTargetMirrorTolerance',E.targetMirrorTolerance,
@@ -1589,6 +1650,7 @@ local function drawTargetMirrorControls(target)
         E.overlayDirty=true
         E.modified=true
     end
+    drawTargetMirrorAxisControl()
     tImGui.BeginDisabled(not target or targetStatus(target)~='ready')
     if tImGui.Button(L('target_mirror_analyze')..'##mreTargetMirrorAnalyze') then
         analyzeTargetMirror(target)
@@ -1638,8 +1700,8 @@ local function drawTargetMirrorControls(target)
     end
 end
 
-local function drawTargetMirrorAxisControl()
-    if E.targetMode~=2 and E.targetMode~=5 then return end
+drawTargetMirrorAxisControl=function()
+    if E.targetMode~=5 then return end
     if #(E.project.targets or {})==0 then return end
     local axes={L('target_mirror_axis_x'),L('target_mirror_axis_y'),L('target_mirror_axis_z')}
     tImGui.SetNextItemWidth(220)
@@ -1670,6 +1732,7 @@ local function createTargetFromRegion()
     E.project.targets[#E.project.targets+1]=target
     E.project.selectedTarget=#E.project.targets
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     E.targetMode=2
     E.targetPreviewDirty=true
     markChanged()
@@ -1691,6 +1754,7 @@ local function rebuildSelectedTarget()
         return false
     end
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     markChanged()
     E.targetPreviewDirty=true
     setStatus(L('target_rebuilt'),false)
@@ -1704,6 +1768,7 @@ local function applyTargetTranslation()
         return false
     end
     local indices,weights=targetEditSelection(target)
+    local before=tTargets.copyTargetData(target)
     local changed=tTargets.applyTranslation(target,E.targetDx,E.targetDy,E.targetDz,indices,weights)
     if changed==0 then
         setStatus(L('target_no_translation'),false)
@@ -1712,6 +1777,7 @@ local function applyTargetTranslation()
     -- The entered translation is a pending operation, not a persistent offset.
     -- Clear it after commit so the live draft is not applied a second time.
     E.targetDx,E.targetDy,E.targetDz=0,0,0
+    pushTargetEditHistory(target,before,tTargets.copyTargetData(target),'translate')
     clearTargetBrushHistory()
     markChanged()
     E.targetPreviewDirty=true
@@ -1722,10 +1788,12 @@ end
 local function resetSelectedTargetDeltas()
     local target=selectedTarget()
     if not target then return false end
+    local before=tTargets.copyTargetData(target)
     if not tTargets.resetDeltas(target) then
         setStatus(L('target_already_neutral'),false)
         return true
     end
+    pushTargetEditHistory(target,before,tTargets.copyTargetData(target),'reset')
     clearTargetBrushHistory()
     markChanged()
     setStatus(L('target_reset'),false)
@@ -1740,6 +1808,7 @@ local function applyTargetRotation()
     end
     local pivot=tTargets.selectionPivot(target,E.topology.vertices,E.meshBounds)
     local indices,weights=targetEditSelection(target)
+    local before=tTargets.copyTargetData(target)
     local changed=tTargets.applyRotation(target,E.topology.vertices,
         math.rad(E.targetRx),math.rad(E.targetRy),math.rad(E.targetRz),pivot,indices,weights)
     if changed==0 then
@@ -1747,6 +1816,7 @@ local function applyTargetRotation()
         return true
     end
     E.targetRx,E.targetRy,E.targetRz=0,0,0
+    pushTargetEditHistory(target,before,tTargets.copyTargetData(target),'rotate')
     clearTargetBrushHistory()
     markChanged()
     setStatus(string.format(L('target_rotation_applied'),changed),false)
@@ -1765,6 +1835,7 @@ local function deleteSelectedTarget()
     E.project.selectedTarget=math.max(1,math.min(#E.project.targets>0 and #E.project.targets or 1,
         E.project.selectedTarget))
     clearTargetBrushHistory()
+    clearTargetEditHistory()
     E.overlayDirty=true
     markChanged()
     E.targetPreviewDirty=true
@@ -1777,7 +1848,16 @@ targetEditSelection=function(target)
     local key=tostring(target.id)..':'..tostring(E.targetFeatherRings)..':'..tostring(E.topology.signature)
     local cache=E.targetFeatherCache
     if cache and cache.key==key then return cache.indices,cache.weights end
-    local indices,weights=tTargets.featherSelection(E.topology,target,E.targetFeatherRings)
+    -- The polygon remains the hard authoring mask.  A previous edit may have
+    -- persisted feather vertices into target.vertices so the exported target
+    -- can contain them, but a later batch edit must start from the source
+    -- region again instead of growing the selection from that old union.
+    local selectionTarget=target
+    local _,region=targetRegion(target)
+    if region and #(region.derivedVertexWeights or {})>0 then
+        selectionTarget={vertices=region.derivedVertexWeights}
+    end
+    local indices,weights=tTargets.featherSelection(E.topology,selectionTarget,E.targetFeatherRings)
     E.targetFeatherCache={key=key,indices=indices,weights=weights}
     return indices,weights
 end
@@ -1944,6 +2024,7 @@ local function finishTargetBrush()
     E.targetBrush.geometryKey=nil
     markChanged()
     pushTargetBrushHistory(target,stroke.before,tTargets.copyTargetData(target))
+    clearTargetEditHistory()
     setStatus(string.format(L('target_brush_applied'),stroke.changed),false)
     return true
 end
@@ -2417,11 +2498,12 @@ local function drawTargetSourceSelector()
         E.regionStatusDirty=true
         E.modified=true
     end
-    return selectedRegion()
+    local region=selectedRegion()
+    suggestTargetName(region)
+    return region
 end
 
 local function drawMorphTargets()
-    drawTargetMirrorAxisControl()
     local previousMode=E.targetMode
     E.targetMode=tImGui.RadioButton(L('target_mode_add')..'##mreTargetModeAdd',E.targetMode,1)
     E.targetMode=tImGui.RadioButton(L('target_mode_edit')..'##mreTargetModeEdit',E.targetMode,2)
@@ -2580,6 +2662,23 @@ local function drawMorphTargets()
                         if tImGui.Button(L('target_apply_edit')..'##mreTargetApplyEdit') then
                             applySelectedTargetEdit()
                         end
+                        local editHistory=E.targetEditHistory
+                        local canUndo=#editHistory.undo>0
+                        local canRedo=#editHistory.redo>0
+                        tImGui.SameLine()
+                        tImGui.BeginDisabled(not canUndo)
+                        if tImGui.Button(L('target_edit_undo')..'##mreTargetEditUndo',{x=120,y=0}) then
+                            applyTargetEditHistory(false)
+                        end
+                        tImGui.EndDisabled()
+                        showHelpTooltip(L('target_edit_undo_help'))
+                        tImGui.SameLine()
+                        tImGui.BeginDisabled(not canRedo)
+                        if tImGui.Button(L('target_edit_redo')..'##mreTargetEditRedo',{x=120,y=0}) then
+                            applyTargetEditHistory(true)
+                        end
+                        tImGui.EndDisabled()
+                        showHelpTooltip(L('target_edit_redo_help'))
                     else
                         tImGui.Text(L('target_brush_title'))
                         local history=E.targetBrushHistory
@@ -2703,12 +2802,13 @@ local function drawExpressionWeights(expression,editable)
         return
     end
     tImGui.Separator()
+    local fixedColumn=tImGui.Flags('ImGuiTableColumnFlags_WidthFixed')
     if tImGui.BeginTable('mreExpressionWeights',4,
             tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
-        tImGui.TableSetupColumn(L('expression_table_target'))
-        tImGui.TableSetupColumn(L('expression_table_weight'))
-        tImGui.TableSetupColumn(L('expression_table_vertices'))
-        tImGui.TableSetupColumn(L('expression_table_status'))
+        tImGui.TableSetupColumn(L('expression_table_target'),fixedColumn,170)
+        tImGui.TableSetupColumn(L('expression_table_weight'),fixedColumn,250)
+        tImGui.TableSetupColumn(L('expression_table_vertices'),fixedColumn,75)
+        tImGui.TableSetupColumn(L('expression_table_status'),fixedColumn,170)
         tImGui.TableHeadersRow()
         for index,target in ipairs(targets) do
             tImGui.TableNextRow()
@@ -2716,7 +2816,7 @@ local function drawExpressionWeights(expression,editable)
             tImGui.TableSetColumnIndex(1)
             local weight=tExpressions.getWeight(expression,target.id)
             if editable then
-                tImGui.SetNextItemWidth(150)
+                tImGui.SetNextItemWidth(235)
                 local changed,value=tImGui.SliderFloat(
                     L('expression_weight')..'##mreExpressionWeight'..index,weight,0,1,'%.2f')
                 if changed then setExpressionWeight(expression,target,value) end
@@ -3157,7 +3257,7 @@ end
 local function drawControls()
     tImGui.Begin(L('title')..'###MorphRegionEditor',true,0)
     if E.mesh then
-        tImGui.Text(string.format(L('mesh_info'),E.project.meshPath,E.topology.vertexCount))
+        tImGui.Text(string.format(L('project_mesh_info'),projectDisplayName(),E.project.meshPath))
     else
         tImGui.TextWrapped(L('load_mesh_help'))
     end

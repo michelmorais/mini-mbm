@@ -284,17 +284,16 @@ end
 
 function M.ensureSelection(target,indices,weights)
     if not target or not indices then return end
-    local byIndex={}
-    for _,vertex in ipairs(target.vertices or {}) do byIndex[vertex.index]=vertex.weight end
+    local selected={}
     for _,rawIndex in ipairs(indices) do
         local index=tonumber(rawIndex)
         local weight=weights and weights[index] or 1
         if index and weight and weight>0 then
-            byIndex[index]=math.max(byIndex[index] or 0,math.min(1,weight))
+            selected[index]=math.min(1,weight)
         end
     end
     target.vertices={}
-    for index,weight in pairs(byIndex) do
+    for index,weight in pairs(selected) do
         target.vertices[#target.vertices+1]={index=index,weight=weight}
     end
     table.sort(target.vertices,function(left,right) return left.index<right.index end)
@@ -401,10 +400,18 @@ end
 
 function M.applyTranslation(target,dx,dy,dz,indices,weights)
     if type(target)~='table' then return 0 end
+    dx,dy,dz=finite(dx,0),finite(dy,0),finite(dz,0)
+    if math.abs(dx)<=1e-8 and math.abs(dy)<=1e-8 and math.abs(dz)<=1e-8 then return 0 end
     if indices then M.ensureSelection(target,indices,weights) end
     local byIndex=copyDeltasByIndex(target.deltas)
+    if indices then
+        local selected={}
+        for _,vertex in ipairs(target.vertices or {}) do selected[vertex.index]=true end
+        for index in pairs(byIndex) do
+            if not selected[index] then byIndex[index]=nil end
+        end
+    end
     local changed=0
-    dx,dy,dz=finite(dx,0),finite(dy,0),finite(dz,0)
     local selection=indices
     if not selection then selection=target.vertices end
     for _,entry in ipairs(selection or {}) do
@@ -475,8 +482,17 @@ end
 
 function M.applyRotation(target,baseVertices,rx,ry,rz,pivot,indices,weights)
     if type(target)~='table' or type(baseVertices)~='table' then return 0 end
+    rx,ry,rz=finite(rx,0),finite(ry,0),finite(rz,0)
+    if math.abs(rx)<=1e-8 and math.abs(ry)<=1e-8 and math.abs(rz)<=1e-8 then return 0 end
     if indices then M.ensureSelection(target,indices,weights) end
     local byIndex=copyDeltasByIndex(target.deltas)
+    if indices then
+        local selected={}
+        for _,vertex in ipairs(target.vertices or {}) do selected[vertex.index]=true end
+        for index in pairs(byIndex) do
+            if not selected[index] then byIndex[index]=nil end
+        end
+    end
     local basis=M.rotationBasis(rx,ry,rz)
     pivot=pivot or {x=0,y=0,z=0}
     local changed=0

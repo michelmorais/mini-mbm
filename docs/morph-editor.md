@@ -34,7 +34,9 @@ changes the selected expression name and weights; Remove mode deletes only the e
 Action Units, profiles, anatomy, and muscle relationships are not evaluated in this worktree.
 The viewport composes the referenced target deltas in memory and applies the existing preview-weight
 slider from neutral at `0` to the complete expression at `1`. The source MSH and target records are
-not changed by preview. Missing or stale target references remain visible in the expression status.
+not changed by preview. Surface-shape contours and handles are hidden while this worktree is active.
+The target-weight slider uses a fixed, wider table column so its value can be edited precisely.
+Missing or stale target references remain visible in the expression status.
 
 ## Shape modes
 
@@ -47,6 +49,10 @@ The new-shape selector provides:
   three resize handles: uniform size, width, and height.
 - **Free polygon**: starts with a visible four-point contour when the viewport can hit the mesh and
   exposes each anchor for independent editing.
+
+Adding a shape always assigns a unique name. If the entered name already exists, the editor adds a
+numeric suffix. After a shape is added, the editor automatically enters **Edit shape** for the new
+selection.
 
 The **Free** flag is available for Square and Circle / ellipse. A free shape keeps its initial
 template points but then behaves as an editable polygon, so each anchor can be dragged to create
@@ -75,6 +81,8 @@ shows the handles over the selected surface contour.
   its suggested `<source_name>_mirror` name or mirror axis, and press **Create mirrored shape**.
   The new shape is selected in **Edit shape** afterward for small adjustments.
 - Save and reopen the authoring project as a Lua `.morph.lua` sidecar.
+- The main editor header shows the project name and selected mesh path. It intentionally does not
+  show the mesh vertex count there.
 - In **Morph targets**, create an independent target selection from a rebuilt shape selection,
   inspect its source and topology status, regenerate it explicitly after source changes, and apply
   weighted Translate, Rotate, or Reset to neutral operations to its authored deltas. Rotate mode
@@ -112,7 +120,8 @@ settings are restored when the project is opened and are part of the project dir
 1. Open an MSH mesh and create a named shape.
 2. Create a Square, Circle / ellipse, or Free polygon; it is placed at the viewport center when
    possible. A Free polygon starts with a four-point contour. If the center ray does not hit the
-   mesh, click the mesh to begin placing its surface points.
+   mesh, click the mesh to begin placing its surface points. The new shape receives a unique name
+   and opens automatically in **Edit shape**.
 3. In locked mode, drag the center or one of the shape-specific resize handles. Enable Free when
    the contour should be edited point by point.
 4. For a free polygon, add at least three points and close the contour.
@@ -126,7 +135,8 @@ settings are restored when the project is opened and are part of the project dir
 
 1. Rebuild a closed shape selection until its status is ready.
 2. Open the **Morph targets** worktree, keep **Add target** selected, choose the source shape, and
-   create a target.
+   create a target. Selecting a source shape suggests `<source_name>_target` as the target name;
+   the user can change it before creation.
 3. Switch to **Edit target** to inspect the source fingerprint, topology status, selected vertex
    count, authored delta count, and the target preview.
 4. In **Edit target**, choose **Translate**, **Rotate**, or **Reset to neutral**. Translation and
@@ -134,6 +144,15 @@ settings are restored when the project is opened and are part of the project dir
    its pivot. A non-zero Translate or Rotate draft is shown immediately with the textured/default
    material, including soft edge weights, but remains in memory. Press **Apply edit** to commit the
    chosen operation; changing back to zero or applying the edit restores the selected preview mode.
+   After applying, the current preview weight remains active and the preview is rebuilt from the
+   updated target deltas. **Undo edit** and **Redo edit** immediately after **Apply edit** restore
+   or reapply the last committed Translate, Rotate, or Reset operation. The batch selection is
+   recalculated from the source region for each operation, so a previous feathered edit does not
+   grow the next selection cumulatively.
+   Soft edge rings are intentionally additional influence beyond the polygon: use `0` when the
+   polygon must be the strict limit. If a target was already authored with extra rings, apply a
+   new edit or rebuild its target selection after changing the ring count to discard those old
+   feather vertices.
 5. Use **Preview weight** to inspect the neutral mesh at `0` and the full target contribution at `1`.
    **Show target displacement** selects the visualization material: enabled uses the dynamic
    displacement shader, while disabled keeps the displaced geometry visible with its original
@@ -151,8 +170,9 @@ settings are restored when the project is opened and are part of the project dir
    produces no delta. **Undo brush stroke** and **Redo brush stroke** restore completed strokes for
    the selected target. Left-drag still orbits and the middle button pans.
 7. Switch to **Mirror target**. The new target name is initially suggested as
-   `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
-   across the origin plane of the selected axis (X by default). The source polygon remains visible
+   `<source_name>_mirror`. Choose the mirror axis in this mode, immediately before **Analyze mirror**.
+   The selected target's source polygon and target are temporarily mirrored across the origin plane
+   of the selected axis (X by default). The source polygon remains visible
    as a reference while the candidate is shown in orange. Adjust the name, axis, and match radius,
    review the candidate and diagnostics, then press **Create mirrored target** to persist the new
    polygon and target. The source remains unchanged. To repeat the operation with another target,
