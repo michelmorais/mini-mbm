@@ -64,6 +64,7 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     exportNormalMode=1,exportNormalDraft=1,exportDialogOpen=false,
     targetBrushDx=0,targetBrushDy=-0.01,targetBrushDz=0,
     targetBrush={geometry=nil,geometryKey=nil,hoverHit=nil,hoverX=nil,hoverY=nil,stroke=nil},
+    targetBrushHistory={undo={},redo={}},
     targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil},
     targetPreviewWeight=1,targetPreviewVisible=true,targetPreviewDirty=true,targetPreview={}}
@@ -91,6 +92,11 @@ local function clearStatus()
     tUtil.sMessageOverlay=false
     tUtil.bWarnMessage=false
     if tUtil.tTimerOverlay then tUtil.tTimerOverlay:stop() end
+end
+
+local function clearTargetBrushHistory()
+    E.targetBrushHistory.undo={}
+    E.targetBrushHistory.redo={}
 end
 
 local function showHelpTooltip(message)
@@ -335,6 +341,7 @@ local function destroyMesh()
     E.targetBrush.hoverX=nil
     E.targetBrush.hoverY=nil
     E.targetBrush.hoverTime=nil
+    clearTargetBrushHistory()
     tTargetGizmo.destroy(E.targetGizmo)
     E.targetGizmo={rings={},axes={},center=nil,origin=nil,radius=nil,length=nil,targetId=nil,
         visible=false,dirty=true,drag=nil}
@@ -539,6 +546,7 @@ local function loadProject(path)
     E.project=project
     E.projectPath=path
     E.modified=false
+    clearTargetBrushHistory()
     E.selectedPoint=nil
     E.regionNamesDirty=true
     E.regionStatusDirty=true
@@ -963,6 +971,57 @@ local function selectedTarget()
     return E.project.targets[E.project.selectedTarget]
 end
 
+local function targetById(id)
+    for index,target in ipairs(E.project.targets or {}) do
+        if target.id==id then return index,target end
+    end
+    return nil,nil
+end
+
+local function pushTargetBrushHistory(target,before,after)
+    if not target or not before or not after then return end
+    local history=E.targetBrushHistory
+    history.undo[#history.undo+1]={targetId=target.id,before=before,after=after}
+    while #history.undo>30 do table.remove(history.undo,1) end
+    history.redo={}
+end
+
+local function restoreTargetBrushSnapshot(target,snapshot)
+    if not target or type(snapshot)~='table' then return false end
+    target.vertices={}
+    for _,vertex in ipairs(snapshot.vertices or {}) do
+        target.vertices[#target.vertices+1]={index=vertex.index,weight=vertex.weight}
+    end
+    target.deltas={}
+    for _,delta in ipairs(snapshot.deltas or {}) do
+        target.deltas[#target.deltas+1]={index=delta.index,x=delta.x,y=delta.y,z=delta.z}
+    end
+    target.pivot=snapshot.pivot and {x=snapshot.pivot.x,y=snapshot.pivot.y,z=snapshot.pivot.z} or nil
+    return true
+end
+
+local function applyTargetBrushHistory(redo)
+    local history=E.targetBrushHistory
+    local source=redo and history.redo or history.undo
+    local destination=redo and history.undo or history.redo
+    local entry=source[#source]
+    if not entry then return false end
+    local index,target=targetById(entry.targetId)
+    if not target then
+        clearTargetBrushHistory()
+        setStatus(L('target_brush_history_invalid'),true)
+        return false
+    end
+    local snapshot=redo and entry.after or entry.before
+    if not restoreTargetBrushSnapshot(target,snapshot) then return false end
+    table.remove(source)
+    destination[#destination+1]=entry
+    E.project.selectedTarget=index
+    markChanged()
+    setStatus(L(redo and 'target_brush_redo_done' or 'target_brush_undo_done'),false)
+    return true
+end
+
 local function targetRegion(target)
     if not target then return nil,nil end
     return regionIndexById(target.sourceRegionId)
@@ -1110,6 +1169,7 @@ local function selectTarget(index)
     local target=E.project.targets[index]
     if not target then return end
     suggestMirrorTargetName(target)
+    if E.project.selectedTarget~=index then clearTargetBrushHistory() end
     E.project.selectedTarget=index
     local regionIndex=targetRegion(target)
     if regionIndex then E.project.selectedRegion=regionIndex end
@@ -1276,6 +1336,7 @@ local function createMirroredTarget(target)
     E.targetMirrorCandidate=nil
     E.targetMirrorNeedsPrepare=false
     E.targetPreviewDirty=true
+    clearTargetBrushHistory()
     markChanged()
     setStatus(string.format(L('target_mirror_committed'),regionName,name),false)
     return true
@@ -1391,6 +1452,7 @@ local function createTargetFromRegion()
     suggestMirrorTargetName(target)
     E.project.targets[#E.project.targets+1]=target
     E.project.selectedTarget=#E.project.targets
+    clearTargetBrushHistory()
     E.targetMode=2
     E.targetPreviewDirty=true
     markChanged()
@@ -1411,6 +1473,7 @@ local function rebuildSelectedTarget()
         setStatus(L('target_rebuild_failed')..': '..tostring(errorCode),true)
         return false
     end
+    clearTargetBrushHistory()
     markChanged()
     E.targetPreviewDirty=true
     setStatus(L('target_rebuilt'),false)
@@ -1432,6 +1495,7 @@ local function applyTargetTranslation()
     -- The entered translation is a pending operation, not a persistent offset.
     -- Clear it after commit so the live draft is not applied a second time.
     E.targetDx,E.targetDy,E.targetDz=0,0,0
+    clearTargetBrushHistory()
     markChanged()
     E.targetPreviewDirty=true
     setStatus(string.format(L('target_translation_applied'),changed),false)
@@ -1445,6 +1509,7 @@ local function resetSelectedTargetDeltas()
         setStatus(L('target_already_neutral'),false)
         return true
     end
+    clearTargetBrushHistory()
     markChanged()
     setStatus(L('target_reset'),false)
     return true
@@ -1465,6 +1530,7 @@ local function applyTargetRotation()
         return true
     end
     E.targetRx,E.targetRy,E.targetRz=0,0,0
+    clearTargetBrushHistory()
     markChanged()
     setStatus(string.format(L('target_rotation_applied'),changed),false)
     return true
@@ -1481,6 +1547,7 @@ local function deleteSelectedTarget()
     table.remove(E.project.targets,E.project.selectedTarget)
     E.project.selectedTarget=math.max(1,math.min(#E.project.targets>0 and #E.project.targets or 1,
         E.project.selectedTarget))
+    clearTargetBrushHistory()
     E.overlayDirty=true
     markChanged()
     E.targetPreviewDirty=true
@@ -1623,7 +1690,6 @@ local function stampTargetBrush(x,y,stroke)
         E.targetBrushMode==2,stroke.allowed,nearby,E.topology,E.targetBrushSmoothPasses,
         E.targetBrushSmoothProtectCreases,E.targetBrushSmoothAngle)
     stroke.changed=stroke.changed+changed
-    tTargetPreview.setDeltas(E,stroke.edited)
     stroke.lastX,stroke.lastY=x,y
     return true
 end
@@ -1633,7 +1699,8 @@ local function beginTargetBrush(x,y)
     if not target or targetStatus(target)~='ready' or not E.topology then return false end
     local geometry=ensureTargetBrushGeometry()
     if not geometry then return false end
-    local stroke={edited=tTargets.copyTargetData(target),changed=0,geometry=geometry,
+    local stroke={before=tTargets.copyTargetData(target),edited=tTargets.copyTargetData(target),
+        changed=0,geometry=geometry,
         allowed=tTargetBrush.allowed(target),lastX=x,lastY=y}
     if not stroke.edited or not stampTargetBrush(x,y,stroke) then return false end
     E.targetBrush.stroke=stroke
@@ -1659,6 +1726,7 @@ local function finishTargetBrush()
     E.targetBrush.geometry=nil
     E.targetBrush.geometryKey=nil
     markChanged()
+    pushTargetBrushHistory(target,stroke.before,tTargets.copyTargetData(target))
     setStatus(string.format(L('target_brush_applied'),stroke.changed),false)
     return true
 end
@@ -2287,6 +2355,22 @@ local function drawMorphTargets()
                         end
                     else
                         tImGui.Text(L('target_brush_title'))
+                        local history=E.targetBrushHistory
+                        local canUndo=not E.targetBrush.stroke and #history.undo>0
+                        local canRedo=not E.targetBrush.stroke and #history.redo>0
+                        tImGui.BeginDisabled(not canUndo)
+                        if tImGui.Button(L('target_brush_undo')..'##mreTargetBrushUndo',{x=120,y=0}) then
+                            applyTargetBrushHistory(false)
+                        end
+                        tImGui.EndDisabled()
+                        showHelpTooltip(L('target_brush_undo_help'))
+                        tImGui.SameLine()
+                        tImGui.BeginDisabled(not canRedo)
+                        if tImGui.Button(L('target_brush_redo')..'##mreTargetBrushRedo',{x=120,y=0}) then
+                            applyTargetBrushHistory(true)
+                        end
+                        tImGui.EndDisabled()
+                        showHelpTooltip(L('target_brush_redo_help'))
                         local brushMode=E.targetBrushMode
                         brushMode=tImGui.RadioButton(L('target_brush_move')..'##mreTargetBrushMove',brushMode,1)
                         brushMode=tImGui.RadioButton(L('target_brush_smooth')..'##mreTargetBrushSmooth',brushMode,2)
@@ -2354,9 +2438,6 @@ local function drawMorphTargets()
                             showHelpTooltip(L('target_brush_smooth_angle_help'))
                         end
                         tImGui.TextWrapped(L('target_brush_interaction_help'))
-                        if E.targetBrush.stroke then
-                            tImGui.TextWrapped(L('target_brush_candidate_preview'))
-                        end
                     end
                 elseif E.targetMode==5 then
                     drawTargetMirrorControls(target)

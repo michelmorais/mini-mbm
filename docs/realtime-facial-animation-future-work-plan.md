@@ -211,8 +211,11 @@ view, selected by the displacement checkbox, with a neutral-to-full contribution
 Translate or Rotate draft temporarily uses the textured/default-material view and applies the draft
 only in memory until Apply, including soft selection weights and the current pivot. Paint target
 mode now applies Move or Smooth strokes to selected target vertices on right-drag, updates a direct
-in-memory candidate preview while the stroke is active, and commits the candidate only when the
-stroke ends; the source MSH remains unchanged. Mirror target now reflects
+working copy while the stroke is active, and commits the working copy only when the stroke ends;
+the source MSH remains unchanged. The Morph Editor deliberately does not preview the candidate
+deformation during the stroke, matching the facial editor workflow and keeping consecutive brush
+increments predictable.
+Mirror target now reflects
 the selected source polygon and target across the origin plane of a selected X/Y/Z axis, reports
 unmatched/ambiguous matches, and presents a temporary polygon and target candidate. The explicit
 Create action commits a separate polygon and target with mirrored selection, position deltas, and
@@ -319,9 +322,9 @@ must recover to the documented neutral or fallback state without leaving stale f
   can protect sharp triangle creases by normal angle, preserving likely lip openings while leaving
   an explicit opt-out. A shared mesh vertex is still one vertex; this does not split topology or
   pretend a selection mask can separate coincident surfaces.
-- Evaluate face-region selection presets. The direct in-memory candidate preview bridge for brush
-  strokes is implemented; presets remain a workflow improvement and are not prerequisites for
-  saving a target.
+- Evaluate face-region selection presets. Brush strokes intentionally follow the facial editor
+  workflow: they accumulate in a working copy and refresh the target preview only when released;
+  presets remain a workflow improvement and are not prerequisites for saving a target.
 
 Acceptance: an artist can inspect the intended deformation and its normals before committing it,
 then export and reload the same result without changing vertex order or topology. Idle editor frames

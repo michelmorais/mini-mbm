@@ -128,9 +128,11 @@ settings are restored when the project is opened and are part of the project dir
    across sharp triangle-normal changes, which helps preserve lip openings, eyelids, nostrils, and
    other narrow folds. Adjust **Max surface angle** for the mesh or disable the protection when
    smoothing across a crease is intentional. The operation follows triangle adjacency and remains
-   inside the target selection. The candidate deformation is shown in memory while the right button
-   is held; release the button to commit one stroke, or leave it unchanged when the stroke produces
-   no delta. Left-drag still orbits and the middle button pans.
+   inside the target selection. The stroke is accumulated while the right button is held, and the
+   selected target preview is updated when the stroke is released, matching the facial editor
+   workflow. Release the button to commit one stroke, or leave it unchanged when the stroke
+   produces no delta. **Undo brush stroke** and **Redo brush stroke** restore completed strokes for
+   the selected target. Left-drag still orbits and the middle button pans.
 7. Switch to **Mirror target**. The new target name is initially suggested as
    `<source_name>_mirror`. The selected target's source polygon and target are temporarily mirrored
    across the origin plane of the selected axis (X by default). The source polygon remains visible
