@@ -49,7 +49,7 @@ local function copyPoint(point)
 end
 
 function M.resolvePoints(polygon,topology)
-    local result={}
+    local result,seen={},{}
     if type(polygon)~='table' or not topology or type(topology.vertices)~='table' then return result end
     for _,rawPoint in ipairs(polygon.points or {}) do
         local index=type(rawPoint)=='table' and tonumber(rawPoint.index) or tonumber(rawPoint)

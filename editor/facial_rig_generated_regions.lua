@@ -19,7 +19,7 @@
 
 local tPolygon=require 'facial_rig_polygon'
 local tMorphSurfaceRegions=require 'morph_surface_regions'
-local M={}
+local M={selectionAlgorithmVersion=2}
 
 local function finite(value)
     return type(value)=='number' and value==value and value~=math.huge and value~=-math.huge
@@ -44,7 +44,8 @@ local function fingerprint(control,faceScale)
     if not control then return '' end
     local parts={control.id or '',control.kind or '',control.closed and '1' or '0',
         control.topologySignature or '',string.format('%.17g',control.depthOffset or 0),
-        string.format('%.17g',tonumber(faceScale) or 1)}
+        string.format('%.17g',tonumber(faceScale) or 1),
+        'derived-selection-v'..tostring(M.selectionAlgorithmVersion)}
     for _,point in ipairs(control.points or {}) do
         local offset=type(point)=='table' and point.offset or nil
         parts[#parts+1]=string.format('%d:%.17g:%.17g:%.17g',
@@ -117,13 +118,8 @@ local function deriveWeights(topology,control,faceScale)
             seen[index]=true
         end
     end
-    for _,point in ipairs(points) do
-        local ref=topology.refs and topology.refs[point.index]
-        if not seen[point.index] and (not subset or ref and ref.subset==subset) then
-            weights[#weights+1]={index=point.index,weight=1}
-            seen[point.index]=true
-        end
-    end
+    -- A displaced authoring anchor defines the contour, but its neutral index
+    -- must not force an unrelated vertex into the facial region.
     table.sort(weights,function(a,b) return a.index<b.index end)
     if #weights==0 then return nil,'empty' end
     return weights

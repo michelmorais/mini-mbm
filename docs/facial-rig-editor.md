@@ -144,7 +144,8 @@ In the **FACS mask** workflow, **Masks / Regions** generates a named region from
 polygon. Generation is explicit and preserves the source points. It projects the outline in face
 X/Y, selects vertices from the source mesh subset within a local front-surface depth band based
 on the anchor vertices (so lifting the contour in Z does not switch mesh layers), and
-stores binary vertex weights. The stored region records its source group, source control,
+stores binary vertex weights. An authoring offset moves the resolved contour but does not force
+the original neutral vertex of a displaced anchor into the generated region. The stored region records its source group, source control,
 source fingerprint (including the face scale used for the depth band), and mesh topology
 signature. Changing an anchor, face scale, or topology makes it
 stale; the editor reports that state and requires explicit regeneration before the region can be
