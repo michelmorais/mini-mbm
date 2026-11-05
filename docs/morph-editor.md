@@ -12,8 +12,8 @@ Project** when ready; no file dialog appears automatically. **File > Quit** exit
 project, **Ctrl+O** opens a project, and **Ctrl+S** saves the current project. **Ctrl+Z** and
 **Ctrl+Y** undo and redo completed paint strokes.
 
-The Morph Editor currently presents three sequential worktree nodes: **Surface shapes**,
-**Morph targets**, and **Expressions**. The first worktree follows the interaction model of the
+The Morph Editor currently presents four sequential worktree nodes: **Surface shapes**,
+**Morph targets**, **Expressions**, and **Clips**. The first worktree follows the interaction model of the
 FACS mask editor while keeping the data generic: the user chooses a shape, places it on the mesh,
 and adapts its handles to the object. Its operation modes are **Add shape**, **Edit shape**,
 **Mirror shape**, and **Remove shape**; each mode exposes only the controls needed for that
@@ -37,6 +37,13 @@ slider from neutral at `0` to the complete expression at `1`. The source MSH and
 not changed by preview. Surface-shape contours and handles are hidden while this worktree is active.
 The target-weight slider uses a fixed, wider table column so its value can be edited precisely.
 Missing or stale target references remain visible in the expression status.
+
+**Clips** is enabled after at least one valid Expression exists. A Morph clip is a generic timeline
+of stable Morph Target IDs and normalized weights. Add mode creates a clip with neutral keys at
+time zero and at the end of its initial duration. Edit mode inserts Expression or neutral keys,
+changes duration, frame rate, looping, and interpolation, and previews the sampled pose in memory.
+Remove mode deletes only the selected clip. The clip worktree does not evaluate FACS Action Units,
+does not change Expressions or Morph Targets, and hides surface-shape contours and handles.
 
 ## Shape modes
 
@@ -97,23 +104,29 @@ shows the handles over the selected surface contour.
   target sliders to inspect the composed preview, then create the expression explicitly. Select an
   existing expression in Edit mode to change its name or weights. Remove mode deletes the selected
   expression without changing its targets. Expressions are generic Morph data and are not exported
-  to MSH yet; the future Clips worktree will consume them.
+  to MSH yet.
+- In **Clips**, create a named timeline after at least one valid Expression exists. Insert the
+  selected Expression or a neutral pose at the current time, edit duration, frame rate, looping,
+  and Step/Linear interpolation, then use Play, Stop, and the time slider to inspect the sampled
+  composition. Clip preview uses the same in-memory target overlay and does not rewrite the source
+  MSH. Clips are generic Morph data and are not exported to MSH in this milestone.
 
 The project stores the mesh path, a topology signature, shape type and mode, canonical surface
-anchors, the selected shape, morph-target selections, named expressions, and rebuildable vertex selections. The
+anchors, the selected shape, morph-target selections, named expressions, Morph clips, and rebuildable vertex selections. The
 derived region selection is calculated from neutral mesh vertices near the resolved polygon plane; an authoring
 offset changes the polygon point but does not force its original neutral vertex into the selection. The derived region selection is binary at
 this stage. Falloff settings are retained by the shared region data model but do not yet affect the
 selection. A changed topology is reported and disables shape editing. To author against a
 different topology, open that mesh as a new project; the existing point indices are not
-automatically transferred. The current project schema is version 5; older Morph Editor project
+automatically transferred. The current project schema is version 6; older Morph Editor project
 files are intentionally rejected while this editor is being developed.
 
 The project also persists the editor preferences used to continue the same authoring session:
 language, selected worktree, Add/Edit/Mirror/Remove modes, selector size, surface-snap axis,
 new-shape type and Free flag, mirror-shape name/axis, target name and translation drafts, target
 mirror name/axis/tolerance options, the draft shape name, mesh visibility, target preview weight,
-target displacement visibility, expression mode/name draft, and the Morph viewport camera. These
+target displacement visibility, expression mode/name draft, clip mode/name draft/source expression,
+clip preview weight, and the Morph viewport camera. These
 settings are restored when the project is opened and are part of the project dirty state when changed.
 
 ## Editing a shape
@@ -196,7 +209,23 @@ settings are restored when the project is opened and are part of the project dir
    in the table and are not silently removed.
 
 Expressions are generic Morph data. They do not evaluate FACS profiles and are not exported to MSH
-in this milestone. The future Clips worktree will consume the saved expressions.
+in this milestone. The Clips worktree consumes the saved expressions as keyframe sources.
+
+## Clips
+
+1. Create and save at least one valid Expression, then open the **Clips** worktree.
+2. In **Add clip**, enter a unique name and create the clip. The initial clip contains neutral
+   keys at time `0` and at the end of its one-second duration.
+3. In **Edit clip**, choose an Expression source and insert it at the current time. Use **Insert
+   neutral key** to define a neutral pose. Existing keys at the same time are replaced.
+4. Adjust duration, frame rate, looping, and Step/Linear interpolation. The editor scales key
+   times when duration changes so the authored timing remains proportional.
+5. Move the time slider or press **Play**. The preview samples target weights in memory and uses
+   the clip preview weight to blend from neutral to the sampled pose. Stop returns to time `0`.
+6. Use the key table to inspect and select keys. **Remove clip** deletes only the selected clip.
+
+Clips retain stable Morph Target IDs and report missing or stale target references. They do not
+introduce FACS metadata, modify saved Expressions or Morph Targets, or export to MSH yet.
 
 Use **File > Export morph targets to MSH** to open the export window. Choose the normal policy there
 and then choose the output path. The authoring mesh and Morph Editor project remain unchanged. The
@@ -238,5 +267,7 @@ region modules; triangulation is not exposed as the meaning of the influence fie
 playback and combined skeletal playback were validated in MeshDebug and in a runtime mesh instance.
 The complete authoring workflow was also covered manually with the Megan mesh: locked and free
 shapes, shape and target mirroring, target painting and smoothing, undo/redo, project reload, MSH
-export, and both normal-delta policies. This closes milestone 2.4 of the
+export, and both normal-delta policies. Expressions were then validated with project reload and
+composed preview. The current implementation also includes the Clips worktree described above;
+its visual acceptance is the next manual test in milestone 2.6 of the
 [facial animation future work plan](realtime-facial-animation-future-work-plan.md).

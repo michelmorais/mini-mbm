@@ -258,7 +258,7 @@ the Megan facial mesh, including target preview, painting, smoothing, mirrored s
 project reload, MSH export, MeshDebug playback, combined skeletal playback, and the two normal-delta
 export policies. The generic workflow remains independent of facial landmarks and FACS metadata.
 
-**Milestone 2.5 - generic Morph expressions (implemented; visual validation pending).** Add the sequential `Expressions`
+**Milestone 2.5 - generic Morph expressions (implemented and validated).** Add the sequential `Expressions`
 worktree after `Morph targets`. An expression is a named generic pose composed only from normalized
 weights referencing Morph Targets by stable target ID; it does not evaluate FACS Action Units,
 profiles, anatomy, or muscle relationships. Add mode edits an in-memory draft and creates a named
@@ -266,13 +266,29 @@ expression explicitly. Edit mode changes the selected expression's name and targ
 Remove mode deletes only the expression. The viewport composes all valid target deltas in memory and
 shows the result through the existing neutral-to-full preview weight without rewriting the source
 MSH or materializing an export. Missing or stale target references are reported instead of being
-silently discarded. Expressions are persisted in Morph Editor project schema 5, including the
+silently discarded. Expressions are persisted in Morph Editor project schema 6, including the
 selected worktree, expression mode, and name draft preferences. Expression export remains out of
-scope until the generic clip workflow is implemented.
+scope until generic Morph clip export is implemented.
 
 Acceptance: a generic Morph Editor project can create, preview, edit, save, reload, and remove a
 named multi-target expression; each target weight is clamped to `0..1`; the source targets and MSH
 remain unchanged; and an invalid target reference is visible in the expression status.
+
+**Milestone 2.6 - generic Morph clips (implemented).** Add the sequential `Clips` worktree after
+`Expressions`. A clip stores ordered keys with stable Morph Target IDs and normalized weights; it
+does not store FACS metadata and does not require a facial mesh. Add mode creates a named clip with
+neutral keys at time zero and at the end of its initial duration. Edit mode can insert a saved
+Expression or a neutral key at the current time, change duration, frame rate, looping, and
+Step/Linear interpolation, and preview the sampled composition through the existing in-memory
+Morph overlay. Remove mode deletes only the selected clip. During playback, the preview updates
+the existing dynamic surface buffers instead of rebuilding temporary geometry every frame. Missing
+or stale target references are reported and prevent a complete clip preview. Clips are persisted
+in Morph Editor project schema 6 and are not exported to MSH in this milestone.
+
+Acceptance: a generic Morph Editor project can create, edit, save, reload, and remove a clip;
+insert Expression and neutral keys; sample a clip at zero, partial, and full times; play a looping
+and a non-looping clip; and preserve stable target references. The source MSH, Morph Targets, and
+Expressions remain unchanged. Invalid target references are visible before preview or later export.
 
 ## Phase 3 - FACS authoring profiles
 

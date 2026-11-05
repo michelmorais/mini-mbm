@@ -23,9 +23,10 @@
 local tRegions=require 'morph_surface_regions'
 local tTargets=require 'morph_surface_targets'
 local tExpressions=require 'morph_surface_expressions'
+local tClips=require 'morph_surface_clips'
 local M={}
 
-local PROJECT_VERSION=5
+local PROJECT_VERSION=6
 
 local function validNumber(value,default)
     local number=tonumber(value)
@@ -53,11 +54,16 @@ local function normalizePreferences(preferences)
         shapeMirrorAxis=math.floor(clamp(validNumber(preferences.shapeMirrorAxis,1),1,3)),
         shapeMirrorNameDraft=type(preferences.shapeMirrorNameDraft)=='string' and
             preferences.shapeMirrorNameDraft~='' and preferences.shapeMirrorNameDraft or 'region_mirror',
-        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,3)),
+        worktree=math.floor(clamp(validNumber(preferences.worktree,1),1,4)),
         targetMode=math.floor(clamp(validNumber(preferences.targetMode,1),1,5)),
         expressionMode=math.floor(clamp(validNumber(preferences.expressionMode,1),1,3)),
         expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
             preferences.expressionNameDraft~='' and preferences.expressionNameDraft or 'expression',
+        clipMode=math.floor(clamp(validNumber(preferences.clipMode,1),1,3)),
+        clipNameDraft=type(preferences.clipNameDraft)=='string' and
+            preferences.clipNameDraft~='' and preferences.clipNameDraft or 'clip',
+        clipSelectedExpression=math.max(1,math.floor(validNumber(preferences.clipSelectedExpression,1))),
+        clipPreviewWeight=clamp(validNumber(preferences.clipPreviewWeight,1),0,1),
         newShapeType=math.floor(clamp(validNumber(preferences.newShapeType,1),1,3)),
         newShapeFree=preferences.newShapeFree==true,
         nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -110,7 +116,7 @@ function M.new(language)
         language=normalizeLanguage(language),
         preferences=normalizePreferences(),
         meshPath='',topologySignature='',regions={},selectedRegion=1,targets={},selectedTarget=1,
-        expressions={},selectedExpression=1,
+        expressions={},selectedExpression=1,clips={},selectedClip=1,
     }
 end
 
@@ -179,6 +185,23 @@ function M.normalize(project)
     project.expressions=expressions
     project.selectedExpression=math.max(1,math.min(#expressions>0 and #expressions or 1,
         math.floor(tonumber(project.selectedExpression) or 1)))
+    local clips,clipIds={},{}
+    for index,clip in ipairs(type(project.clips)=='table' and project.clips or {}) do
+        if type(clip)=='table' then
+            clip.id=type(clip.id)=='string' and clip.id~='' and clip.id or ('clip_'..index)
+            if clipIds[clip.id] then
+                local base=clip.id
+                local suffix=2
+                repeat clip.id=base..'_'..suffix; suffix=suffix+1 until not clipIds[clip.id]
+            end
+            clipIds[clip.id]=true
+            tClips.normalize(clip,index)
+            clips[#clips+1]=clip
+        end
+    end
+    project.clips=clips
+    project.selectedClip=math.max(1,math.min(#clips>0 and #clips or 1,
+        math.floor(tonumber(project.selectedClip) or 1)))
     return project
 end
 

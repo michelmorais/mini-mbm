@@ -30,6 +30,7 @@ local tShapes=require 'morph_surface_shapes'
 local tProject=require 'morph_surface_project'
 local tTargets=require 'morph_surface_targets'
 local tExpressions=require 'morph_surface_expressions'
+local tClips=require 'morph_surface_clips'
 local tOverlay=require 'morph_surface_overlay'
 local tTargetPreview=require 'morph_surface_target_preview'
 local tTargetBrush=require 'morph_surface_target_brush'
@@ -56,6 +57,8 @@ local E={project=tProject.new(tLang.getLanguage()),projectPath=nil,mesh=nil,mesh
     shapeMirrorNeedsPrepare=false,shapeMirrorCandidate=nil,
     worktree=1,targetMode=1,targetNameDraft='target',targetNameSourceId=nil,targetDx=0,targetDy=0,targetDz=0,
     expressionMode=1,expressionNameDraft='expression',expressionDraft=nil,
+    clipMode=1,clipNameDraft='clip',clipSelectedExpression=1,clipTime=0,clipPlaying=false,
+    clipPreviewWeight=1,clipPreview={key=nil,target=nil,report=nil},
     targetEditMode=1,targetRx=0,targetRy=0,targetRz=0,
     targetFeatherRings=0,targetFeatherCache=nil,targetEditDraft=nil,targetEditDraftKey=nil,
     targetMirrorAxis=1,targetMirrorTolerance=0.005,targetMirrorAllowApprox=false,
@@ -135,6 +138,7 @@ local function markChanged()
     E.targetEditDraftKey=nil
     E.targetGizmo.dirty=true
     if E.expressionPreview then E.expressionPreview.key=nil end
+    if E.clipPreview then E.clipPreview.key=nil end
     if E.targetBrush and not E.targetBrush.stroke then
         E.targetBrush.geometry=nil
         E.targetBrush.geometryKey=nil
@@ -164,6 +168,10 @@ local function saveEditorPreferences()
     preferences.targetNameSourceId=nil
     preferences.expressionMode=E.expressionMode
     preferences.expressionNameDraft=E.expressionNameDraft
+    preferences.clipMode=E.clipMode
+    preferences.clipNameDraft=E.clipNameDraft
+    preferences.clipSelectedExpression=E.clipSelectedExpression
+    preferences.clipPreviewWeight=E.clipPreviewWeight
     preferences.newShapeType=E.newShapeType
     preferences.newShapeFree=E.newShapeFree
     preferences.nameDraft=E.nameDraft
@@ -222,13 +230,21 @@ local function restoreEditorPreferences(project)
     E.shapeMirrorNameSourceId=E.shapeMode==4 and selectedShape and selectedShape.id or nil
     E.shapeMirrorNeedsPrepare=E.shapeMode==4
     E.shapeMirrorCandidate=nil
-    E.worktree=math.max(1,math.min(3,math.floor(tonumber(preferences.worktree) or 1)))
+    E.worktree=math.max(1,math.min(4,math.floor(tonumber(preferences.worktree) or 1)))
     E.targetMode=math.max(1,math.min(5,math.floor(tonumber(preferences.targetMode) or 1)))
     E.targetNameSourceId=nil
     E.expressionMode=math.max(1,math.min(3,math.floor(tonumber(preferences.expressionMode) or 1)))
     E.expressionNameDraft=type(preferences.expressionNameDraft)=='string' and
         preferences.expressionNameDraft~='' and preferences.expressionNameDraft or 'expression'
     E.expressionDraft=nil
+    E.clipMode=math.max(1,math.min(3,math.floor(tonumber(preferences.clipMode) or 1)))
+    E.clipNameDraft=type(preferences.clipNameDraft)=='string' and
+        preferences.clipNameDraft~='' and preferences.clipNameDraft or 'clip'
+    E.clipSelectedExpression=math.max(1,math.floor(tonumber(preferences.clipSelectedExpression) or 1))
+    E.clipTime=0
+    E.clipPlaying=false
+    E.clipPreviewWeight=math.max(0,math.min(1,tonumber(preferences.clipPreviewWeight) or 1))
+    E.clipPreview={key=nil,target=nil,report=nil}
     E.newShapeType=math.max(1,math.min(3,math.floor(tonumber(preferences.newShapeType) or 1)))
     E.newShapeFree=preferences.newShapeFree==true
     E.nameDraft=type(preferences.nameDraft)=='string' and preferences.nameDraft~='' and
@@ -374,6 +390,9 @@ local function destroyMesh()
         visible=false,dirty=true,drag=nil}
     E.targetPreviewDirty=true
     E.expressionPreview={key=nil,target=nil,report=nil}
+    E.clipPreview={key=nil,target=nil,report=nil}
+    E.clipTime=0
+    E.clipPlaying=false
     E.targetMirrorPlan=nil
     E.targetMirrorCandidate=nil
     E.targetMirrorNeedsPrepare=false
@@ -1184,6 +1203,142 @@ local function selectExpression(index)
     E.modified=true
 end
 
+local function selectedClip()
+    return E.project.clips and E.project.clips[E.project.selectedClip]
+end
+
+local function uniqueClipName(name)
+    local base=(name or ''):match('^%s*(.-)%s*$')
+    if base=='' then base=string.format(L('clip_default_name'),#(E.project.clips or {})+1) end
+    local candidate=base
+    local suffix=2
+    local function exists(value)
+        for _,clip in ipairs(E.project.clips or {}) do
+            if clip.name==value then return true end
+        end
+        return false
+    end
+    while exists(candidate) do
+        candidate=base..'_'..tostring(suffix)
+        suffix=suffix+1
+    end
+    return candidate
+end
+
+local function newClipId()
+    local suffix=1
+    while true do
+        local id='clip_'..tostring(suffix)
+        local exists=false
+        for _,clip in ipairs(E.project.clips or {}) do
+            if clip.id==id then exists=true;break end
+        end
+        if not exists then return id end
+        suffix=suffix+1
+    end
+end
+
+local function clipPreviewExpression(clip)
+    if not clip then return nil end
+    return {id=clip.id,name=clip.name,weights=tClips.sample(clip,E.clipTime)}
+end
+
+local function clipPreviewData()
+    local clip=selectedClip()
+    if not clip then return nil,nil end
+    local expression=clipPreviewExpression(clip)
+    local key=table.concat({clip.id or 'clip',string.format('%.5f',E.clipTime),
+        tostring(#(clip.keys or {}))},':')
+    if E.clipPreview.key==key and E.clipPreview.target then
+        return E.clipPreview.target,E.clipPreview.report
+    end
+    local report=tExpressions.compose(expression,E.project.targets,targetStatus)
+    local target={id='clip_preview_'..tostring(clip.id),name=clip.name,deltas={}}
+    for index,delta in pairs(report.deltas or {}) do
+        if math.abs(delta.x)>1e-8 or math.abs(delta.y)>1e-8 or math.abs(delta.z)>1e-8 then
+            target.deltas[#target.deltas+1]={index=index,x=delta.x,y=delta.y,z=delta.z}
+        end
+    end
+    table.sort(target.deltas,function(left,right) return left.index<right.index end)
+    E.clipPreview={key=key,target=target,report=report}
+    return target,report
+end
+
+local function invalidateClipPreview()
+    E.clipPreview.key=nil
+    E.clipPreview.target=nil
+    E.clipPreview.report=nil
+    E.targetPreviewDirty=true
+end
+
+local function hasReadyExpression()
+    if not E.topology or E.project.topologySignature~=E.topology.signature then return false end
+    for _,expression in ipairs(E.project.expressions or {}) do
+        local report=tExpressions.inspect(expression,E.project.targets,targetStatus)
+        if report.active>0 and report.missing==0 and report.stale==0 then return true end
+    end
+    return false
+end
+
+local function selectClip(index)
+    if not E.project.clips[index] then return end
+    E.project.selectedClip=index
+    E.clipNameDraft=E.project.clips[index].name or 'clip'
+    E.clipTime=0
+    E.clipPlaying=false
+    invalidateClipPreview()
+    E.modified=true
+end
+
+local function createClip()
+    local name=uniqueClipName(E.clipNameDraft)
+    local clip=tClips.new(name,newClipId())
+    E.project.clips=E.project.clips or {}
+    E.project.clips[#E.project.clips+1]=clip
+    E.project.selectedClip=#E.project.clips
+    E.clipMode=2
+    E.clipNameDraft=name
+    E.clipTime=0
+    E.clipPlaying=false
+    markChanged()
+    setStatus(string.format(L('clip_created'),name),false)
+    return true
+end
+
+local function deleteSelectedClip()
+    if not selectedClip() then return false end
+    table.remove(E.project.clips,E.project.selectedClip)
+    E.project.selectedClip=math.max(1,math.min(#E.project.clips>0 and #E.project.clips or 1,
+        E.project.selectedClip))
+    E.clipTime=0
+    E.clipPlaying=false
+    invalidateClipPreview()
+    markChanged()
+    setStatus(L('clip_deleted'),false)
+    return true
+end
+
+local function insertClipKey(weights)
+    local clip=selectedClip()
+    if not clip then return false end
+    tClips.insertKey(clip,E.clipTime,weights)
+    invalidateClipPreview()
+    markChanged()
+    return true
+end
+
+local function updateClipPlayback(delta)
+    if E.worktree~=4 or not E.clipPlaying then return end
+    local clip=selectedClip()
+    if not clip then E.clipPlaying=false;return end
+    E.clipTime=E.clipTime+math.max(tonumber(delta) or 0,0)
+    if E.clipTime>clip.duration then
+        if clip.loop then E.clipTime=E.clipTime%clip.duration
+        else E.clipTime=clip.duration;E.clipPlaying=false end
+    end
+    invalidateClipPreview()
+end
+
 local function pushTargetBrushHistory(target,before,after)
     if not target or not before or not after then return end
     local history=E.targetBrushHistory
@@ -1288,7 +1443,8 @@ local function expressionPreviewReady()
 end
 
 local function restoreTargetPreviewDeltas()
-    local target=E.worktree==3 and expressionPreviewData() or selectedTarget()
+    local target=E.worktree==3 and expressionPreviewData() or
+        E.worktree==4 and clipPreviewData() or selectedTarget()
     if target and E.targetPreview.surface then
         tTargetPreview.setDeltas(E,target)
     end
@@ -1347,6 +1503,20 @@ local function refreshTargetPreview()
         end
         return
     end
+    if E.worktree==4 then
+        local clipTarget,clipReport=clipPreviewData()
+        if not clipTarget or not clipReport or clipReport.active==0 or clipReport.missing>0 or
+                clipReport.stale>0 then
+            tTargetPreview.destroy(E)
+            E.targetPreviewDirty=false
+            return
+        end
+        tTargetPreview.destroy(E)
+        local ok,errorCode=tTargetPreview.build(E,clipTarget,E.clipPreviewWeight)
+        E.targetPreviewDirty=false
+        if not ok then setStatus(L('clip_preview_failed')..': '..tostring(errorCode),true) end
+        return
+    end
     if not targetPreviewReady(target) then
         tTargetPreview.destroy(E)
         E.targetPreviewDirty=false
@@ -1379,6 +1549,26 @@ local function syncTargetPreview()
         end
         if E.targetPreview.surface then
             tTargetPreview.setWeight(E,E.targetPreviewWeight)
+            tTargetPreview.setVisible(E,E.targetPreviewVisible)
+            tTargetPreview.update(E)
+        end
+        return
+    end
+    if E.worktree==4 then
+        local clipTarget,clipReport=clipPreviewData()
+        if not clipTarget or not clipReport or clipReport.active==0 or clipReport.missing>0 or
+                clipReport.stale>0 then
+            if E.targetPreview.surface then tTargetPreview.destroy(E) end
+            return
+        end
+        if E.targetPreviewDirty and E.targetPreview.surface and E.targetPreview.targetId==clipTarget.id then
+            tTargetPreview.setDeltas(E,clipTarget)
+            E.targetPreviewDirty=false
+        elseif E.targetPreviewDirty or E.targetPreview.targetId~=clipTarget.id then
+            refreshTargetPreview()
+        end
+        if E.targetPreview.surface then
+            tTargetPreview.setWeight(E,E.clipPreviewWeight)
             tTargetPreview.setVisible(E,E.targetPreviewVisible)
             tTargetPreview.update(E)
         end
@@ -2982,6 +3172,195 @@ local function drawExpressionNode()
     drawExpressionList()
 end
 
+local function clipReport(clip)
+    if not clip then return nil end
+    return tClips.inspect(clip,E.project.targets,targetStatus)
+end
+
+local function drawClipKeys(clip)
+    local keys=clip and clip.keys or {}
+    if #keys==0 then
+        tImGui.TextDisabled(L('clip_no_keys'))
+        return
+    end
+    tImGui.Separator()
+    if tImGui.BeginTable('mreClipKeys',4,
+            tImGui.Flags('ImGuiTableFlags_Borders','ImGuiTableFlags_RowBg')) then
+        tImGui.TableSetupColumn(L('clip_key_column'))
+        tImGui.TableSetupColumn(L('clip_time_column'))
+        tImGui.TableSetupColumn(L('clip_weight_column'))
+        tImGui.TableSetupColumn(L('clip_key_select_column'))
+        tImGui.TableHeadersRow()
+        for index,key in ipairs(keys) do
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0); tImGui.Text(L('clip_key')..' '..tostring(index))
+            tImGui.TableSetColumnIndex(1); tImGui.Text(string.format('%.3f',key.time or 0))
+            local count=0
+            for _,entry in ipairs(key.weights or {}) do
+                if (entry.weight or 0)>1e-8 then count=count+1 end
+            end
+            tImGui.TableSetColumnIndex(2); tImGui.Text(tostring(count))
+            tImGui.TableSetColumnIndex(3)
+            if tImGui.Selectable(L('clip_select_key')..'##mreClipKey'..tostring(index),
+                    math.abs((E.clipTime or 0)-(key.time or 0))<0.000001) then
+                E.clipTime=math.max(0,math.min(clip.duration,key.time or 0))
+                E.clipPlaying=false
+                invalidateClipPreview()
+            end
+        end
+        tImGui.EndTable()
+    end
+end
+
+local function drawClipTimeline(clip)
+    if not clip then return end
+    local duration=math.max(tonumber(clip.duration) or 1,0.001)
+    tImGui.SetNextItemWidth(220)
+    local timeChanged,time=tImGui.SliderFloat(L('clip_time')..'##mreClipTime',E.clipTime,0,duration,'%.3f s')
+    if timeChanged then
+        E.clipTime=time
+        E.clipPlaying=false
+        invalidateClipPreview()
+    end
+    tImGui.SameLine()
+    if tImGui.Button((E.clipPlaying and L('clip_pause') or L('clip_play'))..'##mreClipPlay') then
+        E.clipPlaying=not E.clipPlaying
+    end
+    tImGui.SameLine()
+    if tImGui.Button(L('clip_stop')..'##mreClipStop') then
+        E.clipPlaying=false
+        E.clipTime=0
+        invalidateClipPreview()
+    end
+    local names={}
+    for _,expression in ipairs(E.project.expressions or {}) do names[#names+1]=expression.name end
+    if #names>0 then
+        E.clipSelectedExpression=math.max(1,math.min(#names,E.clipSelectedExpression))
+        tImGui.SetNextItemWidth(220)
+        local changed,index=tImGui.Combo(L('clip_expression_source')..'##mreClipExpressionSource',
+            E.clipSelectedExpression,names)
+        if changed then E.clipSelectedExpression=index;E.modified=true end
+        showHelpTooltip(L('clip_expression_source_help'))
+        if tImGui.Button(L('clip_insert_expression_key')..'##mreClipInsertExpression') then
+            local expression=E.project.expressions[E.clipSelectedExpression]
+            if expression then
+                local report=tExpressions.inspect(expression,E.project.targets,targetStatus)
+                if report.missing>0 or report.stale>0 then
+                    setStatus(L('clip_invalid_expression'),true)
+                else
+                    insertClipKey(tExpressions.copyWeights(expression))
+                    setStatus(L('clip_key_inserted'),false)
+                end
+            end
+        end
+        showHelpTooltip(L('clip_insert_expression_key_help'))
+        tImGui.SameLine()
+        if tImGui.Button(L('clip_insert_neutral_key')..'##mreClipInsertNeutral') then
+            insertClipKey({})
+            setStatus(L('clip_key_inserted'),false)
+        end
+    else
+        tImGui.TextDisabled(L('clip_requires_expression'))
+    end
+    drawClipKeys(clip)
+end
+
+local function drawClipsNode()
+    local previousMode=E.clipMode
+    E.clipMode=tImGui.RadioButton(L('clip_mode_add')..'##mreClipModeAdd',E.clipMode,1)
+    E.clipMode=tImGui.RadioButton(L('clip_mode_edit')..'##mreClipModeEdit',E.clipMode,2)
+    E.clipMode=tImGui.RadioButton(L('clip_mode_remove')..'##mreClipModeRemove',E.clipMode,3)
+    if E.clipMode~=previousMode then
+        E.clipPlaying=false
+        if E.clipMode==2 or E.clipMode==3 then
+            local clip=selectedClip()
+            E.clipNameDraft=clip and clip.name or 'clip'
+        end
+        E.modified=true
+    end
+    tImGui.TextWrapped(L('clip_interaction_help'))
+    tImGui.Separator()
+    local clips=E.project.clips or {}
+    if E.clipMode==1 then
+        tImGui.SetNextItemWidth(220)
+        local changed,name=tImGui.InputText(L('clip_name')..'##mreClipNameAdd',E.clipNameDraft)
+        if changed then E.clipNameDraft=name;E.modified=true end
+        if tImGui.Button(L('clip_create')..'##mreClipCreate') then createClip() end
+        showHelpTooltip(L('clip_create_help'))
+    elseif #clips==0 then
+        tImGui.TextDisabled(L('clip_no_clips'))
+    else
+        local names={}
+        for _,clip in ipairs(clips) do names[#names+1]=clip.name end
+        E.project.selectedClip=math.max(1,math.min(#names,E.project.selectedClip))
+        tImGui.SetNextItemWidth(220)
+        local changed,index=tImGui.Combo(L('clip_select')..'##mreClipSelect',E.project.selectedClip,names)
+        if changed then selectClip(index) end
+        local clip=selectedClip()
+        if clip then
+            if E.clipMode==3 then
+                tImGui.Text(string.format(L('clip_selected'),clip.name or ''))
+                if tImGui.Button(L('clip_delete')..'##mreClipDelete') then deleteSelectedClip() end
+                showHelpTooltip(L('clip_delete_help'))
+            else
+                tImGui.SetNextItemWidth(220)
+                local nameChanged,name=tImGui.InputText(L('clip_name')..'##mreClipNameEdit',clip.name or '')
+                if nameChanged then
+                    local trimmed=(name or ''):match('^%s*(.-)%s*$')
+                    local taken=trimmed==''
+                    for index,other in ipairs(clips) do
+                        if index~=E.project.selectedClip and other.name==trimmed then taken=true;break end
+                    end
+                    if not taken then clip.name=trimmed;E.clipNameDraft=trimmed;markChanged()
+                    else setStatus(L('clip_name_invalid'),true) end
+                end
+                tImGui.SetNextItemWidth(160)
+                local durationChanged,duration=tImGui.DragFloat(L('clip_duration')..'##mreClipDuration',
+                    clip.duration,0.01,0.001,0,'%.3f')
+                if durationChanged then
+                    tClips.setDuration(clip,duration)
+                    E.clipTime=math.min(E.clipTime,clip.duration)
+                    markChanged();invalidateClipPreview()
+                end
+                tImGui.SetNextItemWidth(160)
+                local fpsChanged,fps=tImGui.DragFloat(L('clip_fps')..'##mreClipFps',clip.fps,0.1,1,240,'%.1f')
+                if fpsChanged then clip.fps=math.max(fps,1);markChanged() end
+                local loop=tImGui.Checkbox(L('clip_loop')..'##mreClipLoop',clip.loop==true)
+                if loop~=clip.loop then clip.loop=loop;markChanged() end
+                local interpolationLabels={L('clip_interpolation_step'),L('clip_interpolation_linear')}
+                tImGui.SetNextItemWidth(180)
+                local interpolationChanged,interpolation=tImGui.Combo(L('clip_interpolation')..'##mreClipInterpolation',
+                    clip.interpolation==0 and 1 or 2,interpolationLabels)
+                if interpolationChanged then clip.interpolation=interpolation==1 and 0 or 1;markChanged();invalidateClipPreview() end
+                drawClipTimeline(clip)
+            end
+        end
+    end
+    local clip=selectedClip()
+    if clip and E.clipMode~=3 then
+        local report=clipReport(clip)
+        tImGui.SetNextItemWidth(220)
+        local previewChanged,previewWeight=tImGui.SliderFloat(L('clip_preview_weight')..'##mreClipPreviewWeight',
+            E.clipPreviewWeight,0,1,'%.2f')
+        if previewChanged then
+            E.clipPreviewWeight=math.max(0,math.min(1,previewWeight))
+            tTargetPreview.setWeight(E,E.clipPreviewWeight)
+            E.modified=true
+        end
+        showHelpTooltip(L('clip_preview_weight_help'))
+        if report then
+            tImGui.Text(string.format(L('clip_preview_summary'),report.active,report.missing,report.stale))
+        end
+        local visible=tImGui.Checkbox(L('target_preview_displacement')..'##mreClipPreviewDisplacement',E.targetPreviewVisible)
+        showHelpTooltip(L('target_preview_displacement_help'))
+        if visible~=E.targetPreviewVisible then
+            E.targetPreviewVisible=visible
+            tTargetPreview.setVisible(E,E.targetPreviewVisible)
+            E.modified=true
+        end
+    end
+end
+
 local function drawSelectedRegionSelector()
     if #E.project.regions==0 then
         tImGui.TextDisabled(L('no_shapes'))
@@ -3140,6 +3519,10 @@ local function selectWorktree(worktree)
         setStatus(L('expression_worktree_sequence_help'),true)
         return
     end
+    if worktree==4 and not hasReadyExpression() then
+        setStatus(L('clip_worktree_sequence_help'),true)
+        return
+    end
     if E.worktree==worktree then return end
     E.worktree=worktree
     E.selectedPoint=nil
@@ -3154,6 +3537,8 @@ local function selectWorktree(worktree)
     E.targetBrush.hoverTime=nil
     E.targetPreviewDirty=true
     invalidateExpressionPreview()
+    invalidateClipPreview()
+    E.clipPlaying=false
     if worktree~=1 then
         E.shapeMirrorCandidate=nil
         E.shapeMirrorNeedsPrepare=false
@@ -3270,6 +3655,9 @@ local function drawControls()
     local expressionsEnabled=hasReadyTarget()
     drawWorktreeNode(3,L('worktree_expressions'),drawExpressionNode,expressionsEnabled)
     if not expressionsEnabled then tImGui.TextDisabled(L('expression_worktree_sequence_help')) end
+    local clipsEnabled=hasReadyExpression()
+    drawWorktreeNode(4,L('worktree_clips'),drawClipsNode,clipsEnabled)
+    if not clipsEnabled then tImGui.TextDisabled(L('clip_worktree_sequence_help')) end
     if E.status~='' then
         if E.statusError then tImGui.TextColored({r=1,g=0.35,b=0.3,a=1},E.status)
         else tImGui.TextWrapped(E.status) end
@@ -3287,7 +3675,8 @@ function onInitScene()
     tUtil.sMessageOverlay=false
 end
 
-function onLoop()
+function onLoop(delta)
+    updateClipPlayback(delta)
     if E.regionStatusDirty then
         local region=selectedRegion()
         E.selectedRegionStatus=region and tRegions.status(region,E.topology) or 'missing'
