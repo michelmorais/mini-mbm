@@ -73,6 +73,9 @@ assertPixel(base, 2, 2, 20, 40, 60, 255)
 local composedR, composedG, composedB, composedA = pixel(composed, 2, 2)
 assert(composedA == 255 and composedR == 0 and composedG == 255 and composedB == 0,
     'opaque layer paint must replace the base in the composed result')
+local sampled = Raster.sample(composed, 2.4, 2.4)
+assert(sampled.r == 0 and sampled.g == 255 and sampled.b == 0 and sampled.a == 255,
+    'sample must return the nearest composed pixel')
 
 local eraseResult = Raster.erase(layer, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1})
 assert(eraseResult.changedPixels == 1, 'erase must change the selected pixel')

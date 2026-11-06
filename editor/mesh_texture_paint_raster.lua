@@ -250,6 +250,20 @@ end
 
 M.toBytes = M.syncBytes
 
+function M.sample(buffer, x, y)
+    assertBuffer(buffer)
+    x = clamp(math.floor(finiteNumber(x, 0) + 0.5), 0, buffer.width - 1)
+    y = clamp(math.floor(finiteNumber(y, 0) + 0.5), 0, buffer.height - 1)
+    local line = rowOf(buffer, y)
+    local offset = x * M.BYTES_PER_PIXEL + 1
+    return {
+        r = line:byte(offset),
+        g = line:byte(offset + 1),
+        b = line:byte(offset + 2),
+        a = line:byte(offset + 3),
+    }
+end
+
 M.createTransparentLayer = M.newLayer
 
 function M.tilesForRect(buffer, x0, y0, x1, y1)
