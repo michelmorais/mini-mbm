@@ -1075,7 +1075,7 @@ function onTouchMove(key,x,y)
         c:setPos(c.x-(x-E.panDrag.x)/c.sx,c.y+(y-E.panDrag.y)/c.sy)
         E.panDrag={x=x,y=y}
     elseif E.orbitDrag then
-        E.orbit.azimuth=E.orbit.azimuth-(x-E.orbitDrag.x)*0.01
+        E.orbit.azimuth=E.orbit.azimuth+(x-E.orbitDrag.x)*0.01
         E.orbit.elevation=math.max(-1.5,math.min(1.5,E.orbit.elevation+(y-E.orbitDrag.y)*0.01))
         E.orbitDrag={x=x,y=y}; camera()
     elseif E.paintDrag or (E.editMode and Paint.state(E).enabled and sceneInput(x,y)) then Paint.input(E,action,'move',x,y)

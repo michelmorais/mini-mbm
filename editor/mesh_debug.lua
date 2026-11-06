@@ -13136,7 +13136,7 @@ function onTouchMove(key, x, y)
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
         if tDragEntry.bXformOrbiting and bCameraMode3D then
             local c = tDragEntry.cam3d
-            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.azimuth   = c.azimuth   + (x - camera2d.mx) * 0.005
             c.elevation = c.elevation + (y - camera2d.my) * 0.005
             c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
             camera2d.mx, camera2d.my = x, y
@@ -13200,7 +13200,7 @@ function onTouchMove(key, x, y)
         local c = tEntry.cam3d
         if isClickedMouseleft then
             -- Orbit: rotate around focus point
-            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.azimuth   = c.azimuth   + (x - camera2d.mx) * 0.005
             c.elevation = c.elevation + (y - camera2d.my) * 0.005
             c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
         elseif isClickedMouseRight then

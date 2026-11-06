@@ -53,7 +53,8 @@ local state = {
     projectPath = nil,
     modified = false,
     status = 'Open an MSH to start painting.',
-    brush = {radius = 8, hardness = 1, opacity = 1, mode = 'paint', color = {r=1,g=0,b=0,a=1}},
+    brush = {radius = 8, hardness = 1, opacity = 1, mode = 'paint', screenCircle = false,
+        color = {r=1,g=0,b=0,a=1}},
     brushMaxRadius = 64,
     meshDiagonal = 1,
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
@@ -434,6 +435,18 @@ local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
     return points
 end
 
+local function equivalentScreenRadius(points, center)
+    if not points or #points < 2 then return nil end
+    local total = 0
+    local count = #points - 1
+    for index = 1, count do
+        local point = points[index]
+        local dx, dy = point.x - center.x, point.y - center.y
+        total = total + dx * dx + dy * dy
+    end
+    return math.sqrt(total / count)
+end
+
 local function pickColorAtHit(hit)
     if not (hit and hit.uv and state.layer and state.base) then
         state.status = tLang.L('mtp_pick_no_surface')
@@ -465,7 +478,12 @@ local function showBrushCursor()
     tImGui.SetImDrawListToForeground(true)
     local points = brushCursorPoints(state.hoverHit, state.mouse.x, state.mouse.y, mouse.x, mouse.y)
     if points then
-        tImGui.AddPolyline(points, color, true, 1.5)
+        if state.brush.screenCircle then
+            local radius = equivalentScreenRadius(points, mouse)
+            tImGui.AddCircle({x=mouse.x,y=mouse.y}, math.max(4, radius), color, 32, 1.5)
+        else
+            tImGui.AddPolyline(points, color, true, 1.5)
+        end
     else
         local width, height = mbm.getSizeScreen()
         local textureSize = math.max(state.textureWidth, state.textureHeight)
@@ -654,6 +672,7 @@ local function showControls()
         changed, value = tImGui.SliderFloat(tLang.L('radius'), state.brush.radius, 1, state.brushMaxRadius, '%.0f')
         if changed then state.brush.radius = value end
         tImGui.Text(string.format(tLang.L('mtp_radius_limit'), state.brushMaxRadius))
+        state.brush.screenCircle = tImGui.Checkbox(tLang.L('mtp_screen_circle'), state.brush.screenCircle)
         changed, value = tImGui.SliderFloat(tLang.L('mtp_hardness'), state.brush.hardness, 0, 1, '%.2f')
         if changed then state.brush.hardness = value end
         changed, value = tImGui.SliderFloat(tLang.L('mtp_opacity'), state.brush.opacity, 0, 1, '%.2f')
@@ -779,7 +798,7 @@ function onTouchMove(key, x, y)
         state.hoverHit = hit
         applyStrokeHit(hit)
     elseif state.orbiting then
-        state.cameraOrbit.azimuth = state.cameraOrbit.azimuth - dx * .005
+        state.cameraOrbit.azimuth = state.cameraOrbit.azimuth + dx * .005
         state.cameraOrbit.elevation = math.max(-math.pi*.49,
             math.min(math.pi*.49, state.cameraOrbit.elevation + dy*.005))
         applyCamera()
