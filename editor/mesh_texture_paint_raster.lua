@@ -74,6 +74,16 @@ local function stringToBytes(value, first, last)
     return bytes
 end
 
+local function stringToRows(value, width, height)
+    local rowBytes = width * M.BYTES_PER_PIXEL
+    local rows = {}
+    for y = 0, height - 1 do
+        local first = y * rowBytes + 1
+        rows[y + 1] = value:sub(first, first + rowBytes - 1)
+    end
+    return rows
+end
+
 local function pixelOffset(width, x, y)
     return (y * width + x) * M.BYTES_PER_PIXEL + 1
 end
@@ -85,6 +95,19 @@ local function assertBuffer(buffer, name)
     assert(type(buffer.bytes) == 'string', (name or 'buffer') .. '.bytes must be a string')
     assert(#buffer.bytes == buffer.width * buffer.height * M.BYTES_PER_PIXEL,
         (name or 'buffer') .. '.bytes has the wrong size')
+end
+
+local function rowsOf(buffer)
+    if not buffer.rows then
+        buffer.rows = stringToRows(buffer.bytes, buffer.width, buffer.height)
+    end
+    return buffer.rows
+end
+
+local function rowOf(buffer, y)
+    return buffer.rows and buffer.rows[y + 1] or buffer.bytes:sub(
+        y * buffer.width * M.BYTES_PER_PIXEL + 1,
+        (y + 1) * buffer.width * M.BYTES_PER_PIXEL)
 end
 
 local function normalizeColor(color)
@@ -135,19 +158,16 @@ end
 local function copyTile(buffer, tile)
     local rows = {}
     for y = tile.y, tile.y + tile.height - 1 do
-        local first = pixelOffset(buffer.width, tile.x, y)
-        rows[#rows + 1] = buffer.bytes:sub(first, first + tile.width * M.BYTES_PER_PIXEL - 1)
+        local line = rowOf(buffer, y)
+        local first = tile.x * M.BYTES_PER_PIXEL + 1
+        rows[#rows + 1] = line:sub(first, first + tile.width * M.BYTES_PER_PIXEL - 1)
     end
     return table.concat(rows)
 end
 
 local function replaceTileRows(buffer, tile, tileBytes)
     local rowBytes = tile.width * M.BYTES_PER_PIXEL
-    local rows = {}
-    for y = 0, buffer.height - 1 do
-        rows[y + 1] = buffer.bytes:sub(y * buffer.width * M.BYTES_PER_PIXEL + 1,
-            (y + 1) * buffer.width * M.BYTES_PER_PIXEL)
-    end
+    local rows = rowsOf(buffer)
     for row = 0, tile.height - 1 do
         local y = tile.y + row
         local line = rows[y + 1]
@@ -157,6 +177,37 @@ local function replaceTileRows(buffer, tile, tileBytes)
         rows[y + 1] = line:sub(1, first - 1) .. replacement .. line:sub(first + rowBytes)
     end
     buffer.bytes = table.concat(rows)
+end
+
+local function composeTile(base, layer, output, tile)
+    local rows = rowsOf(output)
+    local first = tile.x * M.BYTES_PER_PIXEL + 1
+    local last = (tile.x + tile.width) * M.BYTES_PER_PIXEL
+    for y = tile.y, tile.y + tile.height - 1 do
+        local baseBytes = stringToBytes(rowOf(base, y), first, last)
+        local layerBytes = stringToBytes(rowOf(layer, y), first, last)
+        local outputBytes = {}
+        for offset = 1, #baseBytes, M.BYTES_PER_PIXEL do
+            local baseR, baseG, baseB, baseA = baseBytes[offset], baseBytes[offset + 1],
+                baseBytes[offset + 2], baseBytes[offset + 3]
+            local layerR, layerG, layerB, layerA = layerBytes[offset], layerBytes[offset + 1],
+                layerBytes[offset + 2], layerBytes[offset + 3]
+            local source = layerA / 255
+            local destination = baseA / 255
+            local outputAlpha = source + destination * (1 - source)
+            if outputAlpha <= 0 then
+                outputBytes[offset], outputBytes[offset + 1], outputBytes[offset + 2], outputBytes[offset + 3] = 0, 0, 0, 0
+            else
+                outputBytes[offset] = byte((layerR * source + baseR * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 1] = byte((layerG * source + baseG * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 2] = byte((layerB * source + baseB * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 3] = byte(outputAlpha * 255)
+            end
+        end
+        local line = rows[y + 1]
+        rows[y + 1] = line:sub(1, first - 1) .. bytesToString(outputBytes) .. line:sub(last + 1)
+    end
+    return output
 end
 
 local function tileList(tiles)
@@ -190,6 +241,14 @@ function M.newLayer(width, height, tileSize)
     layer.dirtyTileList = {}
     return layer
 end
+
+function M.syncBytes(buffer)
+    assertBuffer(buffer)
+    if buffer.rows then buffer.bytes = table.concat(buffer.rows) end
+    return buffer.bytes
+end
+
+M.toBytes = M.syncBytes
 
 M.createTransparentLayer = M.newLayer
 
@@ -281,12 +340,13 @@ local function dabOptions(x, radius, hardness, opacity, color, mode)
             hardness = clamp(finiteNumber(dab.hardness, 1), 0, 1),
             opacity = clamp(finiteNumber(dab.opacity, 1), 0, 1),
             color = normalizeColor(dab.color or dab), mode = dab.mode or 'paint',
+            deferSync = dab.deferSync == true,
         }
     end
     return {
         x = finiteNumber(x, 0), y = finiteNumber(y, 0), radius = math.max(0, finiteNumber(radius, 0)),
         hardness = clamp(finiteNumber(hardness, 1), 0, 1), opacity = clamp(finiteNumber(opacity, 1), 0, 1),
-        color = normalizeColor(color), mode = mode or 'paint',
+        color = normalizeColor(color), mode = mode or 'paint', deferSync = false,
     }
 end
 
@@ -329,11 +389,13 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
     local changedPixels = 0
     if left > right or top > bottom then return {changedPixels = 0, dirtyTiles = {}} end
     local rowBytes = layer.width * M.BYTES_PER_PIXEL
+    local rows = rowsOf(layer)
     local changedRows = {}
     for py = top, bottom do
-        local first = pixelOffset(layer.width, left, py)
-        local last = pixelOffset(layer.width, right + 1, py) - 1
-        changedRows[py] = stringToBytes(layer.bytes, first, last)
+        local line = rows[py + 1]
+        local first = left * M.BYTES_PER_PIXEL + 1
+        local last = (right + 1) * M.BYTES_PER_PIXEL
+        changedRows[py] = stringToBytes(line, first, last)
     end
     for py = top, bottom do
         for px = left, right do
@@ -357,20 +419,15 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
         end
     end
     if changedPixels > 0 then
-        local outputRows = {}
-        for py = 0, layer.height - 1 do
-            local first = py * rowBytes + 1
-            local oldRow = layer.bytes:sub(first, first + rowBytes - 1)
+        local prefixBytes = left * M.BYTES_PER_PIXEL
+        local suffixStart = (right + 1) * M.BYTES_PER_PIXEL + 1
+        for py = top, bottom do
             local row = changedRows[py]
-            if row then
-                local prefixBytes = left * M.BYTES_PER_PIXEL
-                local suffixStart = (right + 1) * M.BYTES_PER_PIXEL + 1
-                outputRows[py + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(row) .. oldRow:sub(suffixStart)
-            else
-                outputRows[py + 1] = oldRow
-            end
+            local oldRow = rows[py + 1]
+            rows[py + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(row) .. oldRow:sub(suffixStart)
         end
-        layer.bytes = table.concat(outputRows)
+        layer.touched = true
+        if not dab.deferSync then M.syncBytes(layer) end
     end
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
@@ -399,32 +456,24 @@ function M.compose(base, layer)
     assertBuffer(base, 'base')
     assertBuffer(layer, 'layer')
     assert(base.width == layer.width and base.height == layer.height, 'base and layer dimensions differ')
-    local output = {width = base.width, height = base.height}
-    local outputRows = {}
-    local rowBytes = base.width * M.BYTES_PER_PIXEL
-    for y = 0, base.height - 1 do
-        local rowFirst = y * rowBytes + 1
-        local baseBytes = stringToBytes(base.bytes, rowFirst, rowFirst + rowBytes - 1)
-        local layerBytes = stringToBytes(layer.bytes, rowFirst, rowFirst + rowBytes - 1)
-        local outputBytes = {}
-        for offset = 1, rowBytes, M.BYTES_PER_PIXEL do
-            local baseR, baseG, baseB, baseA = baseBytes[offset], baseBytes[offset + 1], baseBytes[offset + 2], baseBytes[offset + 3]
-            local layerR, layerG, layerB, layerA = layerBytes[offset], layerBytes[offset + 1], layerBytes[offset + 2], layerBytes[offset + 3]
-            local source = layerA / 255
-            local destination = baseA / 255
-            local outputAlpha = source + destination * (1 - source)
-            if outputAlpha <= 0 then
-                outputBytes[offset], outputBytes[offset + 1], outputBytes[offset + 2], outputBytes[offset + 3] = 0, 0, 0, 0
-            else
-                outputBytes[offset] = byte((layerR * source + baseR * destination * (1 - source)) / outputAlpha)
-                outputBytes[offset + 1] = byte((layerG * source + baseG * destination * (1 - source)) / outputAlpha)
-                outputBytes[offset + 2] = byte((layerB * source + baseB * destination * (1 - source)) / outputAlpha)
-                outputBytes[offset + 3] = byte(outputAlpha * 255)
-            end
-        end
-        outputRows[y + 1] = bytesToString(outputBytes)
-    end
-    output.bytes = table.concat(outputRows)
+    if not layer.touched then return M.newBuffer(base.width, base.height, base.bytes) end
+    local output = M.newBuffer(base.width, base.height, base.bytes)
+    return M.composeInto(base, layer, output, {{
+        key = 'all', tileX = 0, tileY = 0, x = 0, y = 0,
+        width = base.width, height = base.height,
+    }})
+end
+
+function M.composeInto(base, layer, output, tiles)
+    assertBuffer(base, 'base')
+    assertBuffer(layer, 'layer')
+    assert(base.width == layer.width and base.height == layer.height, 'base and layer dimensions differ')
+    output = output or M.newBuffer(base.width, base.height, base.bytes)
+    assertBuffer(output, 'output')
+    assert(output.width == base.width and output.height == base.height, 'output dimensions differ')
+    tiles = tiles or M.tilesForRect(layer, 0, 0, layer.width - 1, layer.height - 1)
+    for _, tile in ipairs(tileList(tiles)) do composeTile(base, layer, output, tile) end
+    M.syncBytes(output)
     return output
 end
 

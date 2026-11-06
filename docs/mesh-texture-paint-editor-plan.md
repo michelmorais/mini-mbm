@@ -1,8 +1,8 @@
 # Plano: Editor de Pintura de Textura sobre Mesh 3D
 
-Status: proposta de produto e arquitetura. Este documento descreve o caminho para
-um editor que carregue uma mesh 3D existente, permita pintar a superfície visível
-com um pincel e exporte a textura editada sem destruir os arquivos originais.
+Status: em implementação. O milestone vertical atual já abre MSH, faz picking
+3D, pinta uma camada UV, mantém preview privado e salva projetos Lua; stencil,
+dilatação de seams e exportação final continuam nas próximas fases.
 
 ## 1. Objetivo
 
@@ -123,7 +123,7 @@ Salvar deve sugerir novos nomes, por exemplo:
 ```text
 character.msh       -> character_painted.msh
 character_base.png  -> character_base_painted.png
-character_painted.meshpaint
+character_painted.meshpaint.lua
 ```
 
 O editor não deve sobrescrever a MSH ou a imagem de origem sem uma confirmação
@@ -199,7 +199,7 @@ materiais e demais referências não editadas.
 ### Arquivo e projeto
 
 - Abrir mesh;
-- Abrir projeto `.meshpaint`;
+- Abrir projeto `.meshpaint.lua`;
 - Salvar textura;
 - Salvar mesh como;
 - Salvar projeto;
@@ -224,7 +224,7 @@ editor/mesh_texture_paint_editor.lua  -- cena, menus, janelas e callbacks
 editor/mesh_texture_paint_model.lua   -- estado, seleção e dirty flags
 editor/mesh_texture_paint_raster.lua  -- camadas, dabs, blend, dilatação e tiles
 editor/mesh_texture_paint_pick.lua    -- raios, triângulos, barycentric e UV
-editor/mesh_texture_paint_project.lua -- formato .meshpaint versionado
+editor/mesh_texture_paint_project.lua -- formato .meshpaint.lua versionado
 editor/mesh_texture_paint_preview.lua -- textura privada e atualização da mesh
 ```
 
@@ -341,26 +341,29 @@ alteração confirmada. Se a latência for perceptível, a segunda etapa deve pe
 upload de sub-região ou textura editável nativa; não mascarar o problema fazendo
 rebuild contínuo da mesh.
 
-## 7. Formato do projeto `.meshpaint`
+## 7. Formato do projeto `.meshpaint.lua`
 
-O formato deve ser textual, versionado e não executar Lua ao abrir. Ele deve
-referenciar arquivos, não incorporar a MSH ou a textura inteira.
+O formato deve ser textual, versionado e conter somente uma tabela Lua literal.
+O carregador usa um ambiente vazio, valida o resultado e não permite que o
+projeto acesse os globais do editor. O arquivo deve referenciar arquivos, não
+incorporar a MSH ou a textura inteira.
 
 Campos mínimos:
 
-```text
-format = "meshpaint"
-version = 1
-source_mesh = "..."
-source_texture = "..."
-paint_layer = "..."
-working_texture = "..."       -- cache achatado opcional
-frame = 1
-subset = 0
-texture_role = "primary"
-uv_channel = 0
-projection_mode = "uv"
-dilation_radius = 2
+```lua
+return {
+    version = 1,
+    source_mesh = "...",
+    source_texture = "...",
+    paint_layer = "...",
+    working_texture = nil,       -- cache achatado opcional
+    frame = 1,
+    subset = 1,
+    texture_role = "base_color",
+    uv_channel = 0,
+    projection_mode = "uv_brush",
+    dilation_radius = 0,
+}
 ```
 
 O projeto também pode guardar preferências de viewport, pincel e stencil. A camada
@@ -369,9 +372,10 @@ cache achatado que pode ser regenerado. O projeto não deve guardar cache de GPU
 BVH, jobs ativos ou o histórico completo de pixels.
 
 Caminhos relativos devem ser usados quando os arquivos estiverem sob uma raiz
-comum do projeto. O carregamento deve validar versão, chaves conhecidas, caminhos,
-existência da textura e compatibilidade de dimensões antes de alterar o estado
-atual.
+comum do projeto. A implementação atual grava caminhos absolutos para manter o
+primeiro ciclo determinístico. O carregamento valida versão, chaves conhecidas,
+caminhos, existência da camada e compatibilidade de dimensões antes de alterar
+o estado atual.
 
 ## 8. Histórico, cancelamento e atomicidade
 
@@ -416,7 +420,7 @@ uma lista de meshes incompatíveis.
 - Implementar dilatação de seams e aviso para UVs sobrepostos.
 - Implementar preview privado, dirty flags e Undo/Redo por stroke.
 - Implementar UV/Texture view.
-- Implementar exportação PNG, MSH e projeto `.meshpaint`.
+- Implementar exportação PNG, MSH e projeto `.meshpaint.lua`.
 - Adicionar strings em `editor/lang/language.lua` em inglês e pt-BR.
 
 ### Fase 2 - Robustez de autoria

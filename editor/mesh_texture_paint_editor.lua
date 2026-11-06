@@ -24,6 +24,7 @@ tUtil = require 'editor_utils'
 local Pick = require 'mesh_texture_paint_pick'
 local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
+local Project = require 'mesh_texture_paint_project'
 
 local state = {
     camera = nil,
@@ -34,6 +35,8 @@ local state = {
     previewMeshPath = nil,
     previewTexturePath = nil,
     previewTextureInfo = nil,
+    previewReady = false,
+    previewRequiresMesh = false,
     snapshots = {},
     targets = {},
     targetIndex = 0,
@@ -42,7 +45,10 @@ local state = {
     layer = nil,
     composite = nil,
     previewDirty = false,
+    compositeDirtyTiles = nil,
     previewBuilds = 0,
+    projectPath = nil,
+    modified = false,
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, mode = 'paint', color = {r=1,g=0,b=0,a=1}},
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
@@ -57,6 +63,7 @@ local state = {
     titles = {
         controls = 'mesh_texture_paint_controls',
         texture = 'mesh_texture_paint_texture',
+        camera = 'mesh_texture_paint_camera',
     },
 }
 
@@ -75,9 +82,11 @@ local function clearPreview()
     if state.previewMesh then state.previewMesh:destroy() end
     if state.previewTextureInfo then state.previewTextureInfo:release() end
     state.previewMesh, state.previewAsset, state.previewTextureInfo = nil, nil, nil
+    state.previewReady, state.previewRequiresMesh = false, false
     if state.previewMeshPath then os.remove(state.previewMeshPath) end
     if state.previewTexturePath then os.remove(state.previewTexturePath) end
     state.previewMeshPath, state.previewTexturePath = nil, nil
+    state.compositeDirtyTiles = nil
 end
 
 local function resolvePath(path)
@@ -128,15 +137,6 @@ local function colorBytes()
         b=math.floor((c.b or 0) * 255 + .5), a=math.floor((c.a or 1) * 255 + .5)}
 end
 
-local function targetForTexture(path)
-    for index, target in ipairs(state.targets) do
-        if target.path == path then return index, target end
-    end
-    local target = {path=path, subsets={}, triangles={}}
-    state.targets[#state.targets + 1] = target
-    return #state.targets, target
-end
-
 local function releaseTextureWork()
     state.base, state.layer, state.composite, state.target = nil, nil, nil, nil
 end
@@ -154,8 +154,10 @@ local function selectTarget(index)
     state.base = Raster.newBuffer(width, height, bytes)
     state.layer = Raster.newLayer(state.base, 32)
     state.composite = Raster.compose(state.base, state.layer)
+    state.compositeDirtyTiles = nil
     state.undo, state.redo = {}, {}
     state.previewDirty = true
+    state.previewRequiresMesh = true
     state.status = string.format('Texture selected: %s (%dx%d)', target.path, width, height)
     return true
 end
@@ -173,15 +175,24 @@ end
 
 local function rebuildPreview()
     if not (state.previewAsset and state.previewMesh and state.target and state.layer) then return end
-    state.composite = Raster.compose(state.base, state.layer)
-    loadPreviewTexture()
-    for _, subset in ipairs(state.target.subsets) do
-        assert(state.previewAsset:setTexture(1, subset, state.previewTexturePath))
+    if state.compositeDirtyTiles then
+        Raster.composeInto(state.base, state.layer, state.composite, state.compositeDirtyTiles)
+        state.compositeDirtyTiles = nil
+    elseif not state.composite then
+        state.composite = Raster.compose(state.base, state.layer)
     end
-    assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
-    assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
+    loadPreviewTexture()
+    if state.previewRequiresMesh or not state.previewReady then
+        for _, subset in ipairs(state.target.subsets) do
+            assert(state.previewAsset:setTexture(1, subset, state.previewTexturePath))
+        end
+        assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
+        assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
+        state.previewReady = true
+    end
     state.previewMesh.alwaysRender = true
     state.previewMesh.visible = true
+    state.previewRequiresMesh = false
     state.previewDirty = false
     state.previewBuilds = state.previewBuilds + 1
 end
@@ -227,11 +238,13 @@ local function loadMesh(path)
     frameCamera()
     assert(selectTarget(1))
     rebuildPreview()
+    state.projectPath = nil
+    state.modified = false
     state.status = string.format('Loaded %s. Paint with right drag; orbit with left drag.', fullPath)
 end
 
 local function beginStroke(hit)
-    state.stroke = {before={}, tiles={}, lastU=hit.uv.u, lastV=hit.uv.v}
+    state.stroke = {before={}, tiles={}, changed=false, lastU=hit.uv.u, lastV=hit.uv.v}
     state.painting = true
     local dab = {x=hit.uv.u*(state.layer.width-1), y=hit.uv.v*(state.layer.height-1),
         radius=state.brush.radius}
@@ -257,8 +270,12 @@ local function applyStrokeHit(hit)
     end
     local result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
         hardness=state.brush.hardness, opacity=state.brush.opacity,
-        color=colorBytes(), mode=state.brush.mode})
-    if result.changedPixels > 0 then state.previewDirty = true end
+        color=colorBytes(), mode=state.brush.mode, deferSync=true})
+    if result.changedPixels > 0 then
+        state.stroke.changed = true
+        state.previewDirty = true
+        state.modified = true
+    end
 end
 
 local function hitAtScreen(x, y)
@@ -270,14 +287,16 @@ end
 
 local function finishStroke()
     if not state.stroke then state.painting = false; return end
-    if state.previewDirty and #state.stroke.tiles > 0 then
+    if state.stroke.changed and #state.stroke.tiles > 0 then
         local after = Raster.snapshotTiles(state.layer, state.stroke.tiles)
         local before = {width=state.layer.width,height=state.layer.height,tiles={}}
         for _, tile in pairs(state.stroke.before) do before.tiles[#before.tiles+1] = tile end
         state.undo[#state.undo+1] = {before=before, after=after}
         state.redo = {}
+        state.compositeDirtyTiles = state.stroke.tiles
     end
     state.stroke, state.painting = nil, false
+    if state.previewDirty then state.status = 'Stroke applied. Preview updated.' end
 end
 
 local function history(redo)
@@ -289,23 +308,123 @@ local function history(redo)
     local to = redo and action.before or action.after
     Raster.restoreTiles(state.layer, from)
     destination[#destination+1] = {before=to, after=from}
+    state.compositeDirtyTiles = from.tiles
     state.previewDirty = true
+    state.modified = true
+end
+
+local function withExtension(path, extension)
+    if path:sub(-#extension):lower() == extension:lower() then return path end
+    return path .. extension
+end
+
+local function suggestedProjectPath()
+    local source = state.meshPath or 'mesh-texture-paint'
+    local directory, name = source:match('^(.*[/\\])([^/\\]+)$')
+    directory, name = directory or '', name or source
+    local stem = name:gsub('%.[^%.]+$', '')
+    return directory .. stem .. '.meshpaint.lua'
+end
+
+local function paintLayerPath(projectPath)
+    return projectPath:gsub('%.lua$', '') .. '.paint.png'
+end
+
+local function makeProject(projectPath)
+    local firstSubset = state.target and state.target.subsets[1] or 1
+    return {
+        version = Project.VERSION,
+        source_mesh = resolvePath(state.meshPath) or state.meshPath,
+        source_texture = resolvePath(state.target.path) or state.target.path,
+        paint_layer = paintLayerPath(projectPath),
+        working_texture = nil,
+        frame = 1,
+        subset = firstSubset,
+        texture_role = 'base_color',
+        uv_channel = 0,
+        projection_mode = 'uv_brush',
+        dilation_radius = 0,
+    }
+end
+
+local function saveProject(path)
+    if not (state.layer and state.target and state.meshPath) then
+        state.status = 'Open a mesh and select a texture before saving a project.'
+        return false
+    end
+    path = withExtension(resolvePath(path) or path, '.lua')
+    local project = makeProject(path)
+    local bytes = Raster.toBytes(state.layer)
+    local saved, errorMessage = dpCall(mbm.writeImagePixels, project.paint_layer, bytes,
+        state.layer.width, state.layer.height)
+    if not saved then error(errorMessage or 'could not save paint layer') end
+    assert(Project.saveLua(project, path))
+    state.projectPath, state.modified = path, false
+    state.status = 'Project saved: ' .. path
+    return true
+end
+
+local function saveProjectAs()
+    local path = mbm.saveFile(state.projectPath or suggestedProjectPath(), 'lua')
+    if path then dpCall(saveProject, path) end
+end
+
+local function openProject(path)
+    local ok, project = dpCall(Project.loadLua, resolvePath(path) or path)
+    if not ok then
+        state.status = 'Could not load project: ' .. tostring(project)
+        return false
+    end
+    local loaded = dpCall(loadMesh, project.source_mesh)
+    if not loaded then return false end
+    local targetIndex
+    for index, target in ipairs(state.targets) do
+        if target.path == project.source_texture then targetIndex = index; break end
+    end
+    if not targetIndex then error('project texture is not used by the mesh') end
+    assert(selectTarget(targetIndex))
+    local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
+    if not readOk or not bytes then error('could not read project paint layer') end
+    if width ~= state.base.width or height ~= state.base.height then
+        error('project paint layer dimensions do not match the source texture')
+    end
+    state.layer = Raster.newLayer(state.base, 32)
+    state.layer.bytes = bytes
+    state.layer.touched = true
+    state.composite = Raster.compose(state.base, state.layer)
+    state.undo, state.redo = {}, {}
+    state.projectPath, state.modified = resolvePath(path) or path, false
+    state.previewDirty, state.previewRequiresMesh = true, true
+    state.status = 'Project loaded: ' .. state.projectPath
+    return true
 end
 
 local function showMenu()
     if not tImGui.BeginMainMenuBar() then return end
-    if tImGui.BeginMenu('File') then
-        if tImGui.MenuItem('Open MSH') then
+    if tImGui.BeginMenu(tLang.L('menu_file')) then
+        if tImGui.MenuItem(tLang.L('mtp_open_msh')) then
             local path = mbm.openFile(state.meshPath or '', 'msh')
             if path then dpCall(loadMesh, path) end
         end
-        if tImGui.MenuItem('Reload') and state.meshPath then dpCall(loadMesh, state.meshPath) end
-        if tImGui.MenuItem('Quit') then mbm.quit() end
+        if tImGui.MenuItem(tLang.L('mtp_open_project')) then
+            local path = mbm.openFile(state.projectPath or '', 'lua')
+            if path then dpCall(openProject, path) end
+        end
+        if tImGui.MenuItem(tLang.L('mtp_save_project'), 'Ctrl+S', false, state.layer ~= nil) then
+            if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
+        end
+        if tImGui.MenuItem(tLang.L('mtp_save_project_as'), nil, false, state.layer ~= nil) then saveProjectAs() end
+        if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
+        if tImGui.MenuItem(tLang.L('menu_quit')) then mbm.quit() end
         tImGui.EndMenu()
     end
-    if tImGui.BeginMenu('Edit') then
-        if tImGui.MenuItem('Undo', 'Ctrl+Z') then history(false) end
-        if tImGui.MenuItem('Redo', 'Ctrl+Y') then history(true) end
+    if tImGui.BeginMenu(tLang.L('menu_edit')) then
+        if tImGui.MenuItem(tLang.L('undo'), 'Ctrl+Z', false, #state.undo > 0) then history(false) end
+        if tImGui.MenuItem(tLang.L('redo'), 'Ctrl+Y', false, #state.redo > 0) then history(true) end
+        tImGui.EndMenu()
+    end
+    if tImGui.BeginMenu(tLang.L('menu_options')) then
+        tLang.renderLanguageSubmenu()
         tImGui.EndMenu()
     end
     tImGui.EndMainMenuBar()
@@ -315,42 +434,53 @@ local function showControls()
     tUtil.setInitialWindowPositionLeft(state.titles.controls, 0, 20, 340)
     local opened = tImGui.Begin(state.titles.controls, true, 0)
     if opened then
-        if tImGui.Button('Open MSH') then
+        if tImGui.Button(tLang.L('mtp_open_msh')) then
             local path = mbm.openFile(state.meshPath or '', 'msh')
             if path then dpCall(loadMesh, path) end
         end
         tImGui.SameLine()
-        if tImGui.Button('Reload') and state.meshPath then dpCall(loadMesh, state.meshPath) end
+        if tImGui.Button(tLang.L('mtp_open_project')) then
+            local path = mbm.openFile(state.projectPath or '', 'lua')
+            if path then dpCall(openProject, path) end
+        end
+        if tImGui.Button(tLang.L('mtp_save_project')) and state.layer then
+            if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('mtp_save_project_as')) and state.layer then saveProjectAs() end
+        if tImGui.Button(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
         tImGui.Separator()
         tImGui.TextWrapped(state.status)
         if state.meshPath then tImGui.TextWrapped('Mesh: ' .. state.meshPath) end
+        if state.projectPath then tImGui.TextWrapped('Project: ' .. state.projectPath) end
         if #state.targets > 0 then
             local labels = {}
             for _, target in ipairs(state.targets) do labels[#labels+1] = tUtil.getShortName(target.path) end
-            local changed, selected = tImGui.Combo('Texture', state.targetIndex, labels, -1)
+            local changed, selected = tImGui.Combo(tLang.L('texture'), state.targetIndex, labels, -1)
             if changed and selected ~= state.targetIndex then dpCall(selectTarget, selected) end
         end
         tImGui.Separator()
-        local changed, value = tImGui.Combo('Mode', state.brush.mode == 'paint' and 1 or 2, {'Paint', 'Erase'}, -1)
+        local changed, value = tImGui.Combo(tLang.L('mtp_mode'), state.brush.mode == 'paint' and 1 or 2,
+            {tLang.L('mtp_paint'), tLang.L('mtp_erase')}, -1)
         if changed then state.brush.mode = value == 1 and 'paint' or 'erase' end
-        changed, value = tImGui.SliderFloat('Radius', state.brush.radius, 1, 512, '%.0f')
+        changed, value = tImGui.SliderFloat(tLang.L('radius'), state.brush.radius, 1, 512, '%.0f')
         if changed then state.brush.radius = value end
-        changed, value = tImGui.SliderFloat('Hardness', state.brush.hardness, 0, 1, '%.2f')
+        changed, value = tImGui.SliderFloat(tLang.L('mtp_hardness'), state.brush.hardness, 0, 1, '%.2f')
         if changed then state.brush.hardness = value end
-        changed, value = tImGui.SliderFloat('Opacity', state.brush.opacity, 0, 1, '%.2f')
+        changed, value = tImGui.SliderFloat(tLang.L('mtp_opacity'), state.brush.opacity, 0, 1, '%.2f')
         if changed then state.brush.opacity = value end
-        changed, value = tImGui.ColorEdit4('Color', state.brush.color)
+        changed, value = tImGui.ColorEdit4(tLang.L('mtp_color'), state.brush.color)
         if changed then state.brush.color = value end
-        if tImGui.Button('Undo') then history(false) end
+        if tImGui.Button(tLang.L('undo')) then history(false) end
         tImGui.SameLine()
-        if tImGui.Button('Redo') then history(true) end
+        if tImGui.Button(tLang.L('redo')) then history(true) end
         tImGui.Text(string.format('Preview builds: %d', state.previewBuilds))
     end
     tImGui.End()
 end
 
 local function showTexture()
-    tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 20, 320)
+    tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 430, 320)
     local opened = tImGui.Begin(state.titles.texture, true, 0)
     if opened then
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
@@ -358,8 +488,40 @@ local function showTexture()
             local size = math.max(64, math.min(300, available.x, available.y - 30))
             tImGui.Image(state.previewTextureInfo, {x=size,y=size}, {x=0,y=0}, {x=1,y=1})
         else
-            tImGui.TextWrapped('Load a mesh with a file-backed UV texture.')
+            tImGui.TextWrapped(tLang.L('mtp_texture_help'))
         end
+    end
+    tImGui.End()
+end
+
+local function showCamera()
+    tUtil.setInitialWindowPositionRight(state.titles.camera, 0, 20, 330)
+    local opened = tImGui.Begin(tLang.L('mtp_camera') .. '##' .. state.titles.camera, true,
+        tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    if opened then
+        if tImGui.Button(tLang.L('mtp_frame_mesh')) then frameCamera() end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('reset_camera')) then
+            state.cameraOrbit.azimuth, state.cameraOrbit.elevation = 0, .2
+            frameCamera()
+        end
+        tImGui.Separator()
+        if tUtil.drawOrbitGizmo(state.cameraOrbit, {size=110}) then applyCamera() end
+        tImGui.Separator()
+        tUtil.pushResponsiveItemWidth(72)
+        local changed, value = tImGui.InputFloat(tLang.L('cam_distance'), state.cameraOrbit.distance,
+            state.cameraOrbit.distance * .1, state.cameraOrbit.distance, '%.3f', 0)
+        if changed and value > 0 then state.cameraOrbit.distance = value; applyCamera() end
+        local fx, nx = tImGui.DragFloat('X##mtpCamFocusX', state.cameraOrbit.fx, 0.01, 0, 0, '%.3f', 0)
+        local fy, ny = tImGui.DragFloat('Y##mtpCamFocusY', state.cameraOrbit.fy, 0.01, 0, 0, '%.3f', 0)
+        local fz, nz = tImGui.DragFloat('Z##mtpCamFocusZ', state.cameraOrbit.fz, 0.01, 0, 0, '%.3f', 0)
+        if fx then state.cameraOrbit.fx = nx end
+        if fy then state.cameraOrbit.fy = ny end
+        if fz then state.cameraOrbit.fz = nz end
+        if fx or fy or fz then applyCamera() end
+        tImGui.PopItemWidth()
+        tImGui.Separator()
+        tImGui.TextWrapped(tLang.L('mtp_camera_help'))
     end
     tImGui.End()
 end
@@ -367,14 +529,16 @@ end
 function onInitScene()
     state.camera = mbm.getCamera('3d')
     state.camera:setFar(9999999)
-    tUtil.sMessageOverlay = 'Mesh Texture Paint: open an MSH to start.'
+    tUtil.sMessageOverlay = tLang.L('mtp_welcome')
 end
 
 function onLoop(delta)
     showMenu()
     showControls()
+    showCamera()
     showTexture()
-    if state.previewDirty then dpCall(rebuildPreview) end
+    tUtil.showOverlayMessage()
+    if state.previewDirty and not state.painting then dpCall(rebuildPreview) end
 end
 
 function onTouchDown(key, x, y)
@@ -398,9 +562,17 @@ function onTouchMove(key, x, y)
             math.min(math.pi*.49, state.cameraOrbit.elevation + dy*.005))
         applyCamera()
     elseif state.panning then
-        local scale = state.cameraOrbit.distance * .001
-        state.cameraOrbit.fx = state.cameraOrbit.fx - dx * scale
-        state.cameraOrbit.fy = state.cameraOrbit.fy + dy * scale
+        local c = state.cameraOrbit
+        local px = c.fx + c.distance * math.cos(c.elevation) * math.sin(c.azimuth)
+        local pz = c.fz + c.distance * math.cos(c.elevation) * math.cos(c.azimuth)
+        local vx, vz = c.fx - px, c.fz - pz
+        local length = math.sqrt(vx * vx + vz * vz)
+        local rx, rz = 1, 0
+        if length > 0 then rx, rz = vz / length, -vx / length end
+        local scale = c.distance * .001
+        c.fx = c.fx + rx * (-dx) * scale
+        c.fy = c.fy + dy * scale
+        c.fz = c.fz + rz * (-dx) * scale
         applyCamera()
     end
     state.mouse.x, state.mouse.y = x, y
@@ -420,7 +592,13 @@ end
 function onKeyDown(key)
     if key == mbm.getKeyCode('control') then state.keyControl = true
     elseif state.keyControl and key == mbm.getKeyCode('Z') then history(false)
-    elseif state.keyControl and key == mbm.getKeyCode('Y') then history(true) end
+    elseif state.keyControl and key == mbm.getKeyCode('Y') then history(true)
+    elseif state.keyControl and key == mbm.getKeyCode('O') then
+        local path = mbm.openFile(state.projectPath or '', 'lua')
+        if path then dpCall(openProject, path) end
+    elseif state.keyControl and key == mbm.getKeyCode('S') and state.layer then
+        if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
+    elseif state.keyControl and key == mbm.getKeyCode('Q') then mbm.quit() end
 end
 
 function onKeyUp(key)

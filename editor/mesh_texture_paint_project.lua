@@ -211,6 +211,23 @@ local function writeFile(path, data)
     end
 end
 
+local function readLuaProject(path)
+    local file, errorMessage = io.open(path, 'rb')
+    assert(file, errorMessage)
+    local data = file:read(M.MAX_FILE_BYTES + 1)
+    assert(file:close())
+    assert(data and #data <= M.MAX_FILE_BYTES, 'project file is too large')
+    local chunk, loadError = load(data, '@' .. path, 't', {})
+    assert(chunk, loadError)
+    local ok, value = pcall(chunk)
+    assert(ok, value)
+    return value
+end
+
+local function luaString(value)
+    return string.format('%q', value)
+end
+
 function M.save(project, path)
     M.validate(project)
     assert(type(path) == 'string' and path ~= '', 'project output path is required')
@@ -231,6 +248,29 @@ function M.save(project, path)
     if project.working_texture ~= nil then
         lines[#lines + 1] = 'working_texture=' .. M.encodePath(project.working_texture)
     end
+    writeFile(path, table.concat(lines, '\n') .. '\n')
+    return true
+end
+
+function M.saveLua(project, path)
+    M.validate(project)
+    assert(type(path) == 'string' and path ~= '', 'project output path is required')
+    local lines = {
+        '-- Mesh Texture Paint project. Edit with the Mesh Texture Paint Editor.',
+        'return {',
+        '    version = ' .. tostring(project.version) .. ',',
+        '    source_mesh = ' .. luaString(project.source_mesh) .. ',',
+        '    source_texture = ' .. luaString(project.source_texture) .. ',',
+        '    paint_layer = ' .. luaString(project.paint_layer) .. ',',
+        '    working_texture = ' .. (project.working_texture and luaString(project.working_texture) or 'nil') .. ',',
+        '    frame = ' .. tostring(project.frame) .. ',',
+        '    subset = ' .. tostring(project.subset) .. ',',
+        '    texture_role = ' .. luaString(project.texture_role) .. ',',
+        '    uv_channel = ' .. tostring(project.uv_channel) .. ',',
+        '    projection_mode = ' .. luaString(project.projection_mode) .. ',',
+        '    dilation_radius = ' .. formatNumber(project.dilation_radius) .. ',',
+        '}',
+    }
     writeFile(path, table.concat(lines, '\n') .. '\n')
     return true
 end
@@ -292,6 +332,11 @@ function M.load(path)
     project.uv_channel = parseInteger(values.uv_channel, 'uv_channel')
     project.projection_mode = values.projection_mode
     project.dilation_radius = parseNumber(values.dilation_radius, 'dilation_radius')
+    return M.validate(project)
+end
+
+function M.loadLua(path)
+    local project = readLuaProject(path)
     return M.validate(project)
 end
 

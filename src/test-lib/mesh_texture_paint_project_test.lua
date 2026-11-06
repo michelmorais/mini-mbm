@@ -85,6 +85,18 @@ assert(Project.save(noWorking, noWorkingPath))
 local noWorkingLoaded = assert(Project.load(noWorkingPath))
 assert(noWorkingLoaded.working_texture == nil)
 
+local luaProjectPath = tempPath('.lua')
+assert(Project.saveLua(project, luaProjectPath))
+local luaSource = read(luaProjectPath)
+assert(luaSource:find('^%-%- Mesh Texture Paint project'))
+assert(luaSource:find('return {', 1, true))
+assert(luaSource:find('version = 1', 1, true))
+local luaLoaded = assert(Project.loadLua(luaProjectPath))
+assert(luaLoaded.source_mesh == project.source_mesh)
+assert(luaLoaded.paint_layer == project.paint_layer)
+assert(luaLoaded.projection_mode == project.projection_mode)
+os.remove(luaProjectPath)
+
 local invalid = Project.copy(project)
 invalid.source_mesh = 'relative.msh'
 expectFailure(function() Project.validate(invalid) end)
@@ -145,6 +157,16 @@ assert(marker == nil, 'opening a project must not execute Lua')
 if marker then marker:close() end
 os.remove(executionPath)
 os.remove(markerPath)
+
+local luaExecutionPath = tempPath('.lua')
+local luaMarkerPath = luaExecutionPath .. '.executed'
+write(luaExecutionPath, 'return os.execute(' .. string.format('%q', 'touch ' .. luaMarkerPath) .. ')\n')
+expectFailure(function() Project.loadLua(luaExecutionPath) end)
+local luaMarker = io.open(luaMarkerPath, 'rb')
+assert(luaMarker == nil, 'loading a project must not execute globals')
+if luaMarker then luaMarker:close() end
+os.remove(luaExecutionPath)
+os.remove(luaMarkerPath)
 
 os.remove(projectPath)
 os.remove(noWorkingPath)
