@@ -410,6 +410,35 @@ local function blendPaint(oldR, oldG, oldB, oldA, color, sourceAlpha)
         byte(outputAlpha * 255)
 end
 
+local function sampleStamp(stamp, x, y)
+    x = clamp(x, 0, stamp.width - 1)
+    y = clamp(y, 0, stamp.height - 1)
+    local x0, y0 = math.floor(x), math.floor(y)
+    local x1, y1 = math.min(stamp.width - 1, x0 + 1), math.min(stamp.height - 1, y0 + 1)
+    local tx, ty = x - x0, y - y0
+    local bytes, width = stamp.bytes, stamp.width
+    local offset00 = (y0 * width + x0) * M.BYTES_PER_PIXEL + 1
+    local offset10 = (y0 * width + x1) * M.BYTES_PER_PIXEL + 1
+    local offset01 = (y1 * width + x0) * M.BYTES_PER_PIXEL + 1
+    local offset11 = (y1 * width + x1) * M.BYTES_PER_PIXEL + 1
+    local alpha00, alpha10 = bytes:byte(offset00 + 3), bytes:byte(offset10 + 3)
+    local alpha01, alpha11 = bytes:byte(offset01 + 3), bytes:byte(offset11 + 3)
+    local function interpolate(value00, value10, value01, value11)
+        local top = value00 * (1 - tx) + value10 * tx
+        local bottom = value01 * (1 - tx) + value11 * tx
+        return top * (1 - ty) + bottom * ty
+    end
+    local alpha = interpolate(alpha00, alpha10, alpha01, alpha11)
+    if alpha <= 0 then return 0, 0, 0, 0 end
+    local function interpolateColor(channel)
+        return interpolate(bytes:byte(offset00 + channel) * alpha00,
+            bytes:byte(offset10 + channel) * alpha10,
+            bytes:byte(offset01 + channel) * alpha01,
+            bytes:byte(offset11 + channel) * alpha11) / alpha
+    end
+    return interpolateColor(0), interpolateColor(1), interpolateColor(2), alpha
+end
+
 local function blendErase(oldR, oldG, oldB, oldA, amount)
     local alpha = byte(oldA * (1 - amount))
     if alpha == 0 then return 0, 0, 0, 0 end
@@ -506,17 +535,10 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
                 local normalizedY = radius > 0 and (py - y) / radius or 0
                 if flipX then normalizedX = -normalizedX end
                 if flipY then normalizedY = -normalizedY end
-                local sourceX = clamp(math.floor(normalizedX * sourceRadius + sourceRadius + .5),
-                    0, stamp.width - 1)
-                local sourceY = clamp(math.floor(normalizedY * sourceRadius + sourceRadius + .5),
-                    0, stamp.height - 1)
-                local sourceOffset = (sourceY * stamp.width + sourceX) * M.BYTES_PER_PIXEL + 1
-                local color = {
-                    r = stamp.bytes:byte(sourceOffset),
-                    g = stamp.bytes:byte(sourceOffset + 1),
-                    b = stamp.bytes:byte(sourceOffset + 2),
-                    a = stamp.bytes:byte(sourceOffset + 3),
-                }
+                local sourceX = normalizedX * sourceRadius + sourceRadius
+                local sourceY = normalizedY * sourceRadius + sourceRadius
+                local sourceR, sourceG, sourceB, sourceA = sampleStamp(stamp, sourceX, sourceY)
+                local color = {r=sourceR, g=sourceG, b=sourceB, a=sourceA}
                 local offset = (px - left) * M.BYTES_PER_PIXEL + 1
                 local row = changedRows[py]
                 local oldR, oldG, oldB, oldA = row[offset], row[offset + 1],

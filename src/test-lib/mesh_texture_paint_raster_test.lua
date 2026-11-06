@@ -94,6 +94,12 @@ Raster.applyStamp(flippedLayer, directionalStamp, 3, 3, 1, 1, 1, false, true, fa
 assertPixel(flippedLayer, 2, 3, 0, 0, 255, 255)
 assertPixel(flippedLayer, 4, 3, 255, 0, 0, 255)
 
+local interpolatedLayer = Raster.newLayer(7, 7, 2)
+Raster.applyStamp(interpolatedLayer, directionalStamp, 3, 3, 2, 1, 1)
+local interpolatedR, interpolatedG = pixel(interpolatedLayer, 2, 3)
+assert(interpolatedR > 0 and interpolatedG > 0 and interpolatedR < 255 and interpolatedG < 255,
+    'stamp application must interpolate between source pixels')
+
 local eraseResult = Raster.erase(layer, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1})
 assert(eraseResult.changedPixels == 1, 'erase must change the selected pixel')
 assertPixel(layer, 2, 2, 0, 0, 0, 0)

@@ -539,7 +539,7 @@ local function captureStampFromView(hit, screenX, screenY, buffer, radius)
         minX, maxX = math.min(minX, point.x), math.max(maxX, point.x)
         minY, maxY = math.min(minY, point.y), math.max(maxY, point.y)
     end
-    local side = math.floor(math.max(9, math.min(33, radius * 2 + 1)) + .5)
+    local side = math.floor(math.max(9, math.min(65, radius * 2 + 1)) + .5)
     if side % 2 == 0 then side = side - 1 end
     local sourceRadius = (side - 1) * .5
     local rows = {}
