@@ -44,6 +44,8 @@ local state = {
     base = nil,
     layer = nil,
     composite = nil,
+    textureWidth = 0,
+    textureHeight = 0,
     previewDirty = false,
     compositeDirtyTiles = nil,
     previewJob = nil,
@@ -57,6 +59,8 @@ local state = {
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
     mouse = {x=0, y=0},
     hoverHit = nil,
+    hoverPickPending = false,
+    hoverPickElapsed = 0,
     orbiting = false,
     panning = false,
     painting = false,
@@ -93,6 +97,8 @@ local function clearPreview()
     state.compositeDirtyTiles = nil
     state.previewJob = nil
     state.hoverHit = nil
+    state.hoverPickPending = false
+    state.hoverPickElapsed = 0
 end
 
 local function resolvePath(path)
@@ -146,34 +152,78 @@ end
 
 local function releaseTextureWork()
     state.base, state.layer, state.composite, state.target = nil, nil, nil, nil
+    state.textureWidth, state.textureHeight = 0, 0
 end
 
 local function selectTarget(index)
     local target = state.targets[index]
     if not target then return false end
-    local ok, bytes, width, height = dpCall(mbm.readImagePixels, target.path)
-    if not ok or not bytes then
-        state.status = 'Could not read texture: ' .. tostring(bytes or width)
-        return false
+    local textureInfo
+    if state.previewTextureInfo then
+        local reloaded, reloadResult = dpCall(function()
+            return state.previewTextureInfo:reload(target.path)
+        end)
+        if not reloaded or not reloadResult then
+            state.status = 'Could not load texture: ' .. tostring(reloadResult)
+            return false
+        end
+        textureInfo = state.previewTextureInfo
+    else
+        local loaded, result = dpCall(mbm.loadTexture, target.path)
+        if not loaded or not result then
+            state.status = 'Could not load texture: ' .. tostring(result)
+            return false
+        end
+        textureInfo = result
     end
     state.previewJob = nil
     releaseTextureWork()
     state.targetIndex, state.target = index, target
     state.hoverHit = nil
-    state.base = Raster.newBuffer(width, height, bytes)
-    state.layer = Raster.newLayer(state.base, 32)
-    state.brushMaxRadius = math.max(4, math.min(256, math.floor(math.min(width, height) * .12)))
+    state.hoverPickPending = false
+    state.hoverPickElapsed = 0
+    state.previewTextureInfo = textureInfo
+    state.textureWidth, state.textureHeight = textureInfo.width, textureInfo.height
+    state.brushMaxRadius = math.max(4, math.min(256,
+        math.floor(math.min(state.textureWidth, state.textureHeight) * .12)))
     state.brush.radius = math.min(state.brush.radius, state.brushMaxRadius)
-    state.composite = Raster.compose(state.base, state.layer)
+    state.composite = nil
     state.compositeDirtyTiles = nil
     state.undo, state.redo = {}, {}
     state.previewDirty = true
     state.previewRequiresMesh = true
-    state.status = string.format('Texture selected: %s (%dx%d)', target.path, width, height)
+    state.status = string.format('Texture selected: %s (%dx%d)', target.path,
+        state.textureWidth, state.textureHeight)
+    return true
+end
+
+local function ensureEditableTexture()
+    if state.layer then return true end
+    if not state.target then return false end
+    local ok, bytes, width, height = dpCall(mbm.readImagePixels, state.target.path)
+    if not ok or not bytes then
+        state.status = 'Could not read texture: ' .. tostring(bytes or width)
+        return false
+    end
+    if width ~= state.textureWidth or height ~= state.textureHeight then
+        state.status = 'Texture dimensions changed while loading.'
+        return false
+    end
+    state.base = Raster.newBuffer(width, height, bytes)
+    state.layer = Raster.newLayer(state.base, 32)
+    state.composite = nil
     return true
 end
 
 local function loadPreviewTexture()
+    if not state.layer or not state.layer.touched then
+        if state.previewTextureInfo then
+            assert(state.previewTextureInfo:reload(state.target.path))
+        else
+            state.previewTextureInfo = assert(mbm.loadTexture(state.target.path))
+        end
+        return state.target.path
+    end
     assert(state.composite and state.previewTexturePath)
     assert(mbm.writeImagePixels(state.previewTexturePath, state.composite.bytes,
         state.composite.width, state.composite.height))
@@ -182,6 +232,7 @@ local function loadPreviewTexture()
     else
         state.previewTextureInfo = assert(mbm.loadTexture(state.previewTexturePath))
     end
+    return state.previewTexturePath
 end
 
 local function requestPreviewRebuild()
@@ -191,31 +242,34 @@ local function requestPreviewRebuild()
 end
 
 local function processPreviewJob()
-    if not (state.previewAsset and state.previewMesh and state.target and state.layer) then
+    if not (state.previewAsset and state.previewMesh and state.target) then
         state.previewJob = nil
         return
     end
     local job = state.previewJob
     if not job then return end
     if job.phase == 'compose' then
-        if state.compositeDirtyTiles then
+        if state.compositeDirtyTiles and state.layer then
+            if not state.composite then
+                state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
+            end
             Raster.composeInto(state.base, state.layer, state.composite, state.compositeDirtyTiles)
             state.compositeDirtyTiles = nil
-        elseif not state.composite then
+        elseif state.layer and not state.composite and state.layer.touched then
             state.composite = Raster.compose(state.base, state.layer)
         end
         job.progress, job.phase = .35, 'write'
         return
     end
     if job.phase == 'write' then
-        loadPreviewTexture()
+        job.texturePath = loadPreviewTexture()
         job.progress = .7
         job.phase = (state.previewRequiresMesh or not state.previewReady) and 'mesh' or 'finish'
         return
     end
     if job.phase == 'mesh' then
         for _, subset in ipairs(state.target.subsets) do
-            assert(state.previewAsset:setTexture(1, subset, state.previewTexturePath))
+            assert(state.previewAsset:setTexture(1, subset, job.texturePath))
         end
         assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
         assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
@@ -320,38 +374,108 @@ end
 
 local function updateHoverHit(x, y)
     state.hoverHit = hitAtScreen(x, y)
+    state.hoverPickPending = false
+    state.hoverPickElapsed = 0
+end
+
+local function processHoverPick(delta)
+    if not state.hoverPickPending or state.painting or state.orbiting or state.panning or state.previewJob then return end
+    state.hoverPickElapsed = state.hoverPickElapsed + math.max(0, math.min(0.25, tonumber(delta) or 0))
+    if state.hoverPickElapsed < .12 then return end
+    updateHoverHit(state.mouse.x, state.mouse.y)
+end
+
+local function hitSingleTriangleAtScreen(x, y, triangle)
+    local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
+    if not ok then return nil end
+    local hit = Pick.intersectRayTriangle({x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz},
+        triangle.a, triangle.b, triangle.c)
+    if not hit then return nil end
+    hit.triangle = triangle
+    hit.uv = Pick.interpolateUV(hit, triangle.uvA, triangle.uvB, triangle.uvC)
+    if not hit.uv then return nil end
+    return hit
+end
+
+local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
+    local triangle = hit.triangle
+    if not triangle or not hit.uv then return nil end
+    local sampleDistance = 2
+    local left = hitSingleTriangleAtScreen(rayX - sampleDistance, rayY, triangle)
+    local right = hitSingleTriangleAtScreen(rayX + sampleDistance, rayY, triangle)
+    local up = hitSingleTriangleAtScreen(rayX, rayY - sampleDistance, triangle)
+    local down = hitSingleTriangleAtScreen(rayX, rayY + sampleDistance, triangle)
+    local function derivative(minus, plus, center, component)
+        if minus and plus then
+            return (plus.uv[component] - minus.uv[component]) / (sampleDistance * 2)
+        end
+        if plus then return (plus.uv[component] - center.uv[component]) / sampleDistance end
+        if minus then return (center.uv[component] - minus.uv[component]) / sampleDistance end
+        return nil
+    end
+    local duDx = derivative(left, right, hit, 'u')
+    local dvDx = derivative(left, right, hit, 'v')
+    local duDy = derivative(up, down, hit, 'u')
+    local dvDy = derivative(up, down, hit, 'v')
+    if not (duDx and dvDx and duDy and dvDy) then return nil end
+    local determinant = duDx * dvDy - duDy * dvDx
+    if math.abs(determinant) < 1e-10 then return nil end
+    local radiusU = state.brush.radius / math.max(1, state.textureWidth - 1)
+    local radiusV = state.brush.radius / math.max(1, state.textureHeight - 1)
+    local points = {}
+    for index = 0, 32 do
+        local angle = math.pi * 2 * index / 32
+        local targetU = math.cos(angle) * radiusU
+        local targetV = math.sin(angle) * radiusV
+        local screenX = (targetU * dvDy - targetV * duDy) / determinant
+        local screenY = (targetV * duDx - targetU * dvDx) / determinant
+        points[#points + 1] = {x=drawX + screenX, y=drawY + screenY}
+    end
+    return points
 end
 
 local function pickColorAtHit(hit)
-    if not (hit and hit.uv and state.layer and state.composite) then
+    if not (hit and hit.uv and state.layer and state.base) then
         state.status = tLang.L('mtp_pick_no_surface')
         return
     end
     if state.compositeDirtyTiles then
+        if not state.composite then
+            state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
+        end
         Raster.composeInto(state.base, state.layer, state.composite, state.compositeDirtyTiles)
         state.compositeDirtyTiles = nil
     end
-    local x = hit.uv.u * (state.composite.width - 1)
-    local y = hit.uv.v * (state.composite.height - 1)
-    local color = Raster.sample(state.composite, x, y)
+    local buffer = state.composite or state.base
+    local x = hit.uv.u * (buffer.width - 1)
+    local y = hit.uv.v * (buffer.height - 1)
+    local color = Raster.sample(buffer, x, y)
     state.brush.color = {r=color.r / 255, g=color.g / 255, b=color.b / 255, a=color.a / 255}
     state.status = string.format(tLang.L('mtp_color_picked'), color.r, color.g, color.b)
 end
 
 local function showBrushCursor()
-    if not (state.target and state.hoverHit and state.layer) then return end
+    if not (state.target and state.hoverHit and state.textureWidth > 0 and state.textureHeight > 0) then return end
     if state.painting or state.previewJob or tImGui.GetWantCaptureMouse() then return end
-    local width, height = mbm.getSizeScreen()
-    local textureSize = math.max(state.layer.width, state.layer.height)
-    local meshScale = state.meshDiagonal / math.max(state.cameraOrbit.distance * 1.6, .001)
-    meshScale = math.max(.15, math.min(1, meshScale))
-    local projectedMeshSize = math.min(width, height) * meshScale
-    local radius = state.brush.radius / textureSize * projectedMeshSize
-    radius = math.max(4, math.min(96, radius))
+    local mouse = tImGui.GetMousePos()
+    if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) or
+            mouse.x < -100000 or mouse.y < -100000 then return end
     local color = state.brush.mode == 'pick' and {r=1,g=.8,b=.2,a=.95} or
         {r=state.brush.color.r or 1,g=state.brush.color.g or 0,b=state.brush.color.b or 0,a=.95}
     tImGui.SetImDrawListToForeground(true)
-    tImGui.AddCircle({x=state.mouse.x,y=state.mouse.y}, radius, color, 32, 1.5)
+    local points = brushCursorPoints(state.hoverHit, state.mouse.x, state.mouse.y, mouse.x, mouse.y)
+    if points then
+        tImGui.AddPolyline(points, color, true, 1.5)
+    else
+        local width, height = mbm.getSizeScreen()
+        local textureSize = math.max(state.textureWidth, state.textureHeight)
+        local meshScale = state.meshDiagonal / math.max(state.cameraOrbit.distance * 1.6, .001)
+        meshScale = math.max(.15, math.min(1, meshScale))
+        local projectedMeshSize = math.min(width, height) * meshScale
+        local radius = math.max(4, math.min(256,
+            state.brush.radius / textureSize * projectedMeshSize))
+        tImGui.AddCircle({x=mouse.x,y=mouse.y}, radius, color, 32, 1.5)
+    end
     tImGui.SetImDrawListToForeground(false)
 end
 
@@ -418,10 +542,11 @@ local function makeProject(projectPath)
 end
 
 local function saveProject(path)
-    if not (state.layer and state.target and state.meshPath) then
+    if not (state.target and state.meshPath) then
         state.status = 'Open a mesh and select a texture before saving a project.'
         return false
     end
+    if not ensureEditableTexture() then return false end
     path = withExtension(resolvePath(path) or path, '.lua')
     local project = makeProject(path)
     local bytes = Raster.toBytes(state.layer)
@@ -453,6 +578,7 @@ local function openProject(path)
     end
     if not targetIndex then error('project texture is not used by the mesh') end
     assert(selectTarget(targetIndex))
+    assert(ensureEditableTexture())
     local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
     if not readOk or not bytes then error('could not read project paint layer') end
     if width ~= state.base.width or height ~= state.base.height then
@@ -461,7 +587,9 @@ local function openProject(path)
     state.layer = Raster.newLayer(state.base, 32)
     state.layer.bytes = bytes
     state.layer.touched = true
-    state.composite = Raster.compose(state.base, state.layer)
+    state.composite = nil
+    state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
+        state.layer.width - 1, state.layer.height - 1)
     state.undo, state.redo = {}, {}
     state.projectPath, state.modified = resolvePath(path) or path, false
     state.previewDirty, state.previewRequiresMesh = true, true
@@ -480,10 +608,10 @@ local function showMenu()
             local path = mbm.openFile(state.projectPath or '', 'lua')
             if path then dpCall(openProject, path) end
         end
-        if tImGui.MenuItem(tLang.L('mtp_save_project'), 'Ctrl+S', false, state.layer ~= nil) then
+        if tImGui.MenuItem(tLang.L('mtp_save_project'), 'Ctrl+S', false, state.target ~= nil) then
             if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
         end
-        if tImGui.MenuItem(tLang.L('mtp_save_project_as'), nil, false, state.layer ~= nil) then saveProjectAs() end
+        if tImGui.MenuItem(tLang.L('mtp_save_project_as'), nil, false, state.target ~= nil) then saveProjectAs() end
         if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
         if tImGui.MenuItem(tLang.L('menu_quit')) then mbm.quit() end
         tImGui.EndMenu()
@@ -595,6 +723,7 @@ end
 
 function onLoop(delta)
     requestPreviewRebuild()
+    processHoverPick(delta)
     showMenu()
     showControls()
     showCamera()
@@ -614,17 +743,31 @@ function onTouchDown(key, x, y)
     state.mouse.x, state.mouse.y = x, y
     if tImGui.GetWantCaptureMouse() then return end
     if state.previewJob then return end
-    if key == 0 then state.orbiting = true
+    if key == 0 then
+        state.orbiting = true
+        state.hoverHit = nil
+        state.hoverPickPending = false
     elseif key == 1 then
         local hit = hitAtScreen(x, y)
+        if not (hit and hit.uv) then
+            state.status = tLang.L('mtp_pick_no_surface')
+            return
+        end
+        state.hoverHit = hit
+        state.hoverPickPending = false
+        state.hoverPickElapsed = 0
+        if not ensureEditableTexture() then return end
         if state.brush.mode == 'pick' then
             pickColorAtHit(hit)
-        elseif hit and hit.uv then
+        else
             beginStroke(hit)
             applyStrokeHit(hit)
         end
-    elseif key == 2 then state.panning = true end
-    state.hoverHit = hitAtScreen(x, y)
+    elseif key == 2 then
+        state.panning = true
+        state.hoverHit = nil
+        state.hoverPickPending = false
+    end
 end
 
 function onTouchMove(key, x, y)
@@ -632,7 +775,9 @@ function onTouchMove(key, x, y)
     state.mouse.x, state.mouse.y = x, y
     if tImGui.GetWantCaptureMouse() or state.previewJob then return end
     if state.painting then
-        applyStrokeHit(hitAtScreen(x, y))
+        local hit = hitAtScreen(x, y)
+        state.hoverHit = hit
+        applyStrokeHit(hit)
     elseif state.orbiting then
         state.cameraOrbit.azimuth = state.cameraOrbit.azimuth - dx * .005
         state.cameraOrbit.elevation = math.max(-math.pi*.49,
@@ -651,20 +796,23 @@ function onTouchMove(key, x, y)
         c.fy = c.fy + dy * scale
         c.fz = c.fz + rz * (-dx) * scale
         applyCamera()
+    elseif not state.orbiting and not state.panning then
+        state.hoverPickPending = true
     end
-    updateHoverHit(x, y)
 end
 
 function onTouchUp(key, x, y)
     if key == 1 then finishStroke() end
     state.orbiting, state.panning = false, false
     state.mouse.x, state.mouse.y = x, y
+    if key ~= 1 then state.hoverPickPending = true end
 end
 
 function onTouchZoom(zoom)
     state.cameraOrbit.distance = math.max(.1, state.cameraOrbit.distance * (zoom > 0 and .9 or 1.1))
     applyCamera()
-    updateHoverHit(state.mouse.x, state.mouse.y)
+    state.hoverPickPending = true
+    state.hoverPickElapsed = .12
 end
 
 function onKeyDown(key)
