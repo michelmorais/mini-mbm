@@ -28,6 +28,7 @@ local Project = require 'mesh_texture_paint_project'
 
 local STAMP_RESOLUTION_MIN = 9
 local STAMP_RESOLUTION_MAX = 257
+local UV_OVERLAY_MAX_TRIANGLES = 12000
 
 local state = {
     camera = nil,
@@ -67,7 +68,7 @@ local state = {
     lastLanguage = nil,
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
-        color = {r=1,g=0,b=0,a=1}},
+        showUvOverlay = true, color = {r=1,g=0,b=0,a=1}},
     brushMaxRadius = 64,
     meshDiagonal = 1,
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
@@ -726,6 +727,32 @@ local function showCheckerboard(size)
     end
 end
 
+local function showUvOverlay(origin, size)
+    if not (state.target and state.target.triangles) then return end
+    local triangles = state.target.triangles
+    local step = math.max(1, math.ceil(#triangles / UV_OVERLAY_MAX_TRIANGLES))
+    local color = {r=.2,g=.85,b=1,a=.7}
+    for index = 1, #triangles, step do
+        local triangle = triangles[index]
+        local a, b, c = triangle.uvA, triangle.uvB, triangle.uvC
+        if a and b and c then
+            local pa = {x=origin.x + a.u * size, y=origin.y + a.v * size}
+            local pb = {x=origin.x + b.u * size, y=origin.y + b.v * size}
+            local pc = {x=origin.x + c.u * size, y=origin.y + c.v * size}
+            tImGui.AddLine(pa, pb, color, 1)
+            tImGui.AddLine(pb, pc, color, 1)
+            tImGui.AddLine(pc, pa, color, 1)
+        end
+    end
+    if state.hoverHit and state.hoverHit.uv then
+        local uv = state.hoverHit.uv
+        local point = {x=origin.x + uv.u * size, y=origin.y + uv.v * size}
+        local radius = math.max(3, state.brush.radius * size /
+            math.max(1, math.min(state.textureWidth, state.textureHeight)))
+        tImGui.AddCircle(point, radius, {r=1,g=.2,b=.1,a=1}, 24, 2)
+    end
+end
+
 local function finishStroke()
     if not state.stroke then state.painting = false; return end
     if state.stroke.changed and #state.stroke.tiles > 0 then
@@ -1113,9 +1140,13 @@ local function showTexture()
         local available = tImGui.GetContentRegionAvail()
         local stampShown = state.stampTextureInfo and state.stampTextureInfo:isLoaded()
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
+            state.brush.showUvOverlay = tImGui.Checkbox(tLang.L('mtp_show_uv_overlay'),
+                state.brush.showUvOverlay)
             local reservedHeight = stampShown and 190 or 30
             local size = math.max(64, math.min(300, available.x, available.y - reservedHeight))
+            local origin = tImGui.GetCursorScreenPos()
             tImGui.Image(state.previewTextureInfo, {x=size,y=size})
+            if state.brush.showUvOverlay then showUvOverlay(origin, size) end
         else
             tImGui.TextWrapped(tLang.L('mtp_texture_help'))
         end

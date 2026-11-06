@@ -1,9 +1,9 @@
 # Plano: Editor de Pintura de Textura sobre Mesh 3D
 
 Status: em implementação. O milestone vertical atual já abre MSH, faz picking
-3D, pinta uma camada UV, mantém preview privado, salva projetos Lua e exporta
-textura composta e MSH derivada; stencil, dilatação de seams e a revisão 2D UV
-continuam nas próximas fases.
+3D, pinta uma camada UV, mantém preview privado, salva projetos Lua, exporta
+textura composta e MSH derivada e mostra a revisão 2D com overlay UV; stencil e
+dilatação de seams continuam nas próximas fases.
 
 ## 1. Objetivo
 
