@@ -26,6 +26,9 @@ local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
 local Project = require 'mesh_texture_paint_project'
 
+local STAMP_RESOLUTION_MIN = 9
+local STAMP_RESOLUTION_MAX = 257
+
 local state = {
     camera = nil,
     meshPath = nil,
@@ -34,7 +37,10 @@ local state = {
     previewMesh = nil,
     previewMeshPath = nil,
     previewTexturePath = nil,
+    previewUiTexturePath = nil,
     previewTextureInfo = nil,
+    previewTextureIsUiCopy = false,
+    meshPreviewTextureInfo = nil,
     stamp = nil,
     stampTexturePath = nil,
     stampTextureInfo = nil,
@@ -55,8 +61,9 @@ local state = {
     previewBuilds = 0,
     projectPath = nil,
     modified = false,
+    lastLanguage = nil,
     status = 'Open an MSH to start painting.',
-    brush = {radius = 8, hardness = 1, opacity = 1, mode = 'paint', screenCircle = false,
+    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
         color = {r=1,g=0,b=0,a=1}},
     brushMaxRadius = 64,
     meshDiagonal = 1,
@@ -89,6 +96,22 @@ local function dpCall(fn, ...)
     return table.unpack(result, 1, result.n)
 end
 
+local function loadTextureInfo(path)
+    local loaded, textureInfo = dpCall(mbm.loadTexture, path)
+    if not loaded or not textureInfo then
+        return false, textureInfo
+    end
+    local inspected, isLoaded = dpCall(function() return textureInfo:isLoaded() end)
+    if inspected and isLoaded then
+        return true, textureInfo
+    end
+    local reloaded, reloadResult = dpCall(function() return textureInfo:reload(path) end)
+    if not reloaded or not reloadResult then
+        return false, reloadResult or 'texture cache returned an unloaded texture'
+    end
+    return true, textureInfo
+end
+
 local function clearStamp()
     if state.stampTextureInfo then state.stampTextureInfo:release() end
     if state.stampTexturePath then os.remove(state.stampTexturePath) end
@@ -100,13 +123,20 @@ local function clearPreview()
         dpCall(function() return meshDebug:loadMeshPreview(state.previewMesh, nil) end)
     end
     if state.previewMesh then state.previewMesh:destroy() end
-    if state.previewTextureInfo then state.previewTextureInfo:release() end
+    if state.previewTextureInfo and state.previewTextureIsUiCopy then
+        state.previewTextureInfo:release()
+    end
+    if state.meshPreviewTextureInfo then
+        state.meshPreviewTextureInfo:release()
+    end
     clearStamp()
     state.previewMesh, state.previewAsset, state.previewTextureInfo = nil, nil, nil
+    state.meshPreviewTextureInfo = nil
     state.previewReady, state.previewRequiresMesh = false, false
     if state.previewMeshPath then os.remove(state.previewMeshPath) end
     if state.previewTexturePath then os.remove(state.previewTexturePath) end
-    state.previewMeshPath, state.previewTexturePath = nil, nil
+    state.previewMeshPath, state.previewTexturePath, state.previewUiTexturePath = nil, nil, nil
+    state.previewTextureIsUiCopy = false
     state.compositeDirtyTiles = nil
     state.previewJob = nil
     state.hoverHit = nil
@@ -171,24 +201,21 @@ end
 local function selectTarget(index)
     local target = state.targets[index]
     if not target then return false end
-    local textureInfo
-    if state.previewTextureInfo then
-        local reloaded, reloadResult = dpCall(function()
-            return state.previewTextureInfo:reload(target.path)
-        end)
-        if not reloaded or not reloadResult then
-            state.status = 'Could not load texture: ' .. tostring(reloadResult)
-            return false
-        end
-        textureInfo = state.previewTextureInfo
-    else
-        local loaded, result = dpCall(mbm.loadTexture, target.path)
-        if not loaded or not result then
-            state.status = 'Could not load texture: ' .. tostring(result)
-            return false
-        end
-        textureInfo = result
+    if state.previewTextureInfo and state.previewTextureIsUiCopy then
+        state.previewTextureInfo:release()
     end
+    state.previewTextureInfo = nil
+    state.previewTextureIsUiCopy = false
+    if state.meshPreviewTextureInfo then
+        state.meshPreviewTextureInfo:release()
+        state.meshPreviewTextureInfo = nil
+    end
+    local loaded, result = loadTextureInfo(target.path)
+    if not loaded or not result then
+        state.status = 'Could not load texture: ' .. tostring(result)
+        return false
+    end
+    local textureInfo = result
     state.previewJob = nil
     clearStamp()
     releaseTextureWork()
@@ -234,23 +261,41 @@ local function loadPreviewTexture()
         if state.previewTextureInfo then
             assert(state.previewTextureInfo:reload(state.target.path))
         else
-            state.previewTextureInfo = assert(mbm.loadTexture(state.target.path))
+            local loaded, textureInfo = loadTextureInfo(state.target.path)
+            assert(loaded and textureInfo)
+            state.previewTextureInfo = textureInfo
         end
         return state.target.path
     end
     assert(state.composite and state.previewTexturePath)
     assert(mbm.writeImagePixels(state.previewTexturePath, state.composite.bytes,
         state.composite.width, state.composite.height))
-    if state.previewTextureInfo then
-        assert(state.previewTextureInfo:reload(state.previewTexturePath))
+    assert(state.previewUiTexturePath)
+    assert(mbm.writeImagePixels(state.previewUiTexturePath, state.composite.bytes,
+        state.composite.width, state.composite.height))
+    if not state.meshPreviewTextureInfo then
+        local loaded, textureInfo = loadTextureInfo(state.previewTexturePath)
+        assert(loaded and textureInfo)
+        state.meshPreviewTextureInfo = textureInfo
     else
-        state.previewTextureInfo = assert(mbm.loadTexture(state.previewTexturePath))
+        assert(state.meshPreviewTextureInfo:reload(state.previewTexturePath))
+    end
+    if not state.previewTextureIsUiCopy then
+        local loaded, textureInfo = loadTextureInfo(state.previewUiTexturePath)
+        assert(loaded and textureInfo)
+        state.previewTextureInfo = textureInfo
+        state.previewTextureIsUiCopy = true
+    else
+        assert(state.previewTextureInfo:reload(state.previewUiTexturePath))
     end
     return state.previewTexturePath
 end
 
 local function requestPreviewRebuild()
     if state.previewDirty and not state.painting and not state.previewJob then
+        -- The generated PNG is no longer the texture object already bound by
+        -- the preview mesh. Every paint edit therefore needs a mesh reload.
+        state.previewRequiresMesh = true
         state.previewJob = {phase = 'compose', progress = 0}
     end
 end
@@ -335,6 +380,7 @@ local function loadMesh(path)
     state.previewMesh = mesh:new('3d')
     state.previewMeshPath = tUtil.getTemporaryFilePath('.msh')
     state.previewTexturePath = tUtil.getTemporaryFilePath('.png')
+    state.previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
     frameCamera()
@@ -539,7 +585,9 @@ local function captureStampFromView(hit, screenX, screenY, buffer, radius)
         minX, maxX = math.min(minX, point.x), math.max(maxX, point.x)
         minY, maxY = math.min(minY, point.y), math.max(maxY, point.y)
     end
-    local side = math.floor(math.max(9, math.min(65, radius * 2 + 1)) + .5)
+    local maxResolution = state.brush.stampResolution or 65
+    local side = math.floor(math.max(STAMP_RESOLUTION_MIN,
+        math.min(STAMP_RESOLUTION_MAX, maxResolution, radius * 2 + 1)) + .5)
     if side % 2 == 0 then side = side - 1 end
     local sourceRadius = (side - 1) * .5
     local rows = {}
@@ -593,7 +641,7 @@ local function pickStampSource(hit, screenX, screenY)
         state.status = 'Could not create stamp preview: ' .. tostring(errorMessage)
         return
     end
-    local loaded, textureInfo = dpCall(mbm.loadTexture, state.stampTexturePath)
+    local loaded, textureInfo = loadTextureInfo(state.stampTexturePath)
     if not loaded or not textureInfo then
         clearStamp()
         state.status = 'Could not load stamp preview: ' .. tostring(textureInfo)
@@ -855,10 +903,30 @@ local function showControls()
             state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
                 modeIndex == 3 and 'pick' or 'stamp'
         end
+        local changed, value
         if state.brush.mode == 'stamp' then
             tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))
+            local stampResolution = state.brush.stampResolution or 65
+            changed, value = tImGui.SliderFloat(tLang.L('mtp_stamp_resolution'), stampResolution,
+                STAMP_RESOLUTION_MIN, STAMP_RESOLUTION_MAX, '%.0f')
+            if changed then
+                local newResolution = math.max(STAMP_RESOLUTION_MIN,
+                    math.min(STAMP_RESOLUTION_MAX, math.floor(value + .5)))
+                if newResolution % 2 == 0 then newResolution = newResolution + 1 end
+                state.brush.stampResolution = newResolution
+                if state.stamp then
+                    clearStamp()
+                    state.status = tLang.L('mtp_stamp_resolution_changed')
+                end
+            end
+            if tImGui.IsItemHovered(0) then
+                tImGui.BeginTooltip()
+                tImGui.PushTextWrapPos(360)
+                tImGui.TextWrapped(tLang.L('mtp_stamp_resolution_help'))
+                tImGui.PopTextWrapPos()
+                tImGui.EndTooltip()
+            end
         end
-        local changed, value
         changed, value = tImGui.SliderFloat(tLang.L('radius'), state.brush.radius, 1, state.brushMaxRadius, '%.0f')
         if changed then
             state.brush.radius = value
@@ -886,16 +954,20 @@ local function showControls()
 end
 
 local function showTexture()
+    tImGui.PushStyleVar('ImGuiStyleVar_Alpha', 1)
+    tImGui.PushStyleVar('ImGuiStyleVar_DisabledAlpha', 1)
+    tImGui.PushStyleColor('ImGuiCol_Text', {r=1,g=1,b=1,a=1})
+    tImGui.PushStyleColor('ImGuiCol_TextDisabled', {r=1,g=1,b=1,a=1})
     tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 430, 320)
     local opened = tImGui.Begin(state.titles.texture, true, 0)
+    local enabledOverride = tImGui.BeginEnabledOverride()
     if opened then
         local available = tImGui.GetContentRegionAvail()
         local stampShown = state.stampTextureInfo and state.stampTextureInfo:isLoaded()
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
             local reservedHeight = stampShown and 190 or 30
             local size = math.max(64, math.min(300, available.x, available.y - reservedHeight))
-            tImGui.Image(state.previewTextureInfo, {x=size,y=size}, {x=0,y=0}, {x=1,y=1},
-                {r=.18,g=.18,b=.18,a=1})
+            tImGui.Image(state.previewTextureInfo, {x=size,y=size})
         else
             tImGui.TextWrapped(tLang.L('mtp_texture_help'))
         end
@@ -904,20 +976,23 @@ local function showTexture()
             tImGui.Text(tLang.L('mtp_stamp_texture'))
             local stampSize = math.max(48, math.min(140, available.x, available.y))
             showCheckerboard(stampSize)
-            tImGui.Image(state.stampTextureInfo, {x=stampSize,y=stampSize},
-                {x=0,y=0}, {x=1,y=1}, {r=.18,g=.18,b=.18,a=0})
+            tImGui.Image(state.stampTextureInfo, {x=stampSize,y=stampSize})
         elseif state.brush.mode == 'stamp' then
             tImGui.Separator()
             tImGui.TextWrapped(tLang.L('mtp_stamp_none'))
         end
     end
+    tImGui.EndEnabledOverride(enabledOverride)
     tImGui.End()
+    tImGui.PopStyleColor(2)
+    tImGui.PopStyleVar(2)
 end
 
 local function showCamera()
     tUtil.setInitialWindowPositionRight(state.titles.camera, 0, 20, 330)
     local opened = tImGui.Begin(tLang.L('mtp_camera') .. '##' .. state.titles.camera, true,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
+    local enabledOverride = tImGui.BeginEnabledOverride()
     if opened then
         if tImGui.Button(tLang.L('mtp_frame_mesh')) then frameCamera() end
         tImGui.SameLine()
@@ -943,24 +1018,23 @@ local function showCamera()
         tImGui.Separator()
         tImGui.TextWrapped(tLang.L('mtp_camera_help'))
     end
+    tImGui.EndEnabledOverride(enabledOverride)
     tImGui.End()
 end
 
 function onInitScene()
     state.camera = mbm.getCamera('3d')
     state.camera:setFar(9999999)
+    state.lastLanguage = tLang.getLanguage()
     tUtil.sMessageOverlay = tLang.L('mtp_welcome')
 end
 
 function onLoop(delta)
+    tLang.applyPendingLanguage()
+    local languageChanged = state.lastLanguage ~= tLang.getLanguage()
+    state.lastLanguage = tLang.getLanguage()
     requestPreviewRebuild()
     processHoverPick(delta)
-    showMenu()
-    showControls()
-    showCamera()
-    showTexture()
-    showBrushCursor()
-    tUtil.showOverlayMessage()
     if state.previewJob and not state.painting then
         local ok, errorMessage = dpCall(processPreviewJob)
         if not ok then
@@ -968,6 +1042,17 @@ function onLoop(delta)
             state.status = 'Preview processing failed: ' .. tostring(errorMessage)
         end
     end
+    showMenu()
+    showControls()
+    showCamera()
+    showTexture()
+    if languageChanged then
+        -- Keep the texture preview visible and interactive after the menu
+        -- closes. ImGui otherwise leaves focus on the language popup.
+        tImGui.SetWindowFocus(state.titles.texture)
+    end
+    showBrushCursor()
+    tUtil.showOverlayMessage()
 end
 
 function onTouchDown(key, x, y)

@@ -3337,6 +3337,27 @@ int onEndDisabledImGuiLua(lua_State *)
     return 0;
 }
 
+// Temporarily re-enable a block when an editor is entered while an outer
+// BeginDisabled() is still active. Returns whether an override was applied so
+// Lua can close only the stack entry it opened.
+int onBeginEnabledOverrideImGuiLua(lua_State *lua)
+{
+    ImGuiContext *context = ImGui::GetCurrentContext();
+    const bool overridden = context &&
+        (context->CurrentItemFlags & ImGuiItemFlags_Disabled) != 0;
+    if (overridden)
+        ImGui::BeginDisabledOverrideReenable();
+    lua_pushboolean(lua, overridden);
+    return 1;
+}
+
+int onEndEnabledOverrideImGuiLua(lua_State *lua)
+{
+    if (lua_gettop(lua) >= 1 && lua_toboolean(lua, 1))
+        ImGui::EndDisabledOverrideReenable();
+    return 0;
+}
+
 // Tables API - see imgui_demo.cpp "Tables & Columns"
 int onBeginTableImGuiLua(lua_State *lua)
 {
@@ -4385,30 +4406,31 @@ int onImageImGuiLua(lua_State *lua)
     ImVec2 size (static_cast<float>(width), static_cast<float>(height));
     if(top >= index_input && lua_type(lua, index_input) != LUA_TNIL)
         size                            = lua_pop_ImVec2(lua, index_input);
-    
+
     index_input++;
     const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
     ImVec2 uv0_backend;
     ImVec2 uv1_backend;
     bool flip_v_requested               = false;
-    if (top >= index_input)
-    {
-        if (lua_type(lua, top) == LUA_TBOOLEAN)
-            flip_v_requested = lua_toboolean(lua, top) ? true : false;
-    }
+
+    // Optional arguments follow the same order as ImGui::ImageWithBg:
+    // bg_col, tint_col, and the engine-specific flip-V flag.  Also accept
+    // the legacy flip-V-only form immediately after uv1.
+    if (top >= index_input && lua_type(lua, index_input) == LUA_TBOOLEAN)
+        flip_v_requested = lua_toboolean(lua, index_input++) ? true : false;
+    const bool has_bg_col = top >= index_input && lua_type(lua, index_input) == LUA_TTABLE;
+    const ImVec4 bg_col = has_bg_col ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,0);
+    const bool has_tint_col = top >= index_input && lua_type(lua, index_input) == LUA_TTABLE;
+    const ImVec4 tint_col = has_tint_col ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
+    if (top >= index_input && lua_type(lua, index_input) == LUA_TBOOLEAN)
+        flip_v_requested = lua_toboolean(lua, index_input++) ? true : false;
     normalize_uv_pair_for_backend(flip_v_requested, uv0, uv1, uv0_backend, uv1_backend);
     // Use ImageWithBg if tint/bg colors are provided, otherwise use basic Image
-    if (top >= index_input)
-    {
-        const ImVec4 bg_col           = lua_get_rgba_to_ImVec4_fromTable(lua, index_input++);
-        const ImVec4 tint_col         = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
+    if (has_bg_col || has_tint_col)
         ImGui::ImageWithBg(user_texture_id, size, uv0_backend, uv1_backend, bg_col, tint_col);
-    }
     else
-    {
         ImGui::Image(user_texture_id, size, uv0_backend, uv1_backend);
-    }
     return 0;
 }
 
@@ -7054,6 +7076,8 @@ int onNewimguiLua(lua_State *lua)
         // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
         {"BeginDisabled",                                       onBeginDisabledImGuiLua },
         {"EndDisabled",                                           onEndDisabledImGuiLua },
+        {"BeginEnabledOverride",                         onBeginEnabledOverrideImGuiLua },
+        {"EndEnabledOverride",                             onEndEnabledOverrideImGuiLua },
         {"BeginCombo",                                             onBeginComboImGuiLua }, // Not Tested, Window/Layout
         {"BeginGroup",                                             onBeginGroupImGuiLua }, // Not Tested, Window/Layout
         {"BeginMainMenuBar",                                 onBeginMainMenuBarImGuiLua },

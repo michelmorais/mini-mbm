@@ -4286,6 +4286,9 @@ M.en = {
     mtp_stamp_texture = "Stamp texture",
     mtp_stamp_none = "No stamp source selected.",
     mtp_stamp_radius_changed = "Stamp source cleared because the radius changed.",
+    mtp_stamp_resolution = "Stamp resolution",
+    mtp_stamp_resolution_help = "Higher values capture more samples and preserve more detail. Calculation cost grows approximately with the square of the resolution.",
+    mtp_stamp_resolution_changed = "Stamp source cleared because the resolution changed.",
     mtp_hardness = "Hardness",
     mtp_opacity = "Opacity",
     mtp_color = "Color",
@@ -9526,6 +9529,9 @@ M.pt_br = {
     mtp_stamp_texture = "Textura do carimbo",
     mtp_stamp_none = "Nenhuma origem de carimbo selecionada.",
     mtp_stamp_radius_changed = "A origem do carimbo foi removida porque o raio mudou.",
+    mtp_stamp_resolution = "Resolucao do carimbo",
+    mtp_stamp_resolution_help = "Valores maiores capturam mais amostras e preservam mais detalhes. O custo cresce aproximadamente com o quadrado da resolucao.",
+    mtp_stamp_resolution_changed = "A origem do carimbo foi removida porque a resolucao mudou.",
     mtp_hardness = "Dureza",
     mtp_opacity = "Opacidade",
     mtp_color = "Cor",
@@ -10628,6 +10634,7 @@ M.en.ime_generation_normal = 'Generating normal map'
 M.pt_br.ime_generation_normal = 'Gerando normal map'
 
 M.current = initLanguage()
+M.pendingLanguage = nil
 
 function M.setLanguage(lang)
     if lang == "pt_br" or lang == "en" then
@@ -10636,6 +10643,13 @@ function M.setLanguage(lang)
             mbm.setGlobal("editor_language", lang)
         end
     end
+end
+
+function M.applyPendingLanguage()
+    if not M.pendingLanguage then return end
+    local pendingLanguage = M.pendingLanguage
+    M.pendingLanguage = nil
+    M.setLanguage(pendingLanguage)
 end
 
 function M.getLanguage()
@@ -10671,16 +10685,15 @@ end
 
 -- Renders Language submenu. Requires tImGui in scope.
 function M.renderLanguageSubmenu()
+    M.applyPendingLanguage()
     if tImGui.BeginMenu(M.L("menu_language")) then
+        local requestedLanguage = nil
         local pressed_en = tImGui.MenuItem(M.L("lang_english"), nil, M.current == "en")
-        if pressed_en then
-            M.setLanguage("en")
-        end
+        if pressed_en then requestedLanguage = "en" end
         local pressed_pt = tImGui.MenuItem(M.L("lang_portuguese_br"), nil, M.current == "pt_br")
-        if pressed_pt then
-            M.setLanguage("pt_br")
-        end
+        if pressed_pt then requestedLanguage = "pt_br" end
         tImGui.EndMenu()
+        M.pendingLanguage = requestedLanguage
     end
 end
 
