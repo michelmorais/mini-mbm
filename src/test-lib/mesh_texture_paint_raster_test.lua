@@ -77,6 +77,14 @@ local sampled = Raster.sample(composed, 2.4, 2.4)
 assert(sampled.r == 0 and sampled.g == 255 and sampled.b == 0 and sampled.a == 255,
     'sample must return the nearest composed pixel')
 
+local stampSource = Raster.newBuffer(3, 3, string.rep(string.char(0, 0, 255, 255), 9))
+local stamp = Raster.extractStamp(stampSource, 1, 1, 1)
+local stampLayer = Raster.newLayer(5, 5, 2)
+local stampResult = Raster.applyStamp(stampLayer, stamp, 3, 3, 1, 1, 1)
+assert(stampResult.changedPixels == 5, 'stamp must affect the center and four neighbors')
+assert(Raster.sample(stamp, 0, 0).a == 0, 'stamp corners must be transparent outside the brush circle')
+assertPixel(stampLayer, 3, 3, 0, 0, 255, 255)
+
 local eraseResult = Raster.erase(layer, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1})
 assert(eraseResult.changedPixels == 1, 'erase must change the selected pixel')
 assertPixel(layer, 2, 2, 0, 0, 0, 0)

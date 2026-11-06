@@ -35,6 +35,9 @@ local state = {
     previewMeshPath = nil,
     previewTexturePath = nil,
     previewTextureInfo = nil,
+    stamp = nil,
+    stampTexturePath = nil,
+    stampTextureInfo = nil,
     previewReady = false,
     previewRequiresMesh = false,
     snapshots = {},
@@ -84,12 +87,19 @@ local function dpCall(fn, ...)
     return table.unpack(result, 1, result.n)
 end
 
+local function clearStamp()
+    if state.stampTextureInfo then state.stampTextureInfo:release() end
+    if state.stampTexturePath then os.remove(state.stampTexturePath) end
+    state.stamp, state.stampTexturePath, state.stampTextureInfo = nil, nil, nil
+end
+
 local function clearPreview()
     if state.previewMesh and state.previewAsset then
         dpCall(function() return meshDebug:loadMeshPreview(state.previewMesh, nil) end)
     end
     if state.previewMesh then state.previewMesh:destroy() end
     if state.previewTextureInfo then state.previewTextureInfo:release() end
+    clearStamp()
     state.previewMesh, state.previewAsset, state.previewTextureInfo = nil, nil, nil
     state.previewReady, state.previewRequiresMesh = false, false
     if state.previewMeshPath then os.remove(state.previewMeshPath) end
@@ -178,6 +188,7 @@ local function selectTarget(index)
         textureInfo = result
     end
     state.previewJob = nil
+    clearStamp()
     releaseTextureWork()
     state.targetIndex, state.target = index, target
     state.hoverHit = nil
@@ -347,6 +358,7 @@ end
 
 local function applyStrokeHit(hit)
     if not (state.painting and hit and hit.uv and state.layer) then return end
+    if state.brush.mode == 'stamp' and not state.stamp then return end
     local x = math.max(0, math.min(state.layer.width-1, hit.uv.u*(state.layer.width-1)))
     local y = math.max(0, math.min(state.layer.height-1, hit.uv.v*(state.layer.height-1)))
     local radius = state.brush.radius
@@ -356,9 +368,15 @@ local function applyStrokeHit(hit)
             state.stroke.tiles[#state.stroke.tiles+1] = tile
         end
     end
-    local result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
-        hardness=state.brush.hardness, opacity=state.brush.opacity,
-        color=colorBytes(), mode=state.brush.mode, deferSync=true})
+    local result
+    if state.brush.mode == 'stamp' and state.stamp then
+        result = Raster.applyStamp(state.layer, state.stamp.patch, x, y, radius,
+            state.brush.hardness, state.brush.opacity, true)
+    else
+        result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
+            hardness=state.brush.hardness, opacity=state.brush.opacity,
+            color=colorBytes(), mode=state.brush.mode, deferSync=true})
+    end
     if result.changedPixels > 0 then
         state.stroke.changed = true
         state.previewDirty = true
@@ -371,6 +389,19 @@ local function hitAtScreen(x, y)
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return nil end
     return Pick.pickTriangles({x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}, state.target.triangles)
+end
+
+local function currentVisibleBuffer()
+    if state.compositeDirtyTiles then
+        if not state.composite then
+            state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
+        end
+        Raster.composeInto(state.base, state.layer, state.composite, state.compositeDirtyTiles)
+        state.compositeDirtyTiles = nil
+    elseif not state.composite and state.layer and state.layer.touched then
+        state.composite = Raster.compose(state.base, state.layer)
+    end
+    return state.composite or state.base
 end
 
 local function updateHoverHit(x, y)
@@ -452,19 +483,94 @@ local function pickColorAtHit(hit)
         state.status = tLang.L('mtp_pick_no_surface')
         return
     end
-    if state.compositeDirtyTiles then
-        if not state.composite then
-            state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
-        end
-        Raster.composeInto(state.base, state.layer, state.composite, state.compositeDirtyTiles)
-        state.compositeDirtyTiles = nil
-    end
-    local buffer = state.composite or state.base
+    local buffer = currentVisibleBuffer()
     local x = hit.uv.u * (buffer.width - 1)
     local y = hit.uv.v * (buffer.height - 1)
     local color = Raster.sample(buffer, x, y)
     state.brush.color = {r=color.r / 255, g=color.g / 255, b=color.b / 255, a=color.a / 255}
     state.status = string.format(tLang.L('mtp_color_picked'), color.r, color.g, color.b)
+end
+
+local function pointInsidePolygon(x, y, points)
+    local inside = false
+    local previous = points[#points]
+    for _, current in ipairs(points) do
+        local crosses = (current.y > y) ~= (previous.y > y)
+        if crosses then
+            local intersection = (previous.x - current.x) * (y - current.y) /
+                (previous.y - current.y) + current.x
+            if x < intersection then inside = not inside end
+        end
+        previous = current
+    end
+    return inside
+end
+
+local function captureStampFromView(hit, screenX, screenY, buffer, radius)
+    local footprint = brushCursorPoints(hit, screenX, screenY, screenX, screenY)
+    if not footprint then return nil end
+    local minX, maxX, minY, maxY = screenX, screenX, screenY, screenY
+    for _, point in ipairs(footprint) do
+        minX, maxX = math.min(minX, point.x), math.max(maxX, point.x)
+        minY, maxY = math.min(minY, point.y), math.max(maxY, point.y)
+    end
+    local side = math.floor(math.max(9, math.min(33, radius * 2 + 1)) + .5)
+    if side % 2 == 0 then side = side - 1 end
+    local sourceRadius = (side - 1) * .5
+    local rows = {}
+    for row = 0, side - 1 do
+        local normalizedY = row / (side - 1)
+        local sampleY = minY + (maxY - minY) * normalizedY
+        local pixels = {}
+        for column = 0, side - 1 do
+            local normalizedX = column / (side - 1)
+            local sampleX = minX + (maxX - minX) * normalizedX
+            local pixel
+            if pointInsidePolygon(sampleX, sampleY, footprint) then
+                local sampleHit = hitAtScreen(sampleX, sampleY)
+                if sampleHit and sampleHit.uv then
+                    local x = sampleHit.uv.u * (buffer.width - 1)
+                    local y = sampleHit.uv.v * (buffer.height - 1)
+                    local color = Raster.sample(buffer, x, y)
+                    pixel = string.char(color.r, color.g, color.b, color.a)
+                end
+            end
+            pixels[#pixels + 1] = pixel or string.char(0, 0, 0, 0)
+        end
+        rows[#rows + 1] = table.concat(pixels)
+    end
+    return {width=side, height=side, radius=sourceRadius, bytes=table.concat(rows), screenSpace=true}
+end
+
+local function pickStampSource(hit, screenX, screenY)
+    if not (hit and hit.uv and state.layer and state.base) then
+        state.status = tLang.L('mtp_pick_no_surface')
+        return
+    end
+    local buffer = currentVisibleBuffer()
+    local x = hit.uv.u * (buffer.width - 1)
+    local y = hit.uv.v * (buffer.height - 1)
+    local radius = math.max(1, math.floor(state.brush.radius + .5))
+    local patch = captureStampFromView(hit, screenX, screenY, buffer, radius) or
+        Raster.extractStamp(buffer, x, y, radius)
+    clearStamp()
+    state.stamp = {x=x, y=y, radius=radius, patch=patch}
+    state.stampTexturePath = tUtil.getTemporaryFilePath('.png')
+    local saved, errorMessage = dpCall(mbm.writeImagePixels, state.stampTexturePath,
+        patch.bytes, patch.width, patch.height)
+    if not saved then
+        clearStamp()
+        state.status = 'Could not create stamp preview: ' .. tostring(errorMessage)
+        return
+    end
+    local loaded, textureInfo = dpCall(mbm.loadTexture, state.stampTexturePath)
+    if not loaded or not textureInfo then
+        clearStamp()
+        state.status = 'Could not load stamp preview: ' .. tostring(textureInfo)
+        return
+    end
+    state.stampTextureInfo = textureInfo
+    state.status = tLang.L('mtp_stamp_selected')
 end
 
 local function showBrushCursor()
@@ -495,6 +601,46 @@ local function showBrushCursor()
         tImGui.AddCircle({x=mouse.x,y=mouse.y}, radius, color, 32, 1.5)
     end
     tImGui.SetImDrawListToForeground(false)
+end
+
+local function showBrushColorPreview()
+    local color = state.brush.color
+    local width, height, segments = 144, 16, 24
+    local origin = tImGui.GetCursorScreenPos()
+    local effectiveAlpha = (color.a or 1) * state.brush.opacity
+    local hardness = state.brush.hardness
+    for index = 0, segments - 1 do
+        local start = index / segments
+        local finish = (index + 1) / segments
+        local position = (start + finish) * .5
+        local falloff = position <= hardness and 1 or
+            (hardness >= 1 and 0 or 1 - (position - hardness) / (1 - hardness))
+        tImGui.AddRectFilled(
+            {x=origin.x + start * width, y=origin.y},
+            {x=origin.x + finish * width, y=origin.y + height},
+            {r=color.r or 1, g=color.g or 1, b=color.b or 1, a=effectiveAlpha * falloff})
+    end
+    local hardnessX = origin.x + hardness * width
+    tImGui.AddLine({x=hardnessX,y=origin.y}, {x=hardnessX,y=origin.y + height},
+        {r=1,g=1,b=1,a=.8}, 1)
+    tImGui.Dummy({x=width, y=height})
+    tImGui.Text(string.format(tLang.L('mtp_effective_alpha'), effectiveAlpha))
+end
+
+local function showCheckerboard(size)
+    local origin = tImGui.GetCursorScreenPos()
+    local cell = 8
+    local rows = math.ceil(size / cell)
+    for row = 0, rows - 1 do
+        for column = 0, rows - 1 do
+            local even = (row + column) % 2 == 0
+            local color = even and {r=.22,g=.22,b=.22,a=1} or {r=.12,g=.12,b=.12,a=1}
+            tImGui.AddRectFilled(
+                {x=origin.x + column * cell, y=origin.y + row * cell},
+                {x=math.min(origin.x + (column + 1) * cell, origin.x + size),
+                    y=math.min(origin.y + (row + 1) * cell, origin.y + size)}, color)
+        end
+    end
 end
 
 local function finishStroke()
@@ -665,12 +811,32 @@ local function showControls()
             if changed and selected ~= state.targetIndex then dpCall(selectTarget, selected) end
         end
         tImGui.Separator()
-        local modeIndex = state.brush.mode == 'paint' and 1 or state.brush.mode == 'erase' and 2 or 3
-        local changed, value = tImGui.Combo(tLang.L('mtp_mode'), modeIndex,
-            {tLang.L('mtp_paint'), tLang.L('mtp_erase'), tLang.L('mtp_pick_color')}, -1)
-        if changed then state.brush.mode = value == 1 and 'paint' or value == 2 and 'erase' or 'pick' end
+        tImGui.Text(tLang.L('mtp_mode'))
+        local modeIndex = state.brush.mode == 'paint' and 1 or state.brush.mode == 'erase' and 2 or
+            state.brush.mode == 'pick' and 3 or 4
+        local oldModeIndex = modeIndex
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_paint'), modeIndex, 1)
+        tImGui.SameLine()
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_erase'), modeIndex, 2)
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_pick_color'), modeIndex, 3)
+        tImGui.SameLine()
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_stamp'), modeIndex, 4)
+        if modeIndex ~= oldModeIndex then
+            state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
+                modeIndex == 3 and 'pick' or 'stamp'
+        end
+        if state.brush.mode == 'stamp' then
+            tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))
+        end
+        local changed, value
         changed, value = tImGui.SliderFloat(tLang.L('radius'), state.brush.radius, 1, state.brushMaxRadius, '%.0f')
-        if changed then state.brush.radius = value end
+        if changed then
+            state.brush.radius = value
+            if state.stamp then
+                clearStamp()
+                state.status = tLang.L('mtp_stamp_radius_changed')
+            end
+        end
         tImGui.Text(string.format(tLang.L('mtp_radius_limit'), state.brushMaxRadius))
         state.brush.screenCircle = tImGui.Checkbox(tLang.L('mtp_screen_circle'), state.brush.screenCircle)
         changed, value = tImGui.SliderFloat(tLang.L('mtp_hardness'), state.brush.hardness, 0, 1, '%.2f')
@@ -679,6 +845,8 @@ local function showControls()
         if changed then state.brush.opacity = value end
         changed, value = tImGui.ColorEdit4(tLang.L('mtp_color'), state.brush.color)
         if changed then state.brush.color = value end
+        tImGui.Text(tLang.L('mtp_effective_color'))
+        showBrushColorPreview()
         if tImGui.Button(tLang.L('undo')) then history(false) end
         tImGui.SameLine()
         if tImGui.Button(tLang.L('redo')) then history(true) end
@@ -691,12 +859,25 @@ local function showTexture()
     tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 430, 320)
     local opened = tImGui.Begin(state.titles.texture, true, 0)
     if opened then
+        local available = tImGui.GetContentRegionAvail()
+        local stampShown = state.stampTextureInfo and state.stampTextureInfo:isLoaded()
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
-            local available = tImGui.GetContentRegionAvail()
-            local size = math.max(64, math.min(300, available.x, available.y - 30))
+            local reservedHeight = stampShown and 190 or 30
+            local size = math.max(64, math.min(300, available.x, available.y - reservedHeight))
             tImGui.Image(state.previewTextureInfo, {x=size,y=size}, {x=0,y=0}, {x=1,y=1})
         else
             tImGui.TextWrapped(tLang.L('mtp_texture_help'))
+        end
+        if stampShown then
+            tImGui.Separator()
+            tImGui.Text(tLang.L('mtp_stamp_texture'))
+            local stampSize = math.max(48, math.min(140, available.x, available.y))
+            showCheckerboard(stampSize)
+            tImGui.Image(state.stampTextureInfo, {x=stampSize,y=stampSize},
+                {x=0,y=0}, {x=1,y=1})
+        elseif state.brush.mode == 'stamp' then
+            tImGui.Separator()
+            tImGui.TextWrapped(tLang.L('mtp_stamp_none'))
         end
     end
     tImGui.End()
@@ -776,7 +957,9 @@ function onTouchDown(key, x, y)
         state.hoverPickPending = false
         state.hoverPickElapsed = 0
         if not ensureEditableTexture() then return end
-        if state.brush.mode == 'pick' then
+        if state.brush.mode == 'stamp' and (not state.stamp or state.keyControl) then
+            pickStampSource(hit, x, y)
+        elseif state.brush.mode == 'pick' then
             pickColorAtHit(hit)
         else
             beginStroke(hit)

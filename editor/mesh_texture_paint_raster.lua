@@ -264,6 +264,31 @@ function M.sample(buffer, x, y)
     }
 end
 
+function M.extractStamp(buffer, centerX, centerY, radius)
+    assertBuffer(buffer)
+    radius = math.max(0, math.floor(finiteNumber(radius, 0) + .5))
+    local size = radius * 2 + 1
+    local rows = {}
+    for row = 0, size - 1 do
+        local sourceY = clamp(math.floor(centerY - radius + row + .5), 0, buffer.height - 1)
+        local sourceLine = rowOf(buffer, sourceY)
+        local pixels = {}
+        for column = 0, size - 1 do
+            local sourceX = clamp(math.floor(centerX - radius + column + .5), 0, buffer.width - 1)
+            local offset = sourceX * M.BYTES_PER_PIXEL + 1
+            local pixel = sourceLine:sub(offset, offset + M.BYTES_PER_PIXEL - 1)
+            local dx, dy = sourceX - centerX, sourceY - centerY
+            if dx * dx + dy * dy > radius * radius then
+                pixels[#pixels + 1] = pixel:sub(1, 3) .. string.char(0)
+            else
+                pixels[#pixels + 1] = pixel
+            end
+        end
+        rows[#rows + 1] = table.concat(pixels)
+    end
+    return {width = size, height = size, radius = radius, bytes = table.concat(rows)}
+end
+
 M.createTransparentLayer = M.newLayer
 
 function M.tilesForRect(buffer, x0, y0, x1, y1)
@@ -442,6 +467,79 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
         end
         layer.touched = true
         if not dab.deferSync then M.syncBytes(layer) end
+    end
+    return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
+end
+
+function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync)
+    assertBuffer(layer, 'layer')
+    assert(type(stamp) == 'table' and type(stamp.bytes) == 'string', 'stamp must contain bytes')
+    integer(stamp.width, 'stamp.width')
+    integer(stamp.height, 'stamp.height')
+    assert(#stamp.bytes == stamp.width * stamp.height * M.BYTES_PER_PIXEL,
+        'stamp.bytes has the wrong size')
+    radius = math.max(0, finiteNumber(radius, stamp.radius or 0))
+    hardness = clamp(finiteNumber(hardness, 1), 0, 1)
+    opacity = clamp(finiteNumber(opacity, 1), 0, 1)
+    x, y = finiteNumber(x, 0), finiteNumber(y, 0)
+    local sourceRadius = stamp.radius or math.floor((math.min(stamp.width, stamp.height) - 1) * .5)
+    local left = math.max(0, math.floor(x - radius))
+    local right = math.min(layer.width - 1, math.ceil(x + radius))
+    local top = math.max(0, math.floor(y - radius))
+    local bottom = math.min(layer.height - 1, math.ceil(y + radius))
+    if left > right or top > bottom then return {changedPixels = 0, dirtyTiles = {}} end
+    local rows = rowsOf(layer)
+    local changedRows = {}
+    for py = top, bottom do
+        local line = rows[py + 1]
+        local first = left * M.BYTES_PER_PIXEL + 1
+        local last = (right + 1) * M.BYTES_PER_PIXEL
+        changedRows[py] = stringToBytes(line, first, last)
+    end
+    local changedPixels = 0
+    for py = top, bottom do
+        for px = left, right do
+            local distance = math.sqrt((px - x) ^ 2 + (py - y) ^ 2)
+            local amount = opacity * falloff(distance, radius, hardness)
+            if amount > 0 then
+                local normalizedX = radius > 0 and (px - x) / radius or 0
+                local normalizedY = radius > 0 and (py - y) / radius or 0
+                local sourceX = clamp(math.floor(normalizedX * sourceRadius + sourceRadius + .5),
+                    0, stamp.width - 1)
+                local sourceY = clamp(math.floor(normalizedY * sourceRadius + sourceRadius + .5),
+                    0, stamp.height - 1)
+                local sourceOffset = (sourceY * stamp.width + sourceX) * M.BYTES_PER_PIXEL + 1
+                local color = {
+                    r = stamp.bytes:byte(sourceOffset),
+                    g = stamp.bytes:byte(sourceOffset + 1),
+                    b = stamp.bytes:byte(sourceOffset + 2),
+                    a = stamp.bytes:byte(sourceOffset + 3),
+                }
+                local offset = (px - left) * M.BYTES_PER_PIXEL + 1
+                local row = changedRows[py]
+                local oldR, oldG, oldB, oldA = row[offset], row[offset + 1],
+                    row[offset + 2], row[offset + 3]
+                local newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
+                    color, amount * color.a)
+                if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
+                    row[offset], row[offset + 1], row[offset + 2], row[offset + 3] =
+                        newR, newG, newB, newA
+                    markDirty(layer, px, py)
+                    changedPixels = changedPixels + 1
+                end
+            end
+        end
+    end
+    if changedPixels > 0 then
+        local prefixBytes = left * M.BYTES_PER_PIXEL
+        local suffixStart = (right + 1) * M.BYTES_PER_PIXEL + 1
+        for py = top, bottom do
+            local row = changedRows[py]
+            local oldRow = rows[py + 1]
+            rows[py + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(row) .. oldRow:sub(suffixStart)
+        end
+        layer.touched = true
+        if not deferSync then M.syncBytes(layer) end
     end
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
