@@ -3340,24 +3340,6 @@ int onEndDisabledImGuiLua(lua_State *)
 // Temporarily re-enable a block when an editor is entered while an outer
 // BeginDisabled() is still active. Returns whether an override was applied so
 // Lua can close only the stack entry it opened.
-int onBeginEnabledOverrideImGuiLua(lua_State *lua)
-{
-    ImGuiContext *context = ImGui::GetCurrentContext();
-    const bool overridden = context &&
-        (context->CurrentItemFlags & ImGuiItemFlags_Disabled) != 0;
-    if (overridden)
-        ImGui::BeginDisabledOverrideReenable();
-    lua_pushboolean(lua, overridden);
-    return 1;
-}
-
-int onEndEnabledOverrideImGuiLua(lua_State *lua)
-{
-    if (lua_gettop(lua) >= 1 && lua_toboolean(lua, 1))
-        ImGui::EndDisabledOverrideReenable();
-    return 0;
-}
-
 // Tables API - see imgui_demo.cpp "Tables & Columns"
 int onBeginTableImGuiLua(lua_State *lua)
 {
@@ -7076,8 +7058,6 @@ int onNewimguiLua(lua_State *lua)
         // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
         {"BeginDisabled",                                       onBeginDisabledImGuiLua },
         {"EndDisabled",                                           onEndDisabledImGuiLua },
-        {"BeginEnabledOverride",                         onBeginEnabledOverrideImGuiLua },
-        {"EndEnabledOverride",                             onEndEnabledOverrideImGuiLua },
         {"BeginCombo",                                             onBeginComboImGuiLua }, // Not Tested, Window/Layout
         {"BeginGroup",                                             onBeginGroupImGuiLua }, // Not Tested, Window/Layout
         {"BeginMainMenuBar",                                 onBeginMainMenuBarImGuiLua },

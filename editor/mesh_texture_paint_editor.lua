@@ -828,6 +828,11 @@ local function suggestedMeshExportPath()
     return outputBaseName(state.meshPath, '_painted', '.msh')
 end
 
+local function texturePathForMeshPath(meshPath)
+    local path = meshPath:gsub('%.[^%.]+$', '.png')
+    return path == meshPath and meshPath .. '.png' or path
+end
+
 local function writeImageAtomic(path, buffer)
     local temporaryPath = path .. '.meshpaint.tmp.png'
     os.remove(temporaryPath)
@@ -890,10 +895,6 @@ local function saveMeshAs()
         state.status = tLang.L('mtp_export_no_mesh')
         return false
     end
-    if not state.exportTexturePath or state.exportDirty then
-        state.status = tLang.L('mtp_export_texture_first')
-        return false
-    end
     local ready, errorMessage = preparePreviewForExport()
     if not ready then
         state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(errorMessage)
@@ -906,11 +907,22 @@ local function saveMeshAs()
         state.status = tLang.L('mtp_export_source_protected')
         return false
     end
+    local texturePath = texturePathForMeshPath(path)
+    if texturePath == resolvePath(state.target.path) then
+        state.status = tLang.L('mtp_export_source_protected')
+        return false
+    end
+    local buffer = currentVisibleBuffer()
+    local textureSaved, textureError = writeImageAtomic(texturePath, buffer)
+    if not textureSaved then
+        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(textureError)
+        return false
+    end
     local oldTextures = {}
     local updated = true
     for _, subset in ipairs(state.target.subsets) do
         oldTextures[subset] = state.previewAsset:getTexture(1, subset)
-        updated = state.previewAsset:setTexture(1, subset, state.exportTexturePath) and updated
+        updated = state.previewAsset:setTexture(1, subset, texturePath) and updated
     end
     local temporaryPath = path .. '.meshpaint.tmp.msh'
     os.remove(temporaryPath)
@@ -932,6 +944,7 @@ local function saveMeshAs()
         return false
     end
     state.exportMeshPath = path
+    state.exportTexturePath, state.exportDirty = texturePath, false
     state.status = tLang.L('mtp_mesh_exported') .. ': ' .. path
     return true
 end
@@ -987,8 +1000,7 @@ local function showMenu()
         if tImGui.MenuItem(tLang.L('mtp_save_texture_as'), nil, false, state.target ~= nil) then
             dpCall(saveTextureAs)
         end
-        if tImGui.MenuItem(tLang.L('mtp_save_mesh_as'), nil, false,
-                state.target ~= nil and state.exportTexturePath ~= nil and not state.exportDirty) then
+        if tImGui.MenuItem(tLang.L('mtp_save_mesh_as'), nil, false, state.target ~= nil) then
             dpCall(saveMeshAs)
         end
         if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
@@ -1097,7 +1109,6 @@ local function showTexture()
     tImGui.PushStyleColor('ImGuiCol_TextDisabled', {r=1,g=1,b=1,a=1})
     tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 430, 320)
     local opened = tImGui.Begin(state.titles.texture, true, 0)
-    local enabledOverride = tImGui.BeginEnabledOverride()
     if opened then
         local available = tImGui.GetContentRegionAvail()
         local stampShown = state.stampTextureInfo and state.stampTextureInfo:isLoaded()
@@ -1119,7 +1130,6 @@ local function showTexture()
             tImGui.TextWrapped(tLang.L('mtp_stamp_none'))
         end
     end
-    tImGui.EndEnabledOverride(enabledOverride)
     tImGui.End()
     tImGui.PopStyleColor(2)
     tImGui.PopStyleVar(2)
@@ -1129,7 +1139,6 @@ local function showCamera()
     tUtil.setInitialWindowPositionRight(state.titles.camera, 0, 20, 330)
     local opened = tImGui.Begin(tLang.L('mtp_camera') .. '##' .. state.titles.camera, true,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
-    local enabledOverride = tImGui.BeginEnabledOverride()
     if opened then
         if tImGui.Button(tLang.L('mtp_frame_mesh')) then frameCamera() end
         tImGui.SameLine()
@@ -1138,7 +1147,12 @@ local function showCamera()
             frameCamera()
         end
         tImGui.Separator()
-        if tUtil.drawOrbitGizmo(state.cameraOrbit, {size=110}) then applyCamera() end
+        if tUtil.drawOrbitGizmo(state.cameraOrbit, {size=110}) then
+            applyCamera()
+            -- The gizmo becomes the active ImGui item after an axis snap. Keep
+            -- the texture preview window interactive on the following frame.
+            tImGui.SetWindowFocus(state.titles.texture)
+        end
         tImGui.Separator()
         tUtil.pushResponsiveItemWidth(72)
         local changed, value = tImGui.InputFloat(tLang.L('cam_distance'), state.cameraOrbit.distance,
@@ -1155,7 +1169,6 @@ local function showCamera()
         tImGui.Separator()
         tImGui.TextWrapped(tLang.L('mtp_camera_help'))
     end
-    tImGui.EndEnabledOverride(enabledOverride)
     tImGui.End()
 end
 

@@ -153,8 +153,9 @@ materiais e demais referências não editadas.
 9. O usuário pode abrir o painel **UV/Texture** para revisar o resultado no plano,
    visualizar a área atingida e localizar seams ou ilhas sobrepostas.
 10. **Salvar textura** compõe base e camada e escreve o PNG de trabalho. **Salvar
-    mesh como...** grava uma MSH que referencia a textura exportada. **Salvar
-    projeto** preserva a base, a camada e as escolhas para continuar depois.
+    mesh como...** grava uma MSH e exporta automaticamente, no mesmo diretório e
+    com o mesmo nome-base, o PNG que ela referencia. **Salvar projeto** preserva a
+    base, a camada e as escolhas para continuar depois.
 
 ## 5. Interface do editor
 
