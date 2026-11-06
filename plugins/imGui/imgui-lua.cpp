@@ -3337,9 +3337,6 @@ int onEndDisabledImGuiLua(lua_State *)
     return 0;
 }
 
-// Temporarily re-enable a block when an editor is entered while an outer
-// BeginDisabled() is still active. Returns whether an override was applied so
-// Lua can close only the stack entry it opened.
 // Tables API - see imgui_demo.cpp "Tables & Columns"
 int onBeginTableImGuiLua(lua_State *lua)
 {
