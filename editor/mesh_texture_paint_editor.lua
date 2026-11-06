@@ -61,6 +61,9 @@ local state = {
     previewBuilds = 0,
     projectPath = nil,
     modified = false,
+    exportTexturePath = nil,
+    exportMeshPath = nil,
+    exportDirty = true,
     lastLanguage = nil,
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
@@ -137,6 +140,7 @@ local function clearPreview()
     if state.previewTexturePath then os.remove(state.previewTexturePath) end
     state.previewMeshPath, state.previewTexturePath, state.previewUiTexturePath = nil, nil, nil
     state.previewTextureIsUiCopy = false
+    state.exportTexturePath, state.exportMeshPath, state.exportDirty = nil, nil, true
     state.compositeDirtyTiles = nil
     state.previewJob = nil
     state.hoverHit = nil
@@ -206,6 +210,7 @@ local function selectTarget(index)
     end
     state.previewTextureInfo = nil
     state.previewTextureIsUiCopy = false
+    state.exportTexturePath, state.exportMeshPath, state.exportDirty = nil, nil, true
     if state.meshPreviewTextureInfo then
         state.meshPreviewTextureInfo:release()
         state.meshPreviewTextureInfo = nil
@@ -730,6 +735,7 @@ local function finishStroke()
         state.undo[#state.undo+1] = {before=before, after=after}
         state.redo = {}
         state.compositeDirtyTiles = state.stroke.tiles
+        state.exportDirty = true
     end
     state.stroke, state.painting = nil, false
     if state.previewDirty then state.status = 'Stroke applied. Preview updated.' end
@@ -747,6 +753,7 @@ local function history(redo)
     state.compositeDirtyTiles = from.tiles
     state.previewDirty = true
     state.modified = true
+    state.exportDirty = true
 end
 
 local function withExtension(path, extension)
@@ -773,7 +780,7 @@ local function makeProject(projectPath)
         source_mesh = resolvePath(state.meshPath) or state.meshPath,
         source_texture = resolvePath(state.target.path) or state.target.path,
         paint_layer = paintLayerPath(projectPath),
-        working_texture = nil,
+        working_texture = (state.exportTexturePath and not state.exportDirty) and state.exportTexturePath or nil,
         frame = 1,
         subset = firstSubset,
         texture_role = 'base_color',
@@ -804,6 +811,129 @@ end
 local function saveProjectAs()
     local path = mbm.saveFile(state.projectPath or suggestedProjectPath(), 'lua')
     if path then dpCall(saveProject, path) end
+end
+
+local function outputBaseName(path, suffix, extension)
+    local directory, name = path:match('^(.*[/\\])([^/\\]+)$')
+    directory, name = directory or '', name or path
+    local stem = name:gsub('%.[^%.]+$', '')
+    return directory .. stem .. suffix .. extension
+end
+
+local function suggestedTextureExportPath()
+    return outputBaseName(state.target.path, '_painted', '.png')
+end
+
+local function suggestedMeshExportPath()
+    return outputBaseName(state.meshPath, '_painted', '.msh')
+end
+
+local function writeImageAtomic(path, buffer)
+    local temporaryPath = path .. '.meshpaint.tmp.png'
+    os.remove(temporaryPath)
+    local called, saved = dpCall(mbm.writeImagePixels, temporaryPath, buffer.bytes,
+        buffer.width, buffer.height)
+    if not called or saved == false then
+        os.remove(temporaryPath)
+        return false, 'could not write temporary texture'
+    end
+    local renamed, errorMessage = os.rename(temporaryPath, path)
+    if not renamed then
+        os.remove(temporaryPath)
+        return false, errorMessage or 'could not publish texture'
+    end
+    return true
+end
+
+local function preparePreviewForExport()
+    if not state.previewAsset or not state.target then return false, 'no mesh loaded' end
+    finishStroke()
+    requestPreviewRebuild()
+    local guard = 0
+    while state.previewJob and guard < 8 do
+        local called, errorMessage = dpCall(processPreviewJob)
+        if not called then return false, errorMessage end
+        guard = guard + 1
+    end
+    if state.previewJob or state.previewDirty then
+        return false, 'preview is still processing'
+    end
+    return true
+end
+
+local function saveTextureAs()
+    if not state.target then
+        state.status = tLang.L('mtp_export_no_mesh')
+        return false
+    end
+    if not ensureEditableTexture() then return false end
+    local path = mbm.saveFile(state.exportTexturePath or suggestedTextureExportPath(), 'png')
+    if not path or path == '' then return false end
+    path = resolvePath(path) or path
+    if path == resolvePath(state.target.path) then
+        state.status = tLang.L('mtp_export_source_protected')
+        return false
+    end
+    local buffer = currentVisibleBuffer()
+    local saved, errorMessage = writeImageAtomic(path, buffer)
+    if not saved then
+        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(errorMessage)
+        return false
+    end
+    state.exportTexturePath, state.exportDirty = path, false
+    state.status = tLang.L('mtp_texture_exported') .. ': ' .. path
+    return true
+end
+
+local function saveMeshAs()
+    if not state.target then
+        state.status = tLang.L('mtp_export_no_mesh')
+        return false
+    end
+    if not state.exportTexturePath or state.exportDirty then
+        state.status = tLang.L('mtp_export_texture_first')
+        return false
+    end
+    local ready, errorMessage = preparePreviewForExport()
+    if not ready then
+        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(errorMessage)
+        return false
+    end
+    local path = mbm.saveFile(state.exportMeshPath or suggestedMeshExportPath(), 'msh')
+    if not path or path == '' then return false end
+    path = resolvePath(path) or path
+    if path == resolvePath(state.meshPath) then
+        state.status = tLang.L('mtp_export_source_protected')
+        return false
+    end
+    local oldTextures = {}
+    local updated = true
+    for _, subset in ipairs(state.target.subsets) do
+        oldTextures[subset] = state.previewAsset:getTexture(1, subset)
+        updated = state.previewAsset:setTexture(1, subset, state.exportTexturePath) and updated
+    end
+    local temporaryPath = path .. '.meshpaint.tmp.msh'
+    os.remove(temporaryPath)
+    local called, saved = dpCall(function()
+        return state.previewAsset:save(temporaryPath, false, false, false)
+    end)
+    for _, subset in ipairs(state.target.subsets) do
+        state.previewAsset:setTexture(1, subset, oldTextures[subset] or '')
+    end
+    if not updated or not called or saved == false then
+        os.remove(temporaryPath)
+        state.status = tLang.L('mtp_export_failed')
+        return false
+    end
+    local renamed, renameError = os.rename(temporaryPath, path)
+    if not renamed then
+        os.remove(temporaryPath)
+        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(renameError)
+        return false
+    end
+    state.exportMeshPath = path
+    state.status = tLang.L('mtp_mesh_exported') .. ': ' .. path
+    return true
 end
 
 local function openProject(path)
@@ -854,6 +984,13 @@ local function showMenu()
             if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
         end
         if tImGui.MenuItem(tLang.L('mtp_save_project_as'), nil, false, state.target ~= nil) then saveProjectAs() end
+        if tImGui.MenuItem(tLang.L('mtp_save_texture_as'), nil, false, state.target ~= nil) then
+            dpCall(saveTextureAs)
+        end
+        if tImGui.MenuItem(tLang.L('mtp_save_mesh_as'), nil, false,
+                state.target ~= nil and state.exportTexturePath ~= nil and not state.exportDirty) then
+            dpCall(saveMeshAs)
+        end
         if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
         if tImGui.MenuItem(tLang.L('menu_quit')) then mbm.quit() end
         tImGui.EndMenu()
