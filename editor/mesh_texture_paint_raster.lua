@@ -471,7 +471,7 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
 
-function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync)
+function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY)
     assertBuffer(layer, 'layer')
     assert(type(stamp) == 'table' and type(stamp.bytes) == 'string', 'stamp must contain bytes')
     integer(stamp.width, 'stamp.width')
@@ -504,6 +504,8 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync)
             if amount > 0 then
                 local normalizedX = radius > 0 and (px - x) / radius or 0
                 local normalizedY = radius > 0 and (py - y) / radius or 0
+                if flipX then normalizedX = -normalizedX end
+                if flipY then normalizedY = -normalizedY end
                 local sourceX = clamp(math.floor(normalizedX * sourceRadius + sourceRadius + .5),
                     0, stamp.width - 1)
                 local sourceY = clamp(math.floor(normalizedY * sourceRadius + sourceRadius + .5),

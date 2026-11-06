@@ -85,6 +85,15 @@ assert(stampResult.changedPixels == 5, 'stamp must affect the center and four ne
 assert(Raster.sample(stamp, 0, 0).a == 0, 'stamp corners must be transparent outside the brush circle')
 assertPixel(stampLayer, 3, 3, 0, 0, 255, 255)
 
+local directionalSource = Raster.newBuffer(3, 3,
+    string.rep(string.char(255, 0, 0, 255) .. string.char(0, 255, 0, 255) ..
+        string.char(0, 0, 255, 255), 3))
+local directionalStamp = Raster.extractStamp(directionalSource, 1, 1, 1)
+local flippedLayer = Raster.newLayer(5, 5, 2)
+Raster.applyStamp(flippedLayer, directionalStamp, 3, 3, 1, 1, 1, false, true, false)
+assertPixel(flippedLayer, 2, 3, 0, 0, 255, 255)
+assertPixel(flippedLayer, 4, 3, 255, 0, 0, 255)
+
 local eraseResult = Raster.erase(layer, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1})
 assert(eraseResult.changedPixels == 1, 'erase must change the selected pixel')
 assertPixel(layer, 2, 2, 0, 0, 0, 0)

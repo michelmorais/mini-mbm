@@ -79,6 +79,8 @@ local state = {
     },
 }
 
+local brushUvDerivatives
+
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
     if not result[1] then
@@ -356,7 +358,7 @@ local function beginStroke(hit)
     end
 end
 
-local function applyStrokeHit(hit)
+local function applyStrokeHit(hit, screenX, screenY)
     if not (state.painting and hit and hit.uv and state.layer) then return end
     if state.brush.mode == 'stamp' and not state.stamp then return end
     local x = math.max(0, math.min(state.layer.width-1, hit.uv.u*(state.layer.width-1)))
@@ -370,8 +372,14 @@ local function applyStrokeHit(hit)
     end
     local result
     if state.brush.mode == 'stamp' and state.stamp then
+        local destinationDerivatives = screenX and screenY and
+            brushUvDerivatives(hit, screenX, screenY)
+        local flipU = destinationDerivatives and
+            ((destinationDerivatives.duDx < 0) ~= (state.stamp.sourceFlipU == true)) or false
+        local flipV = destinationDerivatives and
+            ((destinationDerivatives.dvDy < 0) ~= (state.stamp.sourceFlipV == true)) or false
         result = Raster.applyStamp(state.layer, state.stamp.patch, x, y, radius,
-            state.brush.hardness, state.brush.opacity, true)
+            state.brush.hardness, state.brush.opacity, true, flipU, flipV)
     else
         result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
             hardness=state.brush.hardness, opacity=state.brush.opacity,
@@ -388,7 +396,16 @@ local function hitAtScreen(x, y)
     if not state.target then return nil end
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return nil end
-    return Pick.pickTriangles({x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}, state.target.triangles)
+    local origin, direction = {x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}
+    if state.target.pickAcceleration then
+        return Pick.pickTrianglesBVH(origin, direction, state.target.pickAcceleration)
+    end
+    return Pick.pickTriangles(origin, direction, state.target.triangles)
+end
+
+local function ensureTargetPickAcceleration()
+    if not (state.target and not state.target.pickAcceleration) then return end
+    state.target.pickAcceleration = Pick.buildBVH(state.target.triangles, 8)
 end
 
 local function currentVisibleBuffer()
@@ -429,7 +446,7 @@ local function hitSingleTriangleAtScreen(x, y, triangle)
     return hit
 end
 
-local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
+brushUvDerivatives = function(hit, rayX, rayY)
     local triangle = hit.triangle
     if not triangle or not hit.uv then return nil end
     local sampleDistance = 2
@@ -452,6 +469,12 @@ local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
     if not (duDx and dvDx and duDy and dvDy) then return nil end
     local determinant = duDx * dvDy - duDy * dvDx
     if math.abs(determinant) < 1e-10 then return nil end
+    return {duDx=duDx, dvDx=dvDx, duDy=duDy, dvDy=dvDy, determinant=determinant}
+end
+
+local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
+    local derivatives = brushUvDerivatives(hit, rayX, rayY)
+    if not derivatives then return nil end
     local radiusU = state.brush.radius / math.max(1, state.textureWidth - 1)
     local radiusV = state.brush.radius / math.max(1, state.textureHeight - 1)
     local points = {}
@@ -459,11 +482,13 @@ local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
         local angle = math.pi * 2 * index / 32
         local targetU = math.cos(angle) * radiusU
         local targetV = math.sin(angle) * radiusV
-        local screenX = (targetU * dvDy - targetV * duDy) / determinant
-        local screenY = (targetV * duDx - targetU * dvDx) / determinant
+        local screenX = (targetU * derivatives.dvDy - targetV * derivatives.duDy) /
+            derivatives.determinant
+        local screenY = (targetV * derivatives.duDx - targetU * derivatives.dvDx) /
+            derivatives.determinant
         points[#points + 1] = {x=drawX + screenX, y=drawY + screenY}
     end
-    return points
+    return points, derivatives
 end
 
 local function equivalentScreenRadius(points, center)
@@ -507,7 +532,7 @@ local function pointInsidePolygon(x, y, points)
 end
 
 local function captureStampFromView(hit, screenX, screenY, buffer, radius)
-    local footprint = brushCursorPoints(hit, screenX, screenY, screenX, screenY)
+    local footprint, derivatives = brushCursorPoints(hit, screenX, screenY, screenX, screenY)
     if not footprint then return nil end
     local minX, maxX, minY, maxY = screenX, screenX, screenY, screenY
     for _, point in ipairs(footprint) do
@@ -539,7 +564,8 @@ local function captureStampFromView(hit, screenX, screenY, buffer, radius)
         end
         rows[#rows + 1] = table.concat(pixels)
     end
-    return {width=side, height=side, radius=sourceRadius, bytes=table.concat(rows), screenSpace=true}
+    return {width=side, height=side, radius=sourceRadius, bytes=table.concat(rows), screenSpace=true,
+        sourceFlipU=derivatives.duDx < 0, sourceFlipV=derivatives.dvDy < 0}
 end
 
 local function pickStampSource(hit, screenX, screenY)
@@ -551,8 +577,12 @@ local function pickStampSource(hit, screenX, screenY)
     local x = hit.uv.u * (buffer.width - 1)
     local y = hit.uv.v * (buffer.height - 1)
     local radius = math.max(1, math.floor(state.brush.radius + .5))
-    local patch = captureStampFromView(hit, screenX, screenY, buffer, radius) or
-        Raster.extractStamp(buffer, x, y, radius)
+    ensureTargetPickAcceleration()
+    local patch = captureStampFromView(hit, screenX, screenY, buffer, radius)
+    if not patch then
+        patch = Raster.extractStamp(buffer, x, y, radius)
+        patch.sourceFlipU, patch.sourceFlipV = false, false
+    end
     clearStamp()
     state.stamp = {x=x, y=y, radius=radius, patch=patch}
     state.stampTexturePath = tUtil.getTemporaryFilePath('.png')
@@ -864,7 +894,8 @@ local function showTexture()
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
             local reservedHeight = stampShown and 190 or 30
             local size = math.max(64, math.min(300, available.x, available.y - reservedHeight))
-            tImGui.Image(state.previewTextureInfo, {x=size,y=size}, {x=0,y=0}, {x=1,y=1})
+            tImGui.Image(state.previewTextureInfo, {x=size,y=size}, {x=0,y=0}, {x=1,y=1},
+                {r=.18,g=.18,b=.18,a=1})
         else
             tImGui.TextWrapped(tLang.L('mtp_texture_help'))
         end
@@ -874,7 +905,7 @@ local function showTexture()
             local stampSize = math.max(48, math.min(140, available.x, available.y))
             showCheckerboard(stampSize)
             tImGui.Image(state.stampTextureInfo, {x=stampSize,y=stampSize},
-                {x=0,y=0}, {x=1,y=1})
+                {x=0,y=0}, {x=1,y=1}, {r=.18,g=.18,b=.18,a=0})
         elseif state.brush.mode == 'stamp' then
             tImGui.Separator()
             tImGui.TextWrapped(tLang.L('mtp_stamp_none'))
@@ -963,7 +994,7 @@ function onTouchDown(key, x, y)
             pickColorAtHit(hit)
         else
             beginStroke(hit)
-            applyStrokeHit(hit)
+            applyStrokeHit(hit, x, y)
         end
     elseif key == 2 then
         state.panning = true
@@ -979,7 +1010,7 @@ function onTouchMove(key, x, y)
     if state.painting then
         local hit = hitAtScreen(x, y)
         state.hoverHit = hit
-        applyStrokeHit(hit)
+        applyStrokeHit(hit, x, y)
     elseif state.orbiting then
         state.cameraOrbit.azimuth = state.cameraOrbit.azimuth + dx * .005
         state.cameraOrbit.elevation = math.max(-math.pi*.49,

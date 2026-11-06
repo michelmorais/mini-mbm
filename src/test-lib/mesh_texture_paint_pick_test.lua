@@ -57,6 +57,9 @@ local triangles = {
 local nearest = assert(Pick.pickTriangles(origin, direction, triangles))
 assert(nearest.triangleIndex == 1)
 near(nearest.uv.u, .5)
+local accelerated = assert(Pick.pickTrianglesBVH(origin, direction, Pick.buildBVH(triangles)))
+assert(accelerated.triangleIndex == 1)
+near(accelerated.uv.u, .5)
 
 local backA = {x = -1, y = -1, z = 0}
 local backB = {x = 0, y = 1, z = 0}
