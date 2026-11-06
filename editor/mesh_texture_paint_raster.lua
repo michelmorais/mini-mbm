@@ -1,0 +1,433 @@
+--[[
+-------------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|                                                                                                                        |
+|------------------------------------------------------------------------------------------------------------------------|
+]]--
+
+-- Pure RGBA8 texture-layer operations for the mesh texture paint editor.
+-- Coordinates are zero-based pixel-center coordinates.  Buffers keep their
+-- payload as a binary string, matching mbm.readImagePixels/writeImagePixels.
+
+local M = {}
+
+M.BYTES_PER_PIXEL = 4
+M.DEFAULT_TILE_SIZE = 32
+
+local function integer(value, name)
+    assert(type(value) == 'number' and value == math.floor(value) and value >= 1,
+        (name or 'value') .. ' must be a positive integer')
+    return value
+end
+
+local function clamp(value, minimum, maximum)
+    if value < minimum then return minimum end
+    if value > maximum then return maximum end
+    return value
+end
+
+local function finiteNumber(value, fallback)
+    if type(value) ~= 'number' or value ~= value or value == math.huge or value == -math.huge then
+        return fallback
+    end
+    return value
+end
+
+local function byte(value)
+    return clamp(math.floor(finiteNumber(value, 0) + 0.5), 0, 255)
+end
+
+local function bytesToString(bytes)
+    local chunks = {}
+    local chunkSize = 4096
+    for first = 1, #bytes, chunkSize do
+        local chunk = {}
+        local last = math.min(#bytes, first + chunkSize - 1)
+        for index = first, last do chunk[#chunk + 1] = bytes[index] end
+        chunks[#chunks + 1] = string.char(table.unpack(chunk))
+    end
+    return table.concat(chunks)
+end
+
+local function stringToBytes(value, first, last)
+    local bytes = {}
+    local chunkSize = 4096
+    for chunkFirst = first, last, chunkSize do
+        local chunkLast = math.min(last, chunkFirst + chunkSize - 1)
+        local chunk = {value:byte(chunkFirst, chunkLast)}
+        for index = 1, #chunk do bytes[#bytes + 1] = chunk[index] end
+    end
+    return bytes
+end
+
+local function pixelOffset(width, x, y)
+    return (y * width + x) * M.BYTES_PER_PIXEL + 1
+end
+
+local function assertBuffer(buffer, name)
+    assert(type(buffer) == 'table', (name or 'buffer') .. ' must be a table')
+    integer(buffer.width, (name or 'buffer') .. '.width')
+    integer(buffer.height, (name or 'buffer') .. '.height')
+    assert(type(buffer.bytes) == 'string', (name or 'buffer') .. '.bytes must be a string')
+    assert(#buffer.bytes == buffer.width * buffer.height * M.BYTES_PER_PIXEL,
+        (name or 'buffer') .. '.bytes has the wrong size')
+end
+
+local function normalizeColor(color)
+    assert(type(color) == 'table', 'dab.color must be a table')
+    local function component(named, indexed)
+        return color[named] == nil and color[indexed] or color[named]
+    end
+    return {
+        r = byte(component('r', 1)),
+        g = byte(component('g', 2)),
+        b = byte(component('b', 3)),
+        a = byte(color.a == nil and (color[4] == nil and 255 or color[4]) or color.a),
+    }
+end
+
+local function tileKey(tileX, tileY)
+    return tileX .. ':' .. tileY
+end
+
+local function tileSizeOf(buffer)
+    return integer(buffer.tileSize or M.DEFAULT_TILE_SIZE, 'tileSize')
+end
+
+local function addDirtyTile(layer, tileX, tileY)
+    local key = tileKey(tileX, tileY)
+    if layer.dirtyTiles[key] then return end
+    local tileSize = tileSizeOf(layer)
+    local x = tileX * tileSize
+    local y = tileY * tileSize
+    local tile = {
+        key = key,
+        tileX = tileX,
+        tileY = tileY,
+        x = x,
+        y = y,
+        width = math.min(tileSize, layer.width - x),
+        height = math.min(tileSize, layer.height - y),
+    }
+    layer.dirtyTiles[key] = tile
+    layer.dirtyTileList[#layer.dirtyTileList + 1] = tile
+end
+
+local function markDirty(layer, x, y)
+    local tileSize = tileSizeOf(layer)
+    addDirtyTile(layer, math.floor(x / tileSize), math.floor(y / tileSize))
+end
+
+local function copyTile(buffer, tile)
+    local rows = {}
+    for y = tile.y, tile.y + tile.height - 1 do
+        local first = pixelOffset(buffer.width, tile.x, y)
+        rows[#rows + 1] = buffer.bytes:sub(first, first + tile.width * M.BYTES_PER_PIXEL - 1)
+    end
+    return table.concat(rows)
+end
+
+local function replaceTileRows(buffer, tile, tileBytes)
+    local rowBytes = tile.width * M.BYTES_PER_PIXEL
+    local rows = {}
+    for y = 0, buffer.height - 1 do
+        rows[y + 1] = buffer.bytes:sub(y * buffer.width * M.BYTES_PER_PIXEL + 1,
+            (y + 1) * buffer.width * M.BYTES_PER_PIXEL)
+    end
+    for row = 0, tile.height - 1 do
+        local y = tile.y + row
+        local line = rows[y + 1]
+        local first = tile.x * M.BYTES_PER_PIXEL + 1
+        local start = row * rowBytes + 1
+        local replacement = tileBytes:sub(start, start + rowBytes - 1)
+        rows[y + 1] = line:sub(1, first - 1) .. replacement .. line:sub(first + rowBytes)
+    end
+    buffer.bytes = table.concat(rows)
+end
+
+local function tileList(tiles)
+    if not tiles then return {} end
+    if #tiles > 0 then return tiles end
+    local result = {}
+    for _, tile in pairs(tiles) do result[#result + 1] = tile end
+    table.sort(result, function(left, right) return left.key < right.key end)
+    return result
+end
+
+function M.newBuffer(width, height, bytes)
+    width = integer(width, 'width')
+    height = integer(height, 'height')
+    bytes = bytes or string.rep('\0', width * height * M.BYTES_PER_PIXEL)
+    assert(type(bytes) == 'string' and #bytes == width * height * M.BYTES_PER_PIXEL,
+        'bytes must contain exactly width * height * 4 bytes')
+    return {width = width, height = height, bytes = bytes}
+end
+
+function M.newLayer(width, height, tileSize)
+    if type(width) == 'table' then
+        local source = width
+        tileSize = height
+        assertBuffer(source, 'source')
+        width, height = source.width, source.height
+    end
+    local layer = M.newBuffer(width, height)
+    layer.tileSize = integer(tileSize or M.DEFAULT_TILE_SIZE, 'tileSize')
+    layer.dirtyTiles = {}
+    layer.dirtyTileList = {}
+    return layer
+end
+
+M.createTransparentLayer = M.newLayer
+
+function M.tilesForRect(buffer, x0, y0, x1, y1)
+    assertBuffer(buffer)
+    local tileSize = tileSizeOf(buffer)
+    x0, y0 = math.min(x0, x1), math.min(y0, y1)
+    x1, y1 = math.max(x0, x1), math.max(y0, y1)
+    x0, y0 = math.max(0, math.floor(x0)), math.max(0, math.floor(y0))
+    x1, y1 = math.min(buffer.width - 1, math.ceil(x1)), math.min(buffer.height - 1, math.ceil(y1))
+    if x0 > x1 or y0 > y1 then return {} end
+    local result = {}
+    for tileY = math.floor(y0 / tileSize), math.floor(y1 / tileSize) do
+        for tileX = math.floor(x0 / tileSize), math.floor(x1 / tileSize) do
+            local x = tileX * tileSize
+            local y = tileY * tileSize
+            result[#result + 1] = {
+                key = tileKey(tileX, tileY), tileX = tileX, tileY = tileY, x = x, y = y,
+                width = math.min(tileSize, buffer.width - x), height = math.min(tileSize, buffer.height - y),
+            }
+        end
+    end
+    return result
+end
+
+function M.tilesForDab(buffer, x, y, radius)
+    radius = math.max(0, finiteNumber(radius, 0))
+    return M.tilesForRect(buffer, x - radius, y - radius, x + radius, y + radius)
+end
+
+function M.getDirtyTiles(layer, clear)
+    assertBuffer(layer, 'layer')
+    local result = {}
+    for index, tile in ipairs(layer.dirtyTileList) do result[index] = tile end
+    if clear then
+        layer.dirtyTiles = {}
+        layer.dirtyTileList = {}
+    end
+    return result
+end
+
+M.consumeDirtyTiles = function(layer) return M.getDirtyTiles(layer, true) end
+
+function M.clearDirtyTiles(layer)
+    assertBuffer(layer, 'layer')
+    layer.dirtyTiles = {}
+    layer.dirtyTileList = {}
+end
+
+function M.snapshotTiles(buffer, tiles)
+    assertBuffer(buffer)
+    local snapshot = {width = buffer.width, height = buffer.height, tiles = {}}
+    if not tiles and buffer.dirtyTileList then tiles = buffer.dirtyTileList end
+    for _, tile in ipairs(tileList(tiles)) do
+        local copy = {
+            key = tile.key,
+            tileX = tile.tileX,
+            tileY = tile.tileY,
+            x = tile.x,
+            y = tile.y,
+            width = tile.width,
+            height = tile.height,
+        }
+        copy.bytes = copyTile(buffer, copy)
+        snapshot.tiles[#snapshot.tiles + 1] = copy
+    end
+    return snapshot
+end
+
+function M.restoreTiles(buffer, snapshot)
+    assertBuffer(buffer)
+    assert(type(snapshot) == 'table' and snapshot.width == buffer.width and snapshot.height == buffer.height,
+        'snapshot dimensions do not match buffer')
+    for _, tile in ipairs(snapshot.tiles or {}) do
+        assert(type(tile.bytes) == 'string' and #tile.bytes == tile.width * tile.height * M.BYTES_PER_PIXEL,
+            'invalid tile snapshot')
+        replaceTileRows(buffer, tile, tile.bytes)
+        if buffer.dirtyTiles then addDirtyTile(buffer, tile.tileX, tile.tileY) end
+    end
+    return buffer
+end
+
+local function dabOptions(x, radius, hardness, opacity, color, mode)
+    if type(x) == 'table' then
+        local dab = x
+        return {
+            x = finiteNumber(dab.x, 0), y = finiteNumber(dab.y, 0),
+            radius = math.max(0, finiteNumber(dab.radius, 0)),
+            hardness = clamp(finiteNumber(dab.hardness, 1), 0, 1),
+            opacity = clamp(finiteNumber(dab.opacity, 1), 0, 1),
+            color = normalizeColor(dab.color or dab), mode = dab.mode or 'paint',
+        }
+    end
+    return {
+        x = finiteNumber(x, 0), y = finiteNumber(y, 0), radius = math.max(0, finiteNumber(radius, 0)),
+        hardness = clamp(finiteNumber(hardness, 1), 0, 1), opacity = clamp(finiteNumber(opacity, 1), 0, 1),
+        color = normalizeColor(color), mode = mode or 'paint',
+    }
+end
+
+local function falloff(distance, radius, hardness)
+    if radius < 0 or distance > radius then return 0 end
+    if radius == 0 then return distance == 0 and 1 or 0 end
+    local inner = radius * hardness
+    if distance <= inner then return 1 end
+    if inner >= radius then return 0 end
+    return 1 - (distance - inner) / (radius - inner)
+end
+
+local function blendPaint(oldR, oldG, oldB, oldA, color, sourceAlpha)
+    if sourceAlpha <= 0 then return oldR, oldG, oldB, oldA end
+    local source = sourceAlpha / 255
+    local destination = oldA / 255
+    local outputAlpha = source + destination * (1 - source)
+    if outputAlpha <= 0 then return 0, 0, 0, 0 end
+    return byte((color.r * source + oldR * destination * (1 - source)) / outputAlpha),
+        byte((color.g * source + oldG * destination * (1 - source)) / outputAlpha),
+        byte((color.b * source + oldB * destination * (1 - source)) / outputAlpha),
+        byte(outputAlpha * 255)
+end
+
+local function blendErase(oldR, oldG, oldB, oldA, amount)
+    local alpha = byte(oldA * (1 - amount))
+    if alpha == 0 then return 0, 0, 0, 0 end
+    return oldR, oldG, oldB, alpha
+end
+
+function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
+    assertBuffer(layer, 'layer')
+    assert(layer.tileSize, 'applyDab requires a layer created by newLayer')
+    local dab = dabOptions(x, radius, hardness, opacity, color, mode)
+    assert(dab.mode == 'paint' or dab.mode == 'erase', 'dab.mode must be paint or erase')
+    local left = math.max(0, math.floor(dab.x - dab.radius))
+    local right = math.min(layer.width - 1, math.ceil(dab.x + dab.radius))
+    local top = math.max(0, math.floor(dab.y - dab.radius))
+    local bottom = math.min(layer.height - 1, math.ceil(dab.y + dab.radius))
+    local changedPixels = 0
+    if left > right or top > bottom then return {changedPixels = 0, dirtyTiles = {}} end
+    local rowBytes = layer.width * M.BYTES_PER_PIXEL
+    local changedRows = {}
+    for py = top, bottom do
+        local first = pixelOffset(layer.width, left, py)
+        local last = pixelOffset(layer.width, right + 1, py) - 1
+        changedRows[py] = stringToBytes(layer.bytes, first, last)
+    end
+    for py = top, bottom do
+        for px = left, right do
+            local amount = dab.opacity * falloff(math.sqrt((px - dab.x) ^ 2 + (py - dab.y) ^ 2), dab.radius, dab.hardness)
+            if amount > 0 then
+                local offset = (px - left) * M.BYTES_PER_PIXEL + 1
+                local row = changedRows[py]
+                local oldR, oldG, oldB, oldA = row[offset], row[offset + 1], row[offset + 2], row[offset + 3]
+                local newR, newG, newB, newA
+                if dab.mode == 'paint' then
+                    newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA, dab.color, amount * dab.color.a)
+                else
+                    newR, newG, newB, newA = blendErase(oldR, oldG, oldB, oldA, amount)
+                end
+                if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
+                    row[offset], row[offset + 1], row[offset + 2], row[offset + 3] = newR, newG, newB, newA
+                    markDirty(layer, px, py)
+                    changedPixels = changedPixels + 1
+                end
+            end
+        end
+    end
+    if changedPixels > 0 then
+        local outputRows = {}
+        for py = 0, layer.height - 1 do
+            local first = py * rowBytes + 1
+            local oldRow = layer.bytes:sub(first, first + rowBytes - 1)
+            local row = changedRows[py]
+            if row then
+                local prefixBytes = left * M.BYTES_PER_PIXEL
+                local suffixStart = (right + 1) * M.BYTES_PER_PIXEL + 1
+                outputRows[py + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(row) .. oldRow:sub(suffixStart)
+            else
+                outputRows[py + 1] = oldRow
+            end
+        end
+        layer.bytes = table.concat(outputRows)
+    end
+    return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
+end
+
+function M.paint(layer, dab, radius, hardness, opacity, color)
+    if type(dab) == 'table' then
+        local options = {}
+        for key, value in pairs(dab) do options[key] = value end
+        options.mode = 'paint'
+        return M.applyDab(layer, options)
+    end
+    return M.applyDab(layer, dab, radius, hardness, opacity, color, 'paint')
+end
+
+function M.erase(layer, dab, radius, hardness, opacity)
+    if type(dab) == 'table' then
+        local options = {}
+        for key, value in pairs(dab) do options[key] = value end
+        options.mode = 'erase'
+        return M.applyDab(layer, options)
+    end
+    return M.applyDab(layer, dab, radius, hardness, opacity, {r = 0, g = 0, b = 0, a = 255}, 'erase')
+end
+
+function M.compose(base, layer)
+    assertBuffer(base, 'base')
+    assertBuffer(layer, 'layer')
+    assert(base.width == layer.width and base.height == layer.height, 'base and layer dimensions differ')
+    local output = {width = base.width, height = base.height}
+    local outputRows = {}
+    local rowBytes = base.width * M.BYTES_PER_PIXEL
+    for y = 0, base.height - 1 do
+        local rowFirst = y * rowBytes + 1
+        local baseBytes = stringToBytes(base.bytes, rowFirst, rowFirst + rowBytes - 1)
+        local layerBytes = stringToBytes(layer.bytes, rowFirst, rowFirst + rowBytes - 1)
+        local outputBytes = {}
+        for offset = 1, rowBytes, M.BYTES_PER_PIXEL do
+            local baseR, baseG, baseB, baseA = baseBytes[offset], baseBytes[offset + 1], baseBytes[offset + 2], baseBytes[offset + 3]
+            local layerR, layerG, layerB, layerA = layerBytes[offset], layerBytes[offset + 1], layerBytes[offset + 2], layerBytes[offset + 3]
+            local source = layerA / 255
+            local destination = baseA / 255
+            local outputAlpha = source + destination * (1 - source)
+            if outputAlpha <= 0 then
+                outputBytes[offset], outputBytes[offset + 1], outputBytes[offset + 2], outputBytes[offset + 3] = 0, 0, 0, 0
+            else
+                outputBytes[offset] = byte((layerR * source + baseR * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 1] = byte((layerG * source + baseG * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 2] = byte((layerB * source + baseB * destination * (1 - source)) / outputAlpha)
+                outputBytes[offset + 3] = byte(outputAlpha * 255)
+            end
+        end
+        outputRows[y + 1] = bytesToString(outputBytes)
+    end
+    output.bytes = table.concat(outputRows)
+    return output
+end
+
+M.composite = M.compose
+
+return M
