@@ -29,6 +29,7 @@ local Project = require 'mesh_texture_paint_project'
 local STAMP_RESOLUTION_MIN = 9
 local STAMP_RESOLUTION_MAX = 257
 local UV_OVERLAY_MAX_TRIANGLES = 12000
+local CAMERA_WINDOW_MAX_HEIGHT = 390
 
 local state = {
     camera = nil,
@@ -65,7 +66,6 @@ local state = {
     exportTexturePath = nil,
     exportMeshPath = nil,
     exportDirty = true,
-    lastLanguage = nil,
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
         showUvOverlay = true, color = {r=1,g=0,b=0,a=1}},
@@ -1130,10 +1130,6 @@ local function showControls()
 end
 
 local function showTexture()
-    tImGui.PushStyleVar('ImGuiStyleVar_Alpha', 1)
-    tImGui.PushStyleVar('ImGuiStyleVar_DisabledAlpha', 1)
-    tImGui.PushStyleColor('ImGuiCol_Text', {r=1,g=1,b=1,a=1})
-    tImGui.PushStyleColor('ImGuiCol_TextDisabled', {r=1,g=1,b=1,a=1})
     tUtil.setInitialWindowPositionRight(state.titles.texture, 0, 430, 320)
     local opened = tImGui.Begin(state.titles.texture, true, 0)
     if opened then
@@ -1162,12 +1158,11 @@ local function showTexture()
         end
     end
     tImGui.End()
-    tImGui.PopStyleColor(2)
-    tImGui.PopStyleVar(2)
 end
 
 local function showCamera()
-    tUtil.setInitialWindowPositionRight(state.titles.camera, 0, 20, 330)
+    tUtil.setInitialWindowPositionRight(state.titles.camera, 0, 20, 330, nil,
+        CAMERA_WINDOW_MAX_HEIGHT)
     local opened = tImGui.Begin(tLang.L('mtp_camera') .. '##' .. state.titles.camera, true,
         tImGui.Flags('ImGuiWindowFlags_NoCollapse'))
     if opened then
@@ -1178,12 +1173,7 @@ local function showCamera()
             frameCamera()
         end
         tImGui.Separator()
-        if tUtil.drawOrbitGizmo(state.cameraOrbit, {size=110}) then
-            applyCamera()
-            -- The gizmo becomes the active ImGui item after an axis snap. Keep
-            -- the texture preview window interactive on the following frame.
-            tImGui.SetWindowFocus(state.titles.texture)
-        end
+        if tUtil.drawOrbitGizmo(state.cameraOrbit, {size=110}) then applyCamera() end
         tImGui.Separator()
         tUtil.pushResponsiveItemWidth(72)
         local changed, value = tImGui.InputFloat(tLang.L('cam_distance'), state.cameraOrbit.distance,
@@ -1206,14 +1196,11 @@ end
 function onInitScene()
     state.camera = mbm.getCamera('3d')
     state.camera:setFar(9999999)
-    state.lastLanguage = tLang.getLanguage()
     tUtil.sMessageOverlay = tLang.L('mtp_welcome')
 end
 
 function onLoop(delta)
     tLang.applyPendingLanguage()
-    local languageChanged = state.lastLanguage ~= tLang.getLanguage()
-    state.lastLanguage = tLang.getLanguage()
     requestPreviewRebuild()
     processHoverPick(delta)
     if state.previewJob and not state.painting then
@@ -1227,11 +1214,6 @@ function onLoop(delta)
     showControls()
     showCamera()
     showTexture()
-    if languageChanged then
-        -- Keep the texture preview visible and interactive after the menu
-        -- closes. ImGui otherwise leaves focus on the language popup.
-        tImGui.SetWindowFocus(state.titles.texture)
-    end
     showBrushCursor()
     tUtil.showOverlayMessage()
 end
