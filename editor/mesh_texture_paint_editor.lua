@@ -81,7 +81,7 @@ local state = {
     exportMeshPath = nil,
     exportDirty = true,
     status = 'Open an MSH to start painting.',
-    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint',
+    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', shape = 'circle',
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
     paintThrough = false,
@@ -746,10 +746,10 @@ local function applyStrokeHit(hit, screenX, screenY)
     local result
     if state.brush.mode == 'project' and projectedSamples then
         result = Raster.applyProjectedSamples(state.layer, projectedSamples, state.brush.opacity,
-            colorBytes(), true)
+            colorBytes(), true, state.brush.shape)
     elseif state.brush.mode == 'surface' and surfaceSamples then
         result = Raster.applyProjectedSamples(state.layer, surfaceSamples, state.brush.opacity,
-            colorBytes(), true)
+            colorBytes(), true, state.brush.shape)
     elseif state.brush.mode == 'stamp' and state.stamp then
         local destinationDerivatives = screenX and screenY and
             brushUvDerivatives(hit, screenX, screenY)
@@ -758,11 +758,11 @@ local function applyStrokeHit(hit, screenX, screenY)
         local flipV = destinationDerivatives and
             ((destinationDerivatives.dvDy < 0) ~= (state.stamp.sourceFlipV == true)) or false
         result = Raster.applyStamp(state.layer, state.stamp.patch, x, y, radius,
-            state.brush.hardness, state.brush.opacity, true, flipU, flipV)
+            state.brush.hardness, state.brush.opacity, true, flipU, flipV, state.brush.shape)
     elseif state.brush.mode == 'paint' or state.brush.mode == 'erase' then
         result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
             hardness=state.brush.hardness, opacity=state.brush.opacity,
-            color=colorBytes(), mode=state.brush.mode, deferSync=true})
+            color=colorBytes(), mode=state.brush.mode, shape=state.brush.shape, deferSync=true})
     end
     if not result then return end
     if result.changedPixels > 0 then
@@ -885,10 +885,19 @@ local function brushCursorPoints(hit, rayX, rayY, drawX, drawY)
     local radiusU = state.brush.radius / math.max(1, state.textureWidth - 1)
     local radiusV = state.brush.radius / math.max(1, state.textureHeight - 1)
     local points = {}
-    for index = 0, 32 do
-        local angle = math.pi * 2 * index / 32
-        local targetU = math.cos(angle) * radiusU
-        local targetV = math.sin(angle) * radiusV
+    local shape = state.brush.shape == 'square' and 'square' or 'circle'
+    local count = shape == 'square' and 4 or 32
+    for index = 0, count do
+        local targetU, targetV
+        if shape == 'square' then
+            local corner = index % 4
+            targetU = (corner == 0 or corner == 3) and -radiusU or radiusU
+            targetV = (corner == 0 or corner == 1) and -radiusV or radiusV
+        else
+            local angle = math.pi * 2 * index / 32
+            targetU = math.cos(angle) * radiusU
+            targetV = math.sin(angle) * radiusV
+        end
         local screenX = (targetU * derivatives.dvDy - targetV * derivatives.duDy) /
             derivatives.determinant
         local screenY = (targetV * derivatives.duDx - targetU * derivatives.dvDx) /
@@ -915,7 +924,8 @@ local function cachedBrushCursorGeometry(hit, rayX, rayY, drawX, drawY)
     if cache.hit == hit and cache.rayX == rayX and cache.rayY == rayY and
             cache.drawX == drawX and cache.drawY == drawY and
             cache.radius == state.brush.radius and cache.textureWidth == state.textureWidth and
-            cache.textureHeight == state.textureHeight and cache.cameraRevision == state.cameraRevision then
+            cache.textureHeight == state.textureHeight and cache.shape == state.brush.shape and
+            cache.cameraRevision == state.cameraRevision then
         return cache.points, cache.screenRadius
     end
     local points = brushCursorPoints(hit, rayX, rayY, drawX, drawY)
@@ -924,6 +934,7 @@ local function cachedBrushCursorGeometry(hit, rayX, rayY, drawX, drawY)
     cache.drawX, cache.drawY = drawX, drawY
     cache.radius = state.brush.radius
     cache.textureWidth, cache.textureHeight = state.textureWidth, state.textureHeight
+    cache.shape = state.brush.shape
     cache.cameraRevision = state.cameraRevision
     cache.points, cache.screenRadius = points, screenRadius
     return points, screenRadius
@@ -974,8 +985,12 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
             local sampleX = screenX - screenRadius + diameter * column / (side - 1)
             local normalizedX = (sampleX - screenX) / screenRadius
             local normalizedY = (sampleY - screenY) / screenRadius
-            local distance = math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
-            if distance <= 1 then
+            local squareDistance = math.max(math.abs(normalizedX), math.abs(normalizedY)) * math.sqrt(2)
+            local distance = state.brush.shape == 'square' and math.min(1, squareDistance) or
+                math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
+            local inside = state.brush.shape == 'square' and
+                pointInsidePolygon(sampleX, sampleY, footprint) or distance <= 1
+            if inside then
                 local sampleHits = state.paintThrough and hitsAtScreen(sampleX, sampleY) or
                     {hitAtScreen(sampleX, sampleY)}
                 local inner = state.brush.hardness
@@ -1349,6 +1364,7 @@ local function makeProject(projectPath)
             (state.paintThrough and 'project_stencil_through' or 'project_stencil') or
             state.brush.mode == 'surface' and 'surface_3d' or 'uv_brush',
         dilation_radius = state.dilationRadius,
+        brush_shape = state.brush.shape == 'square' and 'square' or 'circle',
         limit_to_subset = state.limitToSubset,
         limit_to_uv_island = state.limitToUvIsland,
         uv_island = state.selectedUvIsland > 0 and state.selectedUvIsland or 1,
@@ -1587,6 +1603,7 @@ local function openProject(path)
     state.brush.mode = (project.projection_mode == 'project_stencil' or
         project.projection_mode == 'project_stencil_through') and 'project' or
         project.projection_mode == 'surface_3d' and 'surface' or 'paint'
+    state.brush.shape = project.brush_shape == 'square' and 'square' or 'circle'
     state.paintThrough = project.projection_mode == 'project_stencil_through'
     state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
         math.floor((project.dilation_radius or 0) + .5)))
@@ -1899,6 +1916,19 @@ local function showControls()
             end
         end
         tImGui.Text(string.format(tLang.L('mtp_radius_limit'), state.brushMaxRadius))
+        tImGui.Text(tLang.L('mtp_shape'))
+        local shapeIndex = state.brush.shape == 'square' and 2 or 1
+        local oldShapeIndex = shapeIndex
+        shapeIndex = tImGui.RadioButton(tLang.L('mtp_shape_circle'), shapeIndex, 1)
+        shapeIndex = tImGui.RadioButton(tLang.L('mtp_shape_square'), shapeIndex, 2)
+        if shapeIndex ~= oldShapeIndex then
+            state.brush.shape = shapeIndex == 2 and 'square' or 'circle'
+            state.cursorCache.points, state.cursorCache.screenRadius = nil, nil
+            if state.stamp then
+                clearStamp()
+                state.status = tLang.L('mtp_stamp_shape_changed')
+            end
+        end
         changed, value = tImGui.SliderFloat(tLang.L('mtp_dilation_radius'), state.dilationRadius,
             0, DILATION_RADIUS_MAX, '%.0f')
         if changed then

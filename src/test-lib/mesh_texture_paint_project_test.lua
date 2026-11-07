@@ -57,6 +57,7 @@ project.texture_role = 'base_color'
 project.uv_channel = 1
 project.projection_mode = 'project_stencil'
 project.dilation_radius = 2.5
+project.brush_shape = 'square'
 project.limit_to_subset = true
 project.limit_to_uv_island = true
 project.uv_island = 4
@@ -72,7 +73,7 @@ local loaded = assert(Project.load(projectPath))
 for _, field in ipairs({
     'version', 'source_mesh', 'source_texture', 'paint_layer', 'working_texture',
     'frame', 'subset', 'texture_role', 'uv_channel', 'projection_mode',
-    'dilation_radius', 'limit_to_subset', 'limit_to_uv_island', 'uv_island',
+    'dilation_radius', 'brush_shape', 'limit_to_subset', 'limit_to_uv_island', 'uv_island',
 }) do
     assert(loaded[field] == project[field], field .. ' did not round-trip')
 end
@@ -98,6 +99,7 @@ local luaLoaded = assert(Project.loadLua(luaProjectPath))
 assert(luaLoaded.source_mesh == project.source_mesh)
 assert(luaLoaded.paint_layer == project.paint_layer)
 assert(luaLoaded.projection_mode == project.projection_mode)
+assert(luaLoaded.brush_shape == project.brush_shape)
 assert(luaLoaded.limit_to_subset == project.limit_to_subset)
 assert(luaLoaded.limit_to_uv_island == project.limit_to_uv_island)
 assert(luaLoaded.uv_island == project.uv_island)
@@ -125,6 +127,8 @@ expectFailure(function() Project.validate(invalid) end)
 invalid = Project.copy(project); invalid.uv_channel = 8
 expectFailure(function() Project.validate(invalid) end)
 invalid = Project.copy(project); invalid.projection_mode = 'unknown'
+expectFailure(function() Project.validate(invalid) end)
+invalid = Project.copy(project); invalid.brush_shape = 'triangle'
 expectFailure(function() Project.validate(invalid) end)
 invalid = Project.copy(project); invalid.unknown = true
 expectFailure(function() Project.validate(invalid) end)

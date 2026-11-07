@@ -20,8 +20,8 @@ Validação de plataforma: Linux/OpenGL ES e macOS/Metal estão concluídos. O �
 gate de backend ainda pendente é Windows com DirectX 9 e DirectX 11.
 
 Requisitos de autoria adicionados: o cursor não oferece mais o modo artificial de
-círculo sempre voltado para a câmera; a forma do dab será escolhida entre círculo
-e quadrado. O carimbo também terá uma fonte de textura externa, com seleção de
+círculo sempre voltado para a câmera; a forma do dab é escolhida entre círculo e
+quadrado. O carimbo também terá uma fonte de textura externa, com seleção de
 retângulo ou círculo em uma sobreposição ImGui sobre o viewport.
 
 ## 1. Objetivo
@@ -352,6 +352,11 @@ Cada dab contém:
 - modo de mapeamento (`uv` ou `project`);
 - identificador do stroke.
 
+No `UV Brush`, `Erase`, `Stamp` e na cobertura UV de `Project/Stencil`, a forma
+`circle` usa distância radial e `square` usa a maior distância axial. O modo
+`Surface 3D` continua sendo uma máscara por distância na superfície, pois sua
+área é definida pela geometria e não por uma figura fixa no plano da tela.
+
 No MVP, o `UV Brush` é rasterizado no espaço UV local do triângulo atingido e o
 `Project/Stencil` usa a projeção da câmera para produzir contribuições UV. Ambos
 devem tratar explicitamente os efeitos conhecidos:
@@ -510,7 +515,8 @@ uma lista de meshes incompatíveis.
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
-- Forma de dab circular ou quadrada, com cursor e rasterização coerentes.
+- Forma de dab circular ou quadrada implementada, com cursor e rasterização
+  coerentes; a escolha é persistida no projeto.
 - Carimbo por textura externa, incluindo seleção ImGui de recorte circular ou
   retangular sobre o viewport e fonte privada reutilizável.
 - Recuperação de gravação após erro de I/O implementada para projeto + camada,
@@ -578,7 +584,8 @@ Evidência do milestone de salvamento:
   de PNG/projeto/MSH, preservação de vértices, UVs, animação e material não editado,
   fontes intactas, sessão preservada após falhas simuladas de I/O e rejeição de
   projetos inválidos (textura, subset, frame, ilha UV e dimensões). O preview
-  continua sem rebuild/upload durante os frames ociosos.
+  continua sem rebuild/upload durante os frames ociosos; o segundo stroke usa o
+  dab quadrado e a reabertura confirma a forma persistida no projeto.
 
 Status de execução dos backends:
 
@@ -596,7 +603,6 @@ Casos que devem ser repetidos no Windows durante esse gate:
 
 Pendências de autoria que seguem depois do gate de backend:
 
-- implementar a forma quadrada no rasterizador e no cursor;
 - implementar a sobreposição de seleção da textura externa;
 - persistir e restaurar a descrição do recorte sem incorporar a imagem ao projeto;
 - validar carimbos com alpha, UV invertido, seams e escala não uniforme.

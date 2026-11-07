@@ -49,6 +49,7 @@ local KNOWN_FIELDS = {
     uv_channel = true,
     projection_mode = true,
     dilation_radius = true,
+    brush_shape = true,
     limit_to_subset = true,
     limit_to_uv_island = true,
     uv_island = true,
@@ -118,6 +119,7 @@ function M.defaults()
         uv_channel = 0,
         projection_mode = 'uv_brush',
         dilation_radius = 0,
+        brush_shape = 'circle',
         limit_to_subset = false,
         limit_to_uv_island = false,
         uv_island = 1,
@@ -145,6 +147,7 @@ function M.validate(project)
     for _, field in ipairs(REQUIRED_FIELDS) do
         assert(project[field] ~= nil, 'missing project field: ' .. field)
     end
+    if project.brush_shape == nil then project.brush_shape = 'circle' end
 
     assert(project.version == M.VERSION, 'unsupported project version')
     validPath(project.source_mesh, 'source_mesh')
@@ -163,6 +166,8 @@ function M.validate(project)
     assert(finite(project.dilation_radius) and project.dilation_radius >= 0 and
         project.dilation_radius <= M.MAX_DILATION_RADIUS,
         'dilation_radius must be a finite number from 0 to ' .. M.MAX_DILATION_RADIUS)
+    assert(project.brush_shape == 'circle' or project.brush_shape == 'square',
+        'brush_shape must be circle or square')
     assert(type(project.limit_to_subset) == 'boolean', 'limit_to_subset must be boolean')
     assert(type(project.limit_to_uv_island) == 'boolean', 'limit_to_uv_island must be boolean')
     assert(validInteger(project.uv_island, 1, M.MAX_INDEX), 'uv_island must be a positive integer')
@@ -255,6 +260,7 @@ function M.save(project, path)
         'uv_channel=' .. tostring(project.uv_channel),
         'projection_mode=' .. project.projection_mode,
         'dilation_radius=' .. formatNumber(project.dilation_radius),
+        'brush_shape=' .. project.brush_shape,
         'limit_to_subset=' .. tostring(project.limit_to_subset),
         'limit_to_uv_island=' .. tostring(project.limit_to_uv_island),
         'uv_island=' .. tostring(project.uv_island),
@@ -283,6 +289,7 @@ function M.saveLua(project, path)
         '    uv_channel = ' .. tostring(project.uv_channel) .. ',',
         '    projection_mode = ' .. luaString(project.projection_mode) .. ',',
         '    dilation_radius = ' .. formatNumber(project.dilation_radius) .. ',',
+        '    brush_shape = ' .. luaString(project.brush_shape) .. ',',
         '    limit_to_subset = ' .. tostring(project.limit_to_subset) .. ',',
         '    limit_to_uv_island = ' .. tostring(project.limit_to_uv_island) .. ',',
         '    uv_island = ' .. tostring(project.uv_island) .. ',',
@@ -349,6 +356,7 @@ function M.load(path)
     project.uv_channel = parseInteger(values.uv_channel, 'uv_channel')
     project.projection_mode = values.projection_mode
     project.dilation_radius = parseNumber(values.dilation_radius, 'dilation_radius')
+    if values.brush_shape ~= nil then project.brush_shape = values.brush_shape end
     if values.limit_to_subset ~= nil then
         assert(values.limit_to_subset == 'true' or values.limit_to_subset == 'false',
             'invalid limit_to_subset')

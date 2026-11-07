@@ -418,7 +418,11 @@ function M.refreshAlphaBounds(buffer)
     return copyBounds(buffer.alphaBounds)
 end
 
-local function dabOptions(x, radius, hardness, opacity, color, mode)
+local function normalizeShape(value)
+    return value == 'square' and 'square' or 'circle'
+end
+
+local function dabOptions(x, radius, hardness, opacity, color, mode, shape)
     if type(x) == 'table' then
         local dab = x
         return {
@@ -427,14 +431,20 @@ local function dabOptions(x, radius, hardness, opacity, color, mode)
             hardness = clamp(finiteNumber(dab.hardness, 1), 0, 1),
             opacity = clamp(finiteNumber(dab.opacity, 1), 0, 1),
             color = normalizeColor(dab.color or dab), mode = dab.mode or 'paint',
+            shape = normalizeShape(dab.shape),
             deferSync = dab.deferSync == true,
         }
     end
     return {
         x = finiteNumber(x, 0), y = finiteNumber(y, 0), radius = math.max(0, finiteNumber(radius, 0)),
         hardness = clamp(finiteNumber(hardness, 1), 0, 1), opacity = clamp(finiteNumber(opacity, 1), 0, 1),
-        color = normalizeColor(color), mode = mode or 'paint', deferSync = false,
+        color = normalizeColor(color), mode = mode or 'paint', shape = normalizeShape(shape), deferSync = false,
     }
+end
+
+local function brushDistance(dx, dy, shape)
+    if normalizeShape(shape) == 'square' then return math.max(math.abs(dx), math.abs(dy)) end
+    return math.sqrt(dx * dx + dy * dy)
 end
 
 local function falloff(distance, radius, hardness)
@@ -493,10 +503,10 @@ local function blendErase(oldR, oldG, oldB, oldA, amount)
     return oldR, oldG, oldB, alpha
 end
 
-function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
+function M.applyDab(layer, x, radius, hardness, opacity, color, mode, shape)
     assertBuffer(layer, 'layer')
     assert(layer.tileSize, 'applyDab requires a layer created by newLayer')
-    local dab = dabOptions(x, radius, hardness, opacity, color, mode)
+    local dab = dabOptions(x, radius, hardness, opacity, color, mode, shape)
     assert(dab.mode == 'paint' or dab.mode == 'erase', 'dab.mode must be paint or erase')
     local left = math.max(0, math.floor(dab.x - dab.radius))
     local right = math.min(layer.width - 1, math.ceil(dab.x + dab.radius))
@@ -515,7 +525,8 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
     end
     for py = top, bottom do
         for px = left, right do
-            local amount = dab.opacity * falloff(math.sqrt((px - dab.x) ^ 2 + (py - dab.y) ^ 2), dab.radius, dab.hardness)
+            local amount = dab.opacity * falloff(brushDistance(px - dab.x, py - dab.y, dab.shape),
+                dab.radius, dab.hardness)
             if amount > 0 then
                 local offset = (px - left) * M.BYTES_PER_PIXEL + 1
                 local row = changedRows[py]
@@ -565,12 +576,13 @@ function M.tilesForPixels(buffer, samples)
     return result
 end
 
-function M.applyProjectedSamples(layer, samples, opacity, color, deferSync)
+function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shape)
     assertBuffer(layer, 'layer')
     assert(layer.tileSize, 'applyProjectedSamples requires a layer created by newLayer')
     assert(type(samples) == 'table', 'samples must be a table')
     local normalizedColor = normalizeColor(color)
     opacity = clamp(finiteNumber(opacity, 1), 0, 1)
+    shape = normalizeShape(shape)
     local strongest = {}
     for _, sample in ipairs(samples) do
         if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
@@ -582,7 +594,7 @@ function M.applyProjectedSamples(layer, samples, opacity, color, deferSync)
             local bottom = math.min(layer.height - 1, math.ceil(centerY + sampleRadius))
             for y = top, bottom do
                 for x = left, right do
-                    local distance = math.sqrt((x - centerX) ^ 2 + (y - centerY) ^ 2)
+                    local distance = brushDistance(x - centerX, y - centerY, shape)
                     local coverage = sampleRadius > 0 and falloff(distance, sampleRadius, 1) or
                         (distance == 0 and 1 or 0)
                     local amount = clamp(finiteNumber(sample.amount, 0), 0, 1) * coverage
@@ -619,7 +631,7 @@ function M.applyProjectedSamples(layer, samples, opacity, color, deferSync)
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
 
-function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY)
+function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY, shape)
     assertBuffer(layer, 'layer')
     assert(type(stamp) == 'table' and type(stamp.bytes) == 'string', 'stamp must contain bytes')
     integer(stamp.width, 'stamp.width')
@@ -629,6 +641,7 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
     radius = math.max(0, finiteNumber(radius, stamp.radius or 0))
     hardness = clamp(finiteNumber(hardness, 1), 0, 1)
     opacity = clamp(finiteNumber(opacity, 1), 0, 1)
+    shape = normalizeShape(shape)
     x, y = finiteNumber(x, 0), finiteNumber(y, 0)
     local sourceRadius = stamp.radius or math.floor((math.min(stamp.width, stamp.height) - 1) * .5)
     local left = math.max(0, math.floor(x - radius))
@@ -647,7 +660,7 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
     local changedPixels = 0
     for py = top, bottom do
         for px = left, right do
-            local distance = math.sqrt((px - x) ^ 2 + (py - y) ^ 2)
+            local distance = brushDistance(px - x, py - y, shape)
             local amount = opacity * falloff(distance, radius, hardness)
             if amount > 0 then
                 local normalizedX = radius > 0 and (px - x) / radius or 0

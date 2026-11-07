@@ -54,6 +54,16 @@ assertPixel(layer, 1, 2, 255, 0, 0, 255)
 assertPixel(layer, 0, 0, 0, 0, 0, 0)
 assert(#Raster.getDirtyTiles(layer) == 3, 'dab must register every touched 2x2 tile')
 
+local squareLayer = Raster.newLayer(5, 5, 2)
+local squareResult = Raster.applyDab(squareLayer, {
+    x = 2, y = 2, radius = 1, hardness = 1, opacity = 1,
+    color = {255, 255, 0, 255}, shape = 'square', mode = 'paint',
+})
+assert(squareResult.changedPixels == 9, 'hard square dab must affect its complete 3x3 footprint')
+assertPixel(squareLayer, 1, 1, 255, 255, 0, 255)
+assertPixel(squareLayer, 3, 3, 255, 255, 0, 255)
+assertPixel(squareLayer, 0, 0, 0, 0, 0, 0)
+
 local dirty = Raster.consumeDirtyTiles(layer)
 assert(#dirty == 3 and #Raster.getDirtyTiles(layer) == 0, 'dirty tile consumption must clear the registry')
 Raster.restoreTiles(layer, beforePaint)
@@ -84,6 +94,11 @@ local stampResult = Raster.applyStamp(stampLayer, stamp, 3, 3, 1, 1, 1)
 assert(stampResult.changedPixels == 5, 'stamp must affect the center and four neighbors')
 assert(Raster.sample(stamp, 0, 0).a == 0, 'stamp corners must be transparent outside the brush circle')
 assertPixel(stampLayer, 3, 3, 0, 0, 255, 255)
+local squareStampLayer = Raster.newLayer(5, 5, 2)
+local opaqueStamp = Raster.newBuffer(3, 3, string.rep(string.char(0, 0, 255, 255), 9))
+local squareStampResult = Raster.applyStamp(squareStampLayer, opaqueStamp, 3, 3, 1, 1, 1,
+    false, false, false, 'square')
+assert(squareStampResult.changedPixels == 9, 'square stamp must use the complete destination footprint')
 
 local directionalSource = Raster.newBuffer(3, 3,
     string.rep(string.char(255, 0, 0, 255) .. string.char(0, 255, 0, 255) ..
@@ -131,6 +146,13 @@ assertPixel(projected, 2, 2, 255, 0, 255, 255)
 assertPixel(projected, 4, 4, 255, 0, 255, 128)
 assert(#Raster.tilesForPixels(projected, projectedSamples) == 2,
     'projected samples must report unique dirty tiles')
+local projectedSquare = Raster.newLayer(5, 5, 2)
+local projectedSquareResult = Raster.applyProjectedSamples(projectedSquare, {
+    {x=2, y=2, amount=1, radius=1},
+}, 1, {r=255, g=128, b=0, a=255}, false, 'square')
+assert(projectedSquareResult.changedPixels == 9,
+    'projected square samples must use the complete destination footprint')
+assertPixel(projectedSquare, 1, 1, 255, 128, 0, 255)
 
 local paddingSource = Raster.newLayer(5, 5, 2)
 Raster.paint(paddingSource, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1,

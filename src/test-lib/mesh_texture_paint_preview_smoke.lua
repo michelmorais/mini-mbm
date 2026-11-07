@@ -87,8 +87,9 @@ local function makeFixture()
     assert(asset:save(fixture, false, false, false))
 end
 
-local function paint(color, cancel)
+local function paint(color, cancel, shape)
     state.brush.color = color
+    state.brush.shape = shape or 'circle'
     state.brush.radius = 6
     local w, h = mbm.getSizeScreen()
     touchDown(1, w / 2, h / 2)
@@ -157,7 +158,7 @@ function onLoop()
             redPixels = pixels(1)
             assert(redPixels ~= originalPixels)
             meshReloads = state.previewMeshReloads
-            paint({r=0,g=1,b=0,a=1})
+            paint({r=0,g=1,b=0,a=1}, false, 'square')
         elseif stage == 3 then
             assert(pixels(2) ~= redPixels)
             assert(state.previewMeshReloads == meshReloads, 'Second stroke unnecessarily rebuilt the mesh')
