@@ -250,4 +250,57 @@ function M.pickTrianglesBVH(origin, direction, acceleration, options)
     return nearest
 end
 
+function M.pickTrianglesAll(origin, direction, triangles, options)
+    if type(triangles) ~= 'table' then return {} end
+    options = options or {}
+    local hits = {}
+    for index, triangle in ipairs(triangles) do
+        if type(triangle) == 'table' then
+            local hit = M.intersectRayTriangle(origin, direction,
+                triangle.a, triangle.b, triangle.c, options.cullBackface == true)
+            if hit then
+                hit.triangleIndex = index
+                hit.triangle = triangle
+                if triangle.uvA and triangle.uvB and triangle.uvC then
+                    hit.uv = M.interpolateUV(hit, triangle.uvA, triangle.uvB, triangle.uvC)
+                end
+                hits[#hits + 1] = hit
+            end
+        end
+    end
+    table.sort(hits, function(left, right) return left.distance < right.distance end)
+    return hits
+end
+
+function M.pickTrianglesBVHAll(origin, direction, acceleration, options)
+    if type(acceleration) ~= 'table' or not acceleration.root then return {} end
+    options = options or {}
+    local hits = {}
+    local function visit(node)
+        if not rayIntersectsBounds(origin, direction, node) then return end
+        if node.first then
+            for index = node.first, node.last do
+                local entry = acceleration.entries[index]
+                local triangle = entry.triangle
+                local hit = M.intersectRayTriangle(origin, direction, triangle.a, triangle.b, triangle.c,
+                    options.cullBackface == true)
+                if hit then
+                    hit.triangleIndex = entry.index
+                    hit.triangle = triangle
+                    if triangle.uvA and triangle.uvB and triangle.uvC then
+                        hit.uv = M.interpolateUV(hit, triangle.uvA, triangle.uvB, triangle.uvC)
+                    end
+                    hits[#hits + 1] = hit
+                end
+            end
+            return
+        end
+        visit(node.left)
+        visit(node.right)
+    end
+    visit(acceleration.root)
+    table.sort(hits, function(left, right) return left.distance < right.distance end)
+    return hits
+end
+
 return M

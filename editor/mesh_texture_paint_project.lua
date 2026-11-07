@@ -54,6 +54,7 @@ local KNOWN_FIELDS = {
 local PROJECTION_MODES = {
     uv_brush = true,
     project_stencil = true,
+    project_stencil_through = true,
 }
 
 local function copy(value)

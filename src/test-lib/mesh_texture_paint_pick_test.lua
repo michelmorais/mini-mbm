@@ -60,6 +60,12 @@ near(nearest.uv.u, .5)
 local accelerated = assert(Pick.pickTrianglesBVH(origin, direction, Pick.buildBVH(triangles)))
 assert(accelerated.triangleIndex == 1)
 near(accelerated.uv.u, .5)
+local allHits = Pick.pickTrianglesBVHAll(origin, direction, Pick.buildBVH(triangles))
+assert(#allHits == 2 and allHits[1].triangleIndex == 1 and allHits[2].triangleIndex == 2,
+    'all-hit BVH picking must return every surface in distance order')
+local allLinearHits = Pick.pickTrianglesAll(origin, direction, triangles)
+assert(#allLinearHits == 2 and allLinearHits[1].triangleIndex == 1 and allLinearHits[2].triangleIndex == 2,
+    'all-hit linear picking must return every surface in distance order')
 
 local backA = {x = -1, y = -1, z = 0}
 local backB = {x = 0, y = 1, z = 0}

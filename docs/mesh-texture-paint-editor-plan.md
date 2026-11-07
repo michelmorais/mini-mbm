@@ -5,7 +5,8 @@ Status: em implementação. O milestone vertical atual já abre MSH, faz picking
 textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
 projeção de cor sólida pela câmera em superfícies visíveis e padding configurável
 para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
-projeção por imagem e pintar através continuam nas próximas fases.
+o modo opcional de pintar através também está disponível; projeção por imagem
+continua nas próximas fases.
 
 ## 1. Objetivo
 
@@ -107,7 +108,7 @@ O MVP oferece dois modos complementares:
 
 - `UV Brush`: converte o hit para UV e rasteriza o pincel nessa região;
 - `Project/Stencil`: projeta uma cor ou imagem pela câmera, respeitando a face
-  visível e a opção de pintar através.
+  visível por padrão, com opção explícita de pintar através.
 
 Um pincel de superfície 3D que acompanha a curvatura e atravessa seams será
 avaliado depois do MVP. Triplanar fica reservado para materiais repetitivos e não
@@ -146,7 +147,7 @@ materiais e demais referências não editadas.
    wireframe, UV seams, backfaces e a camada de pintura.
 5. O usuário escolhe `UV Brush` ou `Project/Stencil`, orbita até a região desejada,
    configura cor/imagem, raio, dureza e opacidade, e arrasta o botão direito sobre
-   a superfície.
+   a superfície. `Pintar através` permanece desligado por padrão.
 6. Cada stroke é aplicado somente à camada transparente e aparece na composição
    do preview após o upload da região alterada. O botão esquerdo continua reservado
    para órbita quando o cursor não está sobre uma janela ImGui.

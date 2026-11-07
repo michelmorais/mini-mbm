@@ -78,6 +78,7 @@ local state = {
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
+    paintThrough = false,
     dilationRadius = 0,
     brushMaxRadius = 64,
     meshDiagonal = 1,
@@ -433,6 +434,7 @@ local function loadMesh(path)
     state.previewMeshPath = tUtil.getTemporaryFilePath('.msh')
     state.previewTexturePath = tUtil.getTemporaryFilePath('.png')
     state.previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
+    state.paintThrough = false
     state.dilationRadius = 0
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
@@ -527,6 +529,17 @@ local function hitAtScreen(x, y)
         return Pick.pickTrianglesBVH(origin, direction, state.target.pickAcceleration)
     end
     return Pick.pickTriangles(origin, direction, state.target.triangles)
+end
+
+local function hitsAtScreen(x, y)
+    if not state.target then return {} end
+    local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
+    if not ok then return {} end
+    local origin, direction = {x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}
+    if state.target.pickAcceleration then
+        return Pick.pickTrianglesBVHAll(origin, direction, state.target.pickAcceleration)
+    end
+    return Pick.pickTrianglesAll(origin, direction, state.target.triangles)
 end
 
 local function ensureTargetPickAcceleration()
@@ -700,19 +713,22 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
             local normalizedY = (sampleY - screenY) / screenRadius
             local distance = math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
             if distance <= 1 then
-                local sampleHit = hitAtScreen(sampleX, sampleY)
-                if sampleHit and sampleHit.uv then
-                    local inner = state.brush.hardness
-                    local amount = distance <= inner and 1 or
-                        (inner >= 1 and 0 or math.max(0, 1 - (distance - inner) / (1 - inner)))
-                    if amount > 0 then
-                        samples[#samples + 1] = {
-                            x = sampleHit.uv.u * (state.layer.width - 1),
-                            y = sampleHit.uv.v * (state.layer.height - 1),
-                            amount = amount,
-                            radius = math.max(1, state.brush.radius * 1.25 /
-                                math.max(1, side - 1)),
-                        }
+                local sampleHits = state.paintThrough and hitsAtScreen(sampleX, sampleY) or
+                    {hitAtScreen(sampleX, sampleY)}
+                local inner = state.brush.hardness
+                local amount = distance <= inner and 1 or
+                    (inner >= 1 and 0 or math.max(0, 1 - (distance - inner) / (1 - inner)))
+                if amount > 0 then
+                    for _, sampleHit in ipairs(sampleHits) do
+                        if sampleHit and sampleHit.uv then
+                            samples[#samples + 1] = {
+                                x = sampleHit.uv.u * (state.layer.width - 1),
+                                y = sampleHit.uv.v * (state.layer.height - 1),
+                                amount = amount,
+                                radius = math.max(1, state.brush.radius * 1.25 /
+                                    math.max(1, side - 1)),
+                            }
+                        end
                     end
                 end
             end
@@ -973,7 +989,8 @@ local function makeProject(projectPath)
         subset = firstSubset,
         texture_role = 'base_color',
         uv_channel = 0,
-        projection_mode = state.brush.mode == 'project' and 'project_stencil' or 'uv_brush',
+        projection_mode = state.brush.mode == 'project' and
+            (state.paintThrough and 'project_stencil_through' or 'project_stencil') or 'uv_brush',
         dilation_radius = state.dilationRadius,
     }
 end
@@ -1152,7 +1169,9 @@ local function openProject(path)
     if not targetIndex then error('project texture is not used by the mesh') end
     assert(selectTarget(targetIndex))
     assert(ensureEditableTexture())
-    state.brush.mode = project.projection_mode == 'project_stencil' and 'project' or 'paint'
+    state.brush.mode = (project.projection_mode == 'project_stencil' or
+        project.projection_mode == 'project_stencil_through') and 'project' or 'paint'
+    state.paintThrough = project.projection_mode == 'project_stencil_through'
     state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
         math.floor((project.dilation_radius or 0) + .5)))
     local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
@@ -1272,6 +1291,10 @@ local function showControls()
         if modeIndex ~= oldModeIndex then
             state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
                 modeIndex == 3 and 'pick' or modeIndex == 4 and 'stamp' or 'project'
+        end
+        if state.brush.mode == 'project' then
+            state.paintThrough = tImGui.Checkbox(tLang.L('mtp_paint_through'), state.paintThrough)
+            showBrushModeTooltip('mtp_paint_through_tooltip')
         end
         if state.brush.mode == 'stamp' then
             tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))

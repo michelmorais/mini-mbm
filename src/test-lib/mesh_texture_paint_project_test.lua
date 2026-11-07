@@ -97,6 +97,9 @@ assert(luaLoaded.paint_layer == project.paint_layer)
 assert(luaLoaded.projection_mode == project.projection_mode)
 os.remove(luaProjectPath)
 
+project.projection_mode = 'project_stencil_through'
+assert(Project.validate(project) == project)
+
 local invalid = Project.copy(project)
 invalid.source_mesh = 'relative.msh'
 expectFailure(function() Project.validate(invalid) end)
