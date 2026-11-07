@@ -1,0 +1,78 @@
+--[[
+-------------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                      |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|                                                                                                                        |
+|------------------------------------------------------------------------------------------------------------------------|
+]]--
+
+package.path = 'editor/?.lua;' .. package.path
+local Pick = require 'mesh_texture_paint_pick'
+
+local function near(actual, expected, epsilon)
+    assert(math.abs(actual - expected) <= (epsilon or 1e-6),
+        string.format('expected %.9f, got %.9f', expected, actual))
+end
+
+local origin = {x = 0, y = 0, z = 2}
+local direction = {x = 0, y = 0, z = -1}
+local a = {x = -1, y = -1, z = 0}
+local b = {x = 1, y = -1, z = 0}
+local c = {x = 0, y = 1, z = 0}
+
+local hit = assert(Pick.intersectRayTriangle(origin, direction, a, b, c))
+near(hit.distance, 2)
+near(hit.position.x, 0)
+near(hit.position.y, 0)
+near(hit.position.z, 0)
+near(hit.barycentric.a + hit.barycentric.b + hit.barycentric.c, 1)
+near(hit.normal.x, 0)
+near(hit.normal.y, 0)
+near(hit.normal.z, 1)
+
+local uv = assert(Pick.interpolateUV(hit,
+    {u = 0, v = 1}, {u = 1, v = 1}, {u = .5, v = 0}))
+near(uv.u, .5)
+near(uv.v, .5)
+
+local triangles = {
+    {a = a, b = b, c = c,
+     uvA = {u = 0, v = 1}, uvB = {u = 1, v = 1}, uvC = {u = .5, v = 0}},
+    {a = {x = -2, y = -2, z = -2}, b = {x = 2, y = -2, z = -2},
+     c = {x = 0, y = 2, z = -2}},
+}
+local nearest = assert(Pick.pickTriangles(origin, direction, triangles))
+assert(nearest.triangleIndex == 1)
+near(nearest.uv.u, .5)
+local accelerated = assert(Pick.pickTrianglesBVH(origin, direction, Pick.buildBVH(triangles)))
+assert(accelerated.triangleIndex == 1)
+near(accelerated.uv.u, .5)
+
+local backA = {x = -1, y = -1, z = 0}
+local backB = {x = 0, y = 1, z = 0}
+local backC = {x = 1, y = -1, z = 0}
+assert(Pick.intersectRayTriangle(origin, direction, backA, backB, backC))
+assert(not Pick.intersectRayTriangle(origin, direction, backA, backB, backC, true),
+    'backface culling accepted a reversed triangle')
+
+assert(not Pick.intersectRayTriangle(origin, direction,
+    {x = 0, y = 0, z = 0}, {x = 1, y = 0, z = 0}, {x = 2, y = 0, z = 0}),
+    'degenerate triangle intersected')
+assert(not Pick.intersectRayTriangle(origin, direction,
+    {x = 5, y = 5, z = 0}, {x = 6, y = 5, z = 0}, {x = 5, y = 6, z = 0}),
+    'missed triangle intersected')
+
+print('MESH TEXTURE PAINT PICK TESTS PASS')

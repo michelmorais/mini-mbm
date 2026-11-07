@@ -4106,6 +4106,7 @@ M.en = {
     merge_selected_subsets_failed = "Could not merge the selected subsets.",
     remove_unselected = "Remove unselected",
     no_frames_to_save = "Nothing to save!\nSelect at least one Frame!",
+    mesh_debug_facial_subset_filter_unsupported = "Facial meshes do not support frame or subset filtering in preview.",
     execute_ops = "Execute",
     pending_ops = "Pending Operations",
     frame_pick_title = "Frame Pick",
@@ -4270,6 +4271,47 @@ M.en = {
     cam_focus = "Focus",
     cam_distance = "Dist",
     cam_hint_keyboard = "WASD: move  Page Up/Down: elevation",
+    mtp_open_msh = "Open MSH",
+    mtp_open_project = "Open project",
+    mtp_save_project = "Save project",
+    mtp_save_project_as = "Save project as...",
+    mtp_save_texture_as = "Save texture as...",
+    mtp_save_mesh_as = "Save mesh as...",
+    mtp_texture_exported = "Texture exported",
+    mtp_mesh_exported = "Mesh and texture exported",
+    mtp_export_no_mesh = "Open a mesh before exporting.",
+    mtp_export_source_protected = "The source asset is protected. Choose a new output path.",
+    mtp_export_failed = "Export failed",
+    mtp_reload = "Reload mesh",
+    mtp_mode = "Mode",
+    mtp_paint = "Paint",
+    mtp_erase = "Erase",
+    mtp_pick_color = "Pick color",
+    mtp_stamp = "Stamp",
+    mtp_stamp_help = "Right click a point to choose the stamp source. Then right drag to apply it.",
+    mtp_stamp_selected = "Stamp source selected. Right drag to apply; Ctrl+right click chooses another source.",
+    mtp_stamp_texture = "Stamp texture",
+    mtp_stamp_none = "No stamp source selected.",
+    mtp_stamp_radius_changed = "Stamp source cleared because the radius changed.",
+    mtp_stamp_resolution = "Stamp resolution",
+    mtp_stamp_resolution_help = "Higher values capture more samples and preserve more detail. Calculation cost grows approximately with the square of the resolution.",
+    mtp_stamp_resolution_changed = "Stamp source cleared because the resolution changed.",
+    mtp_hardness = "Hardness",
+    mtp_opacity = "Opacity",
+    mtp_color = "Color",
+    mtp_effective_color = "Effective brush color",
+    mtp_effective_alpha = "Center alpha: %.2f",
+    mtp_processing = "Processing texture preview...",
+    mtp_radius_limit = "Maximum radius: %d px",
+    mtp_screen_circle = "Screen-facing circle",
+    mtp_pick_no_surface = "Pick color: point is not on the mesh.",
+    mtp_color_picked = "Picked color: #%02X%02X%02X",
+    mtp_camera = "Camera",
+    mtp_frame_mesh = "Frame mesh",
+    mtp_camera_help = "Left drag: orbit. Middle drag: move the view. Scroll: zoom.",
+    mtp_texture_help = "Load a mesh with a file-backed UV texture.",
+    mtp_show_uv_overlay = "Show UV overlay",
+    mtp_welcome = "Mesh Texture Paint: open an MSH to start.",
     light_panel = "Light",
     light_enabled = "Enabled",
     light_color = "Light Color",
@@ -9315,6 +9357,7 @@ M.pt_br = {
     merge_selected_subsets_failed = "Não foi possível unir os subsets selecionados.",
     remove_unselected = "Remover não selecionados",
     no_frames_to_save = "Nada a salvar!\nSelecione ao menos um Frame!",
+    mesh_debug_facial_subset_filter_unsupported = "Meshes faciais nao suportam filtro de frames ou subsets no preview.",
     execute_ops = "Executar",
     pending_ops = "Operações Pendentes",
     frame_pick_title = "Seleção de Frame",
@@ -9479,6 +9522,47 @@ M.pt_br = {
     cam_focus = "Foco",
     cam_distance = "Dist",
     cam_hint_keyboard = "WASD: mover  Page Up/Down: elevação",
+    mtp_open_msh = "Abrir MSH",
+    mtp_open_project = "Abrir projeto",
+    mtp_save_project = "Salvar projeto",
+    mtp_save_project_as = "Salvar projeto como...",
+    mtp_save_texture_as = "Salvar textura como...",
+    mtp_save_mesh_as = "Salvar mesh como...",
+    mtp_texture_exported = "Textura exportada",
+    mtp_mesh_exported = "Mesh e textura exportadas",
+    mtp_export_no_mesh = "Abra uma mesh antes de exportar.",
+    mtp_export_source_protected = "O asset de origem esta protegido. Escolha um novo caminho.",
+    mtp_export_failed = "Falha na exportacao",
+    mtp_reload = "Recarregar mesh",
+    mtp_mode = "Modo",
+    mtp_paint = "Pintar",
+    mtp_erase = "Apagar",
+    mtp_pick_color = "Pegar cor",
+    mtp_stamp = "Carimbo",
+    mtp_stamp_help = "Botao direito escolhe a origem do carimbo. Depois arraste com o botao direito para aplicar.",
+    mtp_stamp_selected = "Origem do carimbo selecionada. Arraste com o botao direito para aplicar; Ctrl+botao direito escolhe outra origem.",
+    mtp_stamp_texture = "Textura do carimbo",
+    mtp_stamp_none = "Nenhuma origem de carimbo selecionada.",
+    mtp_stamp_radius_changed = "A origem do carimbo foi removida porque o raio mudou.",
+    mtp_stamp_resolution = "Resolucao do carimbo",
+    mtp_stamp_resolution_help = "Valores maiores capturam mais amostras e preservam mais detalhes. O custo cresce aproximadamente com o quadrado da resolucao.",
+    mtp_stamp_resolution_changed = "A origem do carimbo foi removida porque a resolucao mudou.",
+    mtp_hardness = "Dureza",
+    mtp_opacity = "Opacidade",
+    mtp_color = "Cor",
+    mtp_effective_color = "Cor efetiva do pincel",
+    mtp_effective_alpha = "Alpha no centro: %.2f",
+    mtp_processing = "Processando preview da textura...",
+    mtp_radius_limit = "Raio maximo: %d px",
+    mtp_screen_circle = "Circulo sempre de frente para a camera",
+    mtp_pick_no_surface = "Pegar cor: o ponto nao esta sobre a mesh.",
+    mtp_color_picked = "Cor capturada: #%02X%02X%02X",
+    mtp_camera = "Câmera",
+    mtp_frame_mesh = "Enquadrar mesh",
+    mtp_camera_help = "Arraste esquerdo: orbita. Arraste central: move a visão. Roda: zoom.",
+    mtp_texture_help = "Carregue uma mesh com uma textura UV em arquivo.",
+    mtp_show_uv_overlay = "Mostrar overlay UV",
+    mtp_welcome = "Pintura de textura 3D: abra uma MSH para começar.",
     light_panel = "Luz",
     light_enabled = "Habilitada",
     light_color = "Cor da luz",
@@ -10566,6 +10650,7 @@ M.en.ime_generation_normal = 'Generating normal map'
 M.pt_br.ime_generation_normal = 'Gerando normal map'
 
 M.current = initLanguage()
+M.pendingLanguage = nil
 
 function M.setLanguage(lang)
     if lang == "pt_br" or lang == "en" then
@@ -10574,6 +10659,13 @@ function M.setLanguage(lang)
             mbm.setGlobal("editor_language", lang)
         end
     end
+end
+
+function M.applyPendingLanguage()
+    if not M.pendingLanguage then return end
+    local pendingLanguage = M.pendingLanguage
+    M.pendingLanguage = nil
+    M.setLanguage(pendingLanguage)
 end
 
 function M.getLanguage()
@@ -10609,16 +10701,15 @@ end
 
 -- Renders Language submenu. Requires tImGui in scope.
 function M.renderLanguageSubmenu()
+    M.applyPendingLanguage()
     if tImGui.BeginMenu(M.L("menu_language")) then
+        local requestedLanguage = nil
         local pressed_en = tImGui.MenuItem(M.L("lang_english"), nil, M.current == "en")
-        if pressed_en then
-            M.setLanguage("en")
-        end
+        if pressed_en then requestedLanguage = "en" end
         local pressed_pt = tImGui.MenuItem(M.L("lang_portuguese_br"), nil, M.current == "pt_br")
-        if pressed_pt then
-            M.setLanguage("pt_br")
-        end
+        if pressed_pt then requestedLanguage = "pt_br" end
         tImGui.EndMenu()
+        M.pendingLanguage = requestedLanguage
     end
 end
 

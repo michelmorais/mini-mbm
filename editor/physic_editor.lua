@@ -2389,7 +2389,7 @@ function onTouchMove(key,x,y)
         if isClickedMouseLeft and not IsAnyWindowHovered then
             local dx = x - lastMouse3d.x
             local dy = y - lastMouse3d.y
-            tCam3d.azimuth   = tCam3d.azimuth - dx * 0.005
+            tCam3d.azimuth   = tCam3d.azimuth + dx * 0.005
             tCam3d.elevation = tCam3d.elevation + dy * 0.005
             local limit = math.pi * 0.49
             if tCam3d.elevation >  limit then tCam3d.elevation =  limit end

@@ -3717,6 +3717,11 @@ local function configureMeshPreviewSkinning(object, meshD)
     end
 end
 
+local function hasFacialGeometry(meshD)
+    local okTargets, facialTargetCount = dpCall(function() return meshD:getTotalFacialTargets() end)
+    return okTargets and (tonumber(facialTargetCount) or 0) > 0
+end
+
 function updatePreviewMesh()
     if iSelectedMeshIndex == iLastPreviewedIndex then return end
     destroyPreviewMesh()
@@ -4297,6 +4302,15 @@ function buildFilteredMesh(tEntry)
     -- Load a fresh copy from the saved file
     local tempD = meshDebug:new()
     if not tempD:load(tEntry.fileName) then return nil end
+    local facialGeometry = hasFacialGeometry(tempD)
+    local ignoredFacialFilter = false
+    if facialGeometry then
+        -- Facial geometry keeps canonical frame/subset storage owned by the facial asset.
+        -- The mesh-debug mutation API intentionally rejects removeFrame/removeSubset here.
+        -- Keep the identity map so animation indices remain valid while the preview is built.
+        oldToNew = {}
+        for f = 1, nFrames do oldToNew[f] = f end
+    end
 
     -- Remap / remove animations (process in reverse so indices stay stable)
     local nAnim = (tEntry.info and tEntry.info.animation) or 0
@@ -4323,7 +4337,7 @@ function buildFilteredMesh(tEntry)
     local tCR = tEntry.tCheckedRemove or {}
     local framesToRemove = {}
     for f = nFrames, 1, -1 do
-        if tSel[f] ~= false then
+        if facialGeometry or tSel[f] ~= false then
             local okS, nSubs = dpCall(function() return tempD:getTotalSubset(f) end)
             if okS and nSubs then
                 -- Count checked vs unchecked subsets
@@ -4336,7 +4350,9 @@ function buildFilteredMesh(tEntry)
                         anyUnchecked = true
                     end
                 end
-                if anyUnchecked then
+                if anyUnchecked and facialGeometry then
+                    ignoredFacialFilter = true
+                elseif anyUnchecked then
                     if not anyChecked then
                         -- All subsets unchecked: remove whole frame to avoid empty-frame error
                         framesToRemove[f] = true
@@ -4356,7 +4372,7 @@ function buildFilteredMesh(tEntry)
     -- Guard: if nothing survives after both frame + subset filters, bail out early
     local survivingFrames = 0
     for f = 1, nFrames do
-        if tSel[f] ~= false and not framesToRemove[f] then
+        if facialGeometry or (tSel[f] ~= false and not framesToRemove[f]) then
             survivingFrames = survivingFrames + 1
         end
     end
@@ -4364,9 +4380,14 @@ function buildFilteredMesh(tEntry)
 
     -- Remove unselected frames (tFrameSelection) and all-subsets-unchecked frames
     for f = nFrames, 1, -1 do
-        if tSel[f] == false or framesToRemove[f] then
+        if (tSel[f] == false or framesToRemove[f]) and facialGeometry then
+            ignoredFacialFilter = true
+        elseif tSel[f] == false or framesToRemove[f] then
             tempD:removeFrame(f)
         end
+    end
+    if ignoredFacialFilter then
+        tUtil.showMessageWarn(tLang.L('mesh_debug_facial_subset_filter_unsupported'))
     end
     return tempD
 end
@@ -4404,7 +4425,7 @@ function refreshFrameFilterPreview(tEntry, index)
         tPreviewMesh = sprite:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType)
-        configureFacialMeshPreview(tPreviewMesh, meshD)
+        configureMeshPreviewSkinning(tPreviewMesh, meshD)
         ok = meshDebug:loadMeshPreview(tPreviewMesh,tEntry.framePreviewPath)
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new(coordType);       ok = tPreviewMesh:load(tEntry.framePreviewPath)
@@ -13136,7 +13157,7 @@ function onTouchMove(key, x, y)
         local tDragEntry = tLoadedMeshes[iSelectedMeshIndex]
         if tDragEntry.bXformOrbiting and bCameraMode3D then
             local c = tDragEntry.cam3d
-            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.azimuth   = c.azimuth   + (x - camera2d.mx) * 0.005
             c.elevation = c.elevation + (y - camera2d.my) * 0.005
             c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
             camera2d.mx, camera2d.my = x, y
@@ -13200,7 +13221,7 @@ function onTouchMove(key, x, y)
         local c = tEntry.cam3d
         if isClickedMouseleft then
             -- Orbit: rotate around focus point
-            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.azimuth   = c.azimuth   + (x - camera2d.mx) * 0.005
             c.elevation = c.elevation + (y - camera2d.my) * 0.005
             c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
         elseif isClickedMouseRight then

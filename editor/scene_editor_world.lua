@@ -4729,7 +4729,7 @@ function onTouchMove(key, x, y)
                 bCameraDraggedThisPress = true
             end
         end
-        cam3d.azimuth   = cam3d.azimuth   - (x - mouseLastX) * 0.005
+        cam3d.azimuth   = cam3d.azimuth   + (x - mouseLastX) * 0.005
         cam3d.elevation = cam3d.elevation + (y - mouseLastY) * 0.005
         cam3d.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, cam3d.elevation))
     elseif isClickedMouseRight then
