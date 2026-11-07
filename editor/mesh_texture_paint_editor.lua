@@ -79,6 +79,8 @@ local state = {
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
     paintThrough = false,
+    limitToSubset = false,
+    selectedSubset = 0,
     dilationRadius = 0,
     brushMaxRadius = 64,
     meshDiagonal = 1,
@@ -246,6 +248,11 @@ local function selectTarget(index)
     clearStamp()
     releaseTextureWork()
     state.targetIndex, state.target = index, target
+    local hasSelectedSubset = false
+    for _, subset in ipairs(target.subsets or {}) do
+        if subset == state.selectedSubset then hasSelectedSubset = true; break end
+    end
+    if not hasSelectedSubset then state.selectedSubset = target.subsets[1] or 0 end
     state.hoverHit = nil
     state.hoverPickPending = false
     state.hoverPickElapsed = 0
@@ -262,6 +269,22 @@ local function selectTarget(index)
     state.status = string.format('Texture selected: %s (%dx%d)', target.path,
         state.textureWidth, state.textureHeight)
     return true
+end
+
+local function paintTriangles()
+    if not state.target then return {} end
+    if state.limitToSubset and state.selectedSubset > 0 then
+        return state.target.subsetTriangles[state.selectedSubset] or {}
+    end
+    return state.target.triangles
+end
+
+local function paintAcceleration()
+    if not state.target then return nil end
+    if state.limitToSubset and state.selectedSubset > 0 then
+        return state.target.subsetPickAcceleration[state.selectedSubset]
+    end
+    return state.target.pickAcceleration
 end
 
 local function ensureEditableTexture()
@@ -411,11 +434,16 @@ local function loadMesh(path)
         if texturePath then
             local target = targetMap[texturePath]
             if not target then
-                target = {path=texturePath, subsets={}, triangles={}}
+                target = {path=texturePath, subsets={}, triangles={}, subsetTriangles={}}
                 targetMap[texturePath] = target
             end
             target.subsets[#target.subsets + 1] = subset
-            for _, triangle in ipairs(snapshot.triangles) do target.triangles[#target.triangles + 1] = triangle end
+            target.subsetTriangles[subset] = {}
+            for _, triangle in ipairs(snapshot.triangles) do
+                triangle.subset = subset
+                target.triangles[#target.triangles + 1] = triangle
+                target.subsetTriangles[subset][#target.subsetTriangles[subset] + 1] = triangle
+            end
         end
     end
     state.meshPath, state.sourceAsset, state.snapshots = fullPath, source, snapshots
@@ -424,6 +452,11 @@ local function loadMesh(path)
     table.sort(state.targets, function(left, right) return left.path < right.path end)
     for _, target in ipairs(state.targets) do
         target.uvBoundaryEdges = Model.buildUvBoundaryEdges(target.triangles)
+        target.uvBoundaryEdgesBySubset = {}
+        target.subsetPickAcceleration = {}
+        for subset, triangles in pairs(target.subsetTriangles) do
+            target.uvBoundaryEdgesBySubset[subset] = Model.buildUvBoundaryEdges(triangles)
+        end
         local overlaps = Model.countUvOverlaps(target.triangles)
         target.uvOverlapCount = overlaps.count
         target.uvOverlapTruncated = overlaps.truncated
@@ -436,6 +469,8 @@ local function loadMesh(path)
     state.previewTexturePath = tUtil.getTemporaryFilePath('.png')
     state.previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
     state.paintThrough = false
+    state.limitToSubset = false
+    state.selectedSubset = 0
     state.dilationRadius = 0
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
@@ -534,10 +569,11 @@ local function hitAtScreen(x, y)
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return nil end
     local origin, direction = {x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}
-    if state.target.pickAcceleration then
-        return Pick.pickTrianglesBVH(origin, direction, state.target.pickAcceleration)
+    local triangles, acceleration = paintTriangles(), paintAcceleration()
+    if acceleration then
+        return Pick.pickTrianglesBVH(origin, direction, acceleration)
     end
-    return Pick.pickTriangles(origin, direction, state.target.triangles)
+    return Pick.pickTriangles(origin, direction, triangles)
 end
 
 local function hitsAtScreen(x, y)
@@ -545,15 +581,25 @@ local function hitsAtScreen(x, y)
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return {} end
     local origin, direction = {x=ox,y=oy,z=oz}, {x=dx,y=dy,z=dz}
-    if state.target.pickAcceleration then
-        return Pick.pickTrianglesBVHAll(origin, direction, state.target.pickAcceleration)
+    local triangles, acceleration = paintTriangles(), paintAcceleration()
+    if acceleration then
+        return Pick.pickTrianglesBVHAll(origin, direction, acceleration)
     end
-    return Pick.pickTrianglesAll(origin, direction, state.target.triangles)
+    return Pick.pickTrianglesAll(origin, direction, triangles)
 end
 
 local function ensureTargetPickAcceleration()
-    if not (state.target and not state.target.pickAcceleration) then return end
-    state.target.pickAcceleration = Pick.buildBVH(state.target.triangles, 8)
+    if not state.target then return end
+    if state.limitToSubset and state.selectedSubset > 0 then
+        if not state.target.subsetPickAcceleration[state.selectedSubset] then
+            state.target.subsetPickAcceleration[state.selectedSubset] =
+                Pick.buildBVH(paintTriangles(), 8)
+        end
+        return
+    end
+    if not state.target.pickAcceleration then
+        state.target.pickAcceleration = Pick.buildBVH(state.target.triangles, 8)
+    end
 end
 
 local function currentVisibleBuffer()
@@ -764,10 +810,11 @@ surfaceSamplesAtHit = function(hit, screenX, screenY)
         end
     end
     surfaceRadius = math.max(surfaceRadius, state.meshDiagonal * .0001)
+    local triangles, acceleration = paintTriangles(), paintAcceleration()
     local candidates = Pick.queryTrianglesSphere(hit.position, surfaceRadius,
-        state.target.pickAcceleration, state.target.triangles)
+        acceleration, triangles)
     local samples = Pick.surfaceSamplesAtPoint(hit.position, surfaceRadius,
-        state.target.triangles, state.layer.width, state.layer.height, {
+        triangles, state.layer.width, state.layer.height, {
             candidates = candidates,
             hardness = state.brush.hardness,
             maxSamples = 65536,
@@ -943,7 +990,7 @@ end
 
 local function showUvOverlay(origin, size)
     if not (state.target and state.target.triangles) then return end
-    local triangles = state.target.triangles
+    local triangles = paintTriangles()
     local step = math.max(1, math.ceil(#triangles / UV_OVERLAY_MAX_TRIANGLES))
     local color = {r=.2,g=.85,b=1,a=.7}
     for index = 1, #triangles, step do
@@ -958,7 +1005,8 @@ local function showUvOverlay(origin, size)
             tImGui.AddLine(pc, pa, color, 1)
         end
     end
-    local boundaryEdges = state.target.uvBoundaryEdges or {}
+    local boundaryEdges = state.limitToSubset and
+        state.target.uvBoundaryEdgesBySubset[state.selectedSubset] or state.target.uvBoundaryEdges or {}
     local boundaryStep = math.max(1, math.ceil(#boundaryEdges / UV_OVERLAY_MAX_BOUNDARY_EDGES))
     local boundaryColor = {r=1,g=.45,b=.05,a=.95}
     for index = 1, #boundaryEdges, boundaryStep do
@@ -1032,13 +1080,14 @@ local function makeProject(projectPath)
         paint_layer = paintLayerPath(projectPath),
         working_texture = (state.exportTexturePath and not state.exportDirty) and state.exportTexturePath or nil,
         frame = 1,
-        subset = firstSubset,
+        subset = state.selectedSubset > 0 and state.selectedSubset or firstSubset,
         texture_role = 'base_color',
         uv_channel = 0,
         projection_mode = state.brush.mode == 'project' and
             (state.paintThrough and 'project_stencil_through' or 'project_stencil') or
             state.brush.mode == 'surface' and 'surface_3d' or 'uv_brush',
         dilation_radius = state.dilationRadius,
+        limit_to_subset = state.limitToSubset,
     }
 end
 
@@ -1216,6 +1265,11 @@ local function openProject(path)
     if not targetIndex then error('project texture is not used by the mesh') end
     assert(selectTarget(targetIndex))
     assert(ensureEditableTexture())
+    if project.limit_to_subset and not state.target.subsetTriangles[project.subset] then
+        error('project subset is not used by the selected texture')
+    end
+    state.selectedSubset = project.subset
+    state.limitToSubset = project.limit_to_subset == true
     state.brush.mode = (project.projection_mode == 'project_stencil' or
         project.projection_mode == 'project_stencil_through') and 'project' or
         project.projection_mode == 'surface_3d' and 'surface' or 'paint'
@@ -1308,6 +1362,36 @@ local function showControls()
                     state.target.uvOverlapCount))
                 if state.target.uvOverlapTruncated then
                     tImGui.TextWrapped(tLang.L('mtp_uv_overlap_limited'))
+                end
+            end
+            if state.target and #state.target.subsets > 0 then
+                local oldLimit = state.limitToSubset
+                state.limitToSubset = tImGui.Checkbox(tLang.L('mtp_limit_subset'), state.limitToSubset)
+                showBrushModeTooltip('mtp_limit_subset_tooltip')
+                if state.limitToSubset then
+                    local subsetLabels = {}
+                    local selectedIndex = 1
+                    for index, subset in ipairs(state.target.subsets) do
+                        subsetLabels[#subsetLabels + 1] = string.format('%s %d',
+                            tLang.L('mtp_subset'), subset)
+                        if subset == state.selectedSubset then selectedIndex = index end
+                    end
+                    local oldSubset = state.selectedSubset
+                    local subsetChanged, selected = tImGui.Combo(tLang.L('mtp_subset'),
+                        selectedIndex, subsetLabels, -1)
+                    if subsetChanged and state.target.subsets[selected] then
+                        state.selectedSubset = state.target.subsets[selected]
+                    end
+                    if oldSubset ~= state.selectedSubset then
+                        state.hoverHit = nil
+                        state.hoverPickPending = false
+                        state.previewRequiresMesh = true
+                    end
+                end
+                if oldLimit ~= state.limitToSubset then
+                    state.hoverHit = nil
+                    state.hoverPickPending = false
+                    state.previewRequiresMesh = true
                 end
             end
         end

@@ -49,6 +49,7 @@ local KNOWN_FIELDS = {
     uv_channel = true,
     projection_mode = true,
     dilation_radius = true,
+    limit_to_subset = true,
 }
 
 local PROJECTION_MODES = {
@@ -115,6 +116,7 @@ function M.defaults()
         uv_channel = 0,
         projection_mode = 'uv_brush',
         dilation_radius = 0,
+        limit_to_subset = false,
     }
 end
 
@@ -157,6 +159,7 @@ function M.validate(project)
     assert(finite(project.dilation_radius) and project.dilation_radius >= 0 and
         project.dilation_radius <= M.MAX_DILATION_RADIUS,
         'dilation_radius must be a finite number from 0 to ' .. M.MAX_DILATION_RADIUS)
+    assert(type(project.limit_to_subset) == 'boolean', 'limit_to_subset must be boolean')
     return project
 end
 
@@ -246,6 +249,7 @@ function M.save(project, path)
         'uv_channel=' .. tostring(project.uv_channel),
         'projection_mode=' .. project.projection_mode,
         'dilation_radius=' .. formatNumber(project.dilation_radius),
+        'limit_to_subset=' .. tostring(project.limit_to_subset),
     }
     if project.working_texture ~= nil then
         lines[#lines + 1] = 'working_texture=' .. M.encodePath(project.working_texture)
@@ -271,6 +275,7 @@ function M.saveLua(project, path)
         '    uv_channel = ' .. tostring(project.uv_channel) .. ',',
         '    projection_mode = ' .. luaString(project.projection_mode) .. ',',
         '    dilation_radius = ' .. formatNumber(project.dilation_radius) .. ',',
+        '    limit_to_subset = ' .. tostring(project.limit_to_subset) .. ',',
         '}',
     }
     writeFile(path, table.concat(lines, '\n') .. '\n')
@@ -334,11 +339,19 @@ function M.load(path)
     project.uv_channel = parseInteger(values.uv_channel, 'uv_channel')
     project.projection_mode = values.projection_mode
     project.dilation_radius = parseNumber(values.dilation_radius, 'dilation_radius')
+    if values.limit_to_subset ~= nil then
+        assert(values.limit_to_subset == 'true' or values.limit_to_subset == 'false',
+            'invalid limit_to_subset')
+        project.limit_to_subset = values.limit_to_subset == 'true'
+    end
     return M.validate(project)
 end
 
 function M.loadLua(path)
-    local project = readLuaProject(path)
+    local value = readLuaProject(path)
+    assert(type(value) == 'table', 'Lua project must return a table')
+    local project = M.defaults()
+    for key, item in pairs(value) do project[key] = item end
     return M.validate(project)
 end
 
