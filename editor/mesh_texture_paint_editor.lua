@@ -91,6 +91,7 @@ local state = {
     cursorCache = {},
     mouse = {x=0, y=0},
     hoverHit = nil,
+    lastUvIslandHit = nil,
     hoverPickPending = false,
     hoverPickElapsed = 0,
     orbiting = false,
@@ -254,6 +255,32 @@ local function ensureSelectedUvIsland()
     state.selectedUvIsland = islands[1] and islands[1].id or 0
 end
 
+local function uvIslandFromHit(hit)
+    if not (hit and hit.triangle and state.target) then return nil end
+    local islandId = hit.triangle.uvIsland
+    if not islandId then return nil end
+    local island = state.target.uvIslands[islandId]
+    if not island then return nil end
+    return islandId, island
+end
+
+local function selectUvIslandFromHit(hit)
+    local islandId, island = uvIslandFromHit(hit)
+    if not islandId then
+        state.status = tLang.L('mtp_no_uv_island_under_cursor')
+        return false
+    end
+    state.selectedUvIsland = islandId
+    state.limitToUvIsland = true
+    state.lastUvIslandHit = hit
+    state.hoverHit = hit
+    state.hoverPickPending = false
+    state.previewRequiresMesh = true
+    state.status = string.format(tLang.L('mtp_uv_island_selected'), islandId,
+        #island.triangleIndices)
+    return true
+end
+
 local function selectTarget(index)
     local target = state.targets[index]
     if not target then return false end
@@ -277,6 +304,7 @@ local function selectTarget(index)
     clearStamp()
     releaseTextureWork()
     state.targetIndex, state.target = index, target
+    state.lastUvIslandHit = nil
     local hasSelectedSubset = false
     for _, subset in ipairs(target.subsets or {}) do
         if subset == state.selectedSubset then hasSelectedSubset = true; break end
@@ -542,6 +570,7 @@ local function loadMesh(path)
     state.selectedSubset = 0
     state.limitToUvIsland = false
     state.selectedUvIsland = 0
+    state.lastUvIslandHit = nil
     state.dilationRadius = 0
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
@@ -554,7 +583,10 @@ end
 
 local function beginStroke(hit, screenX, screenY)
     state.stroke = {before={}, tiles={}, changed=false, lastU=hit.uv.u, lastV=hit.uv.v,
-        lastScreenX=screenX, lastScreenY=screenY}
+        lastScreenX=screenX, lastScreenY=screenY, modifiedBefore=state.modified,
+        exportDirtyBefore=state.exportDirty, previewDirtyBefore=state.previewDirty,
+        previewRequiresMeshBefore=state.previewRequiresMesh, touchedBefore=state.layer.touched,
+        compositeDirtyTilesBefore=state.compositeDirtyTiles}
     state.painting = true
     local dab = {x=hit.uv.u*(state.layer.width-1), y=hit.uv.v*(state.layer.height-1),
         radius=state.brush.radius}
@@ -686,13 +718,18 @@ local function currentVisibleBuffer()
 end
 
 local function updateHoverHit(x, y)
-    state.hoverHit = hitAtScreen(x, y)
+    local hit = hitAtScreen(x, y)
+    state.hoverHit = hit
+    if hit and hit.triangle and hit.triangle.uvIsland then
+        state.lastUvIslandHit = hit
+    end
     state.hoverPickPending = false
     state.hoverPickElapsed = 0
 end
 
 local function processHoverPick(delta)
     if not state.hoverPickPending or state.painting or state.orbiting or state.panning or state.previewJob then return end
+    if imguiCapturesMouse() then return end
     state.hoverPickElapsed = state.hoverPickElapsed + math.max(0, math.min(0.25, tonumber(delta) or 0))
     if state.hoverPickElapsed < .12 then return end
     updateHoverHit(state.mouse.x, state.mouse.y)
@@ -1058,17 +1095,18 @@ local function showUvOverlay(origin, size)
     local triangles = paintTriangles()
     local step = math.max(1, math.ceil(#triangles / UV_OVERLAY_MAX_TRIANGLES))
     local color = {r=.2,g=.85,b=1,a=.7}
-    for index = 1, #triangles, step do
-        local triangle = triangles[index]
+    local function drawTriangle(triangle, lineColor, thickness)
         local a, b, c = triangle.uvA, triangle.uvB, triangle.uvC
-        if a and b and c then
-            local pa = {x=origin.x + a.u * size, y=origin.y + a.v * size}
-            local pb = {x=origin.x + b.u * size, y=origin.y + b.v * size}
-            local pc = {x=origin.x + c.u * size, y=origin.y + c.v * size}
-            tImGui.AddLine(pa, pb, color, 1)
-            tImGui.AddLine(pb, pc, color, 1)
-            tImGui.AddLine(pc, pa, color, 1)
-        end
+        if not (a and b and c) then return end
+        local pa = {x=origin.x + a.u * size, y=origin.y + a.v * size}
+        local pb = {x=origin.x + b.u * size, y=origin.y + b.v * size}
+        local pc = {x=origin.x + c.u * size, y=origin.y + c.v * size}
+        tImGui.AddLine(pa, pb, lineColor, thickness)
+        tImGui.AddLine(pb, pc, lineColor, thickness)
+        tImGui.AddLine(pc, pa, lineColor, thickness)
+    end
+    for index = 1, #triangles, step do
+        drawTriangle(triangles[index], color, 1)
     end
     local boundaryEdges = state.limitToUvIsland and
         state.target.uvBoundaryEdgesByIsland[state.selectedUvIsland] or
@@ -1081,6 +1119,17 @@ local function showUvOverlay(origin, size)
         local first = {x=origin.x + edge.a.u * size, y=origin.y + edge.a.v * size}
         local second = {x=origin.x + edge.b.u * size, y=origin.y + edge.b.v * size}
         tImGui.AddLine(first, second, boundaryColor, 2)
+    end
+    local hoveredIslandId = uvIslandFromHit(state.lastUvIslandHit)
+    local highlightedIslandId = state.limitToUvIsland and state.selectedUvIsland or hoveredIslandId
+    if highlightedIslandId and state.target.islandTriangles[highlightedIslandId] then
+        local highlightColor = highlightedIslandId == hoveredIslandId and
+            {r=1,g=.9,b=.1,a=1} or {r=1,g=.2,b=.8,a=1}
+        local highlighted = state.target.islandTriangles[highlightedIslandId]
+        local highlightStep = math.max(1, math.ceil(#highlighted / UV_OVERLAY_MAX_TRIANGLES))
+        for index = 1, #highlighted, highlightStep do
+            drawTriangle(highlighted[index], highlightColor, 2)
+        end
     end
     if state.hoverHit and state.hoverHit.uv then
         local uv = state.hoverHit.uv
@@ -1104,6 +1153,37 @@ local function finishStroke()
     end
     state.stroke, state.painting = nil, false
     if state.previewDirty then state.status = 'Stroke applied. Preview updated.' end
+end
+
+local function cancelStroke()
+    local stroke = state.stroke
+    if not stroke then state.painting = false; return false end
+    if stroke.changed and #stroke.tiles > 0 then
+        local before = {width=state.layer.width, height=state.layer.height, tiles={}}
+        for _, tile in pairs(stroke.before) do before.tiles[#before.tiles + 1] = tile end
+        Raster.restoreTiles(state.layer, before)
+        local dirtyByKey = {}
+        local dirtyTiles = {}
+        for _, tile in ipairs(stroke.compositeDirtyTilesBefore or {}) do
+            if not dirtyByKey[tile.key] then dirtyByKey[tile.key] = true; dirtyTiles[#dirtyTiles + 1] = tile end
+        end
+        for _, tile in ipairs(stroke.tiles) do
+            if not dirtyByKey[tile.key] then dirtyByKey[tile.key] = true; dirtyTiles[#dirtyTiles + 1] = tile end
+        end
+        state.compositeDirtyTiles = dirtyTiles
+        state.previewDirty = true
+        state.previewRequiresMesh = true
+    else
+        state.compositeDirtyTiles = stroke.compositeDirtyTilesBefore
+        state.previewDirty = stroke.previewDirtyBefore
+        state.previewRequiresMesh = stroke.previewRequiresMeshBefore
+    end
+    state.layer.touched = stroke.touchedBefore
+    state.modified = stroke.modifiedBefore
+    state.exportDirty = stroke.exportDirtyBefore
+    state.stroke, state.painting = nil, false
+    state.status = tLang.L('mtp_stroke_cancelled')
+    return true
 end
 
 local function history(redo)
@@ -1496,6 +1576,13 @@ local function showControls()
                 if state.limitToUvIsland then
                     ensureSelectedUvIsland()
                 end
+                local hoveredIslandId, hoveredIsland = uvIslandFromHit(state.lastUvIslandHit)
+                if hoveredIslandId then
+                    tImGui.TextWrapped(string.format(tLang.L('mtp_hovered_uv_island'),
+                        hoveredIslandId, #hoveredIsland.triangleIndices))
+                else
+                    tImGui.TextWrapped(tLang.L('mtp_select_uv_island_help'))
+                end
             end
         end
         tImGui.Separator()
@@ -1710,6 +1797,8 @@ function onTouchDown(key, x, y)
         if not ensureEditableTexture() then return end
         if state.brush.mode == 'stamp' and (not state.stamp or state.keyControl) then
             pickStampSource(hit, x, y)
+        elseif state.keyControl then
+            selectUvIslandFromHit(hit)
         elseif state.brush.mode == 'pick' then
             pickColorAtHit(hit)
         else
@@ -1771,6 +1860,10 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') and state.stroke then
+        cancelStroke()
+        return
+    end
     if imguiCapturesKeyboard() then return end
     if key == mbm.getKeyCode('control') then state.keyControl = true
     elseif state.keyControl and key == mbm.getKeyCode('Z') then history(false)

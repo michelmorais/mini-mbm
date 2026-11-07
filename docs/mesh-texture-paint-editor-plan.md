@@ -164,7 +164,8 @@ materiais e demais referências não editadas.
    para órbita quando o cursor não está sobre uma janela ImGui.
 7. A borracha remove a contribuição da camada e revela a textura original.
 8. **Ctrl+Z** e **Ctrl+Y** desfazem/refazem strokes completos. A alteração só entra
-   no histórico quando o arrasto termina ou é cancelado.
+   no histórico quando o arrasto termina. `Esc` cancela a pincelada, restaura seus
+   tiles e não cria uma entrada no histórico.
 9. O usuário pode abrir o painel **UV/Texture** para revisar o resultado no plano,
    visualizar a área atingida e localizar seams ou ilhas sobrepostas.
 10. **Salvar textura** compõe base e camada e escreve o PNG de trabalho. **Salvar
@@ -212,6 +213,8 @@ materiais e demais referências não editadas.
 - overlay do último hit e da área do pincel;
 - zoom e pan independentes;
 - opção de mostrar apenas a ilha UV selecionada;
+- destaque da ilha UV sob o cursor e seleção direta pela viewport com
+  `Ctrl + botão direito`, sem pintar;
 - indicação de texels que são compartilhados por ilhas sobrepostas.
 - opção de visualizar base, camada de pintura ou composição final.
 
@@ -449,7 +452,8 @@ uma lista de meshes incompatíveis.
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
-- Melhorias de histórico por tiles, cancelamento e recuperação após erro de I/O.
+- Melhorias adicionais de recuperação após erro de I/O (Undo/Redo por tiles e
+  cancelamento transacional de pincelada já estão disponíveis).
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.
 - Importação/exportação de um conjunto de texturas relacionadas.
 
