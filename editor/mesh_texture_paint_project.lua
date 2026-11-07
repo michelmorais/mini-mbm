@@ -55,6 +55,7 @@ local PROJECTION_MODES = {
     uv_brush = true,
     project_stencil = true,
     project_stencil_through = true,
+    surface_3d = true,
 }
 
 local function copy(value)

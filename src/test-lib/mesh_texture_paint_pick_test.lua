@@ -66,6 +66,31 @@ assert(#allHits == 2 and allHits[1].triangleIndex == 1 and allHits[2].triangleIn
 local allLinearHits = Pick.pickTrianglesAll(origin, direction, triangles)
 assert(#allLinearHits == 2 and allLinearHits[1].triangleIndex == 1 and allLinearHits[2].triangleIndex == 2,
     'all-hit linear picking must return every surface in distance order')
+local closest, closestBarycentric = Pick.closestPointOnTriangle({x=0,y=0,z=1}, a, b, c)
+near(closest.x, 0)
+near(closest.y, 0)
+near(closest.z, 0)
+near(closestBarycentric.a + closestBarycentric.b + closestBarycentric.c, 1)
+local nearby = Pick.queryTrianglesSphere({x=0,y=0,z=.1}, .2, Pick.buildBVH(triangles))
+assert(#nearby == 1 and nearby[1].index == 1, 'surface query must return only nearby triangles')
+
+local surfaceTriangles = {
+    {a={x=-1,y=-1,z=0}, b={x=1,y=-1,z=0}, c={x=1,y=1,z=0},
+     uvA={u=0,v=0}, uvB={u=1,v=0}, uvC={u=1,v=1}},
+    {a={x=-1,y=-1,z=0}, b={x=1,y=1,z=0}, c={x=-1,y=1,z=0},
+     uvA={u=0,v=0}, uvB={u=1,v=1}, uvC={u=0,v=1}},
+}
+local surfaceSamples = Pick.surfaceSamplesAtPoint({x=0,y=0,z=0}, .55,
+    surfaceTriangles, 9, 9, {hardness=1, maxSamples=4096})
+local surfaceSampleByPixel = {}
+for _, sample in ipairs(surfaceSamples) do
+    assert(sample.radius == 0, 'continuous surface raster must not create triangle dabs')
+    surfaceSampleByPixel[math.floor(sample.x + .5) .. ':' .. math.floor(sample.y + .5)] = true
+end
+assert(surfaceSampleByPixel['4:4'], 'surface raster must include the hit texel')
+assert(surfaceSampleByPixel['3:4'] and surfaceSampleByPixel['5:4'] and
+    surfaceSampleByPixel['4:3'] and surfaceSampleByPixel['4:5'],
+    'surface raster must produce a continuous neighborhood across a UV diagonal')
 
 local backA = {x = -1, y = -1, z = 0}
 local backB = {x = 0, y = 1, z = 0}

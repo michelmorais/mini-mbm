@@ -99,6 +99,8 @@ os.remove(luaProjectPath)
 
 project.projection_mode = 'project_stencil_through'
 assert(Project.validate(project) == project)
+project.projection_mode = 'surface_3d'
+assert(Project.validate(project) == project)
 
 local invalid = Project.copy(project)
 invalid.source_mesh = 'relative.msh'

@@ -5,8 +5,8 @@ Status: em implementação. O milestone vertical atual já abre MSH, faz picking
 textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
 projeção de cor sólida pela câmera em superfícies visíveis e padding configurável
 para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
-o modo opcional de pintar através também está disponível; projeção por imagem
-continua nas próximas fases.
+o modo opcional de pintar através e o modo experimental `Surface 3D` também
+estão disponíveis; projeção por imagem continua nas próximas fases.
 
 ## 1. Objetivo
 
@@ -108,7 +108,12 @@ O MVP oferece dois modos complementares:
 
 - `UV Brush`: converte o hit para UV e rasteriza o pincel nessa região;
 - `Project/Stencil`: projeta uma cor ou imagem pela câmera, respeitando a face
-  visível por padrão, com opção explícita de pintar através.
+  visível por padrão, com opção explícita de pintar através;
+- `Surface 3D`: coleta triângulos próximos em espaço do mundo e rasteriza seus
+  pontos mais próximos em UV, reduzindo a dependência da projeção da câmera.
+  A máscara agora é avaliada por texel dentro dos triângulos, evitando círculos
+  independentes e recortes causados pela triangulação. O modo representa uma
+  distância na superfície, não uma forma circular fixa na tela.
 
 Um pincel de superfície 3D que acompanha a curvatura e atravessa seams será
 avaliado depois do MVP. Triplanar fica reservado para materiais repetitivos e não
@@ -434,7 +439,9 @@ uma lista de meshes incompatíveis.
 
 ### Fase 2 - Robustez de autoria
 
-- Pintura por superfície 3D para reduzir artefatos em curvaturas.
+- Pintura por superfície 3D para reduzir artefatos em curvaturas (primeira versão
+  experimental implementada; ainda requer validação em meshes com partes muito
+  próximas).
 - Máscara por subset/material/ilha UV.
 - Melhorias de histórico por tiles, cancelamento e recuperação após erro de I/O.
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.

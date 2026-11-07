@@ -106,6 +106,7 @@ local state = {
 local brushUvDerivatives
 local stopPreviewAnimations
 local projectSamplesAtScreen
+local surfaceSamplesAtHit
 
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
@@ -467,6 +468,7 @@ local function applyStrokeHit(hit, screenX, screenY)
     local y = math.max(0, math.min(state.layer.height-1, hit.uv.v*(state.layer.height-1)))
     local radius = state.brush.radius
     local projectedSamples
+    local surfaceSamples
     if state.brush.mode == 'project' and screenX and screenY then
         projectedSamples = {}
         local lastX = state.stroke.lastScreenX or screenX
@@ -486,7 +488,11 @@ local function applyStrokeHit(hit, screenX, screenY)
         end
         state.stroke.lastScreenX, state.stroke.lastScreenY = screenX, screenY
     end
-    local tiles = projectedSamples and Raster.tilesForPixels(state.layer, projectedSamples) or
+    if state.brush.mode == 'surface' then
+        surfaceSamples = surfaceSamplesAtHit(hit, screenX, screenY)
+    end
+    local tiles = (projectedSamples or surfaceSamples) and
+        Raster.tilesForPixels(state.layer, projectedSamples or surfaceSamples) or
         Raster.tilesForDab(state.layer, x, y, radius)
     for _, tile in ipairs(tiles) do
         if not state.stroke.before[tile.key] then
@@ -497,6 +503,9 @@ local function applyStrokeHit(hit, screenX, screenY)
     local result
     if state.brush.mode == 'project' and projectedSamples then
         result = Raster.applyProjectedSamples(state.layer, projectedSamples, state.brush.opacity,
+            colorBytes(), true)
+    elseif state.brush.mode == 'surface' and surfaceSamples then
+        result = Raster.applyProjectedSamples(state.layer, surfaceSamples, state.brush.opacity,
             colorBytes(), true)
     elseif state.brush.mode == 'stamp' and state.stamp then
         local destinationDerivatives = screenX and screenY and
@@ -733,6 +742,43 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
                 end
             end
         end
+    end
+    return samples
+end
+
+surfaceSamplesAtHit = function(hit, screenX, screenY)
+    if not (hit and hit.position and hit.uv and state.target) then return {} end
+    ensureTargetPickAcceleration()
+    local surfaceRadius = state.meshDiagonal * state.brush.radius /
+        math.max(1, math.min(state.textureWidth, state.textureHeight))
+    local footprint = screenX and brushCursorPoints(hit, screenX, screenY, screenX, screenY)
+    if footprint then
+        for index = 1, #footprint, 4 do
+            local edgeHit = hitAtScreen(footprint[index].x, footprint[index].y)
+            if edgeHit and edgeHit.position then
+                local dx = edgeHit.position.x - hit.position.x
+                local dy = edgeHit.position.y - hit.position.y
+                local dz = edgeHit.position.z - hit.position.z
+                surfaceRadius = math.max(surfaceRadius, math.sqrt(dx * dx + dy * dy + dz * dz))
+            end
+        end
+    end
+    surfaceRadius = math.max(surfaceRadius, state.meshDiagonal * .0001)
+    local candidates = Pick.queryTrianglesSphere(hit.position, surfaceRadius,
+        state.target.pickAcceleration, state.target.triangles)
+    local samples = Pick.surfaceSamplesAtPoint(hit.position, surfaceRadius,
+        state.target.triangles, state.layer.width, state.layer.height, {
+            candidates = candidates,
+            hardness = state.brush.hardness,
+            maxSamples = 65536,
+        })
+    if #samples == 0 then
+        samples[1] = {
+            x = hit.uv.u * (state.layer.width - 1),
+            y = hit.uv.v * (state.layer.height - 1),
+            amount = 1,
+            radius = 0,
+        }
     end
     return samples
 end
@@ -990,7 +1036,8 @@ local function makeProject(projectPath)
         texture_role = 'base_color',
         uv_channel = 0,
         projection_mode = state.brush.mode == 'project' and
-            (state.paintThrough and 'project_stencil_through' or 'project_stencil') or 'uv_brush',
+            (state.paintThrough and 'project_stencil_through' or 'project_stencil') or
+            state.brush.mode == 'surface' and 'surface_3d' or 'uv_brush',
         dilation_radius = state.dilationRadius,
     }
 end
@@ -1170,7 +1217,8 @@ local function openProject(path)
     assert(selectTarget(targetIndex))
     assert(ensureEditableTexture())
     state.brush.mode = (project.projection_mode == 'project_stencil' or
-        project.projection_mode == 'project_stencil_through') and 'project' or 'paint'
+        project.projection_mode == 'project_stencil_through') and 'project' or
+        project.projection_mode == 'surface_3d' and 'surface' or 'paint'
     state.paintThrough = project.projection_mode == 'project_stencil_through'
     state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
         math.floor((project.dilation_radius or 0) + .5)))
@@ -1273,24 +1321,25 @@ local function showControls()
         end
         tImGui.Text(tLang.L('mtp_mode'))
         local modeIndex = state.brush.mode == 'paint' and 1 or state.brush.mode == 'erase' and 2 or
-            state.brush.mode == 'pick' and 3 or state.brush.mode == 'stamp' and 4 or 5
+            state.brush.mode == 'pick' and 3 or state.brush.mode == 'stamp' and 4 or
+            state.brush.mode == 'project' and 5 or 6
         local oldModeIndex = modeIndex
         modeIndex = tImGui.RadioButton(tLang.L('mtp_paint'), modeIndex, 1)
         showBrushModeTooltip('mtp_paint_tooltip')
-        tImGui.SameLine()
         modeIndex = tImGui.RadioButton(tLang.L('mtp_erase'), modeIndex, 2)
         showBrushModeTooltip('mtp_erase_tooltip')
         modeIndex = tImGui.RadioButton(tLang.L('mtp_pick_color'), modeIndex, 3)
         showBrushModeTooltip('mtp_pick_color_tooltip')
-        tImGui.SameLine()
         modeIndex = tImGui.RadioButton(tLang.L('mtp_stamp'), modeIndex, 4)
         showBrushModeTooltip('mtp_stamp_tooltip')
-        tImGui.SameLine()
         modeIndex = tImGui.RadioButton(tLang.L('mtp_project_stencil'), modeIndex, 5)
         showBrushModeTooltip('mtp_project_stencil_tooltip')
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_surface_3d'), modeIndex, 6)
+        showBrushModeTooltip('mtp_surface_3d_tooltip')
         if modeIndex ~= oldModeIndex then
             state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
-                modeIndex == 3 and 'pick' or modeIndex == 4 and 'stamp' or 'project'
+                modeIndex == 3 and 'pick' or modeIndex == 4 and 'stamp' or
+                modeIndex == 5 and 'project' or 'surface'
         end
         if state.brush.mode == 'project' then
             state.paintThrough = tImGui.Checkbox(tLang.L('mtp_paint_through'), state.paintThrough)
