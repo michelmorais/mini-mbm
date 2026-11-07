@@ -8,6 +8,12 @@ para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
 o modo opcional de pintar através e o modo experimental `Surface 3D` também
 estão disponíveis; projeção por imagem continua nas próximas fases.
 
+Milestone de salvamento seguro implementado: projeto Lua + camada PNG e exportação
+MSH + PNG são preparados antes da publicação, com restauração dos arquivos
+anteriores quando uma operação de I/O falha. A exportação usa uma cópia da fonte,
+preservando os vínculos privados do preview. Limites e evidências estão nas seções
+8 e 10; a abertura completamente transacional de projetos ainda está pendente.
+
 ## 1. Objetivo
 
 Criar um editor independente, baseado em Lua e ImGui, para retocar a textura de
@@ -247,6 +253,7 @@ editor/mesh_texture_paint_model.lua   -- estado, seleção e dirty flags
 editor/mesh_texture_paint_raster.lua  -- camadas, dabs, blend, dilatação e tiles
 editor/mesh_texture_paint_pick.lua    -- raios, triângulos, barycentric e UV
 editor/mesh_texture_paint_project.lua -- formato .meshpaint.lua versionado
+editor/mesh_texture_paint_io.lua      -- publicação e recuperação dos arquivos
 editor/mesh_texture_paint_preview.lua -- textura privada e atualização da mesh
 ```
 
@@ -408,10 +415,19 @@ o estado atual.
   não duas cópias completas da camada.
 - `Ctrl+Z` deve restaurar pixels da camada de pintura e marcar composição e preview
   como sujos.
-- Salvar textura deve escrever primeiro em arquivo temporário e substituir o destino
-  somente após a codificação concluir.
-- Salvar MSH deve usar uma cópia candidata e publicar o arquivo apenas depois de a
-  validação terminar.
+- Salvar textura escreve primeiro em um temporário privado no diretório do destino.
+- Salvar projeto prepara a camada PNG e o arquivo Lua antes de substituir qualquer
+  destino. Retorno `false`/`nil` de um escritor, além de exceções, cancela a gravação.
+- Salvar MSH usa uma cópia candidata do snapshot da fonte em memória, altera apenas
+  as referências da textura selecionada e valida a candidata. A MSH e seu PNG são
+  preparados antes da publicação, sem modificar os materiais do preview.
+- Ao substituir arquivos existentes, o editor mantém backups privados até concluir
+  todo o conjunto. Uma falha de publicação restaura os arquivos anteriores e não
+  atualiza os caminhos salvos nem limpa a indicação de alterações pendentes.
+- Se a restauração também falhar, o backup é preservado e seu caminho aparece no
+  diagnóstico. Essa garantia cobre erros retornados pelas operações de I/O; não é
+  uma transação de filesystem resistente à queda do processo/energia, nem oferece
+  publicação simultânea dos dois arquivos para leitores externos.
 - Trocar mesh, textura ou projeto deve cancelar a operação em andamento e liberar
   o preview privado antes de remover temporários.
 - Fechar o editor com alterações deve oferecer salvar, descartar ou cancelar.
@@ -454,9 +470,10 @@ uma lista de meshes incompatíveis.
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
-- Melhorias adicionais de recuperação após erro de I/O (Undo/Redo por tiles,
-  cancelamento transacional de pincelada e cancelamento do preview já estão
-  disponíveis).
+- Recuperação de gravação após erro de I/O implementada para projeto + camada,
+  MSH + textura e PNG isolado. Abertura de projeto com estado candidato antes de
+  substituir a sessão atual ainda pendente. Undo/Redo por tiles, cancelamento de
+  pincelada e cancelamento do preview já estão disponíveis.
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.
 - Importação/exportação de um conjunto de texturas relacionadas.
 
@@ -499,6 +516,22 @@ uma lista de meshes incompatíveis.
   reload ou rebuild contínuo.
 
 ### Validação visual e de plataforma
+
+Evidência do milestone de salvamento (macOS/Metal):
+
+- `src/test-lib/mesh_texture_paint_io_test.lua`: arquivos existentes e novos,
+  falhas de escrita/renomeação, restauração e retenção do backup quando a própria
+  recuperação falha. O teste também simula a recusa de renomear sobre um destino
+  existente, como ocorre no Windows; isso não substitui validação nativa nele.
+- `src/test-lib/mesh_texture_paint_project_test.lua`: persistência do formato Lua
+  e rejeição de dados inválidos.
+- `src/test-lib/mesh_texture_paint_preview_smoke.lua`, com
+  `mesh_texture_paint_save_checks.lua`: pintura renderizada, gravação e reabertura
+  de PNG/projeto/MSH, preservação de vértices, UVs, animação e material não editado,
+  fontes intactas e sessão preservada após falhas simuladas de I/O. O preview
+  continua sem rebuild/upload durante os frames ociosos.
+
+Matriz de plataforma ainda a completar:
 
 - Linux/OpenGL ES no primeiro ciclo automatizado.
 - Windows/DirectX 9 e DirectX 11 para validar reload, alpha e render target/cache.

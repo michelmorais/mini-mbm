@@ -25,6 +25,7 @@ local Pick = require 'mesh_texture_paint_pick'
 local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
 local Project = require 'mesh_texture_paint_project'
+local PaintIO = require 'mesh_texture_paint_io'
 
 local STAMP_RESOLUTION_MIN = 9
 local STAMP_RESOLUTION_MAX = 257
@@ -1353,6 +1354,14 @@ local function makeProject(projectPath)
     }
 end
 
+local function isSourcePath(path)
+    if path == resolvePath(state.meshPath) then return true end
+    for _, target in ipairs(state.targets) do
+        if path == resolvePath(target.path) then return true end
+    end
+    return false
+end
+
 local function saveProject(path)
     if not (state.target and state.meshPath) then
         state.status = 'Open a mesh and select a texture before saving a project.'
@@ -1361,13 +1370,23 @@ local function saveProject(path)
     if not ensureEditableTexture() then return false end
     path = withExtension(resolvePath(path) or path, '.lua')
     local project = makeProject(path)
+    if isSourcePath(path) or isSourcePath(project.paint_layer) then
+        state.status = tLang.L('mtp_export_source_protected')
+        return false
+    end
     local bytes = Raster.toBytes(state.layer)
-    local saved, errorMessage = dpCall(mbm.writeImagePixels, project.paint_layer, bytes,
-        state.layer.width, state.layer.height)
-    if not saved then error(errorMessage or 'could not save paint layer') end
-    assert(Project.saveLua(project, path))
+    local saved, errorMessage = PaintIO.publish({
+        {path=project.paint_layer, write=function(temporary)
+            return mbm.writeImagePixels(temporary, bytes, state.layer.width, state.layer.height)
+        end},
+        {path=path, write=function(temporary) return Project.saveLua(project, temporary) end},
+    }, dpCall)
+    if not saved then
+        state.status = tLang.L('mtp_project_save_failed') .. ': ' .. tostring(errorMessage)
+        return false
+    end
     state.projectPath, state.modified = path, false
-    state.status = 'Project saved: ' .. path
+    state.status = tLang.L('mtp_project_saved') .. ': ' .. path .. (errorMessage and ('; ' .. errorMessage) or '')
     return true
 end
 
@@ -1398,23 +1417,6 @@ local function texturePathForMeshPath(meshPath)
     return path == meshPath and meshPath .. '.png' or path
 end
 
-local function writeImageAtomic(path, buffer)
-    local temporaryPath = path .. '.meshpaint.tmp.png'
-    os.remove(temporaryPath)
-    local called, saved = dpCall(mbm.writeImagePixels, temporaryPath, buffer.bytes,
-        buffer.width, buffer.height)
-    if not called or saved == false then
-        os.remove(temporaryPath)
-        return false, 'could not write temporary texture'
-    end
-    local renamed, errorMessage = os.rename(temporaryPath, path)
-    if not renamed then
-        os.remove(temporaryPath)
-        return false, errorMessage or 'could not publish texture'
-    end
-    return true
-end
-
 local function preparePreviewForExport()
     if not state.previewAsset or not state.target then return false, 'no mesh loaded' end
     finishStroke()
@@ -1441,18 +1443,20 @@ local function saveTextureAs()
     local path = mbm.saveFile(state.exportTexturePath or suggestedTextureExportPath(), 'png')
     if not path or path == '' then return false end
     path = resolvePath(path) or path
-    if path == resolvePath(state.target.path) then
+    if isSourcePath(path) then
         state.status = tLang.L('mtp_export_source_protected')
         return false
     end
     local buffer = currentVisibleBuffer()
-    local saved, errorMessage = writeImageAtomic(path, buffer)
+    local saved, errorMessage = PaintIO.publish({{path=path, write=function(temporary)
+        return mbm.writeImagePixels(temporary, buffer.bytes, buffer.width, buffer.height)
+    end}}, dpCall)
     if not saved then
         state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(errorMessage)
         return false
     end
     state.exportTexturePath, state.exportDirty = path, false
-    state.status = tLang.L('mtp_texture_exported') .. ': ' .. path
+    state.status = tLang.L('mtp_texture_exported') .. ': ' .. path .. (errorMessage and ('; ' .. errorMessage) or '')
     return true
 end
 
@@ -1469,49 +1473,41 @@ local function saveMeshAs()
     local path = mbm.saveFile(state.exportMeshPath or suggestedMeshExportPath(), 'msh')
     if not path or path == '' then return false end
     path = resolvePath(path) or path
-    if path == resolvePath(state.meshPath) then
+    if isSourcePath(path) then
         state.status = tLang.L('mtp_export_source_protected')
         return false
     end
     local texturePath = texturePathForMeshPath(path)
-    if texturePath == resolvePath(state.target.path) then
+    if isSourcePath(texturePath) then
         state.status = tLang.L('mtp_export_source_protected')
         return false
     end
     local buffer = currentVisibleBuffer()
-    local textureSaved, textureError = writeImageAtomic(texturePath, buffer)
-    if not textureSaved then
-        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(textureError)
-        return false
-    end
-    local oldTextures = {}
-    local updated = true
-    for _, subset in ipairs(state.target.subsets) do
-        oldTextures[subset] = state.previewAsset:getTexture(1, subset)
-        updated = state.previewAsset:setTexture(1, subset, texturePath) and updated
-    end
-    local temporaryPath = path .. '.meshpaint.tmp.msh'
-    os.remove(temporaryPath)
-    local called, saved = dpCall(function()
-        return state.previewAsset:save(temporaryPath, false, false, false)
-    end)
-    for _, subset in ipairs(state.target.subsets) do
-        state.previewAsset:setTexture(1, subset, oldTextures[subset] or '')
-    end
-    if not updated or not called or saved == false then
-        os.remove(temporaryPath)
-        state.status = tLang.L('mtp_export_failed')
-        return false
-    end
-    local renamed, renameError = os.rename(temporaryPath, path)
-    if not renamed then
-        os.remove(temporaryPath)
-        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(renameError)
+    local saved, saveError = PaintIO.publish({
+        {path=texturePath, write=function(temporary)
+            return mbm.writeImagePixels(temporary, buffer.bytes, buffer.width, buffer.height)
+        end},
+        {path=path, write=function(temporary)
+            -- Clone the source snapshot through the staged file. Exporting must
+            -- not mutate preview bindings or inherit private textures from a
+            -- previously selected material, nor reread a changed source on disk.
+            assert(state.sourceAsset:save(temporary, false, false, false))
+            local candidate = meshDebug:new()
+            assert(candidate:load(temporary))
+            for _, subset in ipairs(state.target.subsets) do
+                assert(candidate:setTexture(1, subset, texturePath))
+            end
+            assert(candidate:check())
+            return candidate:save(temporary, false, false, false)
+        end},
+    }, dpCall)
+    if not saved then
+        state.status = tLang.L('mtp_export_failed') .. ': ' .. tostring(saveError)
         return false
     end
     state.exportMeshPath = path
     state.exportTexturePath, state.exportDirty = texturePath, false
-    state.status = tLang.L('mtp_mesh_exported') .. ': ' .. path
+    state.status = tLang.L('mtp_mesh_exported') .. ': ' .. path .. (saveError and ('; ' .. saveError) or '')
     return true
 end
 

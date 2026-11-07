@@ -78,6 +78,11 @@ local function makeFixture()
     local d = {x=1,y=1,z=0,u=1,v=1}
     assert(asset:addVertex(f, s, {a,b,c,c,b,d,c,b,a,d,b,c}))
     assert(asset:setTexture(f, s, source))
+    local other = asset:addSubSet(f)
+    assert(asset:addVertex(f, other, {
+        {x=-.8,y=-.8,z=-.1,u=0,v=0}, {x=.8,y=-.8,z=-.1,u=1,v=0},
+        {x=0,y=.8,z=-.1,u=.5,v=1}}))
+    assert(asset:setTexture(f, other, '#00FFFFFF'))
     assert(asset:addAnim('Static', 1, 1, 1, 0))
     assert(asset:save(fixture, false, false, false))
 end
@@ -174,6 +179,7 @@ function onLoop()
         elseif stage == 8 then
             pixels(3)
             assert(mbm.readImagePixels(source) == original, 'Painting overwrote the original texture')
+            require('mesh_texture_paint_save_checks').run(state, editorLoop, upvalue, temp)
             idleBuilds, idleUploads = state.previewBuilds, state.previewTextureReloads
         else
             assert(state.previewBuilds == idleBuilds and state.previewTextureReloads == idleUploads,
