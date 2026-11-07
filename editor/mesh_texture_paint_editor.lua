@@ -394,10 +394,24 @@ end
 local function loadPreviewTexture()
     if not state.layer or not state.layer.touched then
         if state.previewTextureInfo then
-            assert(state.previewTextureInfo:reload(state.target.path))
+            local inspected, loaded = dpCall(function()
+                return state.previewTextureInfo:isLoaded()
+            end)
+            if not inspected or not loaded then
+                local reloaded, textureInfo = loadTextureInfo(state.target.path)
+                if not reloaded or not textureInfo then
+                    state.status = 'Could not load preview texture: ' .. tostring(textureInfo)
+                    return nil
+                end
+                state.previewTextureInfo = textureInfo
+                state.previewTextureIsUiCopy = false
+            end
         else
             local loaded, textureInfo = loadTextureInfo(state.target.path)
-            assert(loaded and textureInfo)
+            if not loaded or not textureInfo then
+                state.status = 'Could not load preview texture: ' .. tostring(textureInfo)
+                return nil
+            end
             state.previewTextureInfo = textureInfo
         end
         return state.target.path
@@ -520,6 +534,11 @@ local function processPreviewJob()
     end
     if job.phase == 'write' then
         job.texturePath = loadPreviewTexture()
+        if not job.texturePath then
+            state.previewJob = nil
+            state.previewCancelled = true
+            return
+        end
         job.progress = .7
         -- Reloading pixels updates an already-bound TEXTURE. The first stroke
         -- switches from the source to the private paint texture, so it must
