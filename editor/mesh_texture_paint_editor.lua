@@ -104,6 +104,7 @@ local state = {
     redo = {},
     keyControl = false,
     pendingAction = nil,
+    openUnsavedPopup = false,
     titles = {
         controls = 'mesh_texture_paint_controls',
         texture = 'mesh_texture_paint_texture',
@@ -1605,13 +1606,17 @@ local function requestSessionAction(action)
     if state.stroke then finishStroke() end
     if state.modified then
         state.pendingAction = action
-        tImGui.OpenPopup('mesh_texture_paint_unsaved')
+        state.openUnsavedPopup = true
         return false
     end
     return performSessionAction(action)
 end
 
 local function showUnsavedChangesModal()
+    if state.openUnsavedPopup then
+        tImGui.OpenPopup('mesh_texture_paint_unsaved')
+        state.openUnsavedPopup = false
+    end
     local opened = tImGui.BeginPopupModal('mesh_texture_paint_unsaved', false,
         tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'))
     if not opened then return end
