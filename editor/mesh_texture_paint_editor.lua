@@ -68,6 +68,7 @@ local state = {
     exportDirty = true,
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
+        highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = true, color = {r=1,g=0,b=0,a=1}},
     brushMaxRadius = 64,
     meshDiagonal = 1,
@@ -91,6 +92,7 @@ local state = {
 }
 
 local brushUvDerivatives
+local stopPreviewAnimations
 
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
@@ -338,6 +340,7 @@ local function processPreviewJob()
         end
         assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
         assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
+        stopPreviewAnimations(state.previewMesh)
         state.previewReady = true
         job.progress, job.phase = .9, 'finish'
         return
@@ -348,6 +351,22 @@ local function processPreviewJob()
     state.previewDirty = false
     state.previewBuilds = state.previewBuilds + 1
     state.previewJob = nil
+end
+
+stopPreviewAnimations = function(previewMesh)
+    if not previewMesh then return end
+    dpCall(function() return previewMesh:stopSkeletalAnimation() end)
+    dpCall(function() return previewMesh:stopSkeletalAnimationAbsoluteLayer() end)
+    local ok, total = dpCall(function() return previewMesh:getTotalArticulatedAnimations() end)
+    if not ok then return end
+    for index = 1, tonumber(total) or 0 do
+        local nameOk, name = dpCall(function()
+            return previewMesh:getArticulatedAnimationName(index)
+        end)
+        if nameOk and type(name) == 'string' and name ~= '' then
+            dpCall(function() return previewMesh:disableArticulatedAnimation(name) end)
+        end
+    end
 end
 
 local function loadMesh(path)
@@ -663,16 +682,27 @@ local function showBrushCursor()
     local mouse = tImGui.GetMousePos()
     if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) or
             mouse.x < -100000 or mouse.y < -100000 then return end
-    local color = state.brush.mode == 'pick' and {r=1,g=.8,b=.2,a=.95} or
-        {r=state.brush.color.r or 1,g=state.brush.color.g or 0,b=state.brush.color.b or 0,a=.95}
+    local paintColor = {r=state.brush.color.r or 1,g=state.brush.color.g or 0,
+        b=state.brush.color.b or 0,a=.95}
+    local highContrast = state.brush.highContrastCursor == true
+    local color = state.brush.mode == 'pick' and {r=1,g=.8,b=.2,a=.95} or paintColor
+    if highContrast and state.brush.mode ~= 'pick' then
+        color = {r=state.brush.cursorColor.r or 1, g=state.brush.cursorColor.g or 0,
+            b=state.brush.cursorColor.b or 1, a=.95}
+    end
+    local outlineColor = {r=0,g=0,b=0,a=.95}
     tImGui.SetImDrawListToForeground(true)
     local points = brushCursorPoints(state.hoverHit, state.mouse.x, state.mouse.y, mouse.x, mouse.y)
     if points then
         if state.brush.screenCircle then
             local radius = equivalentScreenRadius(points, mouse)
-            tImGui.AddCircle({x=mouse.x,y=mouse.y}, math.max(4, radius), color, 32, 1.5)
+            local center = {x=mouse.x,y=mouse.y}
+            local visibleRadius = math.max(4, radius)
+            if highContrast then tImGui.AddCircle(center, visibleRadius, outlineColor, 32, 4) end
+            tImGui.AddCircle(center, visibleRadius, color, 32, 1.8)
         else
-            tImGui.AddPolyline(points, color, true, 1.5)
+            if highContrast then tImGui.AddPolyline(points, outlineColor, true, 4) end
+            tImGui.AddPolyline(points, color, true, 1.8)
         end
     else
         local width, height = mbm.getSizeScreen()
@@ -682,7 +712,9 @@ local function showBrushCursor()
         local projectedMeshSize = math.min(width, height) * meshScale
         local radius = math.max(4, math.min(256,
             state.brush.radius / textureSize * projectedMeshSize))
-        tImGui.AddCircle({x=mouse.x,y=mouse.y}, radius, color, 32, 1.5)
+        local center = {x=mouse.x,y=mouse.y}
+        if highContrast then tImGui.AddCircle(center, radius, outlineColor, 32, 4) end
+        tImGui.AddCircle(center, radius, color, 32, 1.8)
     end
     tImGui.SetImDrawListToForeground(false)
 end
@@ -1065,6 +1097,13 @@ local function showControls()
             if changed and selected ~= state.targetIndex then dpCall(selectTarget, selected) end
         end
         tImGui.Separator()
+        local changed, value
+        state.brush.highContrastCursor = tImGui.Checkbox(tLang.L('mtp_high_contrast_cursor'),
+            state.brush.highContrastCursor)
+        if state.brush.highContrastCursor then
+            changed, value = tImGui.ColorEdit4(tLang.L('mtp_cursor_color'), state.brush.cursorColor)
+            if changed then state.brush.cursorColor = value end
+        end
         tImGui.Text(tLang.L('mtp_mode'))
         local modeIndex = state.brush.mode == 'paint' and 1 or state.brush.mode == 'erase' and 2 or
             state.brush.mode == 'pick' and 3 or 4
@@ -1079,7 +1118,6 @@ local function showControls()
             state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
                 modeIndex == 3 and 'pick' or 'stamp'
         end
-        local changed, value
         if state.brush.mode == 'stamp' then
             tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))
             local stampResolution = state.brush.stampResolution or 65
