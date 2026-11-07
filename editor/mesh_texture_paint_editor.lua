@@ -71,6 +71,8 @@ local state = {
     previewJob = nil,
     previewCancelled = false,
     previewBuilds = 0,
+    previewTextureReloads = 0,
+    previewMeshReloads = 0,
     projectPath = nil,
     modified = false,
     exportTexturePath = nil,
@@ -281,7 +283,6 @@ local function selectUvIslandFromHit(hit)
     state.lastUvIslandHit = hit
     state.hoverHit = hit
     state.hoverPickPending = false
-    state.previewRequiresMesh = true
     state.status = string.format(tLang.L('mtp_uv_island_selected'), islandId,
         #island.triangleIndices)
     return true
@@ -409,6 +410,7 @@ local function loadPreviewTexture()
         state.meshPreviewTextureInfo = textureInfo
     else
         assert(state.meshPreviewTextureInfo:reload(state.previewTexturePath))
+        state.previewTextureReloads = state.previewTextureReloads + 1
     end
     if not state.previewTextureIsUiCopy then
         local loaded, textureInfo = loadTextureInfo(state.previewUiTexturePath)
@@ -423,9 +425,6 @@ end
 
 local function requestPreviewRebuild()
     if state.previewDirty and not state.painting and not state.previewJob and not state.previewCancelled then
-        -- The generated PNG is no longer the texture object already bound by
-        -- the preview mesh. Every paint edit therefore needs a mesh reload.
-        state.previewRequiresMesh = true
         local previous = state.composite or state.base
         state.previewJob = {
             phase = 'compose', progress = 0,
@@ -528,6 +527,7 @@ local function processPreviewJob()
         assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
         assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
         stopPreviewAnimations(state.previewMesh)
+        state.previewMeshReloads = state.previewMeshReloads + 1
         state.previewReady = true
         job.progress, job.phase = .9, 'finish'
         return
@@ -1261,7 +1261,7 @@ local function cancelStroke()
         end
         state.compositeDirtyTiles = dirtyTiles
         state.previewDirty = true
-        state.previewRequiresMesh = true
+        state.previewRequiresMesh = stroke.previewRequiresMeshBefore
     else
         state.compositeDirtyTiles = stroke.compositeDirtyTilesBefore
         state.previewDirty = stroke.previewDirtyBefore
@@ -1755,13 +1755,11 @@ local function showControls()
                     ensureSelectedUvIsland()
                         state.hoverHit = nil
                         state.hoverPickPending = false
-                        state.previewRequiresMesh = true
                     end
                 end
                 if oldLimit ~= state.limitToSubset then
                     state.hoverHit = nil
                     state.hoverPickPending = false
-                    state.previewRequiresMesh = true
                 end
                 local oldIslandLimit = state.limitToUvIsland
                 state.limitToUvIsland = tImGui.Checkbox(tLang.L('mtp_limit_uv_island'),
@@ -1786,7 +1784,6 @@ local function showControls()
                     ensureSelectedUvIsland()
                     state.hoverHit = nil
                     state.hoverPickPending = false
-                    state.previewRequiresMesh = true
                 end
                 if state.limitToUvIsland then
                     ensureSelectedUvIsland()
@@ -1898,7 +1895,8 @@ local function showControls()
         if tImGui.Button(tLang.L('undo')) then history(false) end
         tImGui.SameLine()
         if tImGui.Button(tLang.L('redo')) then history(true) end
-        tImGui.Text(string.format('Preview builds: %d', state.previewBuilds))
+        tImGui.Text(string.format('Preview builds: %d | texture reloads: %d | mesh reloads: %d',
+            state.previewBuilds, state.previewTextureReloads, state.previewMeshReloads))
     end
     tImGui.End()
 end
