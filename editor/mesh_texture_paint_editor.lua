@@ -291,10 +291,11 @@ local function selectUvIslandFromHit(hit)
     return true
 end
 
-local function selectTarget(index)
+local function selectTarget(index, preparedTextureInfo)
     local target = state.targets[index]
     if not target then return false end
-    local loaded, result = loadTextureInfo(target.path)
+    local loaded, result = preparedTextureInfo ~= nil, preparedTextureInfo
+    if not loaded then loaded, result = loadTextureInfo(target.path) end
     if not loaded or not result then
         state.status = 'Could not load texture: ' .. tostring(result)
         return false
@@ -564,7 +565,7 @@ stopPreviewAnimations = function(previewMesh)
     end
 end
 
-local function loadMesh(path)
+local function loadMesh(path, preferredTexturePath)
     local fullPath = resolvePath(path) or path
     local directory = pathDirectory(fullPath)
     if directory then mbm.addPath(directory) end
@@ -632,8 +633,16 @@ local function loadMesh(path)
         target.uvOverlapTruncated = overlaps.truncated
     end
     assert(#targets > 0, 'mesh has no file-backed primary texture with UVs')
-    local loadedTexture, textureError = loadTextureInfo(targets[1].path)
-    assert(loadedTexture, textureError or 'could not load the selected texture')
+    local initialTargetIndex = 1
+    if preferredTexturePath then
+        for index, target in ipairs(targets) do
+            if target.path == preferredTexturePath then initialTargetIndex = index; break end
+        end
+        assert(targets[initialTargetIndex].path == preferredTexturePath,
+            'preferred project texture is not used by the mesh')
+    end
+    local textureLoaded, textureInfo = loadTextureInfo(targets[initialTargetIndex].path)
+    assert(textureLoaded, textureInfo or 'could not load the selected texture')
     local previewAsset = meshDebug:new()
     assert(previewAsset:load(fullPath))
     local previewMesh = mesh:new('3d')
@@ -659,7 +668,7 @@ local function loadMesh(path)
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
     frameCamera()
-    assert(selectTarget(1))
+    assert(selectTarget(initialTargetIndex, textureInfo))
     state.projectPath = nil
     state.modified = false
     state.status = string.format('Loaded %s. Paint with right drag; orbit with left drag.', fullPath)
@@ -1511,43 +1520,74 @@ local function saveMeshAs()
     return true
 end
 
+local function validateProjectTarget(project)
+    assert(project.frame == 1, 'project frame is not supported by this editor session')
+    local fullPath = resolvePath(project.source_mesh) or project.source_mesh
+    local targetPath = resolvePath(project.source_texture) or project.source_texture
+    local candidate = meshDebug:new()
+    assert(candidate:load(fullPath))
+    assert(candidate:check())
+    local totalSubsets = assert(candidate:getTotalSubset(project.frame))
+    local targetSubsets, targetTriangles = {}, {}
+    for subset = 1, totalSubsets do
+        local snapshot, errorMessage = Model.snapshotSubset(candidate, project.frame, subset, dpCall)
+        if not snapshot then error(errorMessage or 'could not inspect project mesh', 0) end
+        local snapshotTexture = normalizedTexture(snapshot.texture)
+        if snapshotTexture == targetPath then
+            targetSubsets[#targetSubsets + 1] = subset
+            for _, triangle in ipairs(snapshot.triangles) do
+                triangle.subset = subset
+                targetTriangles[#targetTriangles + 1] = triangle
+            end
+        end
+    end
+    assert(#targetSubsets > 0, 'project texture is not used by the mesh')
+    local selected = false
+    for _, subset in ipairs(targetSubsets) do
+        if subset == project.subset then selected = true; break end
+    end
+    assert(selected, 'project subset is not used by the selected texture')
+    if project.limit_to_uv_island then
+        local islandInfo = Model.buildUvIslands(targetTriangles)
+        local found = false
+        for _, islandId in ipairs(islandInfo.islandByTriangle) do
+            if islandId == project.uv_island then found = true; break end
+        end
+        assert(found, 'project UV island is not used by the selected texture')
+    end
+    return {meshPath=fullPath, texturePath=targetPath, targetSubsets=targetSubsets}
+end
+
 local function openProject(path)
     local ok, project = dpCall(Project.loadLua, resolvePath(path) or path)
     if not ok then
-        state.status = 'Could not load project: ' .. tostring(project)
+        state.status = tLang.L('mtp_project_load_failed') .. ': ' .. tostring(project)
         return false
     end
     local paintRead, paintBytes, paintWidth, paintHeight = dpCall(
         mbm.readImagePixels, project.paint_layer)
     if not paintRead or not paintBytes then
-        state.status = 'Could not read project paint layer.'
+        state.status = tLang.L('mtp_project_load_failed') .. ': paint layer could not be read.'
         return false
     end
     local sourceRead, sourceBytes, sourceWidth, sourceHeight = dpCall(
         mbm.readImagePixels, project.source_texture)
     if not sourceRead or not sourceBytes then
-        state.status = 'Could not read project source texture.'
+        state.status = tLang.L('mtp_project_load_failed') .. ': source texture could not be read.'
         return false
     end
     if paintWidth ~= sourceWidth or paintHeight ~= sourceHeight then
-        state.status = 'Project paint layer dimensions do not match the source texture.'
+        state.status = tLang.L('mtp_project_load_failed') ..
+            ': paint layer dimensions do not match the source texture.'
         return false
     end
-    local loaded = dpCall(loadMesh, project.source_mesh)
+    local inspected, inspection = dpCall(validateProjectTarget, project)
+    if not inspected then
+        state.status = tLang.L('mtp_project_load_failed') .. ': ' .. tostring(inspection)
+        return false
+    end
+    local loaded = dpCall(loadMesh, inspection.meshPath, inspection.texturePath)
     if not loaded then return false end
-    local targetIndex
-    for index, target in ipairs(state.targets) do
-        if target.path == project.source_texture then targetIndex = index; break end
-    end
-    if not targetIndex then error('project texture is not used by the mesh') end
-    assert(selectTarget(targetIndex))
-    assert(ensureEditableTexture())
-    if project.limit_to_subset and not state.target.subsetTriangles[project.subset] then
-        error('project subset is not used by the selected texture')
-    end
-    if project.limit_to_uv_island and not state.target.islandTriangles[project.uv_island] then
-        error('project UV island is not used by the selected texture')
-    end
     state.selectedSubset = project.subset
     state.limitToSubset = project.limit_to_subset == true
     state.selectedUvIsland = project.uv_island
@@ -1558,9 +1598,10 @@ local function openProject(path)
     state.paintThrough = project.projection_mode == 'project_stencil_through'
     state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
         math.floor((project.dilation_radius or 0) + .5)))
-    if paintWidth ~= state.base.width or paintHeight ~= state.base.height then
+    if paintWidth ~= sourceWidth or paintHeight ~= sourceHeight then
         error('project paint layer dimensions do not match the source texture')
     end
+    state.base = Raster.newBuffer(sourceWidth, sourceHeight, sourceBytes)
     state.layer = Raster.newLayer(state.base, 32)
     state.layer.bytes = paintBytes
     state.layer.touched = true
@@ -1570,7 +1611,7 @@ local function openProject(path)
     state.undo, state.redo = {}, {}
     state.projectPath, state.modified = resolvePath(path) or path, false
     state.previewDirty, state.previewRequiresMesh = true, true
-    state.status = 'Project loaded: ' .. state.projectPath
+    state.status = tLang.L('mtp_project_loaded') .. ': ' .. state.projectPath
     return true
 end
 

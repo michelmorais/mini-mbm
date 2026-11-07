@@ -179,7 +179,7 @@ function onLoop()
         elseif stage == 8 then
             pixels(3)
             assert(mbm.readImagePixels(source) == original, 'Painting overwrote the original texture')
-            require('mesh_texture_paint_save_checks').run(state, editorLoop, upvalue, temp)
+            require('mesh_texture_paint_save_checks').run(state, editorLoop, upvalue, temp, rt)
             idleBuilds, idleUploads = state.previewBuilds, state.previewTextureReloads
         else
             assert(state.previewBuilds == idleBuilds and state.previewTextureReloads == idleUploads,

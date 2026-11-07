@@ -8,11 +8,13 @@ para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
 o modo opcional de pintar através e o modo experimental `Surface 3D` também
 estão disponíveis; projeção por imagem continua nas próximas fases.
 
-Milestone de salvamento seguro implementado: projeto Lua + camada PNG e exportação
+Milestone de salvamento seguro e abertura transacional implementado: projeto Lua + camada PNG e exportação
 MSH + PNG são preparados antes da publicação, com restauração dos arquivos
 anteriores quando uma operação de I/O falha. A exportação usa uma cópia da fonte,
-preservando os vínculos privados do preview. Limites e evidências estão nas seções
-8 e 10; a abertura completamente transacional de projetos ainda está pendente.
+preservando os vínculos privados do preview. A abertura agora valida arquivos,
+dimensões, frame, textura, subset e ilha UV antes de substituir a sessão atual.
+Limites e evidências estão nas seções 8 e 10; falhas durante a publicação física
+continuam sendo diagnosticadas pelo mecanismo de recuperação de arquivos.
 
 ## 1. Objetivo
 
@@ -430,6 +432,9 @@ o estado atual.
   publicação simultânea dos dois arquivos para leitores externos.
 - Trocar mesh, textura ou projeto deve cancelar a operação em andamento e liberar
   o preview privado antes de remover temporários.
+- Abrir projeto deve concluir a validação de todos os arquivos e da identidade do
+  alvo (mesh, frame, textura, subset e ilha UV) antes de `loadMesh`; falhas de
+  validação não podem substituir a sessão corrente.
 - Fechar o editor com alterações deve oferecer salvar, descartar ou cancelar.
 
 ## 9. Fases de implementação
@@ -471,9 +476,10 @@ uma lista de meshes incompatíveis.
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
 - Recuperação de gravação após erro de I/O implementada para projeto + camada,
-  MSH + textura e PNG isolado. Abertura de projeto com estado candidato antes de
-  substituir a sessão atual ainda pendente. Undo/Redo por tiles, cancelamento de
-  pincelada e cancelamento do preview já estão disponíveis.
+  MSH + textura e PNG isolado. Abertura de projeto valida os arquivos e o alvo
+  antes de substituir a sessão atual; projetos com textura, subset, ilha ou frame
+  incompatíveis são rejeitados sem alterar a pintura aberta. Undo/Redo por tiles,
+  cancelamento de pincelada e cancelamento do preview já estão disponíveis.
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.
 - Importação/exportação de um conjunto de texturas relacionadas.
 
@@ -528,7 +534,8 @@ Evidência do milestone de salvamento (macOS/Metal):
 - `src/test-lib/mesh_texture_paint_preview_smoke.lua`, com
   `mesh_texture_paint_save_checks.lua`: pintura renderizada, gravação e reabertura
   de PNG/projeto/MSH, preservação de vértices, UVs, animação e material não editado,
-  fontes intactas e sessão preservada após falhas simuladas de I/O. O preview
+  fontes intactas, sessão preservada após falhas simuladas de I/O e rejeição de
+  projetos inválidos (textura, subset, frame, ilha UV e dimensões). O preview
   continua sem rebuild/upload durante os frames ociosos.
 
 Matriz de plataforma ainda a completar:

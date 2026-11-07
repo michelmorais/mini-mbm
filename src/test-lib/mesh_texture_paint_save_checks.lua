@@ -33,14 +33,18 @@ local function write(path, bytes)
     assert(file:write(bytes)); assert(file:close())
 end
 
-function M.run(state, editorLoop, upvalue, temp)
+function M.run(state, editorLoop, upvalue, temp, renderTarget)
     local saveProject = assert(upvalue(editorLoop, 'saveProject'))
+    local openProject = assert(upvalue(editorLoop, 'openProject'))
+    local requestPreview = assert(upvalue(editorLoop, 'requestPreviewRebuild'))
+    local processPreview = assert(upvalue(editorLoop, 'processPreviewJob'))
     local saveMesh = assert(upvalue(editorLoop, 'saveMeshAs'))
     local saveTexture = assert(upvalue(editorLoop, 'saveTextureAs'))
     local project = temp .. '.meshpaint.lua'
     local layer = temp .. '.meshpaint.paint.png'
     local exportedMesh, exportedTexture = temp .. '_painted.msh', temp .. '_painted.png'
     local standalone = temp .. '_standalone.png'
+    local invalidLayer = temp .. '_invalid_layer.png'
     local saveFile, writePixels, rename, saveLua = mbm.saveFile, mbm.writeImagePixels, os.rename, Project.saveLua
     local sourceSave = state.sourceAsset.save
     local sourceMeshBytes, sourceTextureBytes = read(state.meshPath), read(state.target.path)
@@ -63,6 +67,40 @@ function M.run(state, editorLoop, upvalue, temp)
         assert(reopened.paint_layer == layer)
         assert(mbm.readImagePixels(layer) == layerBytes, 'Saved project lost paint pixels')
         local oldProject = read(project)
+
+        local function assertSessionPreserved(path)
+            local beforeMesh, beforeTarget, beforeTexture = state.previewMesh, state.target, state.meshPath
+            local beforeLayer = Raster.toBytes(state.layer)
+            local called, loaded = pcall(openProject, path)
+            assert(called and loaded == false, 'Invalid project was accepted: ' .. path)
+            assert(state.previewMesh == beforeMesh and state.target == beforeTarget and
+                state.meshPath == beforeTexture, 'Invalid project replaced the active session')
+            assert(Raster.toBytes(state.layer) == beforeLayer,
+                'Invalid project changed the active paint layer')
+        end
+        local invalid = Project.copy(Project.loadLua(project))
+        invalid.source_texture = state.meshPath
+        local invalidTextureProject = temp .. '_invalid_texture.lua'
+        assert(Project.saveLua(invalid, invalidTextureProject))
+        assertSessionPreserved(invalidTextureProject)
+        invalid = Project.copy(Project.loadLua(project)); invalid.subset = 99
+        local invalidSubsetProject = temp .. '_invalid_subset.lua'
+        assert(Project.saveLua(invalid, invalidSubsetProject))
+        assertSessionPreserved(invalidSubsetProject)
+        invalid = Project.copy(Project.loadLua(project)); invalid.frame = 2
+        local invalidFrameProject = temp .. '_invalid_frame.lua'
+        assert(Project.saveLua(invalid, invalidFrameProject))
+        assertSessionPreserved(invalidFrameProject)
+        invalid = Project.copy(Project.loadLua(project))
+        invalid.limit_to_uv_island, invalid.uv_island = true, 999
+        local invalidIslandProject = temp .. '_invalid_island.lua'
+        assert(Project.saveLua(invalid, invalidIslandProject))
+        assertSessionPreserved(invalidIslandProject)
+        assert(mbm.writeImagePixels(invalidLayer, string.rep(string.char(0, 0, 0, 0), 1), 1, 1))
+        invalid = Project.copy(Project.loadLua(project)); invalid.paint_layer = invalidLayer
+        local invalidLayerProject = temp .. '_invalid_layer.lua'
+        assert(Project.saveLua(invalid, invalidLayerProject))
+        assertSessionPreserved(invalidLayerProject)
 
         -- Explicit false must be handled as failure, even though the binding did not throw.
         state.modified = true
@@ -152,11 +190,26 @@ function M.run(state, editorLoop, upvalue, temp)
         mbm.saveFile = function() return state.target.path end
         assert(not saveTexture(), 'Source texture can be overwritten')
         assert(read(state.target.path) == sourceTextureBytes)
+
+        -- A valid project replaces the session only after all preflight checks
+        -- pass, and restores the persisted paint layer bytes.
+        if renderTarget then renderTarget:clear() end
+        assert(openProject(project))
+        assert(state.meshPath == Project.loadLua(project).source_mesh)
+        assert(Raster.toBytes(state.layer) == layerBytes, 'Project reopen lost paint pixels')
+        assert(not state.modified)
+        for _ = 1, 8 do
+            requestPreview()
+            if state.previewJob then processPreview() end
+        end
+        assert(not state.previewJob and not state.previewDirty, 'Reopened project preview did not settle')
     end, debug.traceback)
     mbm.saveFile, mbm.writeImagePixels, os.rename, Project.saveLua = saveFile, writePixels, rename, saveLua
     state.sourceAsset.save = sourceSave
     assert(state.previewAsset:setTexture(1, 2, otherPreviewTexture))
-    for _, path in ipairs({project, layer, exportedMesh, exportedTexture, standalone}) do os.remove(path) end
+    for _, path in ipairs({project, layer, exportedMesh, exportedTexture, standalone,
+        invalidLayer, temp .. '_invalid_texture.lua', temp .. '_invalid_subset.lua',
+        temp .. '_invalid_frame.lua', temp .. '_invalid_island.lua', temp .. '_invalid_layer.lua'}) do os.remove(path) end
     assert(ok, err)
     print('MESH TEXTURE PAINT SAVE CHECKS PASS')
 end
