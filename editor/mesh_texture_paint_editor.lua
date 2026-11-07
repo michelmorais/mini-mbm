@@ -32,6 +32,7 @@ local DILATION_RADIUS_MAX = 8
 local PROJECT_SAMPLE_MAX = 33
 local PROJECT_SAMPLE_SPACING = 8
 local PROJECT_STROKE_MAX_STEPS = 32
+local STROKE_POINTS_PER_FRAME = 1
 -- The UV preview is an inspection aid, not part of the paint viewport. Keep
 -- its immediate-mode draw budget bounded because ImGui rebuilds these lines
 -- every frame, including while the editor is idle.
@@ -68,6 +69,7 @@ local state = {
     previewDirty = false,
     compositeDirtyTiles = nil,
     previewJob = nil,
+    previewCancelled = false,
     previewBuilds = 0,
     projectPath = nil,
     modified = false,
@@ -174,8 +176,10 @@ local function clearPreview()
     state.previewMeshPath, state.previewTexturePath, state.previewUiTexturePath = nil, nil, nil
     state.previewTextureIsUiCopy = false
     state.exportTexturePath, state.exportMeshPath, state.exportDirty = nil, nil, true
+    state.previewCancelled = false
     state.compositeDirtyTiles = nil
     state.previewJob = nil
+    state.previewCancelled = false
     state.hoverHit = nil
     state.hoverPickPending = false
     state.hoverPickElapsed = 0
@@ -415,12 +419,72 @@ local function loadPreviewTexture()
 end
 
 local function requestPreviewRebuild()
-    if state.previewDirty and not state.painting and not state.previewJob then
+    if state.previewDirty and not state.painting and not state.previewJob and not state.previewCancelled then
         -- The generated PNG is no longer the texture object already bound by
         -- the preview mesh. Every paint edit therefore needs a mesh reload.
         state.previewRequiresMesh = true
-        state.previewJob = {phase = 'compose', progress = 0}
+        local previous = state.composite or state.base
+        state.previewJob = {
+            phase = 'compose', progress = 0,
+            previousPreview = previous and
+                Raster.newBuffer(previous.width, previous.height, previous.bytes) or nil,
+            previousPreviewTextureIsUiCopy = state.previewTextureIsUiCopy,
+        }
     end
+end
+
+local function restorePreviewBeforeJob(job)
+    local previous = job.previousPreview
+    if not previous then return end
+    state.composite = previous
+    state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
+        state.layer.width - 1, state.layer.height - 1)
+    if state.previewTexturePath then
+        dpCall(mbm.writeImagePixels, state.previewTexturePath, previous.bytes,
+            previous.width, previous.height)
+    end
+    if state.meshPreviewTextureInfo and state.previewTexturePath then
+        dpCall(function() return state.meshPreviewTextureInfo:reload(state.previewTexturePath) end)
+    end
+    if job.previousPreviewTextureIsUiCopy then
+        if state.previewUiTexturePath then
+            dpCall(mbm.writeImagePixels, state.previewUiTexturePath, previous.bytes,
+                previous.width, previous.height)
+            if state.previewTextureInfo then
+                dpCall(function() return state.previewTextureInfo:reload(state.previewUiTexturePath) end)
+            end
+        end
+        state.previewTextureIsUiCopy = true
+        return
+    end
+    if state.previewTextureInfo and state.previewTextureIsUiCopy then
+        dpCall(function() return state.previewTextureInfo:release() end)
+        state.previewTextureInfo = nil
+    end
+    local loaded, textureInfo = loadTextureInfo(state.target.path)
+    if loaded and textureInfo then
+        state.previewTextureInfo = textureInfo
+        state.previewTextureIsUiCopy = false
+    end
+end
+
+local function cancelPreviewJob()
+    local job = state.previewJob
+    if not job then return false end
+    restorePreviewBeforeJob(job)
+    state.previewJob = nil
+    state.previewCancelled = true
+    state.previewDirty = true
+    state.previewRequiresMesh = true
+    state.status = tLang.L('mtp_preview_cancelled')
+    return true
+end
+
+local function resumePreviewJob()
+    state.previewCancelled = false
+    state.previewDirty = true
+    state.previewRequiresMesh = true
+    state.status = tLang.L('mtp_preview_resumed')
 end
 
 local function processPreviewJob()
@@ -586,7 +650,8 @@ local function beginStroke(hit, screenX, screenY)
         lastScreenX=screenX, lastScreenY=screenY, modifiedBefore=state.modified,
         exportDirtyBefore=state.exportDirty, previewDirtyBefore=state.previewDirty,
         previewRequiresMeshBefore=state.previewRequiresMesh, touchedBefore=state.layer.touched,
-        compositeDirtyTilesBefore=state.compositeDirtyTiles}
+        compositeDirtyTilesBefore=state.compositeDirtyTiles, queue={{hit=hit, x=screenX, y=screenY}},
+        queueHead=1, finishRequested=false}
     state.painting = true
     local dab = {x=hit.uv.u*(state.layer.width-1), y=hit.uv.v*(state.layer.height-1),
         radius=state.brush.radius}
@@ -597,6 +662,17 @@ local function beginStroke(hit, screenX, screenY)
             state.stroke.tiles[#state.stroke.tiles+1] = tile
         end
     end
+end
+
+local function enqueueStrokeHit(hit, screenX, screenY)
+    if not (state.stroke and hit and hit.uv) then return end
+    local stroke = state.stroke
+    local previous = stroke.queue[#stroke.queue]
+    if previous then
+        local dx, dy = screenX - previous.x, screenY - previous.y
+        if dx * dx + dy * dy < 1 then return end
+    end
+    stroke.queue[#stroke.queue + 1] = {hit=hit, x=screenX, y=screenY}
 end
 
 local function applyStrokeHit(hit, screenX, screenY)
@@ -663,6 +739,7 @@ local function applyStrokeHit(hit, screenX, screenY)
     if result.changedPixels > 0 then
         state.stroke.changed = true
         state.previewDirty = true
+        state.previewCancelled = false
         state.modified = true
     end
 end
@@ -1186,6 +1263,22 @@ local function cancelStroke()
     return true
 end
 
+local function processPendingStroke()
+    local stroke = state.stroke
+    if not stroke then return end
+    local processed = 0
+    while stroke.queueHead <= #stroke.queue and processed < STROKE_POINTS_PER_FRAME do
+        local point = stroke.queue[stroke.queueHead]
+        stroke.queueHead = stroke.queueHead + 1
+        applyStrokeHit(point.hit, point.x, point.y)
+        processed = processed + 1
+    end
+    if stroke.queueHead > #stroke.queue then
+        stroke.queue, stroke.queueHead = {}, 1
+        if stroke.finishRequested then finishStroke() end
+    end
+end
+
 local function history(redo)
     local source = redo and state.redo or state.undo
     local destination = redo and state.undo or state.redo
@@ -1197,6 +1290,7 @@ local function history(redo)
     destination[#destination+1] = {before=to, after=from}
     state.compositeDirtyTiles = from.tiles
     state.previewDirty = true
+    state.previewCancelled = false
     state.modified = true
     state.exportDirty = true
 end
@@ -1303,6 +1397,7 @@ end
 local function preparePreviewForExport()
     if not state.previewAsset or not state.target then return false, 'no mesh loaded' end
     finishStroke()
+    state.previewCancelled = false
     requestPreviewRebuild()
     local guard = 0
     while state.previewJob and guard < 8 do
@@ -1506,6 +1601,16 @@ local function showControls()
             tImGui.ProgressBar(state.previewJob.progress, {x=-1,y=0},
                 string.format('%.0f%%', state.previewJob.progress * 100))
         end
+        if state.previewCancelled then
+            tImGui.TextWrapped(tLang.L('mtp_preview_cancelled'))
+            if tImGui.Button(tLang.L('mtp_resume_preview')) then resumePreviewJob() end
+        end
+        if state.stroke and state.stroke.queue then
+            local pending = math.max(0, #state.stroke.queue - state.stroke.queueHead + 1)
+            if pending > 0 then
+                tImGui.Text(string.format(tLang.L('mtp_processing_stroke'), pending))
+            end
+        end
         if #state.targets > 0 then
             local labels = {}
             for _, target in ipairs(state.targets) do labels[#labels+1] = tUtil.getShortName(target.path) end
@@ -1657,6 +1762,7 @@ local function showControls()
         if changed then
             state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX, math.floor(value + .5)))
             state.previewDirty = true
+            state.previewCancelled = false
             state.modified = true
             state.exportDirty = true
             if state.layer then
@@ -1760,6 +1866,7 @@ end
 
 function onLoop(delta)
     tLang.applyPendingLanguage()
+    processPendingStroke()
     requestPreviewRebuild()
     processHoverPick(delta)
     if state.previewJob and not state.painting then
@@ -1803,7 +1910,6 @@ function onTouchDown(key, x, y)
             pickColorAtHit(hit)
         else
             beginStroke(hit, x, y)
-            applyStrokeHit(hit, x, y)
         end
     elseif key == 2 then
         state.panning = true
@@ -1819,7 +1925,7 @@ function onTouchMove(key, x, y)
     if state.painting then
         local hit = hitAtScreen(x, y)
         state.hoverHit = hit
-        applyStrokeHit(hit, x, y)
+        enqueueStrokeHit(hit, x, y)
     elseif state.orbiting then
         state.cameraOrbit.azimuth = state.cameraOrbit.azimuth + dx * .005
         state.cameraOrbit.elevation = math.max(-math.pi*.49,
@@ -1845,7 +1951,9 @@ end
 
 function onTouchUp(key, x, y)
     local captured = imguiCapturesMouse()
-    if key == 1 then finishStroke() end
+    if key == 1 then
+        if state.stroke then state.stroke.finishRequested = true else finishStroke() end
+    end
     state.orbiting, state.panning = false, false
     state.mouse.x, state.mouse.y = x, y
     if key ~= 1 and not captured then state.hoverPickPending = true end
@@ -1862,6 +1970,10 @@ end
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') and state.stroke then
         cancelStroke()
+        return
+    end
+    if key == mbm.getKeyCode('ESC') and state.previewJob then
+        cancelPreviewJob()
         return
     end
     if imguiCapturesKeyboard() then return end

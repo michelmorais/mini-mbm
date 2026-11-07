@@ -402,6 +402,8 @@ o estado atual.
 ## 8. Histórico, cancelamento e atomicidade
 
 - Um stroke completo é uma unidade de Undo.
+- A composição do preview é um job cooperativo por fases; `Esc` pode cancelá-lo
+  entre fases, preservando a última prévia válida e as pinturas pendentes.
 - Para texturas grandes, o histórico deve guardar tiles anteriores e posteriores,
   não duas cópias completas da camada.
 - `Ctrl+Z` deve restaurar pixels da camada de pintura e marcar composição e preview
@@ -452,8 +454,9 @@ uma lista de meshes incompatíveis.
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
-- Melhorias adicionais de recuperação após erro de I/O (Undo/Redo por tiles e
-  cancelamento transacional de pincelada já estão disponíveis).
+- Melhorias adicionais de recuperação após erro de I/O (Undo/Redo por tiles,
+  cancelamento transacional de pincelada e cancelamento do preview já estão
+  disponíveis).
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.
 - Importação/exportação de um conjunto de texturas relacionadas.
 
