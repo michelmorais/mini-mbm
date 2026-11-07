@@ -131,6 +131,24 @@ local function tileSizeOf(buffer)
     return integer(buffer.tileSize or M.DEFAULT_TILE_SIZE, 'tileSize')
 end
 
+local function copyBounds(bounds)
+    if not bounds then return nil end
+    return {
+        minX = bounds.minX, minY = bounds.minY,
+        maxX = bounds.maxX, maxY = bounds.maxY,
+    }
+end
+
+local function expandBounds(buffer, x, y)
+    local bounds = buffer.alphaBounds
+    if not bounds then
+        buffer.alphaBounds = {minX = x, minY = y, maxX = x, maxY = y}
+        return
+    end
+    bounds.minX, bounds.minY = math.min(bounds.minX, x), math.min(bounds.minY, y)
+    bounds.maxX, bounds.maxY = math.max(bounds.maxX, x), math.max(bounds.maxY, y)
+end
+
 local function addDirtyTile(layer, tileX, tileY)
     local key = tileKey(tileX, tileY)
     if layer.dirtyTiles[key] then return end
@@ -153,6 +171,7 @@ end
 local function markDirty(layer, x, y)
     local tileSize = tileSizeOf(layer)
     addDirtyTile(layer, math.floor(x / tileSize), math.floor(y / tileSize))
+    expandBounds(layer, x, y)
 end
 
 local function copyTile(buffer, tile)
@@ -239,6 +258,7 @@ function M.newLayer(width, height, tileSize)
     layer.tileSize = integer(tileSize or M.DEFAULT_TILE_SIZE, 'tileSize')
     layer.dirtyTiles = {}
     layer.dirtyTileList = {}
+    layer.alphaBounds = nil
     return layer
 end
 
@@ -247,6 +267,7 @@ function M.cloneLayer(layer)
     local clone = M.newLayer(layer.width, layer.height, layer.tileSize or M.DEFAULT_TILE_SIZE)
     clone.bytes = M.syncBytes(layer)
     clone.touched = layer.touched == true
+    clone.alphaBounds = copyBounds(layer.alphaBounds)
     return clone
 end
 
@@ -373,9 +394,28 @@ function M.restoreTiles(buffer, snapshot)
         assert(type(tile.bytes) == 'string' and #tile.bytes == tile.width * tile.height * M.BYTES_PER_PIXEL,
             'invalid tile snapshot')
         replaceTileRows(buffer, tile, tile.bytes)
-        if buffer.dirtyTiles then addDirtyTile(buffer, tile.tileX, tile.tileY) end
+        if buffer.dirtyTiles then
+            addDirtyTile(buffer, tile.tileX, tile.tileY)
+            expandBounds(buffer, tile.x, tile.y)
+            expandBounds(buffer, tile.x + tile.width - 1, tile.y + tile.height - 1)
+        end
     end
     return buffer
+end
+
+function M.refreshAlphaBounds(buffer)
+    assertBuffer(buffer, 'buffer')
+    local rows = rowsOf(buffer)
+    buffer.alphaBounds = nil
+    for y = 0, buffer.height - 1 do
+        local line = rows[y + 1]
+        for x = 0, buffer.width - 1 do
+            if line:byte(x * M.BYTES_PER_PIXEL + 4) > 0 then
+                expandBounds(buffer, x, y)
+            end
+        end
+    end
+    return copyBounds(buffer.alphaBounds)
 end
 
 local function dabOptions(x, radius, hardness, opacity, color, mode)
@@ -655,26 +695,16 @@ function M.dilate(layer, radius, deferSync)
         return {changedPixels = 0, dirtyTiles = {}}
     end
 
-    local sourceRows = rowsOf(layer)
-    local minX, minY = layer.width, layer.height
-    local maxX, maxY = -1, -1
-    for y = 0, layer.height - 1 do
-        local line = sourceRows[y + 1]
-        for x = 0, layer.width - 1 do
-            if line:byte(x * M.BYTES_PER_PIXEL + 4) > 0 then
-                minX, maxX = math.min(minX, x), math.max(maxX, x)
-                minY, maxY = math.min(minY, y), math.max(maxY, y)
-            end
-        end
-    end
-    if maxX < minX or maxY < minY then
+    local bounds = layer.alphaBounds or M.refreshAlphaBounds(layer)
+    if not bounds then
         return {changedPixels = 0, dirtyTiles = {}}
     end
 
-    local left = math.max(0, minX - radius)
-    local right = math.min(layer.width - 1, maxX + radius)
-    local top = math.max(0, minY - radius)
-    local bottom = math.min(layer.height - 1, maxY + radius)
+    local sourceRows = rowsOf(layer)
+    local left = math.max(0, bounds.minX - radius)
+    local right = math.min(layer.width - 1, bounds.maxX + radius)
+    local top = math.max(0, bounds.minY - radius)
+    local bottom = math.min(layer.height - 1, bounds.maxY + radius)
     local changedRows = {}
     for y = top, bottom do
         changedRows[y] = stringToBytes(sourceRows[y + 1],

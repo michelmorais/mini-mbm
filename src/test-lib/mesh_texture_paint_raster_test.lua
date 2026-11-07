@@ -145,4 +145,11 @@ assertPixel(padded, 2, 1, 40, 80, 120, 255)
 assertPixel(padded, 2, 3, 40, 80, 120, 255)
 assertPixel(paddingSource, 1, 2, 0, 0, 0, 0, 'dilation must not mutate the source layer')
 
+local erasedLayer = Raster.newLayer(8, 8, 2)
+Raster.paint(erasedLayer, {x = 4, y = 4, radius = 0, hardness = 1, opacity = 1,
+    color = {10, 20, 30, 255}})
+Raster.erase(erasedLayer, {x = 4, y = 4, radius = 0, hardness = 1, opacity = 1})
+local erasedPadding = Raster.dilate(erasedLayer, 2)
+assert(erasedPadding.changedPixels == 0, 'dilation must ignore a fully erased layer')
+
 print('mesh texture paint raster tests passed')
