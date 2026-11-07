@@ -16,6 +16,9 @@ dimensões, frame, textura, subset e ilha UV antes de substituir a sessão atual
 Limites e evidências estão nas seções 8 e 10; falhas durante a publicação física
 continuam sendo diagnosticadas pelo mecanismo de recuperação de arquivos.
 
+Validação de plataforma: Linux/OpenGL ES e macOS/Metal estão concluídos. O único
+gate de backend ainda pendente é Windows com DirectX 9 e DirectX 11.
+
 ## 1. Objetivo
 
 Criar um editor independente, baseado em Lua e ImGui, para retocar a textura de
@@ -523,7 +526,7 @@ uma lista de meshes incompatíveis.
 
 ### Validação visual e de plataforma
 
-Evidência do milestone de salvamento (macOS/Metal):
+Evidência do milestone de salvamento:
 
 - `src/test-lib/mesh_texture_paint_io_test.lua`: arquivos existentes e novos,
   falhas de escrita/renomeação, restauração e retenção do backup quando a própria
@@ -538,13 +541,19 @@ Evidência do milestone de salvamento (macOS/Metal):
   projetos inválidos (textura, subset, frame, ilha UV e dimensões). O preview
   continua sem rebuild/upload durante os frames ociosos.
 
-Matriz de plataforma ainda a completar:
+Status de execução dos backends:
 
-- Linux/OpenGL ES no primeiro ciclo automatizado.
-- Windows/DirectX 9 e DirectX 11 para validar reload, alpha e render target/cache.
-- macOS/Metal para validar preview e caminhos de textura.
-- Repetir testes com textura sem alpha, alpha parcial, UV invertido, seams e
-  materiais com múltiplos subsets.
+- Linux/OpenGL ES: validado.
+- macOS/Metal: validado.
+- Windows/DirectX 9 e DirectX 11: pendente; ainda falta executar o smoke nativo
+  e verificar reload, alpha, render target/cache e publicação dos arquivos.
+
+Casos que devem ser repetidos no Windows durante esse gate:
+
+- textura sem alpha e com alpha parcial;
+- UV invertido e seams;
+- múltiplos subsets e preview render-to-texture;
+- reload da textura sem rebuild contínuo da mesh.
 
 ## 11. Riscos e decisões em aberto
 
