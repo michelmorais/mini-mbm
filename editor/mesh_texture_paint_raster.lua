@@ -500,6 +500,77 @@ function M.applyDab(layer, x, radius, hardness, opacity, color, mode)
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
 
+function M.tilesForPixels(buffer, samples)
+    assertBuffer(buffer)
+    assert(type(samples) == 'table', 'samples must be a table')
+    local result, seen = {}, {}
+    for _, sample in ipairs(samples) do
+        if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
+            for _, tile in ipairs(M.tilesForRect(buffer, sample.x, sample.y, sample.x, sample.y)) do
+                if not seen[tile.key] then
+                    seen[tile.key] = true
+                    result[#result + 1] = tile
+                end
+            end
+        end
+    end
+    return result
+end
+
+function M.applyProjectedSamples(layer, samples, opacity, color, deferSync)
+    assertBuffer(layer, 'layer')
+    assert(layer.tileSize, 'applyProjectedSamples requires a layer created by newLayer')
+    assert(type(samples) == 'table', 'samples must be a table')
+    local normalizedColor = normalizeColor(color)
+    opacity = clamp(finiteNumber(opacity, 1), 0, 1)
+    local strongest = {}
+    for _, sample in ipairs(samples) do
+        if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
+            local centerX, centerY = sample.x, sample.y
+            local sampleRadius = math.max(0, finiteNumber(sample.radius, 0))
+            local left = math.max(0, math.floor(centerX - sampleRadius))
+            local right = math.min(layer.width - 1, math.ceil(centerX + sampleRadius))
+            local top = math.max(0, math.floor(centerY - sampleRadius))
+            local bottom = math.min(layer.height - 1, math.ceil(centerY + sampleRadius))
+            for y = top, bottom do
+                for x = left, right do
+                    local distance = math.sqrt((x - centerX) ^ 2 + (y - centerY) ^ 2)
+                    local coverage = sampleRadius > 0 and falloff(distance, sampleRadius, 1) or
+                        (distance == 0 and 1 or 0)
+                    local amount = clamp(finiteNumber(sample.amount, 0), 0, 1) * coverage
+                    local key = x .. ':' .. y
+                    if amount > (strongest[key] or 0) then strongest[key] = amount end
+                end
+            end
+        end
+    end
+    local rows = rowsOf(layer)
+    local changedPixels = 0
+    for key, amount in pairs(strongest) do
+        if amount > 0 then
+            local separator = key:find(':', 1, true)
+            local x = tonumber(key:sub(1, separator - 1))
+            local y = tonumber(key:sub(separator + 1))
+            local row = rows[y + 1]
+            local offset = x * M.BYTES_PER_PIXEL + 1
+            local oldR, oldG, oldB, oldA = row:byte(offset, offset + 3)
+            local newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
+                normalizedColor, amount * opacity * normalizedColor.a)
+            if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
+                rows[y + 1] = row:sub(1, offset - 1) .. string.char(newR, newG, newB, newA) ..
+                    row:sub(offset + 4)
+                markDirty(layer, x, y)
+                changedPixels = changedPixels + 1
+            end
+        end
+    end
+    if changedPixels > 0 then
+        layer.touched = true
+        if not deferSync then M.syncBytes(layer) end
+    end
+    return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
+end
+
 function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY)
     assertBuffer(layer, 'layer')
     assert(type(stamp) == 'table' and type(stamp.bytes) == 'string', 'stamp must contain bytes')

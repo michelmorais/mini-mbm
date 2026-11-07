@@ -2,8 +2,9 @@
 
 Status: em implementação. O milestone vertical atual já abre MSH, faz picking
 3D, pinta uma camada UV, mantém preview privado, salva projetos Lua, exporta
-textura composta e MSH derivada e mostra a revisão 2D com overlay UV; stencil e
-dilatação de seams continuam nas próximas fases.
+textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
+projeção de cor sólida pela câmera em superfícies visíveis; projeção por imagem,
+pintar através e dilatação de seams continuam nas próximas fases.
 
 ## 1. Objetivo
 
@@ -191,7 +192,8 @@ materiais e demais referências não editadas.
 ### Painel UV/Texture
 
 - preview da textura editada em 2D;
-- overlay dos triângulos UV da mesh selecionada;
+- overlay opcional dos triângulos UV da mesh selecionada, com orçamento limitado
+  de desenho para não elevar a CPU durante a edição parada;
 - overlay do último hit e da área do pincel;
 - zoom e pan independentes;
 - opção de mostrar apenas a ilha UV selecionada;

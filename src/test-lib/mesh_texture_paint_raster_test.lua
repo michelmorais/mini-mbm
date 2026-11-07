@@ -118,4 +118,18 @@ assert(afterEraseR == 200 and afterEraseG == 100 and afterEraseB == 50 and after
 Raster.restoreTiles(partial, partialSnapshot)
 assertPixel(partial, 0, 0, 200, 100, 50, 128)
 
+local projected = Raster.newLayer(8, 8, 2)
+local projectedSamples = {
+    {x=2, y=2, amount=1},
+    {x=2, y=2, amount=.25},
+    {x=4, y=4, amount=.5},
+}
+local projectedResult = Raster.applyProjectedSamples(projected, projectedSamples, 1,
+    {r=255, g=0, b=255, a=255}, false)
+assert(projectedResult.changedPixels == 2, 'projected samples must merge duplicate destination pixels')
+assertPixel(projected, 2, 2, 255, 0, 255, 255)
+assertPixel(projected, 4, 4, 255, 0, 255, 128)
+assert(#Raster.tilesForPixels(projected, projectedSamples) == 2,
+    'projected samples must report unique dirty tiles')
+
 print('mesh texture paint raster tests passed')

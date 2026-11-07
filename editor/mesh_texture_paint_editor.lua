@@ -28,7 +28,13 @@ local Project = require 'mesh_texture_paint_project'
 
 local STAMP_RESOLUTION_MIN = 9
 local STAMP_RESOLUTION_MAX = 257
-local UV_OVERLAY_MAX_TRIANGLES = 12000
+local PROJECT_SAMPLE_MAX = 33
+local PROJECT_SAMPLE_SPACING = 8
+local PROJECT_STROKE_MAX_STEPS = 32
+-- The UV preview is an inspection aid, not part of the paint viewport. Keep
+-- its immediate-mode draw budget bounded because ImGui rebuilds these lines
+-- every frame, including while the editor is idle.
+local UV_OVERLAY_MAX_TRIANGLES = 2048
 local CAMERA_WINDOW_MAX_HEIGHT = 390
 
 local state = {
@@ -69,10 +75,12 @@ local state = {
     status = 'Open an MSH to start painting.',
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
-        showUvOverlay = true, color = {r=1,g=0,b=0,a=1}},
+        showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
     brushMaxRadius = 64,
     meshDiagonal = 1,
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
+    cameraRevision = 0,
+    cursorCache = {},
     mouse = {x=0, y=0},
     hoverHit = nil,
     hoverPickPending = false,
@@ -93,6 +101,7 @@ local state = {
 
 local brushUvDerivatives
 local stopPreviewAnimations
+local projectSamplesAtScreen
 
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
@@ -172,6 +181,10 @@ local function applyCamera()
     state.camera:setPos(x, y, z)
     state.camera:setFocus(c.fx, c.fy, c.fz)
     state.camera:setFar(math.max(2000, c.distance * 12))
+    state.cameraRevision = state.cameraRevision + 1
+    state.hoverHit = nil
+    state.hoverPickPending = true
+    state.hoverPickElapsed = 0
 end
 
 local function frameCamera()
@@ -415,8 +428,9 @@ local function loadMesh(path)
     state.status = string.format('Loaded %s. Paint with right drag; orbit with left drag.', fullPath)
 end
 
-local function beginStroke(hit)
-    state.stroke = {before={}, tiles={}, changed=false, lastU=hit.uv.u, lastV=hit.uv.v}
+local function beginStroke(hit, screenX, screenY)
+    state.stroke = {before={}, tiles={}, changed=false, lastU=hit.uv.u, lastV=hit.uv.v,
+        lastScreenX=screenX, lastScreenY=screenY}
     state.painting = true
     local dab = {x=hit.uv.u*(state.layer.width-1), y=hit.uv.v*(state.layer.height-1),
         radius=state.brush.radius}
@@ -435,14 +449,39 @@ local function applyStrokeHit(hit, screenX, screenY)
     local x = math.max(0, math.min(state.layer.width-1, hit.uv.u*(state.layer.width-1)))
     local y = math.max(0, math.min(state.layer.height-1, hit.uv.v*(state.layer.height-1)))
     local radius = state.brush.radius
-    for _, tile in ipairs(Raster.tilesForDab(state.layer, x, y, radius)) do
+    local projectedSamples
+    if state.brush.mode == 'project' and screenX and screenY then
+        projectedSamples = {}
+        local lastX = state.stroke.lastScreenX or screenX
+        local lastY = state.stroke.lastScreenY or screenY
+        local distance = math.sqrt((screenX - lastX) ^ 2 + (screenY - lastY) ^ 2)
+        local steps = math.min(PROJECT_STROKE_MAX_STEPS,
+            math.max(1, math.ceil(distance / PROJECT_SAMPLE_SPACING)))
+        for step = 1, steps do
+            local interpolation = step / steps
+            local sampleX = lastX + (screenX - lastX) * interpolation
+            local sampleY = lastY + (screenY - lastY) * interpolation
+            local sampleHit = step == steps and hit or hitAtScreen(sampleX, sampleY)
+            if sampleHit then
+                local samples = projectSamplesAtScreen(sampleHit, sampleX, sampleY)
+                for _, sample in ipairs(samples or {}) do projectedSamples[#projectedSamples + 1] = sample end
+            end
+        end
+        state.stroke.lastScreenX, state.stroke.lastScreenY = screenX, screenY
+    end
+    local tiles = projectedSamples and Raster.tilesForPixels(state.layer, projectedSamples) or
+        Raster.tilesForDab(state.layer, x, y, radius)
+    for _, tile in ipairs(tiles) do
         if not state.stroke.before[tile.key] then
             state.stroke.before[tile.key] = Raster.snapshotTiles(state.layer, {tile}).tiles[1]
             state.stroke.tiles[#state.stroke.tiles+1] = tile
         end
     end
     local result
-    if state.brush.mode == 'stamp' and state.stamp then
+    if state.brush.mode == 'project' and projectedSamples then
+        result = Raster.applyProjectedSamples(state.layer, projectedSamples, state.brush.opacity,
+            colorBytes(), true)
+    elseif state.brush.mode == 'stamp' and state.stamp then
         local destinationDerivatives = screenX and screenY and
             brushUvDerivatives(hit, screenX, screenY)
         local flipU = destinationDerivatives and
@@ -451,11 +490,12 @@ local function applyStrokeHit(hit, screenX, screenY)
             ((destinationDerivatives.dvDy < 0) ~= (state.stamp.sourceFlipV == true)) or false
         result = Raster.applyStamp(state.layer, state.stamp.patch, x, y, radius,
             state.brush.hardness, state.brush.opacity, true, flipU, flipV)
-    else
+    elseif state.brush.mode == 'paint' or state.brush.mode == 'erase' then
         result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
             hardness=state.brush.hardness, opacity=state.brush.opacity,
             color=colorBytes(), mode=state.brush.mode, deferSync=true})
     end
+    if not result then return end
     if result.changedPixels > 0 then
         state.stroke.changed = true
         state.previewDirty = true
@@ -574,6 +614,25 @@ local function equivalentScreenRadius(points, center)
     return math.sqrt(total / count)
 end
 
+local function cachedBrushCursorGeometry(hit, rayX, rayY, drawX, drawY)
+    local cache = state.cursorCache
+    if cache.hit == hit and cache.rayX == rayX and cache.rayY == rayY and
+            cache.drawX == drawX and cache.drawY == drawY and
+            cache.radius == state.brush.radius and cache.textureWidth == state.textureWidth and
+            cache.textureHeight == state.textureHeight and cache.cameraRevision == state.cameraRevision then
+        return cache.points, cache.screenRadius
+    end
+    local points = brushCursorPoints(hit, rayX, rayY, drawX, drawY)
+    local screenRadius = points and equivalentScreenRadius(points, {x=drawX,y=drawY}) or nil
+    cache.hit, cache.rayX, cache.rayY = hit, rayX, rayY
+    cache.drawX, cache.drawY = drawX, drawY
+    cache.radius = state.brush.radius
+    cache.textureWidth, cache.textureHeight = state.textureWidth, state.textureHeight
+    cache.cameraRevision = state.cameraRevision
+    cache.points, cache.screenRadius = points, screenRadius
+    return points, screenRadius
+end
+
 local function pickColorAtHit(hit)
     if not (hit and hit.uv and state.layer and state.base) then
         state.status = tLang.L('mtp_pick_no_surface')
@@ -600,6 +659,46 @@ local function pointInsidePolygon(x, y, points)
         previous = current
     end
     return inside
+end
+
+projectSamplesAtScreen = function(hit, screenX, screenY)
+    ensureTargetPickAcceleration()
+    local footprint = brushCursorPoints(hit, screenX, screenY, screenX, screenY)
+    if not footprint then return nil end
+    local screenRadius = equivalentScreenRadius(footprint, {x=screenX,y=screenY})
+    if not screenRadius or screenRadius <= 0 then return nil end
+    local diameter = screenRadius * 2
+    local side = math.min(PROJECT_SAMPLE_MAX,
+        math.max(9, math.ceil(diameter / PROJECT_SAMPLE_SPACING) + 1))
+    if side % 2 == 0 then side = math.min(PROJECT_SAMPLE_MAX, side + 1) end
+    local samples = {}
+    for row = 0, side - 1 do
+        local sampleY = screenY - screenRadius + diameter * row / (side - 1)
+        for column = 0, side - 1 do
+            local sampleX = screenX - screenRadius + diameter * column / (side - 1)
+            local normalizedX = (sampleX - screenX) / screenRadius
+            local normalizedY = (sampleY - screenY) / screenRadius
+            local distance = math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
+            if distance <= 1 then
+                local sampleHit = hitAtScreen(sampleX, sampleY)
+                if sampleHit and sampleHit.uv then
+                    local inner = state.brush.hardness
+                    local amount = distance <= inner and 1 or
+                        (inner >= 1 and 0 or math.max(0, 1 - (distance - inner) / (1 - inner)))
+                    if amount > 0 then
+                        samples[#samples + 1] = {
+                            x = sampleHit.uv.u * (state.layer.width - 1),
+                            y = sampleHit.uv.v * (state.layer.height - 1),
+                            amount = amount,
+                            radius = math.max(1, state.brush.radius * 1.25 /
+                                math.max(1, side - 1)),
+                        }
+                    end
+                end
+            end
+        end
+    end
+    return samples
 end
 
 local function captureStampFromView(hit, screenX, screenY, buffer, radius)
@@ -692,10 +791,11 @@ local function showBrushCursor()
     end
     local outlineColor = {r=0,g=0,b=0,a=.95}
     tImGui.SetImDrawListToForeground(true)
-    local points = brushCursorPoints(state.hoverHit, state.mouse.x, state.mouse.y, mouse.x, mouse.y)
+    local points, screenRadius = cachedBrushCursorGeometry(state.hoverHit,
+        state.mouse.x, state.mouse.y, mouse.x, mouse.y)
     if points then
         if state.brush.screenCircle then
-            local radius = equivalentScreenRadius(points, mouse)
+            local radius = screenRadius
             local center = {x=mouse.x,y=mouse.y}
             local visibleRadius = math.max(4, radius)
             if highContrast then tImGui.AddCircle(center, visibleRadius, outlineColor, 32, 4) end
@@ -844,7 +944,7 @@ local function makeProject(projectPath)
         subset = firstSubset,
         texture_role = 'base_color',
         uv_channel = 0,
-        projection_mode = 'uv_brush',
+        projection_mode = state.brush.mode == 'project' and 'project_stencil' or 'uv_brush',
         dilation_radius = 0,
     }
 end
@@ -1023,6 +1123,7 @@ local function openProject(path)
     if not targetIndex then error('project texture is not used by the mesh') end
     assert(selectTarget(targetIndex))
     assert(ensureEditableTexture())
+    state.brush.mode = project.projection_mode == 'project_stencil' and 'project' or 'paint'
     local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
     if not readOk or not bytes then error('could not read project paint layer') end
     if width ~= state.base.width or height ~= state.base.height then
@@ -1078,6 +1179,15 @@ local function showMenu()
     tImGui.EndMainMenuBar()
 end
 
+local function showBrushModeTooltip(key)
+    if not tImGui.IsItemHovered(0) then return end
+    tImGui.BeginTooltip()
+    tImGui.PushTextWrapPos(420)
+    tImGui.TextWrapped(tLang.L(key))
+    tImGui.PopTextWrapPos()
+    tImGui.EndTooltip()
+end
+
 local function showControls()
     tUtil.setInitialWindowPositionLeft(state.titles.controls, 0, 20, 340)
     local opened = tImGui.Begin(state.titles.controls, true, 0)
@@ -1106,17 +1216,24 @@ local function showControls()
         end
         tImGui.Text(tLang.L('mtp_mode'))
         local modeIndex = state.brush.mode == 'paint' and 1 or state.brush.mode == 'erase' and 2 or
-            state.brush.mode == 'pick' and 3 or 4
+            state.brush.mode == 'pick' and 3 or state.brush.mode == 'stamp' and 4 or 5
         local oldModeIndex = modeIndex
         modeIndex = tImGui.RadioButton(tLang.L('mtp_paint'), modeIndex, 1)
+        showBrushModeTooltip('mtp_paint_tooltip')
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(tLang.L('mtp_erase'), modeIndex, 2)
+        showBrushModeTooltip('mtp_erase_tooltip')
         modeIndex = tImGui.RadioButton(tLang.L('mtp_pick_color'), modeIndex, 3)
+        showBrushModeTooltip('mtp_pick_color_tooltip')
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(tLang.L('mtp_stamp'), modeIndex, 4)
+        showBrushModeTooltip('mtp_stamp_tooltip')
+        tImGui.SameLine()
+        modeIndex = tImGui.RadioButton(tLang.L('mtp_project_stencil'), modeIndex, 5)
+        showBrushModeTooltip('mtp_project_stencil_tooltip')
         if modeIndex ~= oldModeIndex then
             state.brush.mode = modeIndex == 1 and 'paint' or modeIndex == 2 and 'erase' or
-                modeIndex == 3 and 'pick' or 'stamp'
+                modeIndex == 3 and 'pick' or modeIndex == 4 and 'stamp' or 'project'
         end
         if state.brush.mode == 'stamp' then
             tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))
@@ -1176,6 +1293,7 @@ local function showTexture()
         if state.previewTextureInfo and state.previewTextureInfo:isLoaded() then
             state.brush.showUvOverlay = tImGui.Checkbox(tLang.L('mtp_show_uv_overlay'),
                 state.brush.showUvOverlay)
+            showBrushModeTooltip('mtp_show_uv_overlay_tooltip')
             local reservedHeight = stampShown and 190 or 30
             local size = math.max(64, math.min(300, available.x, available.y - reservedHeight))
             local origin = tImGui.GetCursorScreenPos()
@@ -1279,7 +1397,7 @@ function onTouchDown(key, x, y)
         elseif state.brush.mode == 'pick' then
             pickColorAtHit(hit)
         else
-            beginStroke(hit)
+            beginStroke(hit, x, y)
             applyStrokeHit(hit, x, y)
         end
     elseif key == 2 then
