@@ -118,7 +118,8 @@ O MVP oferece dois modos complementares:
 Quando uma textura é compartilhada por vários subsets, o painel oferece `Limitar
 ao subset`. Com o filtro ativo, picking, pintura, Surface 3D, Project/Stencil e
 overlay UV usam somente os triângulos do subset escolhido; o estado é persistido
-no projeto Lua.
+no projeto Lua. O painel também oferece `Limitar a ilha UV`; ilhas são separadas
+por seams e só conectam triângulos que compartilham posição e UV.
 
 Um pincel de superfície 3D que acompanha a curvatura e atravessa seams será
 avaliado depois do MVP. Triplanar fica reservado para materiais repetitivos e não
@@ -447,7 +448,7 @@ uma lista de meshes incompatíveis.
 - Pintura por superfície 3D para reduzir artefatos em curvaturas (primeira versão
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
-- Máscara por material/ilha UV (o filtro por subset já está disponível).
+- Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
 - Melhorias de histórico por tiles, cancelamento e recuperação após erro de I/O.
 - Múltiplas camadas de pintura, máscaras e composição normal, alpha e multiplicação.
 - Importação/exportação de um conjunto de texturas relacionadas.

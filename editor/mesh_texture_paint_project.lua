@@ -50,6 +50,8 @@ local KNOWN_FIELDS = {
     projection_mode = true,
     dilation_radius = true,
     limit_to_subset = true,
+    limit_to_uv_island = true,
+    uv_island = true,
 }
 
 local PROJECTION_MODES = {
@@ -117,6 +119,8 @@ function M.defaults()
         projection_mode = 'uv_brush',
         dilation_radius = 0,
         limit_to_subset = false,
+        limit_to_uv_island = false,
+        uv_island = 1,
     }
 end
 
@@ -160,6 +164,8 @@ function M.validate(project)
         project.dilation_radius <= M.MAX_DILATION_RADIUS,
         'dilation_radius must be a finite number from 0 to ' .. M.MAX_DILATION_RADIUS)
     assert(type(project.limit_to_subset) == 'boolean', 'limit_to_subset must be boolean')
+    assert(type(project.limit_to_uv_island) == 'boolean', 'limit_to_uv_island must be boolean')
+    assert(validInteger(project.uv_island, 1, M.MAX_INDEX), 'uv_island must be a positive integer')
     return project
 end
 
@@ -250,6 +256,8 @@ function M.save(project, path)
         'projection_mode=' .. project.projection_mode,
         'dilation_radius=' .. formatNumber(project.dilation_radius),
         'limit_to_subset=' .. tostring(project.limit_to_subset),
+        'limit_to_uv_island=' .. tostring(project.limit_to_uv_island),
+        'uv_island=' .. tostring(project.uv_island),
     }
     if project.working_texture ~= nil then
         lines[#lines + 1] = 'working_texture=' .. M.encodePath(project.working_texture)
@@ -276,6 +284,8 @@ function M.saveLua(project, path)
         '    projection_mode = ' .. luaString(project.projection_mode) .. ',',
         '    dilation_radius = ' .. formatNumber(project.dilation_radius) .. ',',
         '    limit_to_subset = ' .. tostring(project.limit_to_subset) .. ',',
+        '    limit_to_uv_island = ' .. tostring(project.limit_to_uv_island) .. ',',
+        '    uv_island = ' .. tostring(project.uv_island) .. ',',
         '}',
     }
     writeFile(path, table.concat(lines, '\n') .. '\n')
@@ -344,6 +354,12 @@ function M.load(path)
             'invalid limit_to_subset')
         project.limit_to_subset = values.limit_to_subset == 'true'
     end
+    if values.limit_to_uv_island ~= nil then
+        assert(values.limit_to_uv_island == 'true' or values.limit_to_uv_island == 'false',
+            'invalid limit_to_uv_island')
+        project.limit_to_uv_island = values.limit_to_uv_island == 'true'
+    end
+    if values.uv_island ~= nil then project.uv_island = parseInteger(values.uv_island, 'uv_island') end
     return M.validate(project)
 end
 

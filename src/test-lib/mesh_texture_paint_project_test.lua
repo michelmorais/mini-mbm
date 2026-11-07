@@ -58,6 +58,8 @@ project.uv_channel = 1
 project.projection_mode = 'project_stencil'
 project.dilation_radius = 2.5
 project.limit_to_subset = true
+project.limit_to_uv_island = true
+project.uv_island = 4
 assert(Project.validate(project) == project)
 assert(Project.save(project, projectPath))
 
@@ -70,7 +72,7 @@ local loaded = assert(Project.load(projectPath))
 for _, field in ipairs({
     'version', 'source_mesh', 'source_texture', 'paint_layer', 'working_texture',
     'frame', 'subset', 'texture_role', 'uv_channel', 'projection_mode',
-    'dilation_radius', 'limit_to_subset',
+    'dilation_radius', 'limit_to_subset', 'limit_to_uv_island', 'uv_island',
 }) do
     assert(loaded[field] == project[field], field .. ' did not round-trip')
 end
@@ -97,8 +99,12 @@ assert(luaLoaded.source_mesh == project.source_mesh)
 assert(luaLoaded.paint_layer == project.paint_layer)
 assert(luaLoaded.projection_mode == project.projection_mode)
 assert(luaLoaded.limit_to_subset == project.limit_to_subset)
+assert(luaLoaded.limit_to_uv_island == project.limit_to_uv_island)
+assert(luaLoaded.uv_island == project.uv_island)
 local legacyLuaPath = tempPath('.lua')
-write(legacyLuaPath, luaSource:gsub('    limit_to_subset = true,\n', ''))
+write(legacyLuaPath, luaSource:gsub('    limit_to_subset = true,\n', '')
+    :gsub('    limit_to_uv_island = true,\n', '')
+    :gsub('    uv_island = 4,\n', ''))
 local legacyLuaLoaded = assert(Project.loadLua(legacyLuaPath))
 assert(legacyLuaLoaded.limit_to_subset == false, 'legacy Lua projects must default to all subsets')
 os.remove(legacyLuaPath)

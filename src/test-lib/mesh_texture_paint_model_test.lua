@@ -71,6 +71,19 @@ local boundaries = Model.buildUvBoundaryEdges({
 })
 assert(#boundaries == 4, 'shared UV edges must not be highlighted as island boundaries')
 
+local islandTriangles = {
+    {subset=1, a={x=0,y=0,z=0,u=0,v=0}, b={x=1,y=0,z=0,u=1,v=0},
+        c={x=1,y=1,z=0,u=1,v=1}, uvA={u=0,v=0}, uvB={u=1,v=0}, uvC={u=1,v=1}},
+    {subset=1, a={x=0,y=0,z=0,u=0,v=0}, b={x=1,y=1,z=0,u=1,v=1},
+        c={x=0,y=1,z=0,u=0,v=1}, uvA={u=0,v=0}, uvB={u=1,v=1}, uvC={u=0,v=1}},
+    {subset=1, a={x=2,y=0,z=0,u=0,v=0}, b={x=3,y=0,z=0,u=1,v=0},
+        c={x=2,y=1,z=0,u=0,v=1}, uvA={u=0,v=0}, uvB={u=1,v=0}, uvC={u=0,v=1}},
+}
+local islands = Model.buildUvIslands(islandTriangles)
+assert(islands.count == 2 and islands.islandByTriangle[1] == islands.islandByTriangle[2] and
+    islands.islandByTriangle[1] ~= islands.islandByTriangle[3],
+    'UV island connectivity must follow shared position and UV vertices')
+
 local noOverlap = Model.countUvOverlaps({
     {uvA = {u=0, v=0}, uvB = {u=1, v=0}, uvC = {u=1, v=1}},
     {uvA = {u=0, v=1}, uvB = {u=0, v=0}, uvC = {u=-1, v=0}},

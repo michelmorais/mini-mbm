@@ -172,6 +172,57 @@ function M.buildUvBoundaryEdges(triangles)
     return result
 end
 
+local function islandVertexKey(triangle, vertex, uv)
+    return string.format('%s|%.9f,%.9f,%.9f|%.9f,%.9f', tostring(triangle.subset or 0),
+        vertex.x, vertex.y, vertex.z, uv.u, uv.v)
+end
+
+--- Build connected UV islands from triangles that share the same mesh vertex and UV.
+--- A UV seam naturally gets different keys and therefore starts a new island.
+function M.buildUvIslands(triangles)
+    assert(type(triangles) == 'table', 'triangles must be a table')
+    local parent, rank, owners = {}, {}, {}
+    for index = 1, #triangles do parent[index], rank[index] = index, 0 end
+    local function find(index)
+        while parent[index] ~= index do
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        end
+        return index
+    end
+    local function union(left, right)
+        left, right = find(left), find(right)
+        if left == right then return end
+        if rank[left] < rank[right] then left, right = right, left end
+        parent[right] = left
+        if rank[left] == rank[right] then rank[left] = rank[left] + 1 end
+    end
+    for index, triangle in ipairs(triangles) do
+        local vertices = {{triangle.a, triangle.uvA}, {triangle.b, triangle.uvB},
+            {triangle.c, triangle.uvC}}
+        for _, item in ipairs(vertices) do
+            local vertex, uv = item[1], item[2]
+            if validVertex(vertex) and uv and finite(uv.u) and finite(uv.v) then
+                local key = islandVertexKey(triangle, vertex, uv)
+                if owners[key] then union(index, owners[key]) else owners[key] = index end
+            end
+        end
+    end
+    local rootToIsland, islands, islandByTriangle = {}, {}, {}
+    for index = 1, #triangles do
+        local root = find(index)
+        local island = rootToIsland[root]
+        if not island then
+            island = #islands + 1
+            rootToIsland[root] = island
+            islands[island] = {id = island, triangleIndices = {}}
+        end
+        islandByTriangle[index] = island
+        islands[island].triangleIndices[#islands[island].triangleIndices + 1] = index
+    end
+    return {count = #islands, islands = islands, islandByTriangle = islandByTriangle}
+end
+
 local function uvCross(first, second, third)
     return (second.u - first.u) * (third.v - first.v) -
         (second.v - first.v) * (third.u - first.u)

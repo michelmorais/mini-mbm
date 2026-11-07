@@ -81,6 +81,8 @@ local state = {
     paintThrough = false,
     limitToSubset = false,
     selectedSubset = 0,
+    limitToUvIsland = false,
+    selectedUvIsland = 0,
     dilationRadius = 0,
     brushMaxRadius = 64,
     meshDiagonal = 1,
@@ -116,6 +118,17 @@ local function dpCall(fn, ...)
         print('[mesh_texture_paint_editor] ' .. tostring(result[2]))
     end
     return table.unpack(result, 1, result.n)
+end
+
+local function imguiCapturesMouse()
+    -- WantCaptureMouse also covers active combo popups and item drags. The
+    -- hovered-window fallback protects input callbacks using the previous
+    -- completed ImGui frame.
+    return tImGui.GetWantCaptureMouse() or tImGui.IsAnyWindowHovered()
+end
+
+local function imguiCapturesKeyboard()
+    return tImGui.GetWantCaptureKeyboard()
 end
 
 local function loadTextureInfo(path)
@@ -225,6 +238,22 @@ local function releaseTextureWork()
     state.textureWidth, state.textureHeight = 0, 0
 end
 
+local function availableUvIslands(target)
+    if not target then return {} end
+    if state.limitToSubset and state.selectedSubset > 0 then
+        return target.uvIslandsBySubset[state.selectedSubset] or {}
+    end
+    return target.uvIslands or {}
+end
+
+local function ensureSelectedUvIsland()
+    local islands = availableUvIslands(state.target)
+    for _, island in ipairs(islands) do
+        if island.id == state.selectedUvIsland then return end
+    end
+    state.selectedUvIsland = islands[1] and islands[1].id or 0
+end
+
 local function selectTarget(index)
     local target = state.targets[index]
     if not target then return false end
@@ -253,6 +282,7 @@ local function selectTarget(index)
         if subset == state.selectedSubset then hasSelectedSubset = true; break end
     end
     if not hasSelectedSubset then state.selectedSubset = target.subsets[1] or 0 end
+    ensureSelectedUvIsland()
     state.hoverHit = nil
     state.hoverPickPending = false
     state.hoverPickElapsed = 0
@@ -271,20 +301,36 @@ local function selectTarget(index)
     return true
 end
 
+local function paintSelectionKey()
+    local subset = state.limitToSubset and state.selectedSubset or 0
+    local island = state.limitToUvIsland and state.selectedUvIsland or 0
+    return tostring(subset) .. ':' .. tostring(island)
+end
+
 local function paintTriangles()
     if not state.target then return {} end
+    local key = paintSelectionKey()
+    local cached = state.target.selectionTriangles[key]
+    if cached then return cached end
+    local source = state.target.triangles
     if state.limitToSubset and state.selectedSubset > 0 then
-        return state.target.subsetTriangles[state.selectedSubset] or {}
+        source = state.target.subsetTriangles[state.selectedSubset] or {}
     end
-    return state.target.triangles
+    if state.limitToUvIsland and state.selectedUvIsland > 0 then
+        cached = {}
+        for _, triangle in ipairs(source) do
+            if triangle.uvIsland == state.selectedUvIsland then cached[#cached + 1] = triangle end
+        end
+    else
+        cached = source
+    end
+    state.target.selectionTriangles[key] = cached
+    return cached
 end
 
 local function paintAcceleration()
     if not state.target then return nil end
-    if state.limitToSubset and state.selectedSubset > 0 then
-        return state.target.subsetPickAcceleration[state.selectedSubset]
-    end
-    return state.target.pickAcceleration
+    return state.target.pickAccelerations[paintSelectionKey()]
 end
 
 local function ensureEditableTexture()
@@ -451,11 +497,34 @@ local function loadMesh(path)
     for _, target in pairs(targetMap) do state.targets[#state.targets + 1] = target end
     table.sort(state.targets, function(left, right) return left.path < right.path end)
     for _, target in ipairs(state.targets) do
+        local islandInfo = Model.buildUvIslands(target.triangles)
+        target.uvIslands = islandInfo.islands
+        target.islandTriangles = {}
+        target.uvIslandsBySubset = {}
+        target.uvBoundaryEdgesByIsland = {}
+        for index, islandId in ipairs(islandInfo.islandByTriangle) do
+            local triangle = target.triangles[index]
+            triangle.uvIsland = islandId
+            target.islandTriangles[islandId] = target.islandTriangles[islandId] or {}
+            target.islandTriangles[islandId][#target.islandTriangles[islandId] + 1] = triangle
+            local subsetIslands = target.uvIslandsBySubset[triangle.subset]
+            if not subsetIslands then
+                subsetIslands = {}
+                target.uvIslandsBySubset[triangle.subset] = subsetIslands
+            end
+            if #target.islandTriangles[islandId] == 1 then
+                subsetIslands[#subsetIslands + 1] = target.uvIslands[islandId]
+            end
+        end
         target.uvBoundaryEdges = Model.buildUvBoundaryEdges(target.triangles)
         target.uvBoundaryEdgesBySubset = {}
-        target.subsetPickAcceleration = {}
+        target.selectionTriangles = {}
+        target.pickAccelerations = {}
         for subset, triangles in pairs(target.subsetTriangles) do
             target.uvBoundaryEdgesBySubset[subset] = Model.buildUvBoundaryEdges(triangles)
+        end
+        for islandId, triangles in pairs(target.islandTriangles) do
+            target.uvBoundaryEdgesByIsland[islandId] = Model.buildUvBoundaryEdges(triangles)
         end
         local overlaps = Model.countUvOverlaps(target.triangles)
         target.uvOverlapCount = overlaps.count
@@ -471,6 +540,8 @@ local function loadMesh(path)
     state.paintThrough = false
     state.limitToSubset = false
     state.selectedSubset = 0
+    state.limitToUvIsland = false
+    state.selectedUvIsland = 0
     state.dilationRadius = 0
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
@@ -590,15 +661,9 @@ end
 
 local function ensureTargetPickAcceleration()
     if not state.target then return end
-    if state.limitToSubset and state.selectedSubset > 0 then
-        if not state.target.subsetPickAcceleration[state.selectedSubset] then
-            state.target.subsetPickAcceleration[state.selectedSubset] =
-                Pick.buildBVH(paintTriangles(), 8)
-        end
-        return
-    end
-    if not state.target.pickAcceleration then
-        state.target.pickAcceleration = Pick.buildBVH(state.target.triangles, 8)
+    local key = paintSelectionKey()
+    if not state.target.pickAccelerations[key] then
+        state.target.pickAccelerations[key] = Pick.buildBVH(paintTriangles(), 8)
     end
 end
 
@@ -1005,8 +1070,10 @@ local function showUvOverlay(origin, size)
             tImGui.AddLine(pc, pa, color, 1)
         end
     end
-    local boundaryEdges = state.limitToSubset and
-        state.target.uvBoundaryEdgesBySubset[state.selectedSubset] or state.target.uvBoundaryEdges or {}
+    local boundaryEdges = state.limitToUvIsland and
+        state.target.uvBoundaryEdgesByIsland[state.selectedUvIsland] or
+        state.limitToSubset and state.target.uvBoundaryEdgesBySubset[state.selectedSubset] or
+        state.target.uvBoundaryEdges or {}
     local boundaryStep = math.max(1, math.ceil(#boundaryEdges / UV_OVERLAY_MAX_BOUNDARY_EDGES))
     local boundaryColor = {r=1,g=.45,b=.05,a=.95}
     for index = 1, #boundaryEdges, boundaryStep do
@@ -1088,6 +1155,8 @@ local function makeProject(projectPath)
             state.brush.mode == 'surface' and 'surface_3d' or 'uv_brush',
         dilation_radius = state.dilationRadius,
         limit_to_subset = state.limitToSubset,
+        limit_to_uv_island = state.limitToUvIsland,
+        uv_island = state.selectedUvIsland > 0 and state.selectedUvIsland or 1,
     }
 end
 
@@ -1268,8 +1337,13 @@ local function openProject(path)
     if project.limit_to_subset and not state.target.subsetTriangles[project.subset] then
         error('project subset is not used by the selected texture')
     end
+    if project.limit_to_uv_island and not state.target.islandTriangles[project.uv_island] then
+        error('project UV island is not used by the selected texture')
+    end
     state.selectedSubset = project.subset
     state.limitToSubset = project.limit_to_subset == true
+    state.selectedUvIsland = project.uv_island
+    state.limitToUvIsland = project.limit_to_uv_island == true
     state.brush.mode = (project.projection_mode == 'project_stencil' or
         project.projection_mode == 'project_stencil_through') and 'project' or
         project.projection_mode == 'surface_3d' and 'surface' or 'paint'
@@ -1383,6 +1457,7 @@ local function showControls()
                         state.selectedSubset = state.target.subsets[selected]
                     end
                     if oldSubset ~= state.selectedSubset then
+                    ensureSelectedUvIsland()
                         state.hoverHit = nil
                         state.hoverPickPending = false
                         state.previewRequiresMesh = true
@@ -1392,6 +1467,34 @@ local function showControls()
                     state.hoverHit = nil
                     state.hoverPickPending = false
                     state.previewRequiresMesh = true
+                end
+                local oldIslandLimit = state.limitToUvIsland
+                state.limitToUvIsland = tImGui.Checkbox(tLang.L('mtp_limit_uv_island'),
+                    state.limitToUvIsland)
+                showBrushModeTooltip('mtp_limit_uv_island_tooltip')
+                local availableIslands = availableUvIslands(state.target)
+                if state.limitToUvIsland then
+                    local islandLabels, selectedIndex = {}, 1
+                    for index, island in ipairs(availableIslands) do
+                        local triangleCount = #island.triangleIndices
+                        islandLabels[#islandLabels + 1] = string.format('%s %d (%d)',
+                            tLang.L('mtp_uv_island'), island.id, triangleCount)
+                        if island.id == state.selectedUvIsland then selectedIndex = index end
+                    end
+                    local islandChanged, selected = tImGui.Combo(tLang.L('mtp_uv_island'),
+                        selectedIndex, islandLabels, -1)
+                    if islandChanged and availableIslands[selected] then
+                        state.selectedUvIsland = availableIslands[selected].id
+                    end
+                end
+                if oldIslandLimit ~= state.limitToUvIsland then
+                    ensureSelectedUvIsland()
+                    state.hoverHit = nil
+                    state.hoverPickPending = false
+                    state.previewRequiresMesh = true
+                end
+                if state.limitToUvIsland then
+                    ensureSelectedUvIsland()
                 end
             end
         end
@@ -1589,7 +1692,7 @@ end
 
 function onTouchDown(key, x, y)
     state.mouse.x, state.mouse.y = x, y
-    if tImGui.GetWantCaptureMouse() then return end
+    if imguiCapturesMouse() then return end
     if state.previewJob then return end
     if key == 0 then
         state.orbiting = true
@@ -1623,7 +1726,7 @@ end
 function onTouchMove(key, x, y)
     local dx, dy = x - state.mouse.x, y - state.mouse.y
     state.mouse.x, state.mouse.y = x, y
-    if tImGui.GetWantCaptureMouse() or state.previewJob then return end
+    if imguiCapturesMouse() or state.previewJob then return end
     if state.painting then
         local hit = hitAtScreen(x, y)
         state.hoverHit = hit
@@ -1652,13 +1755,15 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    local captured = imguiCapturesMouse()
     if key == 1 then finishStroke() end
     state.orbiting, state.panning = false, false
     state.mouse.x, state.mouse.y = x, y
-    if key ~= 1 then state.hoverPickPending = true end
+    if key ~= 1 and not captured then state.hoverPickPending = true end
 end
 
 function onTouchZoom(zoom)
+    if imguiCapturesMouse() or state.previewJob then return end
     state.cameraOrbit.distance = math.max(.1, state.cameraOrbit.distance * (zoom > 0 and .9 or 1.1))
     applyCamera()
     state.hoverPickPending = true
@@ -1666,6 +1771,7 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if imguiCapturesKeyboard() then return end
     if key == mbm.getKeyCode('control') then state.keyControl = true
     elseif state.keyControl and key == mbm.getKeyCode('Z') then history(false)
     elseif state.keyControl and key == mbm.getKeyCode('Y') then history(true)
