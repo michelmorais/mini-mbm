@@ -103,6 +103,7 @@ local state = {
     undo = {},
     redo = {},
     keyControl = false,
+    pendingAction = nil,
     titles = {
         controls = 'mesh_texture_paint_controls',
         texture = 'mesh_texture_paint_texture',
@@ -288,6 +289,11 @@ end
 local function selectTarget(index)
     local target = state.targets[index]
     if not target then return false end
+    local loaded, result = loadTextureInfo(target.path)
+    if not loaded or not result then
+        state.status = 'Could not load texture: ' .. tostring(result)
+        return false
+    end
     if state.previewTextureInfo and state.previewTextureIsUiCopy then
         state.previewTextureInfo:release()
     end
@@ -297,11 +303,6 @@ local function selectTarget(index)
     if state.meshPreviewTextureInfo then
         state.meshPreviewTextureInfo:release()
         state.meshPreviewTextureInfo = nil
-    end
-    local loaded, result = loadTextureInfo(target.path)
-    if not loaded or not result then
-        state.status = 'Could not load texture: ' .. tostring(result)
-        return false
     end
     local textureInfo = result
     state.previewJob = nil
@@ -326,6 +327,7 @@ local function selectTarget(index)
     state.composite = nil
     state.compositeDirtyTiles = nil
     state.undo, state.redo = {}, {}
+    state.modified = false
     state.previewDirty = true
     state.previewRequiresMesh = true
     state.status = string.format('Texture selected: %s (%dx%d)', target.path,
@@ -554,7 +556,6 @@ stopPreviewAnimations = function(previewMesh)
 end
 
 local function loadMesh(path)
-    clearPreview()
     local fullPath = resolvePath(path) or path
     local directory = pathDirectory(fullPath)
     if directory then mbm.addPath(directory) end
@@ -584,11 +585,10 @@ local function loadMesh(path)
             end
         end
     end
-    state.meshPath, state.sourceAsset, state.snapshots = fullPath, source, snapshots
-    state.targets = {}
-    for _, target in pairs(targetMap) do state.targets[#state.targets + 1] = target end
-    table.sort(state.targets, function(left, right) return left.path < right.path end)
-    for _, target in ipairs(state.targets) do
+    local targets = {}
+    for _, target in pairs(targetMap) do targets[#targets + 1] = target end
+    table.sort(targets, function(left, right) return left.path < right.path end)
+    for _, target in ipairs(targets) do
         local islandInfo = Model.buildUvIslands(target.triangles)
         target.uvIslands = islandInfo.islands
         target.islandTriangles = {}
@@ -622,13 +622,24 @@ local function loadMesh(path)
         target.uvOverlapCount = overlaps.count
         target.uvOverlapTruncated = overlaps.truncated
     end
-    assert(#state.targets > 0, 'mesh has no file-backed primary texture with UVs')
-    state.previewAsset = meshDebug:new()
-    assert(state.previewAsset:load(fullPath))
-    state.previewMesh = mesh:new('3d')
-    state.previewMeshPath = tUtil.getTemporaryFilePath('.msh')
-    state.previewTexturePath = tUtil.getTemporaryFilePath('.png')
-    state.previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
+    assert(#targets > 0, 'mesh has no file-backed primary texture with UVs')
+    local loadedTexture, textureError = loadTextureInfo(targets[1].path)
+    assert(loadedTexture, textureError or 'could not load the selected texture')
+    local previewAsset = meshDebug:new()
+    assert(previewAsset:load(fullPath))
+    local previewMesh = mesh:new('3d')
+    local previewMeshPath = tUtil.getTemporaryFilePath('.msh')
+    local previewTexturePath = tUtil.getTemporaryFilePath('.png')
+    local previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
+
+    clearPreview()
+    state.meshPath, state.sourceAsset, state.snapshots = fullPath, source, snapshots
+    state.targets = targets
+    state.previewAsset = previewAsset
+    state.previewMesh = previewMesh
+    state.previewMeshPath = previewMeshPath
+    state.previewTexturePath = previewTexturePath
+    state.previewUiTexturePath = previewUiTexturePath
     state.paintThrough = false
     state.limitToSubset = false
     state.selectedSubset = 0
@@ -1354,7 +1365,9 @@ end
 
 local function saveProjectAs()
     local path = mbm.saveFile(state.projectPath or suggestedProjectPath(), 'lua')
-    if path then dpCall(saveProject, path) end
+    if not path or path == '' then return false end
+    local called, saved = dpCall(saveProject, path)
+    return called and saved == true
 end
 
 local function outputBaseName(path, suffix, extension)
@@ -1500,6 +1513,22 @@ local function openProject(path)
         state.status = 'Could not load project: ' .. tostring(project)
         return false
     end
+    local paintRead, paintBytes, paintWidth, paintHeight = dpCall(
+        mbm.readImagePixels, project.paint_layer)
+    if not paintRead or not paintBytes then
+        state.status = 'Could not read project paint layer.'
+        return false
+    end
+    local sourceRead, sourceBytes, sourceWidth, sourceHeight = dpCall(
+        mbm.readImagePixels, project.source_texture)
+    if not sourceRead or not sourceBytes then
+        state.status = 'Could not read project source texture.'
+        return false
+    end
+    if paintWidth ~= sourceWidth or paintHeight ~= sourceHeight then
+        state.status = 'Project paint layer dimensions do not match the source texture.'
+        return false
+    end
     local loaded = dpCall(loadMesh, project.source_mesh)
     if not loaded then return false end
     local targetIndex
@@ -1525,13 +1554,11 @@ local function openProject(path)
     state.paintThrough = project.projection_mode == 'project_stencil_through'
     state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
         math.floor((project.dilation_radius or 0) + .5)))
-    local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
-    if not readOk or not bytes then error('could not read project paint layer') end
-    if width ~= state.base.width or height ~= state.base.height then
+    if paintWidth ~= state.base.width or paintHeight ~= state.base.height then
         error('project paint layer dimensions do not match the source texture')
     end
     state.layer = Raster.newLayer(state.base, 32)
-    state.layer.bytes = bytes
+    state.layer.bytes = paintBytes
     state.layer.touched = true
     state.composite = nil
     state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
@@ -1543,16 +1570,88 @@ local function openProject(path)
     return true
 end
 
+local function performSessionAction(action)
+    if not action then return false end
+    state.pendingAction = nil
+    if action.kind == 'mesh' then
+        return dpCall(loadMesh, action.path)
+    end
+    if action.kind == 'project' then
+        return dpCall(openProject, action.path)
+    end
+    if action.kind == 'reload' then
+        return dpCall(loadMesh, action.path)
+    end
+    if action.kind == 'target' then
+        return dpCall(selectTarget, action.index)
+    end
+    if action.kind == 'quit' then
+        mbm.quit()
+        return true
+    end
+    return false
+end
+
+local function saveCurrentProject()
+    if not state.target then return true end
+    if state.projectPath then
+        local called, saved = dpCall(saveProject, state.projectPath)
+        return called and saved == true
+    end
+    return saveProjectAs()
+end
+
+local function requestSessionAction(action)
+    if state.stroke then finishStroke() end
+    if state.modified then
+        state.pendingAction = action
+        tImGui.OpenPopup('mesh_texture_paint_unsaved')
+        return false
+    end
+    return performSessionAction(action)
+end
+
+local function showUnsavedChangesModal()
+    local opened = tImGui.BeginPopupModal('mesh_texture_paint_unsaved', false,
+        tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'))
+    if not opened then return end
+    tImGui.Text(tLang.L('mtp_unsaved_title'))
+    tImGui.TextWrapped(tLang.L('mtp_unsaved_message'))
+    tImGui.Separator()
+    if tImGui.Button(tLang.L('mtp_unsaved_save'), {x=150, y=0}) then
+        local action = state.pendingAction
+        if saveCurrentProject() then
+            tImGui.CloseCurrentPopup()
+            performSessionAction(action)
+        else
+            state.status = tLang.L('mtp_unsaved_save_failed')
+        end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('mtp_unsaved_discard'), {x=150, y=0}) then
+        local action = state.pendingAction
+        state.modified = false
+        tImGui.CloseCurrentPopup()
+        performSessionAction(action)
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('mtp_unsaved_cancel'), {x=100, y=0}) then
+        state.pendingAction = nil
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
+end
+
 local function showMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(tLang.L('menu_file')) then
         if tImGui.MenuItem(tLang.L('mtp_open_msh')) then
             local path = mbm.openFile(state.meshPath or '', 'msh')
-            if path then dpCall(loadMesh, path) end
+            if path then requestSessionAction({kind='mesh', path=path}) end
         end
         if tImGui.MenuItem(tLang.L('mtp_open_project')) then
             local path = mbm.openFile(state.projectPath or '', 'lua')
-            if path then dpCall(openProject, path) end
+            if path then requestSessionAction({kind='project', path=path}) end
         end
         if tImGui.MenuItem(tLang.L('mtp_save_project'), 'Ctrl+S', false, state.target ~= nil) then
             if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
@@ -1564,8 +1663,12 @@ local function showMenu()
         if tImGui.MenuItem(tLang.L('mtp_save_mesh_as'), nil, false, state.target ~= nil) then
             dpCall(saveMeshAs)
         end
-        if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then dpCall(loadMesh, state.meshPath) end
-        if tImGui.MenuItem(tLang.L('menu_quit')) then mbm.quit() end
+        if tImGui.MenuItem(tLang.L('mtp_reload')) and state.meshPath then
+            requestSessionAction({kind='reload', path=state.meshPath})
+        end
+        if tImGui.MenuItem(tLang.L('menu_quit')) then
+            requestSessionAction({kind='quit'})
+        end
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(tLang.L('menu_edit')) then
@@ -1615,7 +1718,9 @@ local function showControls()
             local labels = {}
             for _, target in ipairs(state.targets) do labels[#labels+1] = tUtil.getShortName(target.path) end
             local changed, selected = tImGui.Combo(tLang.L('texture'), state.targetIndex, labels, -1)
-            if changed and selected ~= state.targetIndex then dpCall(selectTarget, selected) end
+            if changed and selected ~= state.targetIndex then
+                requestSessionAction({kind='target', index=selected})
+            end
             if state.target and state.target.uvOverlapCount and state.target.uvOverlapCount > 0 then
                 tImGui.TextWrapped(string.format(tLang.L('mtp_uv_overlap_warning'),
                     state.target.uvOverlapCount))
@@ -1877,6 +1982,7 @@ function onLoop(delta)
         end
     end
     showMenu()
+    showUnsavedChangesModal()
     showControls()
     showCamera()
     showTexture()
@@ -1982,10 +2088,12 @@ function onKeyDown(key)
     elseif state.keyControl and key == mbm.getKeyCode('Y') then history(true)
     elseif state.keyControl and key == mbm.getKeyCode('O') then
         local path = mbm.openFile(state.projectPath or '', 'lua')
-        if path then dpCall(openProject, path) end
+        if path then requestSessionAction({kind='project', path=path}) end
     elseif state.keyControl and key == mbm.getKeyCode('S') and state.layer then
         if state.projectPath then dpCall(saveProject, state.projectPath) else saveProjectAs() end
-    elseif state.keyControl and key == mbm.getKeyCode('Q') then mbm.quit() end
+    elseif state.keyControl and key == mbm.getKeyCode('Q') then
+        requestSessionAction({kind='quit'})
+    end
 end
 
 function onKeyUp(key)
