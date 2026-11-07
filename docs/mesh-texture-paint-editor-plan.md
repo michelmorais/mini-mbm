@@ -19,6 +19,11 @@ continuam sendo diagnosticadas pelo mecanismo de recuperação de arquivos.
 Validação de plataforma: Linux/OpenGL ES e macOS/Metal estão concluídos. O único
 gate de backend ainda pendente é Windows com DirectX 9 e DirectX 11.
 
+Requisitos de autoria adicionados: o cursor não oferece mais o modo artificial de
+círculo sempre voltado para a câmera; a forma do dab será escolhida entre círculo
+e quadrado. O carimbo também terá uma fonte de textura externa, com seleção de
+retângulo ou círculo em uma sobreposição ImGui sobre o viewport.
+
 ## 1. Objetivo
 
 Criar um editor independente, baseado em Lua e ImGui, para retocar a textura de
@@ -204,6 +209,8 @@ materiais e demais referências não editadas.
 - camada base bloqueada e camada de pintura ativa;
 - modo: UV Brush, Project/Stencil ou Borracha;
 - imagem/cor do stencil, quando aplicável;
+- fonte do carimbo: trecho da textura atual ou textura externa;
+- forma do pincel: círculo ou quadrado;
 - cor RGBA;
 - raio em pixels;
 - opacidade;
@@ -228,6 +235,25 @@ materiais e demais referências não editadas.
   `Ctrl + botão direito`, sem pintar;
 - indicação de texels que são compartilhados por ilhas sobrepostas.
 - opção de visualizar base, camada de pintura ou composição final.
+
+### Fonte externa do carimbo
+
+- comando para carregar uma textura raster externa;
+- janela ImGui sem decoração, sobre toda a área do viewport, que captura o mouse
+  enquanto a fonte está sendo escolhida;
+- seleção por retângulo ou círculo, com confirmação e cancelamento explícitos;
+- prévia da seleção sobre a imagem, incluindo alpha e checkerboard;
+- cópia do recorte para uma fonte de carimbo privada, sem alterar a textura
+  externa;
+- aplicação do carimbo na superfície usando os UVs do hit, com o recorte e a
+  orientação preservados;
+- limpeza da fonte externa ao trocar de mesh, textura ou projeto;
+- persistência opcional do caminho da textura e do recorte no projeto, sem copiar
+  a imagem inteira para o arquivo `.meshpaint.lua`.
+
+A forma da seleção da fonte não substitui a forma do pincel. O recorte pode ser
+circular ou retangular; o dab de destino também pode ser circular ou quadrado,
+com a máscara de alpha do recorte preservada.
 
 ### Arquivo e projeto
 
@@ -320,6 +346,7 @@ Cada dab contém:
 - raio na textura;
 - cor e alfa;
 - dureza;
+- forma (`circle` ou `square`);
 - modo de composição;
 - triângulo/material de origem;
 - modo de mapeamento (`uv` ou `project`);
@@ -347,6 +374,11 @@ Depois da prova de conceito, comparar a qualidade de duas estratégias adicionai
 3. **superfície 3D**: coleta triângulos próximos ao ponto, projeta a influência na
    superfície e rasteriza cada contribuição UV; melhor em áreas curvas, mas mais
    cara e sensível a seams.
+
+O pincel circular usa distância radial e falloff. O pincel quadrado usa a maior
+distância entre os eixos locais do dab, mantendo o mesmo raio, dureza e opacidade.
+Os dois modos devem compartilhar clipping, alpha blend, tiles sujos e Undo/Redo;
+a forma não pode alterar a textura base.
 
 A decisão deve ser baseada em fixtures de rosto, mão e personagem completo, não em
 uma esfera sintética isolada.
@@ -478,6 +510,9 @@ uma lista de meshes incompatíveis.
   experimental implementada; ainda requer validação em meshes com partes muito
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
+- Forma de dab circular ou quadrada, com cursor e rasterização coerentes.
+- Carimbo por textura externa, incluindo seleção ImGui de recorte circular ou
+  retangular sobre o viewport e fonte privada reutilizável.
 - Recuperação de gravação após erro de I/O implementada para projeto + camada,
   MSH + textura e PNG isolado. Abertura de projeto valida os arquivos e o alvo
   antes de substituir a sessão atual; projetos com textura, subset, ilha ou frame
@@ -505,6 +540,8 @@ uma lista de meshes incompatíveis.
 - Interseção de raio com triângulos, backface culling e escolha do hit mais próximo.
 - Rasterização de círculo, falloff, alpha blend, camada transparente e borracha não
   destrutiva.
+- Rasterização equivalente para dabs circulares e quadrados, mantendo dureza,
+  alpha, clipping e tiles sujos.
 - Projeção de stencil, oclusão e modo Pintar através.
 - Dilatação de seams e composição base + camada.
 - Clipping de dabs nas bordas da textura.
@@ -521,6 +558,8 @@ uma lista de meshes incompatíveis.
 - Confirmar que a imagem original permanece byte a byte intacta.
 - Trocar textura, cancelar uma operação e fechar o editor sem vazamento de
   temporários.
+- Carregar uma textura externa, cancelar e confirmar recortes circular e retangular,
+  aplicar o carimbo e confirmar que a fonte externa não foi alterada.
 - Manter a CPU quase ociosa quando o editor estiver parado, sem rasterização,
   reload ou rebuild contínuo.
 
@@ -555,6 +594,13 @@ Casos que devem ser repetidos no Windows durante esse gate:
 - múltiplos subsets e preview render-to-texture;
 - reload da textura sem rebuild contínuo da mesh.
 
+Pendências de autoria que seguem depois do gate de backend:
+
+- implementar a forma quadrada no rasterizador e no cursor;
+- implementar a sobreposição de seleção da textura externa;
+- persistir e restaurar a descrição do recorte sem incorporar a imagem ao projeto;
+- validar carimbos com alpha, UV invertido, seams e escala não uniforme.
+
 ## 11. Riscos e decisões em aberto
 
 | Risco | Impacto | Mitigação planejada |
@@ -568,6 +614,8 @@ Casos que devem ser repetidos no Windows durante esse gate:
 | Muitos frames/subsets | Ambiguidade sobre qual imagem deve ser editada | MVP restrito a uma textura selecionada; política posterior explícita |
 | Diferença entre preview e runtime | Tatuagem pode parecer diferente no jogo | Preview usa material real quando possível e documenta limitações de shader |
 | Backends diferentes | Reload e alpha podem divergir | Fixtures de smoke e matriz mínima de Linux, Windows e macOS |
+| Fonte externa do carimbo | Recorte pode perder alpha, orientação ou escala | Buffer privado RGBA, seleção explícita, preview com checkerboard e fixtures de recorte |
+| Forma do dab | Cursor e pixels podem representar formas diferentes | Compartilhar a mesma máscara de forma entre cursor, raster e testes |
 
 Decisões que devem ser fechadas na Fase 0:
 

@@ -81,7 +81,7 @@ local state = {
     exportMeshPath = nil,
     exportDirty = true,
     status = 'Open an MSH to start painting.',
-    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
+    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint',
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
     paintThrough = false,
@@ -1128,19 +1128,11 @@ local function showBrushCursor()
     end
     local outlineColor = {r=0,g=0,b=0,a=.95}
     tImGui.SetImDrawListToForeground(true)
-    local points, screenRadius = cachedBrushCursorGeometry(state.hoverHit,
+    local points = cachedBrushCursorGeometry(state.hoverHit,
         state.mouse.x, state.mouse.y, mouse.x, mouse.y)
     if points then
-        if state.brush.screenCircle then
-            local radius = screenRadius
-            local center = {x=mouse.x,y=mouse.y}
-            local visibleRadius = math.max(4, radius)
-            if highContrast then tImGui.AddCircle(center, visibleRadius, outlineColor, 32, 4) end
-            tImGui.AddCircle(center, visibleRadius, color, 32, 1.8)
-        else
-            if highContrast then tImGui.AddPolyline(points, outlineColor, true, 4) end
-            tImGui.AddPolyline(points, color, true, 1.8)
-        end
+        if highContrast then tImGui.AddPolyline(points, outlineColor, true, 4) end
+        tImGui.AddPolyline(points, color, true, 1.8)
     else
         local width, height = mbm.getSizeScreen()
         local textureSize = math.max(state.textureWidth, state.textureHeight)
@@ -1907,7 +1899,6 @@ local function showControls()
             end
         end
         tImGui.Text(string.format(tLang.L('mtp_radius_limit'), state.brushMaxRadius))
-        state.brush.screenCircle = tImGui.Checkbox(tLang.L('mtp_screen_circle'), state.brush.screenCircle)
         changed, value = tImGui.SliderFloat(tLang.L('mtp_dilation_radius'), state.dilationRadius,
             0, DILATION_RADIUS_MAX, '%.0f')
         if changed then
