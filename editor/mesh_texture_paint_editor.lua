@@ -47,6 +47,7 @@ local state = {
     previewAsset = nil,
     previewMesh = nil,
     previewMeshPath = nil,
+    previewBoundTexturePath = nil,
     previewTexturePath = nil,
     previewUiTexturePath = nil,
     previewTextureInfo = nil,
@@ -175,6 +176,7 @@ local function clearPreview()
     state.previewMesh, state.previewAsset, state.previewTextureInfo = nil, nil, nil
     state.meshPreviewTextureInfo = nil
     state.previewReady, state.previewRequiresMesh = false, false
+    state.previewBoundTexturePath = nil
     if state.previewMeshPath then os.remove(state.previewMeshPath) end
     if state.previewTexturePath then os.remove(state.previewTexturePath) end
     state.previewMeshPath, state.previewTexturePath, state.previewUiTexturePath = nil, nil, nil
@@ -517,7 +519,11 @@ local function processPreviewJob()
     if job.phase == 'write' then
         job.texturePath = loadPreviewTexture()
         job.progress = .7
-        job.phase = (state.previewRequiresMesh or not state.previewReady) and 'mesh' or 'finish'
+        -- Reloading pixels updates an already-bound TEXTURE. The first stroke
+        -- switches from the source to the private paint texture, so it must
+        -- also update the mesh binding before later strokes can reuse it.
+        local needsBinding = state.previewBoundTexturePath ~= job.texturePath
+        job.phase = (state.previewRequiresMesh or not state.previewReady or needsBinding) and 'mesh' or 'finish'
         return
     end
     if job.phase == 'mesh' then
@@ -526,6 +532,7 @@ local function processPreviewJob()
         end
         assert(state.previewAsset:save(state.previewMeshPath, false, false, false))
         assert(meshDebug:loadMeshPreview(state.previewMesh, state.previewMeshPath))
+        state.previewBoundTexturePath = job.texturePath
         stopPreviewAnimations(state.previewMesh)
         state.previewMeshReloads = state.previewMeshReloads + 1
         state.previewReady = true
