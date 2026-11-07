@@ -3,8 +3,9 @@
 Status: em implementação. O milestone vertical atual já abre MSH, faz picking
 3D, pinta uma camada UV, mantém preview privado, salva projetos Lua, exporta
 textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
-projeção de cor sólida pela câmera em superfícies visíveis; projeção por imagem,
-pintar através e dilatação de seams continuam nas próximas fases.
+projeção de cor sólida pela câmera em superfícies visíveis e padding configurável
+para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
+projeção por imagem e pintar através continuam nas próximas fases.
 
 ## 1. Objetivo
 
@@ -41,7 +42,8 @@ dados da mesh são preservados.
 - Pintar com cor, opacidade, raio e dureza ajustáveis no modo `UV Brush`.
 - Projetar uma cor ou imagem simples a partir da câmera no modo `Project/Stencil`.
 - Apagar a contribuição da camada de pintura, revelando a textura base original.
-- Aplicar dilatação nas bordas das ilhas UV para reduzir bleeding em seams e mipmaps.
+- Aplicar padding configurável em texels transparentes próximos da pintura para
+  reduzir bleeding em seams e mipmaps.
 - Desfazer e refazer por operação de pincel, sem reverter a câmera ou controles de
   visualização.
 - Atualizar a prévia da mesh somente depois de uma alteração real nos pixels.
@@ -193,7 +195,8 @@ materiais e demais referências não editadas.
 
 - preview da textura editada em 2D;
 - overlay opcional dos triângulos UV da mesh selecionada, com orçamento limitado
-  de desenho para não elevar a CPU durante a edição parada;
+  de desenho para não elevar a CPU durante a edição parada e destaque automático
+  das bordas das ilhas UV;
 - overlay do último hit e da área do pincel;
 - zoom e pan independentes;
 - opção de mostrar apenas a ilha UV selecionada;
@@ -421,7 +424,8 @@ uma lista de meshes incompatíveis.
 - Implementar textura base bloqueada, camada de pintura e composição de preview.
 - Implementar picking, UV Brush, Project/Stencil, borracha, cor, opacidade, raio e
   dureza.
-- Implementar dilatação de seams e aviso para UVs sobrepostos.
+- Implementar padding de seams, destaque das bordas UV e aviso para UVs
+  sobrepostos, com limite de segurança na análise de meshes densas.
 - Implementar preview privado, dirty flags e Undo/Redo por stroke.
 - Implementar UV/Texture view.
 - Implementar exportação PNG, MSH e projeto `.meshpaint.lua`.

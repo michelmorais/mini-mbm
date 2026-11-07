@@ -28,6 +28,7 @@ local Project = require 'mesh_texture_paint_project'
 
 local STAMP_RESOLUTION_MIN = 9
 local STAMP_RESOLUTION_MAX = 257
+local DILATION_RADIUS_MAX = 8
 local PROJECT_SAMPLE_MAX = 33
 local PROJECT_SAMPLE_SPACING = 8
 local PROJECT_STROKE_MAX_STEPS = 32
@@ -35,6 +36,7 @@ local PROJECT_STROKE_MAX_STEPS = 32
 -- its immediate-mode draw budget bounded because ImGui rebuilds these lines
 -- every frame, including while the editor is idle.
 local UV_OVERLAY_MAX_TRIANGLES = 2048
+local UV_OVERLAY_MAX_BOUNDARY_EDGES = 1024
 local CAMERA_WINDOW_MAX_HEIGHT = 390
 
 local state = {
@@ -76,6 +78,7 @@ local state = {
     brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', screenCircle = false,
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
+    dilationRadius = 0,
     brushMaxRadius = 64,
     meshDiagonal = 1,
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
@@ -329,7 +332,12 @@ local function processPreviewJob()
     local job = state.previewJob
     if not job then return end
     if job.phase == 'compose' then
-        if state.compositeDirtyTiles and state.layer then
+        if state.dilationRadius > 0 and state.layer and state.layer.touched then
+            local paddedLayer = Raster.cloneLayer(state.layer)
+            Raster.dilate(paddedLayer, state.dilationRadius)
+            state.composite = Raster.compose(state.base, paddedLayer)
+            state.compositeDirtyTiles = nil
+        elseif state.compositeDirtyTiles and state.layer then
             if not state.composite then
                 state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
             end
@@ -412,6 +420,12 @@ local function loadMesh(path)
     state.targets = {}
     for _, target in pairs(targetMap) do state.targets[#state.targets + 1] = target end
     table.sort(state.targets, function(left, right) return left.path < right.path end)
+    for _, target in ipairs(state.targets) do
+        target.uvBoundaryEdges = Model.buildUvBoundaryEdges(target.triangles)
+        local overlaps = Model.countUvOverlaps(target.triangles)
+        target.uvOverlapCount = overlaps.count
+        target.uvOverlapTruncated = overlaps.truncated
+    end
     assert(#state.targets > 0, 'mesh has no file-backed primary texture with UVs')
     state.previewAsset = meshDebug:new()
     assert(state.previewAsset:load(fullPath))
@@ -419,6 +433,7 @@ local function loadMesh(path)
     state.previewMeshPath = tUtil.getTemporaryFilePath('.msh')
     state.previewTexturePath = tUtil.getTemporaryFilePath('.png')
     state.previewUiTexturePath = tUtil.getTemporaryFilePath('.png')
+    state.dilationRadius = 0
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
     frameCamera()
@@ -520,6 +535,11 @@ local function ensureTargetPickAcceleration()
 end
 
 local function currentVisibleBuffer()
+    if state.dilationRadius > 0 and state.layer and state.layer.touched then
+        local paddedLayer = Raster.cloneLayer(state.layer)
+        Raster.dilate(paddedLayer, state.dilationRadius)
+        return Raster.compose(state.base, paddedLayer)
+    end
     if state.compositeDirtyTiles then
         if not state.composite then
             state.composite = Raster.newBuffer(state.base.width, state.base.height, state.base.bytes)
@@ -876,6 +896,15 @@ local function showUvOverlay(origin, size)
             tImGui.AddLine(pc, pa, color, 1)
         end
     end
+    local boundaryEdges = state.target.uvBoundaryEdges or {}
+    local boundaryStep = math.max(1, math.ceil(#boundaryEdges / UV_OVERLAY_MAX_BOUNDARY_EDGES))
+    local boundaryColor = {r=1,g=.45,b=.05,a=.95}
+    for index = 1, #boundaryEdges, boundaryStep do
+        local edge = boundaryEdges[index]
+        local first = {x=origin.x + edge.a.u * size, y=origin.y + edge.a.v * size}
+        local second = {x=origin.x + edge.b.u * size, y=origin.y + edge.b.v * size}
+        tImGui.AddLine(first, second, boundaryColor, 2)
+    end
     if state.hoverHit and state.hoverHit.uv then
         local uv = state.hoverHit.uv
         local point = {x=origin.x + uv.u * size, y=origin.y + uv.v * size}
@@ -945,7 +974,7 @@ local function makeProject(projectPath)
         texture_role = 'base_color',
         uv_channel = 0,
         projection_mode = state.brush.mode == 'project' and 'project_stencil' or 'uv_brush',
-        dilation_radius = 0,
+        dilation_radius = state.dilationRadius,
     }
 end
 
@@ -1124,6 +1153,8 @@ local function openProject(path)
     assert(selectTarget(targetIndex))
     assert(ensureEditableTexture())
     state.brush.mode = project.projection_mode == 'project_stencil' and 'project' or 'paint'
+    state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
+        math.floor((project.dilation_radius or 0) + .5)))
     local readOk, bytes, width, height = dpCall(mbm.readImagePixels, project.paint_layer)
     if not readOk or not bytes then error('could not read project paint layer') end
     if width ~= state.base.width or height ~= state.base.height then
@@ -1205,6 +1236,13 @@ local function showControls()
             for _, target in ipairs(state.targets) do labels[#labels+1] = tUtil.getShortName(target.path) end
             local changed, selected = tImGui.Combo(tLang.L('texture'), state.targetIndex, labels, -1)
             if changed and selected ~= state.targetIndex then dpCall(selectTarget, selected) end
+            if state.target and state.target.uvOverlapCount and state.target.uvOverlapCount > 0 then
+                tImGui.TextWrapped(string.format(tLang.L('mtp_uv_overlap_warning'),
+                    state.target.uvOverlapCount))
+                if state.target.uvOverlapTruncated then
+                    tImGui.TextWrapped(tLang.L('mtp_uv_overlap_limited'))
+                end
+            end
         end
         tImGui.Separator()
         local changed, value
@@ -1268,6 +1306,25 @@ local function showControls()
         end
         tImGui.Text(string.format(tLang.L('mtp_radius_limit'), state.brushMaxRadius))
         state.brush.screenCircle = tImGui.Checkbox(tLang.L('mtp_screen_circle'), state.brush.screenCircle)
+        changed, value = tImGui.SliderFloat(tLang.L('mtp_dilation_radius'), state.dilationRadius,
+            0, DILATION_RADIUS_MAX, '%.0f')
+        if changed then
+            state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX, math.floor(value + .5)))
+            state.previewDirty = true
+            state.modified = true
+            state.exportDirty = true
+            if state.layer then
+                state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
+                    state.layer.width - 1, state.layer.height - 1)
+            end
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.PushTextWrapPos(360)
+            tImGui.TextWrapped(tLang.L('mtp_dilation_radius_help'))
+            tImGui.PopTextWrapPos()
+            tImGui.EndTooltip()
+        end
         changed, value = tImGui.SliderFloat(tLang.L('mtp_hardness'), state.brush.hardness, 0, 1, '%.2f')
         if changed then state.brush.hardness = value end
         changed, value = tImGui.SliderFloat(tLang.L('mtp_opacity'), state.brush.opacity, 0, 1, '%.2f')

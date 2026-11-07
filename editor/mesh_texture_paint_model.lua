@@ -127,4 +127,168 @@ function M.snapshotSubset(meshDebugObject, frame, subset, call)
     }
 end
 
+local function uvPointKey(point)
+    return string.format('%.9f,%.9f', point.u, point.v)
+end
+
+local function uvEdgeKey(first, second)
+    local left, right = uvPointKey(first), uvPointKey(second)
+    if left > right then left, right = right, left end
+    return left .. '|' .. right
+end
+
+function M.buildUvBoundaryEdges(triangles)
+    assert(type(triangles) == 'table', 'triangles must be a table')
+    local edges = {}
+    local function add(first, second)
+        if not (first and second and finite(first.u) and finite(first.v) and
+                finite(second.u) and finite(second.v)) then return end
+        local key = uvEdgeKey(first, second)
+        local entry = edges[key]
+        if entry then
+            entry.count = entry.count + 1
+        else
+            edges[key] = {count = 1, a = {u = first.u, v = first.v},
+                b = {u = second.u, v = second.v}}
+        end
+    end
+    for _, triangle in ipairs(triangles) do
+        add(triangle.uvA, triangle.uvB)
+        add(triangle.uvB, triangle.uvC)
+        add(triangle.uvC, triangle.uvA)
+    end
+    local result = {}
+    for _, edge in pairs(edges) do
+        if edge.count == 1 then
+            result[#result + 1] = {a = edge.a, b = edge.b}
+        end
+    end
+    table.sort(result, function(left, right)
+        if left.a.u ~= right.a.u then return left.a.u < right.a.u end
+        if left.a.v ~= right.a.v then return left.a.v < right.a.v end
+        if left.b.u ~= right.b.u then return left.b.u < right.b.u end
+        return left.b.v < right.b.v
+    end)
+    return result
+end
+
+local function uvCross(first, second, third)
+    return (second.u - first.u) * (third.v - first.v) -
+        (second.v - first.v) * (third.u - first.u)
+end
+
+local function uvPointInsideStrict(point, triangle)
+    local first = uvCross(triangle.uvA, triangle.uvB, point)
+    local second = uvCross(triangle.uvB, triangle.uvC, point)
+    local third = uvCross(triangle.uvC, triangle.uvA, point)
+    local epsilon = 1e-9
+    return (first > epsilon and second > epsilon and third > epsilon) or
+        (first < -epsilon and second < -epsilon and third < -epsilon)
+end
+
+local function uvProperSegmentsIntersect(first, second, third, fourth)
+    local ab = uvCross(first, second, third)
+    local ac = uvCross(first, second, fourth)
+    local cd = uvCross(third, fourth, first)
+    local ce = uvCross(third, fourth, second)
+    local epsilon = 1e-9
+    return ((ab > epsilon and ac < -epsilon) or (ab < -epsilon and ac > epsilon)) and
+        ((cd > epsilon and ce < -epsilon) or (cd < -epsilon and ce > epsilon))
+end
+
+local function uvTrianglesOverlap(first, second)
+    local firstPoints = {first.uvA, first.uvB, first.uvC}
+    local secondPoints = {second.uvA, second.uvB, second.uvC}
+    local function bounds(points)
+        local minU, maxU = points[1].u, points[1].u
+        local minV, maxV = points[1].v, points[1].v
+        for index = 2, #points do
+            minU, maxU = math.min(minU, points[index].u), math.max(maxU, points[index].u)
+            minV, maxV = math.min(minV, points[index].v), math.max(maxV, points[index].v)
+        end
+        return minU, maxU, minV, maxV
+    end
+    local minU1, maxU1, minV1, maxV1 = bounds(firstPoints)
+    local minU2, maxU2, minV2, maxV2 = bounds(secondPoints)
+    local epsilon = 1e-9
+    if maxU1 <= minU2 + epsilon or maxU2 <= minU1 + epsilon or
+            maxV1 <= minV2 + epsilon or maxV2 <= minV1 + epsilon then
+        return false
+    end
+    for _, point in ipairs(firstPoints) do
+        if uvPointInsideStrict(point, second) then return true end
+    end
+    for _, point in ipairs(secondPoints) do
+        if uvPointInsideStrict(point, first) then return true end
+    end
+    local firstEdges = {{first.uvA, first.uvB}, {first.uvB, first.uvC}, {first.uvC, first.uvA}}
+    local secondEdges = {{second.uvA, second.uvB}, {second.uvB, second.uvC}, {second.uvC, second.uvA}}
+    for _, firstEdge in ipairs(firstEdges) do
+        for _, secondEdge in ipairs(secondEdges) do
+            if uvProperSegmentsIntersect(firstEdge[1], firstEdge[2], secondEdge[1], secondEdge[2]) then
+                return true
+            end
+        end
+    end
+    local centerFirst = {
+        u = (first.uvA.u + first.uvB.u + first.uvC.u) / 3,
+        v = (first.uvA.v + first.uvB.v + first.uvC.v) / 3,
+    }
+    local centerSecond = {
+        u = (second.uvA.u + second.uvB.u + second.uvC.u) / 3,
+        v = (second.uvA.v + second.uvB.v + second.uvC.v) / 3,
+    }
+    return uvPointInsideStrict(centerFirst, second) or uvPointInsideStrict(centerSecond, first)
+end
+
+function M.countUvOverlaps(triangles)
+    assert(type(triangles) == 'table', 'triangles must be a table')
+    local gridSize, pairLimit = 24, 10000
+    local cells, tested = {}, {}
+    local function cellKey(x, y) return x .. ':' .. y end
+    local function cellCoordinate(value)
+        return math.max(0, math.min(gridSize - 1, math.floor(value * gridSize)))
+    end
+    local function addTriangle(index, triangle)
+        local points = {triangle.uvA, triangle.uvB, triangle.uvC}
+        if not (points[1] and points[2] and points[3]) then return end
+        local minU, maxU = points[1].u, points[1].u
+        local minV, maxV = points[1].v, points[1].v
+        for pointIndex = 2, #points do
+            minU, maxU = math.min(minU, points[pointIndex].u), math.max(maxU, points[pointIndex].u)
+            minV, maxV = math.min(minV, points[pointIndex].v), math.max(maxV, points[pointIndex].v)
+        end
+        for y = cellCoordinate(minV), cellCoordinate(maxV) do
+            for x = cellCoordinate(minU), cellCoordinate(maxU) do
+                local key = cellKey(x, y)
+                if not cells[key] then cells[key] = {} end
+                cells[key][#cells[key] + 1] = index
+            end
+        end
+    end
+    for index, triangle in ipairs(triangles) do addTriangle(index, triangle) end
+
+    local overlapCount, testedPairs = 0, 0
+    for _, cell in pairs(cells) do
+        for firstIndex = 1, #cell - 1 do
+            for secondIndex = firstIndex + 1, #cell do
+                local left, right = cell[firstIndex], cell[secondIndex]
+                if left > right then left, right = right, left end
+                local pairKey = left .. ':' .. right
+                if not tested[pairKey] then
+                    tested[pairKey] = true
+                    testedPairs = testedPairs + 1
+                    if uvTrianglesOverlap(triangles[left], triangles[right]) then
+                        overlapCount = overlapCount + 1
+                    end
+                    if testedPairs >= pairLimit then
+                        return {count = overlapCount, truncated = true}
+                    end
+                end
+            end
+        end
+    end
+    return {count = overlapCount, truncated = false}
+end
+
 return M

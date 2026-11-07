@@ -132,4 +132,17 @@ assertPixel(projected, 4, 4, 255, 0, 255, 128)
 assert(#Raster.tilesForPixels(projected, projectedSamples) == 2,
     'projected samples must report unique dirty tiles')
 
+local paddingSource = Raster.newLayer(5, 5, 2)
+Raster.paint(paddingSource, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1,
+    color = {40, 80, 120, 255}})
+local padded = Raster.cloneLayer(paddingSource)
+local paddingResult = Raster.dilate(padded, 1)
+assert(paddingResult.changedPixels == 4, 'one-pixel dilation must fill the four adjacent texels')
+assertPixel(padded, 2, 2, 40, 80, 120, 255)
+assertPixel(padded, 1, 2, 40, 80, 120, 255)
+assertPixel(padded, 3, 2, 40, 80, 120, 255)
+assertPixel(padded, 2, 1, 40, 80, 120, 255)
+assertPixel(padded, 2, 3, 40, 80, 120, 255)
+assertPixel(paddingSource, 1, 2, 0, 0, 0, 0, 'dilation must not mutate the source layer')
+
 print('mesh texture paint raster tests passed')

@@ -65,4 +65,21 @@ local invalid = {
 local failed, errorMessage = Model.snapshotSubset(invalid)
 assert(not failed and errorMessage:find('invalid position or UV', 1, true))
 
+local boundaries = Model.buildUvBoundaryEdges({
+    {uvA = {u=0, v=0}, uvB = {u=1, v=0}, uvC = {u=1, v=1}},
+    {uvA = {u=0, v=0}, uvB = {u=1, v=1}, uvC = {u=0, v=1}},
+})
+assert(#boundaries == 4, 'shared UV edges must not be highlighted as island boundaries')
+
+local noOverlap = Model.countUvOverlaps({
+    {uvA = {u=0, v=0}, uvB = {u=1, v=0}, uvC = {u=1, v=1}},
+    {uvA = {u=0, v=1}, uvB = {u=0, v=0}, uvC = {u=-1, v=0}},
+})
+assert(noOverlap.count == 0, 'triangles that only touch at an edge must not overlap')
+local overlap = Model.countUvOverlaps({
+    {uvA = {u=0, v=0}, uvB = {u=1, v=0}, uvC = {u=0, v=1}},
+    {uvA = {u=.2, v=.2}, uvB = {u=.6, v=.2}, uvC = {u=.2, v=.6}},
+})
+assert(overlap.count == 1, 'nested UV triangles must be reported as overlapping')
+
 print('MESH TEXTURE PAINT MODEL TESTS PASS')

@@ -242,6 +242,14 @@ function M.newLayer(width, height, tileSize)
     return layer
 end
 
+function M.cloneLayer(layer)
+    assertBuffer(layer, 'layer')
+    local clone = M.newLayer(layer.width, layer.height, layer.tileSize or M.DEFAULT_TILE_SIZE)
+    clone.bytes = M.syncBytes(layer)
+    clone.touched = layer.touched == true
+    return clone
+end
+
 function M.syncBytes(buffer)
     assertBuffer(buffer)
     if buffer.rows then buffer.bytes = table.concat(buffer.rows) end
@@ -632,6 +640,99 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
             local row = changedRows[py]
             local oldRow = rows[py + 1]
             rows[py + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(row) .. oldRow:sub(suffixStart)
+        end
+        layer.touched = true
+        if not deferSync then M.syncBytes(layer) end
+    end
+    return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
+end
+
+function M.dilate(layer, radius, deferSync)
+    assertBuffer(layer, 'layer')
+    assert(layer.tileSize, 'dilate requires a layer created by newLayer')
+    radius = math.max(0, math.floor(finiteNumber(radius, 0) + .5))
+    if radius == 0 or not layer.touched then
+        return {changedPixels = 0, dirtyTiles = {}}
+    end
+
+    local sourceRows = rowsOf(layer)
+    local minX, minY = layer.width, layer.height
+    local maxX, maxY = -1, -1
+    for y = 0, layer.height - 1 do
+        local line = sourceRows[y + 1]
+        for x = 0, layer.width - 1 do
+            if line:byte(x * M.BYTES_PER_PIXEL + 4) > 0 then
+                minX, maxX = math.min(minX, x), math.max(maxX, x)
+                minY, maxY = math.min(minY, y), math.max(maxY, y)
+            end
+        end
+    end
+    if maxX < minX or maxY < minY then
+        return {changedPixels = 0, dirtyTiles = {}}
+    end
+
+    local left = math.max(0, minX - radius)
+    local right = math.min(layer.width - 1, maxX + radius)
+    local top = math.max(0, minY - radius)
+    local bottom = math.min(layer.height - 1, maxY + radius)
+    local changedRows = {}
+    for y = top, bottom do
+        changedRows[y] = stringToBytes(sourceRows[y + 1],
+            left * M.BYTES_PER_PIXEL + 1, (right + 1) * M.BYTES_PER_PIXEL)
+    end
+
+    local offsets = {}
+    for dy = -radius, radius do
+        for dx = -radius, radius do
+            local distance = dx * dx + dy * dy
+            if distance > 0 and distance <= radius * radius then
+                offsets[#offsets + 1] = {dx = dx, dy = dy, distance = distance}
+            end
+        end
+    end
+    table.sort(offsets, function(leftOffset, rightOffset)
+        return leftOffset.distance < rightOffset.distance
+    end)
+
+    local changedPixels = 0
+    for y = top, bottom do
+        local outputRow = changedRows[y]
+        for x = left, right do
+            local outputOffset = (x - left) * M.BYTES_PER_PIXEL + 1
+            if outputRow[outputOffset + 3] == 0 then
+                local sourcePixel
+                for _, offset in ipairs(offsets) do
+                    local sourceX, sourceY = x + offset.dx, y + offset.dy
+                    if sourceX >= 0 and sourceX < layer.width and sourceY >= 0 and sourceY < layer.height then
+                        local sourceLine = sourceRows[sourceY + 1]
+                        local sourceOffset = sourceX * M.BYTES_PER_PIXEL + 1
+                        if sourceLine:byte(sourceOffset + 3) > 0 then
+                            sourcePixel = {
+                                sourceLine:byte(sourceOffset), sourceLine:byte(sourceOffset + 1),
+                                sourceLine:byte(sourceOffset + 2), sourceLine:byte(sourceOffset + 3),
+                            }
+                            break
+                        end
+                    end
+                end
+                if sourcePixel then
+                    outputRow[outputOffset], outputRow[outputOffset + 1] = sourcePixel[1], sourcePixel[2]
+                    outputRow[outputOffset + 2], outputRow[outputOffset + 3] = sourcePixel[3], sourcePixel[4]
+                    markDirty(layer, x, y)
+                    changedPixels = changedPixels + 1
+                end
+            end
+        end
+    end
+
+    if changedPixels > 0 then
+        local rows = rowsOf(layer)
+        local prefixBytes = left * M.BYTES_PER_PIXEL
+        local suffixStart = (right + 1) * M.BYTES_PER_PIXEL + 1
+        for y = top, bottom do
+            local oldRow = rows[y + 1]
+            rows[y + 1] = oldRow:sub(1, prefixBytes) .. bytesToString(changedRows[y]) ..
+                oldRow:sub(suffixStart)
         end
         layer.touched = true
         if not deferSync then M.syncBytes(layer) end
