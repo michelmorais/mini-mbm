@@ -24,6 +24,7 @@ tUtil = require 'editor_utils'
 local Pick = require 'mesh_texture_paint_pick'
 local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
+local Stamp = require 'mesh_texture_paint_stamp'
 local Project = require 'mesh_texture_paint_project'
 local PaintIO = require 'mesh_texture_paint_io'
 
@@ -57,6 +58,11 @@ local state = {
     stamp = nil,
     stampTexturePath = nil,
     stampTextureInfo = nil,
+    externalStamp = nil,
+    stampOverlay = false,
+    stampSelectionShape = 'square',
+    stampSelection = nil,
+    stampSelectionDrag = nil,
     previewReady = false,
     previewRequiresMesh = false,
     snapshots = {},
@@ -90,6 +96,7 @@ local state = {
     limitToUvIsland = false,
     selectedUvIsland = 0,
     dilationRadius = 0,
+    pendingDilationRadius = nil,
     brushMaxRadius = 64,
     meshDiagonal = 1,
     cameraOrbit = {fx=0, fy=0, fz=0, distance=5, azimuth=0, elevation=.2},
@@ -162,6 +169,16 @@ local function clearStamp()
     state.stamp, state.stampTexturePath, state.stampTextureInfo = nil, nil, nil
 end
 
+local function clearExternalStamp()
+    if state.externalStamp and state.externalStamp.textureInfo then
+        state.externalStamp.textureInfo:release()
+    end
+    state.externalStamp = nil
+    state.stampOverlay = false
+    state.stampSelection = nil
+    state.stampSelectionDrag = nil
+end
+
 local function clearPreview()
     if state.previewMesh and state.previewAsset then
         dpCall(function() return meshDebug:loadMeshPreview(state.previewMesh, nil) end)
@@ -174,6 +191,7 @@ local function clearPreview()
         state.meshPreviewTextureInfo:release()
     end
     clearStamp()
+    clearExternalStamp()
     state.previewMesh, state.previewAsset, state.previewTextureInfo = nil, nil, nil
     state.meshPreviewTextureInfo = nil
     state.previewReady, state.previewRequiresMesh = false, false
@@ -245,6 +263,25 @@ local function colorBytes()
         b=math.floor((c.b or 0) * 255 + .5), a=math.floor((c.a or 1) * 255 + .5)}
 end
 
+local function normalizeDilationRadius(value)
+    return math.max(0, math.min(DILATION_RADIUS_MAX, math.floor((tonumber(value) or 0) + .5)))
+end
+
+local function applyDilationRadius(value)
+    value = normalizeDilationRadius(value)
+    if state.dilationRadius == value then return false end
+    state.dilationRadius = value
+    state.previewDirty = true
+    state.previewCancelled = false
+    state.modified = true
+    state.exportDirty = true
+    if state.layer then
+        state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
+            state.layer.width - 1, state.layer.height - 1)
+    end
+    return true
+end
+
 local function releaseTextureWork()
     state.base, state.layer, state.composite, state.target = nil, nil, nil, nil
     state.textureWidth, state.textureHeight = 0, 0
@@ -313,8 +350,10 @@ local function selectTarget(index, preparedTextureInfo)
     local textureInfo = result
     state.previewJob = nil
     clearStamp()
+    clearExternalStamp()
     releaseTextureWork()
     state.targetIndex, state.target = index, target
+    state.pendingDilationRadius = nil
     state.lastUvIslandHit = nil
     local hasSelectedSubset = false
     for _, subset in ipairs(target.subsets or {}) do
@@ -683,7 +722,7 @@ local function loadMesh(path, preferredTexturePath)
     state.limitToUvIsland = false
     state.selectedUvIsland = 0
     state.lastUvIslandHit = nil
-    state.dilationRadius = 0
+    state.dilationRadius, state.pendingDilationRadius = 0, nil
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
     frameCamera()
@@ -784,7 +823,8 @@ local function applyStrokeHit(hit, screenX, screenY)
         local flipV = destinationDerivatives and
             ((destinationDerivatives.dvDy < 0) ~= (state.stamp.sourceFlipV == true)) or false
         result = Raster.applyStamp(state.layer, state.stamp.patch, x, y, radius,
-            state.brush.hardness, state.brush.opacity, true, flipU, flipV, state.brush.shape)
+            state.brush.hardness, state.brush.opacity, true, flipU, flipV, state.brush.shape,
+            state.stamp.scale or 1, math.rad(state.stamp.rotation or 0))
     elseif state.brush.mode == 'paint' or state.brush.mode == 'erase' then
         result = Raster.applyDab(state.layer, {x=x, y=y, radius=radius,
             hardness=state.brush.hardness, opacity=state.brush.opacity,
@@ -1153,7 +1193,7 @@ local function pickStampSource(hit, screenX, screenY)
         patch.sourceFlipU, patch.sourceFlipV = false, false
     end
     clearStamp()
-    state.stamp = {x=x, y=y, radius=radius, patch=patch}
+    state.stamp = {x=x, y=y, radius=radius, patch=patch, source='view', scale=1, rotation=0}
     state.stampTexturePath = tUtil.getTemporaryFilePath('.png')
     local saved, errorMessage = dpCall(mbm.writeImagePixels, state.stampTexturePath,
         patch.bytes, patch.width, patch.height)
@@ -1170,6 +1210,157 @@ local function pickStampSource(hit, screenX, screenY)
     end
     state.stampTextureInfo = textureInfo
     state.status = tLang.L('mtp_stamp_selected')
+end
+
+local function openExternalStamp()
+    local path = mbm.openFile(state.meshPath or '', table.unpack(tUtil.supported_images))
+    if not path then return end
+    local ok, bytes, width, height = dpCall(mbm.readImagePixels, path)
+    if not ok or type(bytes) ~= 'string' or not width or not height or width < 1 or height < 1 then
+        state.status = tLang.L('mtp_stamp_external_load_failed')
+        return
+    end
+    local loaded, textureInfo = loadTextureInfo(path)
+    if not loaded or not textureInfo then
+        state.status = tLang.L('mtp_stamp_external_load_failed')
+        return
+    end
+    clearExternalStamp()
+    state.externalStamp = {path=path, bytes=bytes, width=width, height=height, textureInfo=textureInfo}
+    state.stampOverlay = true
+    state.stampSelection = nil
+    state.stampSelectionDrag = nil
+    state.status = tLang.L('mtp_stamp_external_help')
+end
+
+local function finishExternalStampSelection()
+    local source = state.externalStamp
+    local selection = state.stampSelection
+    if not (source and selection) then
+        state.status = tLang.L('mtp_stamp_selection_invalid')
+        return
+    end
+    local patch = Stamp.crop(source.bytes, source.width, source.height, selection)
+    local sourcePath = source.path
+    clearStamp()
+    state.stamp = {x=0, y=0, radius=patch.radius, patch=patch, source='external', scale=1,
+        rotation=0, sourcePath=sourcePath, selection=selection}
+    state.stampTexturePath = tUtil.getTemporaryFilePath('.png')
+    local saved, errorMessage = dpCall(mbm.writeImagePixels, state.stampTexturePath,
+        patch.bytes, patch.width, patch.height)
+    if not saved then
+        clearStamp()
+        state.status = 'Could not create stamp preview: ' .. tostring(errorMessage)
+        return
+    end
+    local loaded, textureInfo = loadTextureInfo(state.stampTexturePath)
+    if not loaded or not textureInfo then
+        clearStamp()
+        state.status = 'Could not load stamp preview: ' .. tostring(textureInfo)
+        return
+    end
+    state.stampTextureInfo = textureInfo
+    clearExternalStamp()
+    state.status = tLang.L('mtp_stamp_selected')
+end
+
+local function cancelExternalStampSelection()
+    clearExternalStamp()
+    state.status = tLang.L('mtp_stamp_external_cancelled')
+end
+
+local function showExternalStampOverlay()
+    local source = state.externalStamp
+    if not (state.stampOverlay and source and source.textureInfo) then return end
+    local screenWidth, screenHeight = mbm.getSizeScreen()
+    local imageAreaWidth = math.max(64, screenWidth - 80)
+    local imageAreaHeight = math.max(64, screenHeight - 170)
+    local scale = math.min(imageAreaWidth / source.width, imageAreaHeight / source.height)
+    local imageWidth, imageHeight = source.width * scale, source.height * scale
+    local imageX = (screenWidth - imageWidth) * .5
+    local imageY = 48 + (imageAreaHeight - imageHeight) * .5
+    local flags = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_NoSavedSettings',
+        'ImGuiWindowFlags_NoNav', 'ImGuiWindowFlags_NoBringToFrontOnFocus'}
+    tImGui.SetNextWindowPos({x=0,y=0}, tImGui.Flags('ImGuiCond_Always'), {x=0,y=0})
+    tImGui.SetNextWindowSize({x=screenWidth,y=screenHeight}, tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowBgAlpha(.94)
+    local opened = tImGui.Begin('##mtpExternalStamp', false, tImGui.Flags(flags))
+    if opened then
+        tImGui.SetCursorScreenPos({x=imageX,y=imageY})
+        local imageOrigin = tImGui.GetCursorScreenPos()
+        local cell = 12
+        for row = 0, math.ceil(imageHeight / cell) - 1 do
+            for column = 0, math.ceil(imageWidth / cell) - 1 do
+                local even = (row + column) % 2 == 0
+                tImGui.AddRectFilled(
+                    {x=imageOrigin.x + column * cell, y=imageOrigin.y + row * cell},
+                    {x=math.min(imageOrigin.x + (column + 1) * cell, imageOrigin.x + imageWidth),
+                        y=math.min(imageOrigin.y + (row + 1) * cell, imageOrigin.y + imageHeight)},
+                    even and {r=.22,g=.22,b=.22,a=1} or {r=.12,g=.12,b=.12,a=1})
+            end
+        end
+        tImGui.Image(source.textureInfo, {x=imageWidth,y=imageHeight})
+
+        local mouse = tImGui.GetMousePos()
+        local inside = mouse and mouse.x >= imageOrigin.x and mouse.x <= imageOrigin.x + imageWidth and
+            mouse.y >= imageOrigin.y and mouse.y <= imageOrigin.y + imageHeight
+        local function imageCoordinate(value, origin, extent, maximum)
+            return math.floor(math.max(0, math.min(maximum, (value - origin) / extent * maximum)) + .5)
+        end
+        if inside and tImGui.IsMouseClicked(0, false) then
+            state.stampSelectionDrag = {
+                x=imageCoordinate(mouse.x, imageOrigin.x, imageWidth, source.width - 1),
+                y=imageCoordinate(mouse.y, imageOrigin.y, imageHeight, source.height - 1)}
+            state.stampSelection = nil
+        end
+        if state.stampSelectionDrag and tImGui.IsMouseDown(0) and mouse then
+            local x = imageCoordinate(mouse.x, imageOrigin.x, imageWidth, source.width - 1)
+            local y = imageCoordinate(mouse.y, imageOrigin.y, imageHeight, source.height - 1)
+            state.stampSelection = Stamp.normalizeSelection(state.stampSelectionDrag.x,
+                state.stampSelectionDrag.y, x, y, source.width, source.height,
+                state.stampSelectionShape)
+        elseif state.stampSelectionDrag and tImGui.IsMouseReleased(0) then
+            state.stampSelectionDrag = nil
+        end
+        if state.stampSelection then
+            local selection = state.stampSelection
+            local sourceSpanX, sourceSpanY = math.max(1, source.width - 1), math.max(1, source.height - 1)
+            local minimum = {x=imageOrigin.x + selection.x / sourceSpanX * imageWidth,
+                y=imageOrigin.y + selection.y / sourceSpanY * imageHeight}
+            local maximum = {x=imageOrigin.x + (selection.x + selection.width - 1) / sourceSpanX * imageWidth,
+                y=imageOrigin.y + (selection.y + selection.height - 1) / sourceSpanY * imageHeight}
+            tImGui.SetImDrawListToForeground(true)
+            if selection.shape == 'circle' then
+                local center = {x=(minimum.x + maximum.x) * .5, y=(minimum.y + maximum.y) * .5}
+                tImGui.AddCircle(center, math.min(maximum.x - minimum.x, maximum.y - minimum.y) * .5,
+                    {r=1,g=.1,b=.1,a=1}, 64, 3)
+            else
+                tImGui.AddRect(minimum, maximum, {r=1,g=.1,b=.1,a=1}, 0, 0, 3)
+            end
+            tImGui.SetImDrawListToForeground(false)
+        end
+        tImGui.SetCursorScreenPos({x=32,y=screenHeight - 100})
+        tImGui.Text(tLang.L('mtp_stamp_selection_shape'))
+        local shapeIndex = state.stampSelectionShape == 'circle' and 2 or 1
+        local oldShapeIndex = shapeIndex
+        shapeIndex = tImGui.RadioButton(tLang.L('mtp_stamp_selection_square'), shapeIndex, 1)
+        tImGui.SameLine()
+        shapeIndex = tImGui.RadioButton(tLang.L('mtp_stamp_selection_circle'), shapeIndex, 2)
+        if shapeIndex ~= oldShapeIndex then
+            state.stampSelectionShape = shapeIndex == 2 and 'circle' or 'square'
+            state.stampSelection = nil
+        end
+        tImGui.SameLine()
+        local canConfirm = state.stampSelection ~= nil
+        if tImGui.Button(tLang.L('mtp_stamp_confirm_selection'), {x=150,y=0}) and canConfirm then
+            finishExternalStampSelection()
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('mtp_stamp_cancel_selection'), {x=100,y=0}) then
+            cancelExternalStampSelection()
+        end
+    end
+    tImGui.End()
 end
 
 local function showBrushCursor()
@@ -1658,8 +1849,8 @@ local function openProject(path)
         project.projection_mode == 'surface_3d' and 'surface' or 'paint'
     state.brush.shape = project.brush_shape == 'square' and 'square' or 'circle'
     state.paintThrough = project.projection_mode == 'project_stencil_through'
-    state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX,
-        math.floor((project.dilation_radius or 0) + .5)))
+    state.dilationRadius = normalizeDilationRadius(project.dilation_radius)
+    state.pendingDilationRadius = nil
     if paintWidth ~= sourceWidth or paintHeight ~= sourceHeight then
         error('project paint layer dimensions do not match the source texture')
     end
@@ -1939,6 +2130,10 @@ local function showControls()
         end
         if state.brush.mode == 'stamp' then
             tImGui.TextWrapped(state.stamp and tLang.L('mtp_stamp_selected') or tLang.L('mtp_stamp_help'))
+            if tImGui.Button(tLang.L('mtp_stamp_import_external')) then
+                openExternalStamp()
+            end
+            showBrushModeTooltip('mtp_stamp_import_external_help')
             local stampResolution = state.brush.stampResolution or 65
             changed, value = tImGui.SliderFloat(tLang.L('mtp_stamp_resolution'), stampResolution,
                 STAMP_RESOLUTION_MIN, STAMP_RESOLUTION_MAX, '%.0f')
@@ -1947,7 +2142,7 @@ local function showControls()
                     math.min(STAMP_RESOLUTION_MAX, math.floor(value + .5)))
                 if newResolution % 2 == 0 then newResolution = newResolution + 1 end
                 state.brush.stampResolution = newResolution
-                if state.stamp then
+                if state.stamp and state.stamp.source ~= 'external' then
                     clearStamp()
                     state.status = tLang.L('mtp_stamp_resolution_changed')
                 end
@@ -1963,7 +2158,7 @@ local function showControls()
         changed, value = tImGui.SliderFloat(tLang.L('radius'), state.brush.radius, 1, state.brushMaxRadius, '%.0f')
         if changed then
             state.brush.radius = value
-            if state.stamp then
+            if state.stamp and state.stamp.source ~= 'external' then
                 clearStamp()
                 state.status = tLang.L('mtp_stamp_radius_changed')
             end
@@ -1977,23 +2172,34 @@ local function showControls()
         if shapeIndex ~= oldShapeIndex then
             state.brush.shape = shapeIndex == 2 and 'square' or 'circle'
             state.cursorCache.points, state.cursorCache.screenRadius = nil, nil
-            if state.stamp then
+            if state.stamp and state.stamp.source ~= 'external' then
                 clearStamp()
                 state.status = tLang.L('mtp_stamp_shape_changed')
             end
         end
-        changed, value = tImGui.SliderFloat(tLang.L('mtp_dilation_radius'), state.dilationRadius,
+        if state.brush.mode == 'stamp' and state.stamp then
+            local stampScale = state.stamp.scale or 1
+            changed, value = tImGui.SliderFloat(tLang.L('mtp_stamp_scale'), stampScale,
+                .1, 8, '%.2f')
+            if changed then state.stamp.scale = math.max(.1, math.min(8, value)) end
+            showBrushModeTooltip('mtp_stamp_scale_help')
+            local stampRotation = state.stamp.rotation or 0
+            changed, value = tImGui.SliderFloat(tLang.L('mtp_stamp_rotation'), stampRotation,
+                -180, 180, '%.1f deg')
+            if changed then state.stamp.rotation = math.max(-180, math.min(180, value)) end
+            showBrushModeTooltip('mtp_stamp_rotation_help')
+        end
+        local dilationValue = state.pendingDilationRadius or state.dilationRadius
+        changed, value = tImGui.SliderFloat(tLang.L('mtp_dilation_radius'), dilationValue,
             0, DILATION_RADIUS_MAX, '%.0f')
+        local dilationEditFinished = tImGui.IsItemDeactivatedAfterEdit()
         if changed then
-            state.dilationRadius = math.max(0, math.min(DILATION_RADIUS_MAX, math.floor(value + .5)))
-            state.previewDirty = true
-            state.previewCancelled = false
-            state.modified = true
-            state.exportDirty = true
-            if state.layer then
-                state.compositeDirtyTiles = Raster.tilesForRect(state.layer, 0, 0,
-                    state.layer.width - 1, state.layer.height - 1)
-            end
+            state.pendingDilationRadius = normalizeDilationRadius(value)
+        end
+        if dilationEditFinished and state.pendingDilationRadius ~= nil then
+            local pending = state.pendingDilationRadius
+            state.pendingDilationRadius = nil
+            applyDilationRadius(pending)
         end
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
@@ -2107,12 +2313,14 @@ function onLoop(delta)
     showControls()
     showCamera()
     showTexture()
+    showExternalStampOverlay()
     showBrushCursor()
     tUtil.showOverlayMessage()
 end
 
 function onTouchDown(key, x, y)
     state.mouse.x, state.mouse.y = x, y
+    if state.stampOverlay then return end
     if imguiCapturesMouse() then return end
     if state.previewJob then return end
     if key == 0 then
@@ -2148,6 +2356,7 @@ end
 function onTouchMove(key, x, y)
     local dx, dy = x - state.mouse.x, y - state.mouse.y
     state.mouse.x, state.mouse.y = x, y
+    if state.stampOverlay then return end
     if imguiCapturesMouse() or state.previewJob then return end
     if state.painting then
         local hit = hitAtScreen(x, y)
@@ -2177,6 +2386,10 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if state.stampOverlay then
+        state.mouse.x, state.mouse.y = x, y
+        return
+    end
     local captured = imguiCapturesMouse()
     if key == 1 then
         if state.stroke then state.stroke.finishRequested = true else finishStroke() end
@@ -2187,7 +2400,7 @@ function onTouchUp(key, x, y)
 end
 
 function onTouchZoom(zoom)
-    if imguiCapturesMouse() or state.previewJob then return end
+    if state.stampOverlay or imguiCapturesMouse() or state.previewJob then return end
     state.cameraOrbit.distance = math.max(.1, state.cameraOrbit.distance * (zoom > 0 and .9 or 1.1))
     applyCamera()
     state.hoverPickPending = true
@@ -2195,6 +2408,10 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') and state.stampOverlay then
+        cancelExternalStampSelection()
+        return
+    end
     if key == mbm.getKeyCode('ESC') and state.stroke then
         cancelStroke()
         return

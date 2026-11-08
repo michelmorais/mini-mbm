@@ -24,6 +24,7 @@ local testDirectory = source:sub(1, 1) == '@' and source:sub(2):match('^(.*[/\\]
 package.path = testDirectory .. '../../editor/?.lua;' .. package.path
 
 local Raster = require 'mesh_texture_paint_raster'
+local Stamp = require 'mesh_texture_paint_stamp'
 
 local function pixel(buffer, x, y)
     local offset = (y * buffer.width + x) * 4 + 1
@@ -99,6 +100,13 @@ local opaqueStamp = Raster.newBuffer(3, 3, string.rep(string.char(0, 0, 255, 255
 local squareStampResult = Raster.applyStamp(squareStampLayer, opaqueStamp, 3, 3, 1, 1, 1,
     false, false, false, 'square')
 assert(squareStampResult.changedPixels == 9, 'square stamp must use the complete destination footprint')
+
+local scaledRotatedLayer = Raster.newLayer(15, 15, 2)
+local nonSquareStamp = Raster.newBuffer(3, 5, string.rep(string.char(255, 128, 0, 255), 15))
+local scaledRotatedResult = Raster.applyStamp(scaledRotatedLayer, nonSquareStamp, 7, 7, 3, 1, 1,
+    false, false, false, 'square', 1.5, math.pi * .5)
+assert(scaledRotatedResult.changedPixels > 20 and scaledRotatedResult.changedPixels < 100,
+    'scaled and rotated stamp must use its source aspect ratio')
 
 local directionalSource = Raster.newBuffer(3, 3,
     string.rep(string.char(255, 0, 0, 255) .. string.char(0, 255, 0, 255) ..

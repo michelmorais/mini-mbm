@@ -641,7 +641,8 @@ function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shap
     return {changedPixels = changedPixels, dirtyTiles = M.getDirtyTiles(layer)}
 end
 
-function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY, shape)
+function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, flipX, flipY, shape,
+        scale, rotation)
     assertBuffer(layer, 'layer')
     assert(type(stamp) == 'table' and type(stamp.bytes) == 'string', 'stamp must contain bytes')
     integer(stamp.width, 'stamp.width')
@@ -652,12 +653,21 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
     hardness = clamp(finiteNumber(hardness, 1), 0, 1)
     opacity = clamp(finiteNumber(opacity, 1), 0, 1)
     shape = normalizeShape(shape)
+    scale = math.max(.001, finiteNumber(scale, 1))
+    rotation = finiteNumber(rotation, 0)
     x, y = finiteNumber(x, 0), finiteNumber(y, 0)
-    local sourceRadius = stamp.radius or math.floor((math.min(stamp.width, stamp.height) - 1) * .5)
-    local left = math.max(0, math.floor(x - radius))
-    local right = math.min(layer.width - 1, math.ceil(x + radius))
-    local top = math.max(0, math.floor(y - radius))
-    local bottom = math.min(layer.height - 1, math.ceil(y + radius))
+    local maximumSourceDimension = math.max(1, stamp.width - 1, stamp.height - 1)
+    local halfWidth = radius * scale * math.max(1, stamp.width - 1) / maximumSourceDimension
+    local halfHeight = radius * scale * math.max(1, stamp.height - 1) / maximumSourceDimension
+    local cosine, sine = math.cos(rotation), math.sin(rotation)
+    local extentX = math.sqrt(halfWidth * halfWidth * cosine * cosine +
+        halfHeight * halfHeight * sine * sine)
+    local extentY = math.sqrt(halfWidth * halfWidth * sine * sine +
+        halfHeight * halfHeight * cosine * cosine)
+    local left = math.max(0, math.floor(x - extentX))
+    local right = math.min(layer.width - 1, math.ceil(x + extentX))
+    local top = math.max(0, math.floor(y - extentY))
+    local bottom = math.min(layer.height - 1, math.ceil(y + extentY))
     if left > right or top > bottom then return {changedPixels = 0, dirtyTiles = {}} end
     local rows = rowsOf(layer)
     local changedRows = {}
@@ -670,28 +680,36 @@ function M.applyStamp(layer, stamp, x, y, radius, hardness, opacity, deferSync, 
     local changedPixels = 0
     for py = top, bottom do
         for px = left, right do
-            local distance = brushDistance(px - x, py - y, shape)
-            local amount = opacity * falloff(distance, radius, hardness)
-            if amount > 0 then
-                local normalizedX = radius > 0 and (px - x) / radius or 0
-                local normalizedY = radius > 0 and (py - y) / radius or 0
-                if flipX then normalizedX = -normalizedX end
-                if flipY then normalizedY = -normalizedY end
-                local sourceX = normalizedX * sourceRadius + sourceRadius
-                local sourceY = normalizedY * sourceRadius + sourceRadius
-                local sourceR, sourceG, sourceB, sourceA = sampleStamp(stamp, sourceX, sourceY)
-                local color = {r=sourceR, g=sourceG, b=sourceB, a=sourceA}
-                local offset = (px - left) * M.BYTES_PER_PIXEL + 1
-                local row = changedRows[py]
-                local oldR, oldG, oldB, oldA = row[offset], row[offset + 1],
-                    row[offset + 2], row[offset + 3]
-                local newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
-                    color, amount * color.a)
-                if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
-                    row[offset], row[offset + 1], row[offset + 2], row[offset + 3] =
-                        newR, newG, newB, newA
-                    markDirty(layer, px, py)
-                    changedPixels = changedPixels + 1
+            local offsetX, offsetY = px - x, py - y
+            local localX = offsetX * cosine + offsetY * sine
+            local localY = -offsetX * sine + offsetY * cosine
+            local normalizedX = halfWidth > 0 and localX / halfWidth or 0
+            local normalizedY = halfHeight > 0 and localY / halfHeight or 0
+            if math.abs(normalizedX) <= 1 and math.abs(normalizedY) <= 1 then
+                local normalizedDistance = shape == 'square' and
+                    math.max(math.abs(normalizedX), math.abs(normalizedY)) or
+                    math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
+                local distance = normalizedDistance * radius
+                local amount = opacity * falloff(distance, radius, hardness)
+                if amount > 0 then
+                    if flipX then normalizedX = -normalizedX end
+                    if flipY then normalizedY = -normalizedY end
+                    local sourceX = normalizedX * (stamp.width - 1) * .5 + (stamp.width - 1) * .5
+                    local sourceY = normalizedY * (stamp.height - 1) * .5 + (stamp.height - 1) * .5
+                    local sourceR, sourceG, sourceB, sourceA = sampleStamp(stamp, sourceX, sourceY)
+                    local color = {r=sourceR, g=sourceG, b=sourceB, a=sourceA}
+                    local offset = (px - left) * M.BYTES_PER_PIXEL + 1
+                    local row = changedRows[py]
+                    local oldR, oldG, oldB, oldA = row[offset], row[offset + 1],
+                        row[offset + 2], row[offset + 3]
+                    local newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
+                        color, amount * color.a)
+                    if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
+                        row[offset], row[offset + 1], row[offset + 2], row[offset + 3] =
+                            newR, newG, newB, newA
+                        markDirty(layer, px, py)
+                        changedPixels = changedPixels + 1
+                    end
                 end
             end
         end
