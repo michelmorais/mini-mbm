@@ -45,8 +45,9 @@ inclui:
 - filtro por subset e ilha UV, destaque de bordas UV e aviso de UVs sobrepostos;
 - undo/redo, cancelamento de stroke e preview incremental por regiões sujas;
 - salvamento transacional de projeto, camada PNG, textura composta e MSH derivada;
-- carimbo por imagem externa centralizada, seleção quadrada/circular, alpha,
-  escala proporcional e rotação;
+- carimbo por imagem externa centralizada em uma janela própria, seleção
+  quadrada/circular, campos X/Y/largura/altura, alpha, escala proporcional e
+  rotação;
 - resolução de captura da view com limite padrão de 257 e máximo de 513 amostras
   por lado; imagens externas preservam a resolução nativa do recorte.
 
@@ -297,9 +298,12 @@ materiais e demais referências não editadas.
 ### Fonte externa do carimbo
 
 - comando para carregar uma textura raster externa e abri-la centralizada na view;
-- janela ImGui sobre toda a área do viewport, que captura mouse, zoom e teclado
-  enquanto a fonte está sendo escolhida; nenhum evento é encaminhado à view 3D;
+- janela ImGui centralizada para concentrar imagem e controles, que captura mouse,
+  zoom e teclado enquanto a fonte está sendo escolhida; nenhum evento é
+  encaminhado à view 3D;
 - seleção por quadrado ou círculo, com confirmação, cancelamento e Escape;
+- campos editáveis de X, Y, largura e altura sincronizados com o arrasto da
+  seleção e com a prévia;
 - prévia da seleção sobre a imagem, incluindo alpha e checkerboard;
 - cópia do recorte para uma fonte de carimbo privada, sem alterar a textura
   externa;

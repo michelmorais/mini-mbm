@@ -1271,25 +1271,46 @@ local function cancelExternalStampSelection()
     state.status = tLang.L('mtp_stamp_external_cancelled')
 end
 
+local function updateExternalStampSelectionField(field, value)
+    local source, selection = state.externalStamp, state.stampSelection
+    if not (source and selection) then return end
+    local x, y, selectionWidth, selectionHeight = Stamp.selectionFields(selection)
+    if field == 'x' then x = value
+    elseif field == 'y' then y = value
+    elseif field == 'width' then selectionWidth = value
+    elseif field == 'height' then selectionHeight = value end
+    local updated = Stamp.selectionFromFields(x, y, selectionWidth, selectionHeight,
+        source.width, source.height, state.stampSelectionShape)
+    if updated then state.stampSelection = updated end
+end
+
 local function showExternalStampOverlay()
     local source = state.externalStamp
     if not (state.stampOverlay and source and source.textureInfo) then return end
     local screenWidth, screenHeight = mbm.getSizeScreen()
-    local imageAreaWidth = math.max(64, screenWidth - 80)
-    local imageAreaHeight = math.max(64, screenHeight - 170)
-    local scale = math.min(imageAreaWidth / source.width, imageAreaHeight / source.height)
-    local imageWidth, imageHeight = source.width * scale, source.height * scale
-    local imageX = (screenWidth - imageWidth) * .5
-    local imageY = 48 + (imageAreaHeight - imageHeight) * .5
-    local flags = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_NoSavedSettings',
+    local windowWidth = math.min(900, math.max(520, screenWidth - 40))
+    local windowHeight = math.min(820, math.max(500, screenHeight - 60))
+    local windowX, windowY = (screenWidth - windowWidth) * .5, (screenHeight - windowHeight) * .5
+    local flags = {'ImGuiWindowFlags_NoCollapse', 'ImGuiWindowFlags_NoSavedSettings',
         'ImGuiWindowFlags_NoNav', 'ImGuiWindowFlags_NoBringToFrontOnFocus'}
-    tImGui.SetNextWindowPos({x=0,y=0}, tImGui.Flags('ImGuiCond_Always'), {x=0,y=0})
-    tImGui.SetNextWindowSize({x=screenWidth,y=screenHeight}, tImGui.Flags('ImGuiCond_Always'))
-    tImGui.SetNextWindowBgAlpha(.94)
-    local opened = tImGui.Begin('##mtpExternalStamp', false, tImGui.Flags(flags))
+    tImGui.SetNextWindowPos({x=windowX,y=windowY}, tImGui.Flags('ImGuiCond_Always'), {x=0,y=0})
+    tImGui.SetNextWindowSize({x=windowWidth,y=windowHeight}, tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowBgAlpha(.97)
+    local opened = tImGui.Begin(tLang.L('mtp_stamp_external_title') .. '##mtpExternalStamp', false,
+        tImGui.Flags(flags))
     if opened then
-        tImGui.SetCursorScreenPos({x=imageX,y=imageY})
-        local imageOrigin = tImGui.GetCursorScreenPos()
+        tImGui.TextWrapped(tLang.L('mtp_stamp_external_help'))
+        local contentOrigin = tImGui.GetCursorScreenPos()
+        local available = tImGui.GetContentRegionAvail()
+        local controlsHeight = 155
+        local imageAreaWidth = math.max(64, available.x - 20)
+        local imageAreaHeight = math.max(64, available.y - controlsHeight)
+        local scale = math.min(imageAreaWidth / source.width, imageAreaHeight / source.height)
+        local imageWidth, imageHeight = source.width * scale, source.height * scale
+        local imageOrigin = {
+            x=contentOrigin.x + (available.x - imageWidth) * .5,
+            y=contentOrigin.y + (imageAreaHeight - imageHeight) * .5}
+        tImGui.SetCursorScreenPos(imageOrigin)
         local cell = 12
         for row = 0, math.ceil(imageHeight / cell) - 1 do
             for column = 0, math.ceil(imageWidth / cell) - 1 do
@@ -1341,7 +1362,7 @@ local function showExternalStampOverlay()
             end
             tImGui.SetImDrawListToForeground(false)
         end
-        tImGui.SetCursorScreenPos({x=32,y=screenHeight - 100})
+        tImGui.SetCursorScreenPos({x=contentOrigin.x, y=contentOrigin.y + imageAreaHeight + 10})
         tImGui.Text(tLang.L('mtp_stamp_selection_shape'))
         local shapeIndex = state.stampSelectionShape == 'circle' and 2 or 1
         local oldShapeIndex = shapeIndex
@@ -1350,9 +1371,31 @@ local function showExternalStampOverlay()
         shapeIndex = tImGui.RadioButton(tLang.L('mtp_stamp_selection_circle'), shapeIndex, 2)
         if shapeIndex ~= oldShapeIndex then
             state.stampSelectionShape = shapeIndex == 2 and 'circle' or 'square'
-            state.stampSelection = nil
+            if state.stampSelection then
+                local x, y, selectionWidth, selectionHeight = Stamp.selectionFields(state.stampSelection)
+                state.stampSelection = Stamp.selectionFromFields(x, y, selectionWidth,
+                    selectionHeight, source.width, source.height, state.stampSelectionShape)
+            end
         end
-        tImGui.SameLine()
+        if state.stampSelection then
+            local x, y, selectionWidth, selectionHeight = Stamp.selectionFields(state.stampSelection)
+            tImGui.PushItemWidth(90)
+            local changed, value = tImGui.InputInt(tLang.L('mtp_stamp_selection_x') .. '##mtpStampSelectionX', x, 1, 10)
+            if changed then updateExternalStampSelectionField('x', value) end
+            tImGui.SameLine()
+            changed, value = tImGui.InputInt(tLang.L('mtp_stamp_selection_y') .. '##mtpStampSelectionY', y, 1, 10)
+            if changed then updateExternalStampSelectionField('y', value) end
+            tImGui.NewLine()
+            changed, value = tImGui.InputInt(tLang.L('mtp_stamp_selection_width') .. '##mtpStampSelectionWidth',
+                selectionWidth, 1, 10)
+            if changed then updateExternalStampSelectionField('width', value) end
+            tImGui.SameLine()
+            changed, value = tImGui.InputInt(tLang.L('mtp_stamp_selection_height') .. '##mtpStampSelectionHeight',
+                selectionHeight, 1, 10)
+            if changed then updateExternalStampSelectionField('height', value) end
+            tImGui.NewLine()
+            tImGui.PopItemWidth()
+        end
         local canConfirm = state.stampSelection ~= nil
         if tImGui.Button(tLang.L('mtp_stamp_confirm_selection'), {x=150,y=0}) and canConfirm then
             finishExternalStampSelection()

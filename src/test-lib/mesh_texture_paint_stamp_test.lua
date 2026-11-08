@@ -50,4 +50,11 @@ local reversed = assert(Stamp.normalizeSelection(4, 4, 1, 1, 5, 5, 'square'))
 assert(reversed.x == 1 and reversed.y == 1 and reversed.width == 4 and reversed.height == 4,
     'reversed drag must normalize selection bounds')
 
+local fields = assert(Stamp.selectionFromFields(1, 1, 3, 4, 5, 5, 'square'))
+assert(fields.x == 1 and fields.y == 1 and fields.width == 3 and fields.height == 3,
+    'numeric selection fields must preserve the selected square shape')
+local fieldX, fieldY, fieldWidth, fieldHeight = Stamp.selectionFields(fields)
+assert(fieldX == 1 and fieldY == 1 and fieldWidth == 3 and fieldHeight == 3,
+    'selection fields must round-trip')
+
 print('mesh texture paint stamp tests passed')

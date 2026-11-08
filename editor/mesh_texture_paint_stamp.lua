@@ -54,6 +54,28 @@ function M.normalizeSelection(x0, y0, x1, y1, width, height, shape)
         shape=shape == 'circle' and 'circle' or 'square'}
 end
 
+function M.selectionFromFields(x, y, selectionWidth, selectionHeight, width, height, shape)
+    width, height = math.floor(tonumber(width) or 0), math.floor(tonumber(height) or 0)
+    if width < 2 or height < 2 then return nil end
+    x = math.max(0, math.min(width - 2, math.floor(tonumber(x) or 0)))
+    y = math.max(0, math.min(height - 2, math.floor(tonumber(y) or 0)))
+    selectionWidth = math.max(2, math.floor(tonumber(selectionWidth) or 2))
+    selectionHeight = math.max(2, math.floor(tonumber(selectionHeight) or 2))
+    selectionWidth = math.min(selectionWidth, width - x)
+    selectionHeight = math.min(selectionHeight, height - y)
+    if shape == 'square' or shape == 'circle' then
+        local side = math.min(selectionWidth, selectionHeight)
+        selectionWidth, selectionHeight = side, side
+    end
+    return M.normalizeSelection(x, y, x + selectionWidth - 1, y + selectionHeight - 1,
+        width, height, shape)
+end
+
+function M.selectionFields(selection)
+    assert(type(selection) == 'table', 'selection is required')
+    return selection.x, selection.y, selection.width, selection.height
+end
+
 local function sourcePixel(bytes, width, x, y)
     local offset = (y * width + x) * 4 + 1
     return bytes:byte(offset), bytes:byte(offset + 1), bytes:byte(offset + 2), bytes:byte(offset + 3)
