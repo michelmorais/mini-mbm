@@ -17,6 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
+
 ]]--
 
 tImGui = require 'ImGui'
@@ -25,6 +26,7 @@ local Pick = require 'mesh_texture_paint_pick'
 local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
 local Stamp = require 'mesh_texture_paint_stamp'
+local Layout = require 'mesh_texture_paint_layout'
 local Project = require 'mesh_texture_paint_project'
 local PaintIO = require 'mesh_texture_paint_io'
 
@@ -1274,13 +1276,15 @@ end
 local function showExternalStampOverlay()
     local source = state.externalStamp
     if not (state.stampOverlay and source and source.textureInfo) then return end
-    local screenWidth, screenHeight = mbm.getSizeScreen()
-    local imageAreaWidth = math.max(64, screenWidth - 80)
-    local imageAreaHeight = math.max(64, screenHeight - 170)
-    local scale = math.min(imageAreaWidth / source.width, imageAreaHeight / source.height)
-    local imageWidth, imageHeight = source.width * scale, source.height * scale
-    local imageX = (screenWidth - imageWidth) * .5
-    local imageY = 48 + (imageAreaHeight - imageHeight) * .5
+    -- ImGui uses the real client/backbuffer coordinates. getSizeScreen() is
+    -- the logical design resolution and can be smaller when expected-window
+    -- scaling is active, which clips this full-screen overlay on Windows.
+    local screenWidth, screenHeight = mbm.getRealSizeScreen()
+    local layout = Layout.externalStamp(screenWidth, screenHeight, source.width, source.height,
+        tImGui.GetMainMenuBarHeight())
+    screenWidth, screenHeight = layout.screenWidth, layout.screenHeight
+    local imageWidth, imageHeight = layout.imageWidth, layout.imageHeight
+    local imageX, imageY = layout.imageX, layout.imageY
     local flags = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_NoSavedSettings',
         'ImGuiWindowFlags_NoNav', 'ImGuiWindowFlags_NoBringToFrontOnFocus'}
     tImGui.SetNextWindowPos({x=0,y=0}, tImGui.Flags('ImGuiCond_Always'), {x=0,y=0})
@@ -1341,7 +1345,7 @@ local function showExternalStampOverlay()
             end
             tImGui.SetImDrawListToForeground(false)
         end
-        tImGui.SetCursorScreenPos({x=32,y=screenHeight - 100})
+        tImGui.SetCursorScreenPos({x=layout.footerX,y=layout.footerY})
         tImGui.Text(tLang.L('mtp_stamp_selection_shape'))
         local shapeIndex = state.stampSelectionShape == 'circle' and 2 or 1
         local oldShapeIndex = shapeIndex
