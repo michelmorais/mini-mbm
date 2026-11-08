@@ -17,6 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
+
 ]]--
 
 -- Pure RGBA8 texture-layer operations for the mesh texture paint editor.

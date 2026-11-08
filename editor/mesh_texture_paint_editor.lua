@@ -17,6 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
+
 ]]--
 
 tImGui = require 'ImGui'
@@ -25,6 +26,7 @@ local Pick = require 'mesh_texture_paint_pick'
 local Model = require 'mesh_texture_paint_model'
 local Raster = require 'mesh_texture_paint_raster'
 local Stamp = require 'mesh_texture_paint_stamp'
+local Layout = require 'mesh_texture_paint_layout'
 local Project = require 'mesh_texture_paint_project'
 local PaintIO = require 'mesh_texture_paint_io'
 
@@ -1287,7 +1289,10 @@ end
 local function showExternalStampOverlay()
     local source = state.externalStamp
     if not (state.stampOverlay and source and source.textureInfo) then return end
-    local screenWidth, screenHeight = mbm.getSizeScreen()
+    local screenWidth, screenHeight = mbm.getRealSizeScreen()
+    local layout = Layout.externalStamp(screenWidth, screenHeight, source.width, source.height,
+        tImGui.GetMainMenuBarHeight())
+    screenWidth, screenHeight = layout.screenWidth, layout.screenHeight
     local windowWidth = math.min(900, math.max(520, screenWidth - 40))
     local windowHeight = math.min(820, math.max(500, screenHeight - 60))
     local windowX, windowY = (screenWidth - windowWidth) * .5, (screenHeight - windowHeight) * .5

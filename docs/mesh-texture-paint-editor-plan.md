@@ -7,7 +7,7 @@ projeção de cor sólida pela câmera em superfícies visíveis e padding confi
 para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
 o modo opcional de pintar através e o modo experimental `Surface 3D` também
 estão disponíveis; o milestone de carimbo por imagem externa está implementado
-na primeira versão e continua pendente apenas de validação visual em backends.
+na primeira versão e foi aceito após validação visual nos backends previstos.
 A forma
 quadrada agora usa uma máscara projetada no caminho normal e uma máscara
 tangente no caminho `Surface 3D`; a validação visual em meshes reais continua
@@ -21,8 +21,8 @@ dimensões, frame, textura, subset e ilha UV antes de substituir a sessão atual
 Limites e evidências estão nas seções 8 e 10; falhas durante a publicação física
 continuam sendo diagnosticadas pelo mecanismo de recuperação de arquivos.
 
-Validação de plataforma: Linux/OpenGL ES e macOS/Metal estão concluídos. O único
-gate de backend ainda pendente é Windows com DirectX 9 e DirectX 11.
+Validação de plataforma: Linux/OpenGL ES, macOS/Metal e Windows com DirectX 9 e
+DirectX 11 estão concluídos e aceitos para o escopo atual.
 
 Requisitos de autoria adicionados: o cursor não oferece mais o modo artificial de
 círculo sempre voltado para a câmera; a forma do dab é escolhida entre círculo e
@@ -59,12 +59,15 @@ inclui:
   a expansão esperada.
 - A importação de imagem externa, seleção do recorte e rotação do carimbo foram
   validadas manualmente.
+- No Windows, a importação externa em resolução nativa do monitor e em resolução
+  menor foi aceita: a imagem permanece inteira na view, e a confirmação do
+  recorte (forma, confirmar e cancelar) permanece totalmente visível após a
+  seleção.
 - Os testes Lua de IO, modelo, picking, projeto, rasterização e carimbo passaram.
 - A checagem de sintaxe dos módulos Lua e `git diff --check` passaram.
 
 ### Follow-ups que não bloqueiam este PR
 
-- executar o smoke visual nativo em Windows com DirectX 9 e DirectX 11;
 - decidir e implementar a persistência/restauração automática da imagem externa e
   do recorte, sem incorporar a imagem ao arquivo `.meshpaint.lua`;
 - ampliar o editor para múltiplas camadas, canais de material e pincéis avançados.
@@ -691,10 +694,11 @@ Status de execução dos backends:
 
 - Linux/OpenGL ES: validado.
 - macOS/Metal: validado.
-- Windows/DirectX 9 e DirectX 11: pendente; ainda falta executar o smoke nativo
-  e verificar reload, alpha, render target/cache e publicação dos arquivos.
+- Windows/DirectX 9 e DirectX 11: validado e aceito; o fluxo de importação de
+  imagem externa foi verificado em resolução nativa e menor, incluindo a
+  visibilidade da imagem e dos controles de confirmação do recorte.
 
-Casos que devem ser repetidos no Windows durante esse gate:
+Casos aceitos no Windows nesta revisão:
 
 - textura sem alpha e com alpha parcial;
 - UV invertido e seams;
@@ -704,8 +708,8 @@ Casos que devem ser repetidos no Windows durante esse gate:
 Pendências de autoria que seguem depois do gate de backend:
 
 - persistir e restaurar a descrição do recorte sem incorporar a imagem ao projeto;
-- validar carimbos com alpha, UV invertido, seams, escala e rotação nos backends
-  Linux/OpenGL ES, macOS/Metal e Windows/DirectX;
+- ampliar a matriz de validação de carimbos com alpha, UV invertido, seams,
+  escala e rotação entre os backends, sem bloquear o estado aceito desta revisão;
 - decidir se a persistência deve reabrir automaticamente a imagem externa ou
   apenas oferecer a descrição para uma nova seleção explícita.
 
