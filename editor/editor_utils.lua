@@ -1116,7 +1116,7 @@ tUtil.drawOrbitGizmo = function(c, opts)
     if tImGui.IsItemActive() then
         local tDelta = tImGui.GetMouseDragDelta(0)
         if tDelta.x ~= 0 or tDelta.y ~= 0 then
-            c.azimuth   = c.azimuth - tDelta.x * sensitivity
+            c.azimuth   = c.azimuth + tDelta.x * sensitivity
             c.elevation = c.elevation + tDelta.y * sensitivity
             c.elevation = math.max(-elevationLimit, math.min(elevationLimit, c.elevation))
             tImGui.ResetMouseDragDelta(0)

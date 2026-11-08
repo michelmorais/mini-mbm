@@ -213,7 +213,7 @@ function M.pointerMove(E,x,y)
         E.cam.fy=E.cam.fy+dy*scale
         E.cam.fz=E.cam.fz-dx*math.sin(E.cam.azimuth)*scale
     else
-        E.cam.azimuth=E.cam.azimuth-dx*0.005
+        E.cam.azimuth=E.cam.azimuth+dx*0.005
         E.cam.elevation=math.max(-math.pi*0.49,math.min(math.pi*0.49,E.cam.elevation+dy*0.005))
     end
     M.camera(E)
