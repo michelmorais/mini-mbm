@@ -1024,6 +1024,7 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
                                 amount = amount,
                                 radius = math.max(1, state.brush.radius * 1.25 /
                                     math.max(1, side - 1)),
+                                shape = state.brush.shape,
                             }
                         end
                     end
@@ -1176,8 +1177,16 @@ local function showBrushCursor()
         local radius = math.max(4, math.min(256,
             state.brush.radius / textureSize * projectedMeshSize))
         local center = {x=mouse.x,y=mouse.y}
-        if highContrast then tImGui.AddCircle(center, radius, outlineColor, 32, 4) end
-        tImGui.AddCircle(center, radius, color, 32, 1.8)
+        local shape = state.brush.shape == 'square' and 'square' or 'circle'
+        if shape == 'square' then
+            local minimum = {x=center.x - radius, y=center.y - radius}
+            local maximum = {x=center.x + radius, y=center.y + radius}
+            if highContrast then tImGui.AddRect(minimum, maximum, outlineColor, 0, 0, 4) end
+            tImGui.AddRect(minimum, maximum, color, 0, 0, 1.8)
+        else
+            if highContrast then tImGui.AddCircle(center, radius, outlineColor, 32, 4) end
+            tImGui.AddCircle(center, radius, color, 32, 1.8)
+        end
     end
     tImGui.SetImDrawListToForeground(false)
 end

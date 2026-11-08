@@ -44,6 +44,7 @@ local function upvalue(fn, name, seen)
     end
 end
 local state = assert(upvalue(editorLoop, 'state'))
+local Raster = assert(upvalue(editorLoop, 'Raster'))
 local loadMesh = assert(upvalue(editorLoop, 'loadMesh'))
 local requestPreview = assert(upvalue(editorLoop, 'requestPreviewRebuild'))
 local processPreview = assert(upvalue(editorLoop, 'processPreviewJob'))
@@ -54,6 +55,7 @@ os.remove(temp)
 local source, fixture, capture = temp .. '.png', temp .. '.msh', temp .. '_capture.png'
 local rt, started, failed, stage, settled = nil, nil, false, 0, 0
 local originalPixels, redPixels, meshReloads, idleBuilds, idleUploads
+local squareProjectPixels
 local original = string.rep(string.char(100, 100, 100, 255), 32 * 32)
 
 local function protect(fn)
@@ -123,6 +125,16 @@ local function pixels(colorChannel)
     return bytes
 end
 
+local function paintedPixels()
+    local count = 0
+    for y = 0, state.layer.height - 1 do
+        for x = 0, state.layer.width - 1 do
+            if Raster.sample(state.layer, x, y).a > 0 then count = count + 1 end
+        end
+    end
+    return count
+end
+
 function onInitScene()
     started = mbm.getTimeRun()
     protect(function()
@@ -181,6 +193,26 @@ function onLoop()
             pixels(3)
             assert(mbm.readImagePixels(source) == original, 'Painting overwrote the original texture')
             require('mesh_texture_paint_save_checks').run(state, editorLoop, upvalue, temp, rt)
+            idleBuilds, idleUploads = state.previewBuilds, state.previewTextureReloads
+        elseif stage == 9 then
+            rt:clear()
+            loadMesh(fixture)
+            state.brush.mode = 'project'
+            state.brush.hardness = 1
+            state.brush.opacity = 1
+            paint({r=1,g=1,b=1,a=1}, false, 'square')
+        elseif stage == 10 then
+            squareProjectPixels = paintedPixels()
+            assert(squareProjectPixels > 0, 'Square Project/Stencil did not paint')
+            rt:clear()
+            loadMesh(fixture)
+            state.brush.mode = 'project'
+            paint({r=1,g=1,b=1,a=1}, false, 'circle')
+        elseif stage == 11 then
+            local circleProjectPixels = paintedPixels()
+            assert(squareProjectPixels > circleProjectPixels,
+                'Square Project/Stencil must cover more texels than the circle')
+            state.brush.mode = 'paint'
             idleBuilds, idleUploads = state.previewBuilds, state.previewTextureReloads
         else
             assert(state.previewBuilds == idleBuilds and state.previewTextureReloads == idleUploads,

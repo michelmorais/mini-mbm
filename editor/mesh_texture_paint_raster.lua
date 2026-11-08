@@ -588,13 +588,14 @@ function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shap
         if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
             local centerX, centerY = sample.x, sample.y
             local sampleRadius = math.max(0, finiteNumber(sample.radius, 0))
+            local sampleShape = normalizeShape(sample.shape or shape)
             local left = math.max(0, math.floor(centerX - sampleRadius))
             local right = math.min(layer.width - 1, math.ceil(centerX + sampleRadius))
             local top = math.max(0, math.floor(centerY - sampleRadius))
             local bottom = math.min(layer.height - 1, math.ceil(centerY + sampleRadius))
             for y = top, bottom do
                 for x = left, right do
-                    local distance = brushDistance(x - centerX, y - centerY, shape)
+                    local distance = brushDistance(x - centerX, y - centerY, sampleShape)
                     local coverage = sampleRadius > 0 and falloff(distance, sampleRadius, 1) or
                         (distance == 0 and 1 or 0)
                     local amount = clamp(finiteNumber(sample.amount, 0), 0, 1) * coverage
