@@ -29,7 +29,9 @@ local Project = require 'mesh_texture_paint_project'
 local PaintIO = require 'mesh_texture_paint_io'
 
 local STAMP_RESOLUTION_MIN = 9
-local STAMP_RESOLUTION_MAX = 257
+-- Keep the captured patch odd-sized so its center maps to an exact pixel. The
+-- 513 maximum is the symmetric equivalent of a nominal 512-pixel footprint.
+local STAMP_RESOLUTION_MAX = 513
 local DILATION_RADIUS_MAX = 8
 local PROJECT_SAMPLE_MAX = 33
 local PROJECT_SAMPLE_SPACING = 8
@@ -87,7 +89,7 @@ local state = {
     exportMeshPath = nil,
     exportDirty = true,
     status = 'Open an MSH to start painting.',
-    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 65, mode = 'paint', shape = 'circle',
+    brush = {radius = 8, hardness = 1, opacity = 1, stampResolution = 257, mode = 'paint', shape = 'circle',
         highContrastCursor = true, cursorColor = {r=1,g=0,b=1,a=1},
         showUvOverlay = false, color = {r=1,g=0,b=0,a=1}},
     paintThrough = false,
@@ -1146,7 +1148,7 @@ local function captureStampFromView(hit, screenX, screenY, buffer, radius)
         minX, maxX = math.min(minX, point.x), math.max(maxX, point.x)
         minY, maxY = math.min(minY, point.y), math.max(maxY, point.y)
     end
-    local maxResolution = state.brush.stampResolution or 65
+    local maxResolution = state.brush.stampResolution or 257
     local side = math.floor(math.max(STAMP_RESOLUTION_MIN,
         math.min(STAMP_RESOLUTION_MAX, maxResolution, radius * 2 + 1)) + .5)
     if side % 2 == 0 then side = side - 1 end
@@ -2134,7 +2136,7 @@ local function showControls()
                 openExternalStamp()
             end
             showBrushModeTooltip('mtp_stamp_import_external_help')
-            local stampResolution = state.brush.stampResolution or 65
+            local stampResolution = state.brush.stampResolution or 257
             changed, value = tImGui.SliderFloat(tLang.L('mtp_stamp_resolution'), stampResolution,
                 STAMP_RESOLUTION_MIN, STAMP_RESOLUTION_MAX, '%.0f')
             if changed then

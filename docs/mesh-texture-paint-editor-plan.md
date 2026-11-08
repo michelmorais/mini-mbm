@@ -1,6 +1,6 @@
 # Plano: Editor de Pintura de Textura sobre Mesh 3D
 
-Status: em implementação. O milestone vertical atual já abre MSH, faz picking
+Status: pronto para revisão via PR. O milestone vertical atual já abre MSH, faz picking
 3D, pinta uma camada UV, mantém preview privado, salva projetos Lua, exporta
 textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
 projeção de cor sólida pela câmera em superfícies visíveis e padding configurável
@@ -30,6 +30,46 @@ quadrado. O carimbo usa a mesma ferramenta para uma fonte capturada da view ou
 uma imagem externa. A fonte externa é selecionada em uma sobreposição ImGui sobre
 o viewport, com escala e rotação independentes; “tatuagem” é apenas o caso de uso
 de aplicar essa fonte em uma mesh.
+
+## Estado para entrega via PR
+
+Esta revisão representa um editor funcional para pintura não destrutiva de uma
+textura UV de uma mesh 3D. O escopo está adequado para entrega ao `master` e
+inclui:
+
+- abertura de MSH, seleção de frame/subset/textura/canal UV e preview privado;
+- `UV Brush`, `Project/Stencil`, `Surface 3D`, borracha, picking de cor e carimbo;
+- formas circular e quadrada com máscaras coerentes no cursor, rasterização normal,
+  projeção e `Surface 3D`;
+- padding de seams com aplicação adiada até o fim do arrasto do slider;
+- filtro por subset e ilha UV, destaque de bordas UV e aviso de UVs sobrepostos;
+- undo/redo, cancelamento de stroke e preview incremental por regiões sujas;
+- salvamento transacional de projeto, camada PNG, textura composta e MSH derivada;
+- carimbo por imagem externa centralizada, seleção quadrada/circular, alpha,
+  escala proporcional e rotação;
+- resolução de captura da view com limite padrão de 257 e máximo de 513 amostras
+  por lado; imagens externas preservam a resolução nativa do recorte.
+
+### Evidências desta revisão
+
+- A pintura normal quadrada foi validada sem lacunas no quad dividido por diagonal.
+- `Surface 3D` quadrado foi validado em mesh e apresentou o footprint esperado.
+- O comportamento do padding em seams foi comparado com valores 0 e 6 e produziu
+  a expansão esperada.
+- A importação de imagem externa, seleção do recorte e rotação do carimbo foram
+  validadas manualmente.
+- Os testes Lua de IO, modelo, picking, projeto, rasterização e carimbo passaram.
+- A checagem de sintaxe dos módulos Lua e `git diff --check` passaram.
+
+### Follow-ups que não bloqueiam este PR
+
+- executar o smoke visual nativo em Windows com DirectX 9 e DirectX 11;
+- decidir e implementar a persistência/restauração automática da imagem externa e
+  do recorte, sem incorporar a imagem ao arquivo `.meshpaint.lua`;
+- ampliar o editor para múltiplas camadas, canais de material e pincéis avançados.
+
+O PR não deve prometer esses follow-ups como parte do estado atual. Eles permanecem
+registrados como evolução posterior do editor.
 
 ## 1. Objetivo
 
@@ -222,6 +262,10 @@ materiais e demais referências não editadas.
 - imagem/cor do stencil, quando aplicável;
 - fonte do carimbo: trecho da textura atual ou textura externa;
 - escala e rotação do carimbo externo, independentes do raio do dab;
+- limite padrão de 257 amostras por lado para carimbos capturados da view,
+  com limite configurável de 513 (equivalente simétrico de uma referência 512);
+  a captura ainda é limitada pelo diâmetro real do pincel; carimbos importados
+  preservam a resolução nativa do recorte selecionado;
 - forma do pincel: círculo ou quadrado;
 - cor RGBA;
 - raio em pixels;
@@ -546,7 +590,7 @@ uma lista de meshes incompatíveis.
 - Implementar exportação PNG, MSH e projeto `.meshpaint.lua`.
 - Adicionar strings em `editor/lang/language.lua` em inglês e pt-BR.
 
-### Fase 2 - Robustez de autoria
+### Fase 2 - Robustez de autoria (escopo deste PR parcialmente concluído)
 
 - Pintura por superfície 3D para reduzir artefatos em curvaturas (primeira versão
   experimental implementada; ainda requer validação em meshes com partes muito
@@ -558,6 +602,9 @@ uma lista de meshes incompatíveis.
 - Carimbo por textura externa implementado: seleção ImGui centralizada de recorte
   circular ou quadrado, fonte privada reutilizável, captura de eventos, escala
   proporcional e rotação.
+- Captura de carimbo da view usa limite de 257 amostras por lado por padrão e
+  aceita até 513 amostras por lado para áreas grandes; o limite continua sujeito
+  ao diâmetro do pincel e ao custo quadrático da amostragem.
 - Recuperação de gravação após erro de I/O implementada para projeto + camada,
   MSH + textura e PNG isolado. Abertura de projeto valida os arquivos e o alvo
   antes de substituir a sessão atual; projetos com textura, subset, ilha ou frame
