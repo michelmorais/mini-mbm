@@ -899,6 +899,8 @@ fnt:setSizeLetter(size)
 fnt:getSizeLetter()
 fnt:getTexture()              -- returns texture name string
 fnt:getTotal()                -- count of text objects created from this font
+label:getSizeText(text?)      -- measure the child text object
+label:setWildCard(character)  -- set a wildcard character on the child text object
 ```
 
 If the font's animation or shader cannot be prepared, `fnt:add()` returns no value and leaves the
@@ -1051,6 +1053,23 @@ Each tile layer is rendered at its own `z` depth. To mix sprites/meshes with til
 -- assume background layer z = -5, foreground (tree) layer z = 5
 character.z = 0   -- renders after background, before trees
 ```
+
+The core tile object also exposes these operations. The Tiled plugin adds a separate editor API;
+these methods operate on the loaded renderable map:
+
+| Method | Purpose |
+|---|---|
+| `tmap:getProperties()` / `tmap:getObjects()` | Read map properties and object data |
+| `tmap:createTileObject(tileId, layer)` | Build a renderable tile object from the map data |
+| `tmap:setLayerVisible(layer, visible)` | Enable or hide a layer |
+| `tmap:getTypeMap()` / `tmap:getTotalLayer()` | Read map type and layer count |
+| `tmap:disableTile(x, y [, layer])` / `tmap:enableTile(x, y [, layer])` | Disable or restore tile rendering |
+| `tmap:getPositionsFromBrickID(id [, layer])` / `tmap:getPositionFromTileID(id)` | Resolve tile positions |
+| `tmap:getNearPosition(x, y [, layer])` | Find the nearby tile position |
+| `tmap:getTileSize()` / `tmap:getMapSize()` | Read tile and map dimensions |
+| `tmap:getPhysicsBrick(id)` | Read the physics data for a brick |
+| `tmap:setTileID(x, y, brickId, layer)` / `tmap:getTileID(x, y, layer)` | Edit or read a tile ID; the getter returns tile and brick IDs |
+| `tmap:getLayerZ(layer)` / `tmap:setLayerZ(layer, z)` | Read or set layer depth |
 
 ### 7.11 render2texture
 
@@ -2067,6 +2086,29 @@ cache behavior and the usual skeletal initialization path.
 
 
 The editor-only `meshDebug` object exposes Mesh V11 authoring operations.
+
+The following compatibility and low-level operations are also registered on `meshDebug`. They
+are kept here because editor scripts and import tools use them directly; the newer transactional
+operations below document their stronger validation contracts in detail.
+
+| Group | Registered methods |
+|---|---|
+| File/type state | `fakeRelease(path)`, `setType(type)`, `getType()`, `getVersion()`, `check()` |
+| Draw state | `setModeDraw(mode)`, `getModeDraw()`, `setModeCullFace(mode)`, `getModeCullFace()`, `setModeFrontFace(mode)`, `getModeFrontFace()` |
+| Material/physics | `getMaterial()`, `setMaterial(table)`, `setPhysics(table)`, `getPhysics()` |
+| Geometry counts and data | `getTotalFrame()`, `getTotalSubset(frame)`, `getTotalVertex(frame, subset)`, `getTotalIndex(frame, subset)`, `isIndexBuffer()`, `getVertex([frame, subset, index, count])`, `setVertex(frame, subset, index, vertex)`, `getIndex(frame, subset)`, `addIndex(frame, subset, indices)`, `addVertex(frame, subset, vertices)` |
+| Texture state | `getTexture(frame, subset)`, `setTexture(frame, subset, name)`, `getMaterialTexture(frame, subset, slot)`, `setMaterialTexture(frame, subset, slot, name)`, `getFxTexture(animation)`, `setFxTexture(animation, name)` |
+| Frame/subset editing | `addFrame()`, `removeFrame(frame)`, `addSubSet(frame)`, `removeSubset(frame, subset)`, `copyFrameFrom(target, source, frame)`, `copySubsetFrom(targetFrame, source, sourceFrame, sourceSubset)`, `moveSubsetUp(frame, subset)`, `mergeSubsets(frame, subsets)` |
+| Legacy animation editing | `addAnim(...)`, `removeAnim(...)`, `copyAnimationsFromMesh(mesh)`, `updateAnim(...)`, `getAnim(...)` |
+| Geometry transforms | `centralize(frame, subset)`, `centralizeItself(frame, subset)`, `rotateFrame(frame, subset, ax, ay, az)`, `scaleFrame(frame, sx, sy, sz [, subset])`, `translateFrame(frame, subset, dx, dy, dz)`, `scaleSkeletalAsset(scale)` |
+| Vertex layout | `getStride()`, `setStride(stride)`, `enableNormal(bool)`, `removeNormals()`, `addNormals()`, `enableUv(bool)` |
+
+Frame and subset indices follow the existing Mesh Debug conventions. Methods in this table that
+mutate geometry are legacy geometry-only operations; they do not automatically update canonical
+skeletons or animation data. Use the canonical authoring methods below when those dependencies
+must remain valid. `setModeDraw` accepts `TRIANGLES`, `TRIANGLE_STRIP`, `TRIANGLE_FAN`, `LINES`,
+`LINE_LOOP`, `LINE_STRIP`, or `POINTS`; cull mode accepts `FRONT`, `BACK`, or `FRONT_AND_BACK`,
+and front-face direction accepts `CW` or `CCW`.
 
 Facial target authoring is transactional and currently operates on the in-memory MeshDebug
 candidate. `addFacialTarget`, `updateFacialTarget`, and `removeFacialTarget` preserve the previous

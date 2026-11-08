@@ -249,14 +249,14 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 
 | Category | Highlights |
 |---|---|
-| **Rendering** | 13+ renderable types (sprites, meshes, textures, particles, tiles, fonts, shapes, …) with frustum culling, z-ordering, and blend modes |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planned |
+| **Rendering** | Multiple renderable types (sprites, meshes, textures, particles, tiles, fonts, shapes, …) with frustum culling, z-ordering, and blend modes |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, macOS compatibility path, Android), DirectX 9/11 (Windows), Dummy (headless), Metal (macOS/iOS) |
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 with optional ported LiquidFun particles (2D/fluids), Bullet 2.84 (3D) — all as optional plugins |
 | **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
-| **Editors** | Sprite Maker, Font Maker, GUI Editor, Scene Editor 2D/3D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
+| **Editors** | 21 Lua/ImGui editors, including scene, sprite, mesh, animation, facial, texture, shader, particle, tilemap, physics, and packaging tools ([inventory](docs/editors.md)) |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
 | **Camera** | 2D/3D camera with projection/view matrices, billboard, azimuth, pixel-perfect mode |
 | **Shaders** | Custom FX system with per-variable min/max animation, PS + VS support |
@@ -665,6 +665,8 @@ The global `mbm` table exposes the engine's core API to Lua (separate from the r
 
 Mini MBM ships with a set of **Lua-based visual editors** (in the `editor/` folder) that use Dear ImGui for their GUI. These editors run inside the engine itself and produce optimized binary files for use in your game.
 
+The complete launcher inventory, shortcut names, dedicated guides, and known documentation gaps are maintained in [docs/editors.md](docs/editors.md).
+
 Open projects created by the former `scene_editor2d.lua` in **GUI Editor**. The new 2D world editor saves `*.scene2d-edit.lua` and exports `*-scene2d.lua`; the 3D format remains `*.scene3d-edit.lua`. Both world editors use the shared `scene_editor_world.lua` implementation and `scene_editor_view.lua` projection adapter. Left drag or right drag pans the 2D view, the wheel zooms toward the cursor, WASD/arrows move the camera, and Shift+drag selects objects. Quick rotation acts around Z in 2D.
 
 GUI saves and exports now keep asset and script paths relative to the saved file. Move the project with its assets while preserving the internal folder layout; loading does not depend on the launch working directory. Legacy absolute paths are relocated when their directory suffix matches unambiguously. External assets must still be available or moved with the project.
@@ -673,17 +675,26 @@ In the 2D world editor, clicking an existing mesh selects it even with a placeme
 
 | Editor | Script | Description |
 |---|---|---|
-| **Sprite Maker** | `sprite_maker.lua` | Create animations from images. Import frames, define animation sequences, configure physics collision shapes, preview animations in real-time. Exports `.spt` sprite files. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
-| **Font Maker** | `font_maker.lua` | Convert TrueType (`.ttf`) fonts into the engine's binary (`.fnt`) bitmap font format with configurable size and character sets. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
+| **Sprite Maker** | `sprite_maker.lua` | Create animations from images. Import frames, define animation sequences, configure physics collision shapes, preview animations in real-time. Exports `.spt` sprite files. [Docs](docs/editors.md#launchers) |
+| **Articulated Sprite Editor** | `sprite_maker_articulated.lua` | Build rigid-part sprite animations with pivots, hierarchy, and articulated playback. [Docs](docs/articulated-sprite-editor.md) |
+| **Font Maker** | `font_maker.lua` | Convert TrueType (`.ttf`) fonts into the engine's binary (`.fnt`) bitmap font format with configurable size and character sets. [Docs](docs/editors.md#launchers) |
 | **GUI Editor** | `gui_editor.lua` | Former 2D scene editor: resolution-independent panels, anchors, GUI layouts and script preview. Opens existing GUI projects without conversion. |
 | **Scene Editor 2D** | `scene_editor2d.lua` | World-space (`2dw`) scenes with XY layers, Z depth, orthogonal/isometric snap, lighting, asset properties, selection, undo/redo and Lua export. Shares its tabs and windows with the 3D editor; navigation uses pan and zoom. |
 | **Scene Editor 3D** | `scene_editor3d.lua` | 3D scenes with orbit camera, floor/wall layers, snap, lighting and Lua export. |
-| **Shader Editor** | `shader_editor.lua` | Create and edit shader effects (pixel + vertex shaders) for any renderable type. Configure per-variable animation with min/max ranges. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
-| **Particle Editor** | `particle_editor.lua` | Design multi-stage particle systems (`.ptl`) with configurable emitters, forces, colors, and lifetimes. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
+| **Articulated Mesh Editor** | `mesh_maker_articulated.lua` | Author rigid mesh parts, pivots, hierarchy, and articulated clips. [Docs](docs/articulated-mesh-editor.md) |
+| **Image Mesh Editor** | `image_mesh_editor.lua` | Generate mesh geometry and UV data from raster images. [Docs](docs/image-mesh-editor.md) |
+| **Normal Map Editor** | `normal_map_editor.lua` | Prepare tangent data and normal-map material settings for meshes. [Docs](docs/normal-map-editor.md) |
+| **Mesh Texture Paint Editor** | `mesh_texture_paint_editor.lua` | Paint mesh textures with UV-aware strokes and export the edited asset. [Docs](docs/mesh-texture-paint-editor.md) |
+| **Mesh-to-Sprite Editor** | `mesh_to_sprite_editor.lua` | Render mesh poses into sprite frames and export sprite assets. [Docs](docs/mesh-to-sprite-editor.md) |
+| **Skeletal Animation Editor** | `skeletal_animation_editor.lua` | Inspect, author, and preview canonical skeletal animation data. [Docs](docs/skeletal-animation-editor.md) |
+| **Facial Rig Editor** | `facial_rig_editor.lua` | Author facial targets, masks, clips, and runtime previews. [Docs](docs/facial-rig-editor.md) |
+| **Morph Region Editor** | `morph_region_editor.lua` | Define and validate morph regions for facial and mesh workflows. [Docs](docs/morph-editor.md) |
+| **Shader Editor** | `shader_editor.lua` | Create and edit shader effects (pixel + vertex shaders) for any renderable type. Configure per-variable animation with min/max ranges. [Docs](docs/editors.md#launchers) |
+| **Particle Editor** | `particle_editor.lua` | Design multi-stage particle systems (`.ptl`) with configurable emitters, forces, colors, and lifetimes. [Docs](docs/editors.md#launchers) |
 | **Texture Packer** | `texture_packer.lua` | Pack multiple textures into optimized sprite sheet files for efficient rendering and memory usage. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Design 2D tile-based levels with multiple layers, brush tools, and brick palette management. |
 | **Physics Editor** | `physic_editor.lua` | Edit physics collision shapes (bounding volumes) for sprites and meshes. Integrates with Box2D for shape testing. |
-| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations plus asynchronous GLB/FBX import through Blender: load native assets, add/remove normals, centralize, and batch process folders. |
+| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations plus asynchronous GLB/FBX import through Blender: load native assets, add/remove normals, centralize, and batch process folders. [Docs](docs/editors.md#launchers) |
 | **Asset Packager** | `asset_packager.lua` | Create and edit asset packages (SQLite3 databases) containing textures, music, scripts, and other resources for distribution. |
 
 Shared utilities are provided by `editor_utils.lua` (window positioning, color themes, image filters, overlays) and `lang/language.lua` (localization: English / Portuguese BR).
@@ -796,7 +807,7 @@ Open the solution file `platform-msvs/mini-mbm.sln` in **Visual Studio 2026**.
 
 On a new machine, use Visual Studio Installer to select **Desktop development with C++**, the current MSVC x64/x86 tools, and Windows 11 SDK 10.0.26100.0 or newer stable. Installing the optional Windows **Graphics Tools** feature is recommended for Direct3D diagnostics.
 
-The backend defaults to **DirectX 11** for `Debug|Win32` and **DirectX 9** for `Release|Win32`, which keeps a convenient comparison baseline. To switch without changing the shared defaults, set `MbmBackend` to `DirectX9`, `DirectX11`, or `OpenGLES` in `platform-msvs/mbm-backend.user.props`, or pass `/p:MbmBackend=<backend>` to MSBuild. DirectX 11 currently supports the device/swap-chain lifecycle, basic geometry with per-buffer cull/front-face rasterizer state, RGB/RGBA texture upload, shader-resource/sampler binding with pixel-perfect nearest filtering, solid-color shapes, alpha/destination blend modes, custom pixel/vertex shaders with reflected CFG and reserved-light variables, the internal constant-color `LINE_MESH` shader, textured `PARTICLE`/`STEERED_PARTICLE` dynamic quads, render-to-texture capture/display with cropped PNG readback, mesh GPU-buffer readback for editor/debug workflows, canonical GPU skeletal animation with LBS and rigid DQS, and default/custom material lighting for `3d` and `2dw`. The automated Debug matrix also rejects Direct3D API warnings/errors and live child resources after engine teardown; see `platform-msvs/README.md` for the delivery checklist.
+The backend defaults to **OpenGL ES** for `Debug|Win32` and **DirectX 11** for `Release|Win32` (the same defaults apply to x64). To switch without changing the shared defaults, set `MbmBackend` to `DirectX9`, `DirectX11`, or `OpenGLES` in `platform-msvs/mbm-backend.user.props`, or pass `/p:MbmBackend=<backend>` to MSBuild. DirectX 11 currently supports the device/swap-chain lifecycle, basic geometry with per-buffer cull/front-face rasterizer state, RGB/RGBA texture upload, shader-resource/sampler binding with pixel-perfect nearest filtering, solid-color shapes, alpha/destination blend modes, custom pixel/vertex shaders with reflected CFG and reserved-light variables, the internal constant-color `LINE_MESH` shader, textured `PARTICLE`/`STEERED_PARTICLE` dynamic quads, render-to-texture capture/display with cropped PNG readback, mesh GPU-buffer readback for editor/debug workflows, canonical GPU skeletal animation with LBS and rigid DQS, and default/custom material lighting for `3d` and `2dw`. The automated Debug matrix also rejects Direct3D API warnings/errors and live child resources after engine teardown; see `platform-msvs/README.md` for the delivery checklist.
 
 **From command line (MSBuild):**
 ```cmd
@@ -1069,23 +1080,33 @@ mini-mbm/
 │   ├── steam/                  #   Steamworks Lua plugin
 │   └── plugin-helper/          #   Shared plugin utilities
 ├── editor/                     # Lua-based editor tools
-│   ├── sprite_maker.lua
+│   ├── asset_packager.lua
+│   ├── facial_rig_editor.lua
 │   ├── font_maker.lua
 │   ├── gui_editor.lua
+│   ├── image_mesh_editor.lua
+│   ├── mesh_debug.lua
+│   ├── mesh_maker_articulated.lua
+│   ├── mesh_texture_paint_editor.lua
+│   ├── mesh_to_sprite_editor.lua
+│   ├── morph_region_editor.lua
+│   ├── normal_map_editor.lua
+│   ├── particle_editor.lua
+│   ├── physic_editor.lua
 │   ├── scene_editor2d.lua
 │   ├── scene_editor3d.lua
-│   ├── scene_editor_world.lua
 │   ├── scene_editor_view.lua
+│   ├── scene_editor_world.lua
 │   ├── shader_editor.lua
-│   ├── particle_editor.lua
+│   ├── skeletal_animation_editor.lua
+│   ├── sprite_maker.lua
+│   ├── sprite_maker_articulated.lua
 │   ├── texture_packer.lua
 │   ├── tilemap_editor.lua
-│   ├── physic_editor.lua
-│   ├── mesh_debug.lua
-│   ├── asset_packager.lua
 │   ├── editor_utils.lua        #   Shared editor utilities
 │   └── lang/language.lua       #   Localization (EN / PT-BR)
 ├── third-party/                # Third-party libraries (see below)
+├── docs/                       # Engine, format, API, and editor documentation
 ├── distribution/               # Asset package library and packer executable
 ├── game-template/              # Standalone Lua game starter files
 ├── platform-linux/             # Linux entry points (main.cpp, main-lua.cpp)
@@ -1302,14 +1323,14 @@ int main() {
 
 | Categoria | Destaques |
 |---|---|
-| **Renderização** | 13+ tipos renderizáveis (sprites, meshes, texturas, partículas, tiles, fontes, shapes, …) com frustum culling, z-ordering e modos de blend |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planejado |
+| **Renderização** | Múltiplos tipos renderizáveis (sprites, meshes, texturas, partículas, tiles, fontes, shapes, …) com frustum culling, z-ordering e modos de blend |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, caminho de compatibilidade no macOS, Android), DirectX 9/11 (Windows), Dummy (headless), Metal (macOS/iOS) |
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 com partículas LiquidFun portadas e opcionais (2D/fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
 | **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
-| **Editores** | Sprite Maker, Font Maker, GUI Editor, Scene Editor 2D/3D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
+| **Editores** | 21 editores Lua/ImGui, incluindo ferramentas de cenas, sprites, meshes, animação, facial, textura, shader, partículas, tilemap, física e empacotamento ([inventário](docs/editors.md)) |
 | **Plataformas** | Windows, Linux, macOS, Android, iOS |
 | **Câmera** | Câmera 2D/3D com matrizes de projeção/visão, billboard, azimute, modo pixel-perfect |
 | **Shaders** | Sistema FX customizado com animação min/max por variável, suporte a PS + VS |
@@ -1526,6 +1547,8 @@ A tabela global `mbm` expõe a API core do motor para Lua (separada das tabelas 
 
 O Mini MBM inclui um conjunto de **editores visuais baseados em Lua** (na pasta `editor/`) que usam Dear ImGui. Estes editores rodam dentro do próprio motor e produzem arquivos binários otimizados para uso no jogo.
 
+O inventário completo de launchers, atalhos, guias dedicados e lacunas conhecidas de documentação está em [docs/editors.md](docs/editors.md).
+
 Abra os projetos criados pelo antigo `scene_editor2d.lua` no **GUI Editor**. O novo editor de mundo 2D salva `*.scene2d-edit.lua` e exporta `*-scene2d.lua`; o formato 3D continua `*.scene3d-edit.lua`. Arraste com o botão esquerdo ou direito para mover a câmera 2D, use a roda para zoom no cursor e WASD/setas para navegar. Shift+arraste seleciona objetos; a rotação rápida usa o eixo Z.
 
 Arquivos salvos e exportados pelo GUI Editor usam caminhos de assets e scripts relativos ao arquivo. Mova o projeto junto com seus assets, mantendo a estrutura interna das pastas; o carregamento independe da pasta de execução. Caminhos absolutos antigos são recuperados quando o trecho final da pasta corresponde sem ambiguidade. Assets externos precisam continuar disponíveis ou acompanhar o projeto.
@@ -1534,17 +1557,26 @@ No editor 2D, clicar em uma mesh existente seleciona mesmo com pincel ativo; Shi
 
 | Editor | Script | Descrição |
 |---|---|---|
-| **Sprite Maker** | `sprite_maker.lua` | Cria animações a partir de imagens. Importa frames, define sequências de animação, configura shapes de colisão, prévia em tempo real. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
-| **Font Maker** | `font_maker.lua` | Converte fontes TrueType (`.ttf`) para o formato binário (`.fnt`) bitmap do motor. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
+| **Sprite Maker** | `sprite_maker.lua` | Cria animações a partir de imagens. Importa frames, define sequências de animação, configura shapes de colisão, prévia em tempo real. [Docs](docs/editors.md#launchers) |
+| **Articulated Sprite Editor** | `sprite_maker_articulated.lua` | Cria animações de sprites com partes rígidas, pivôs, hierarquia e reprodução articulada. [Docs](docs/articulated-sprite-editor.md) |
+| **Font Maker** | `font_maker.lua` | Converte fontes TrueType (`.ttf`) para o formato binário (`.fnt`) bitmap do motor. [Docs](docs/editors.md#launchers) |
 | **GUI Editor** | `gui_editor.lua` | Antigo editor 2D: painéis, âncoras, layouts independentes de resolução e prévia de scripts. Abre os projetos de GUI existentes sem conversão. |
 | **Scene Editor 2D** | `scene_editor2d.lua` | Cenas em `2dw`: camadas XY, profundidade Z, snap ortogonal/isométrico, iluminação, propriedades, seleção, undo/redo e exportação Lua. Compartilha abas e janelas com o 3D, com câmera de pan e zoom. |
 | **Scene Editor 3D** | `scene_editor3d.lua` | Cenas 3D com câmera orbital, camadas de piso/parede, snap, iluminação e exportação Lua. |
-| **Shader Editor** | `shader_editor.lua` | Cria e edita efeitos de shader (pixel + vertex) para qualquer tipo renderizável. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
-| **Particle Editor** | `particle_editor.lua` | Projeta sistemas de partículas (`.ptl`) multi-estágio. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
+| **Articulated Mesh Editor** | `mesh_maker_articulated.lua` | Cria partes rígidas de mesh, pivôs, hierarquia e clipes articulados. [Docs](docs/articulated-mesh-editor.md) |
+| **Image Mesh Editor** | `image_mesh_editor.lua` | Gera geometria de mesh e UV a partir de imagens raster. [Docs](docs/image-mesh-editor.md) |
+| **Normal Map Editor** | `normal_map_editor.lua` | Prepara tangentes e configurações de material de normal map para meshes. [Docs](docs/normal-map-editor.md) |
+| **Mesh Texture Paint Editor** | `mesh_texture_paint_editor.lua` | Pinta texturas de mesh com strokes orientados por UV e exporta o asset editado. [Docs](docs/mesh-texture-paint-editor.md) |
+| **Mesh-to-Sprite Editor** | `mesh_to_sprite_editor.lua` | Renderiza poses de mesh em frames de sprite e exporta assets de sprite. [Docs](docs/mesh-to-sprite-editor.md) |
+| **Skeletal Animation Editor** | `skeletal_animation_editor.lua` | Inspeciona, cria e visualiza dados canônicos de animação esquelética. [Docs](docs/skeletal-animation-editor.md) |
+| **Facial Rig Editor** | `facial_rig_editor.lua` | Cria targets faciais, máscaras, clipes e prévias de runtime. [Docs](docs/facial-rig-editor.md) |
+| **Morph Region Editor** | `morph_region_editor.lua` | Define e valida regiões de morph para workflows faciais e de mesh. [Docs](docs/morph-editor.md) |
+| **Shader Editor** | `shader_editor.lua` | Cria e edita efeitos de shader (pixel + vertex) para qualquer tipo renderizável. [Docs](docs/editors.md#launchers) |
+| **Particle Editor** | `particle_editor.lua` | Projeta sistemas de partículas (`.ptl`) multi-estágio. [Docs](docs/editors.md#launchers) |
 | **Texture Packer** | `texture_packer.lua` | Empacota múltiplas texturas em sprite sheets otimizadas. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Edita níveis 2D baseados em tiles com múltiplas camadas e ferramentas de brush. |
 | **Physics Editor** | `physic_editor.lua` | Edita shapes de colisão física para sprites e meshes. Integra com Box2D. |
-| **Mesh Debug** | `mesh_debug.lua` | Operações em lote e importação assíncrona de GLB/FBX via Blender: carregar assets nativos, adicionar/remover normais, centralizar e processar pastas. |
+| **Mesh Debug** | `mesh_debug.lua` | Operações em lote e importação assíncrona de GLB/FBX via Blender: carregar assets nativos, adicionar/remover normais, centralizar e processar pastas. [Docs](docs/editors.md#launchers) |
 | **Asset Packager** | `asset_packager.lua` | Cria pacotes de assets (bancos SQLite3) com texturas, música, scripts e outros recursos. |
 
 ---

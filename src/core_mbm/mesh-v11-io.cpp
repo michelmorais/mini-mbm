@@ -54,7 +54,8 @@ namespace util
         {
             return false;
         }
-        if (std::memcmp(magic, MBM_V11_MAGIC, sizeof(magic)) != 0)
+        if (std::memcmp(magic, MBM_V11_MAGIC, sizeof(magic)) != 0 ||
+            formatVersion != MBM_V11_FORMAT_VERSION || reserved0 != 0)
             return false;
 
         std::memcpy(out.magic, magic, sizeof(out.magic));
@@ -97,6 +98,9 @@ namespace util
         {
             return false;
         }
+        if (compression > SECTION_COMPRESSION_DEFLATE ||
+            reserved1[0] != 0 || reserved1[1] != 0 || reserved1[2] != 0)
+            return false;
         out.type = type;
         out.sectionVersion = sectionVersion;
         out.compression = compression;

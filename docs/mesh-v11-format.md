@@ -65,6 +65,11 @@ struct SECTION_HEADER_V11
 Uncompressed sections receive the same integrity check as compressed sections;
 loaders reject a checksum mismatch before interpreting payload fields.
 
+Readers validate the envelope before consuming its payload: `magic` must be `MBM1`,
+`formatVersion` must be `11`, `reserved0` must be zero, `compression` must be `NONE` or
+`DEFLATE`, and all three `reserved1` bytes must be zero. A file that violates one of these
+invariants is rejected rather than being interpreted as a compatible v11 asset.
+
 ## 4. Section types
 
 ```cpp

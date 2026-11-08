@@ -1644,6 +1644,57 @@ namespace
         std::remove(source); std::remove(roundTrip);
     }
 
+    void testV11EnvelopeValidation()
+    {
+        const auto checkHeaderReject = [](const long offset, const uint8_t value)
+        {
+            FILE *fp = std::tmpfile();
+            if (!fp)
+                return false;
+            util::FILE_HEADER_V11 header;
+            const bool written = util::writeFileHeaderV11(fp, header);
+            std::fflush(fp);
+            const bool changed = written && std::fseek(fp, offset, SEEK_SET) == 0 &&
+                std::fwrite(&value, 1, 1, fp) == 1 && std::fflush(fp) == 0 &&
+                std::fseek(fp, 0, SEEK_SET) == 0;
+            util::FILE_HEADER_V11 readHeader;
+            const bool rejected = changed && !util::readFileHeaderV11(fp, readHeader);
+            std::fclose(fp);
+            return rejected;
+        };
+
+        expect(checkHeaderReject(4, static_cast<uint8_t>(MBM_V11_FORMAT_VERSION - 1)),
+               "v11 reader must reject an unsupported file format version");
+        expect(checkHeaderReject(7, 1),
+               "v11 reader must reject a nonzero fixed-header reserved byte");
+
+        const auto checkSectionReject = [](const long offset, const uint8_t value)
+        {
+            FILE *fp = std::tmpfile();
+            if (!fp)
+                return false;
+            util::SECTION_HEADER_V11 header;
+            header.type = util::SECTION_FRAME_STATIC;
+            header.sectionVersion = 1;
+            const uint8_t payload = 0x5a;
+            const bool written = util::writeSectionV11(fp, header, &payload, 1);
+            std::fflush(fp);
+            const bool changed = written && std::fseek(fp, offset, SEEK_SET) == 0 &&
+                std::fwrite(&value, 1, 1, fp) == 1 && std::fflush(fp) == 0 &&
+                std::fseek(fp, 0, SEEK_SET) == 0;
+            util::SECTION_HEADER_V11 readHeader;
+            std::vector<uint8_t> readPayload;
+            const bool rejected = changed && !util::readSectionV11(fp, readHeader, readPayload);
+            std::fclose(fp);
+            return rejected;
+        };
+
+        expect(checkSectionReject(4, 2),
+               "v11 reader must reject an unsupported section compression value");
+        expect(checkSectionReject(5, 1),
+               "v11 reader must reject nonzero section reserved bytes");
+    }
+
     void testCanonicalAnimationValidation()
     {
         CANONICAL_BONE root;
@@ -2098,6 +2149,7 @@ int runSkeletalFoundationTests()
     testCanonicalWeightReader();
     testCanonicalAnimationReader();
     testCanonicalAnimationValidation();
+    testV11EnvelopeValidation();
     testCanonicalWriterRoundTrip();
     testCpuLbsReference();
     testSkinningCapability();

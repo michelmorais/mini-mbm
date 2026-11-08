@@ -7,7 +7,7 @@ coverage index, not a claim that every method has a complete usage guide or runt
 Internal `__*` metamethods are excluded. Constants and dynamically constructed data tables
 are outside this method inventory.
 
-Checked against the repository bindings on 2026-10-12; unified Box2D entries updated on 2026-10-13. When updating a registration
+Checked against the repository bindings on 2026-11-08; unified Box2D entries updated on 2026-10-13. When updating a registration
 table, update this index and the relevant usage section together. Each binding link
 points to its implementation; table names distinguish factory, object and module APIs.
 
@@ -504,7 +504,7 @@ Source: [plugins/imGui/imgui-lua.cpp](../plugins/imGui/imgui-lua.cpp).
 | `AddRect` | [`onAddRectImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6626) |
 | `AddRectFilled` | [`onAddRectFilledImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6642) |
 | `AddRectFilledMultiColor` | [`onAddRectFilledMultiColorImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6657) |
-| `AddText` | [`onAddTextImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6778) |
+| `AddText` | [`onAddTextImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6779) |
 | `AddTriangle` | [`onAddTriangleImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6699) |
 | `AddTriangleFilled` | [`onAddTriangleFilledImDrawListLua`](../plugins/imGui/imgui-lua.cpp#L6713) |
 | `SetImDrawListToBackground` | [`onImDrawListToBackgroundLua`](../plugins/imGui/imgui-lua.cpp#L6614) |

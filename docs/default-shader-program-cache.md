@@ -28,10 +28,10 @@ future session hitting a similar "Windows only" report should not have to re-wal
 3. **MSVC Debug-CRT / unoptimized build.** The most tempting hypothesis, and the one first pursued:
    the MSVS solution's `Debug|Win32` configuration uses `/MDd` (debug CRT + checked STL iterators,
    `_ITERATOR_DEBUG_LEVEL=2`), `Optimization=Disabled`, *and* (per `platform-msvs/mbm-backend.props`)
-   defaults to the DirectX9 backend instead of OpenGL ES -- three plausible slowdowns bundled into
+   defaults to the OpenGL ES backend instead of DirectX9 -- three plausible slowdowns bundled into
    one config, versus CMake's `Release`-by-default on Linux/macOS. **Disproven by direct user
-   measurement**: rebuilding clean in MSVS `Release|Win32` (optimized CRT, OpenGL ES backend) still
-   took 21 seconds. Whatever this was, it wasn't the CRT or missing optimizations.
+   measurement**: rebuilding clean in MSVS `Release|Win32` (optimized CRT and the Release backend)
+   still took 21 seconds. Whatever this was, it wasn't the CRT or missing optimizations.
 4. **The real cause**, found by tracing the actual call graph from `fillActiveLayerWithMesh` through
    `addPlacedMesh` (`bSync=true` path) -> `placeMeshSync` -> `MESH::load` -> (cache hit, fast) ->
    `ANIMATION_MANAGER::populateAnimationsFromMesh` (`animation.cpp`) -> `populateAnimationFromHeader`,
@@ -74,9 +74,9 @@ differs:
   (`third-party/gles/EGL/egl.h` + `GLES2/gl2.h`, ANGLE's own headers), which translates GLSL ES ->
   HLSL and invokes the real D3D shader compiler (`d3dcompiler_47.dll`) on every compile+link --
   routinely tens of milliseconds per call, even for a trivial shader. The DirectX9 backend
-  (`shader-directx9.cpp`, active on `Debug|Win32` per `mbm-backend.props`, and confirmed by the user
-  to reproduce the same stall when manually selected) calls `D3DXCompileShader` directly, same order
-  of cost. 400 x ~50ms lands almost exactly on the ~20s measured in both configurations.
+  (`shader-directx9.cpp`, when manually selected; the current MSVS defaults are OpenGL ES for Debug
+  and DirectX 11 for Release) calls `D3DXCompileShader` directly, same order of cost. 400 x ~50ms
+  lands almost exactly on the ~20s measured in both configurations.
 
 ## Fix: a process-lifetime cache of compiled default programs
 
@@ -155,7 +155,7 @@ runs.
 
 - **Windows, OpenGL ES backend** (user-verified): fill-layer on the default 20x20 grid dropped from
   ~21s to under 0.5s.
-- **Windows, DirectX9 backend** (`Debug|Win32`, user-verified the *bug* independently by manually
+- **Windows, DirectX9 backend** (manually selected in `Debug|Win32`; user-verified the *bug* independently by manually
   switching backends before this fix landed there, then re-verified the fix after it landed): same
   ~20s+ stall reproduced pre-fix, confirming the same root cause applied; post-fix, the 400-mesh fill
   is "quase instantâneo" (near-instant), matching the OpenGL ES and Metal results.
