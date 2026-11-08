@@ -92,6 +92,30 @@ assert(surfaceSampleByPixel['3:4'] and surfaceSampleByPixel['5:4'] and
     surfaceSampleByPixel['4:3'] and surfaceSampleByPixel['4:5'],
     'surface raster must produce a continuous neighborhood across a UV diagonal')
 
+local basis = assert(Pick.surfaceBrushBasis(surfaceTriangles[1]))
+local squareSurfaceSamples = Pick.surfaceSamplesAtPoint({x=0,y=0,z=0}, .55,
+    surfaceTriangles, 9, 9, {hardness=1, shape='square', tangent=basis.tangent,
+        bitangent=basis.bitangent, maxSamples=4096})
+local squareSampleByPixel = {}
+for _, sample in ipairs(squareSurfaceSamples) do
+    squareSampleByPixel[math.floor(sample.x + .5) .. ':' .. math.floor(sample.y + .5)] = true
+end
+assert(squareSampleByPixel['2:2'],
+    'square surface raster must include a corner inside the tangent-space square')
+assert(not surfaceSampleByPixel['2:2'],
+    'circular surface raster must exclude the same diagonal corner')
+local function countSamples(samples)
+    local unique = {}
+    for _, sample in ipairs(samples) do
+        unique[math.floor(sample.x + .5) .. ':' .. math.floor(sample.y + .5)] = true
+    end
+    local count = 0
+    for _ in pairs(unique) do count = count + 1 end
+    return count
+end
+assert(countSamples(squareSurfaceSamples) > countSamples(surfaceSamples),
+    'square surface raster must cover more texels than the circle')
+
 local backA = {x = -1, y = -1, z = 0}
 local backB = {x = 0, y = 1, z = 0}
 local backC = {x = 1, y = -1, z = 0}

@@ -6,7 +6,10 @@ textura composta e MSH derivada, mostra a revisão 2D com overlay UV e oferece
 projeção de cor sólida pela câmera em superfícies visíveis e padding configurável
 para seams, destaca bordas das ilhas UV e avisa sobre sobreposição de UVs;
 o modo opcional de pintar através e o modo experimental `Surface 3D` também
-estão disponíveis; projeção por imagem continua nas próximas fases.
+estão disponíveis; projeção por imagem continua nas próximas fases. A forma
+quadrada agora usa uma máscara projetada no caminho normal e uma máscara
+tangente no caminho `Surface 3D`; a validação visual em meshes reais continua
+sendo necessária.
 
 Milestone de salvamento seguro e abertura transacional implementado: projeto Lua + camada PNG e exportação
 MSH + PNG são preparados antes da publicação, com restauração dos arquivos
@@ -120,16 +123,20 @@ aparecer em mais de um material ou frame.
 
 ### 3.4 Mapeamento do pincel
 
-O MVP oferece dois modos complementares:
+O MVP oferece três modos complementares:
 
-- `UV Brush`: converte o hit para UV e rasteriza o pincel nessa região;
+- `UV Brush`: converte o hit para UV e rasteriza o pincel nessa região. Para o
+  dab quadrado, a área visível é amostrada por raios no footprint projetado e
+  cada hit é convertido para UV; isso evita que um único quadrado UV apareça
+  como um polígono apenas por causa da triangulação local;
 - `Project/Stencil`: projeta uma cor ou imagem pela câmera, respeitando a face
   visível por padrão, com opção explícita de pintar através;
 - `Surface 3D`: coleta triângulos próximos em espaço do mundo e rasteriza seus
   pontos mais próximos em UV, reduzindo a dependência da projeção da câmera.
-  A máscara agora é avaliada por texel dentro dos triângulos, evitando círculos
-  independentes e recortes causados pela triangulação. O modo representa uma
-  distância na superfície, não uma forma circular fixa na tela.
+  A máscara é avaliada por texel dentro dos triângulos. O círculo usa distância
+  euclidiana na superfície; o quadrado usa a métrica `max(abs(tangente),
+  abs(bitangente))` em uma base tangente derivada do triângulo atingido.
+  Assim, a forma não é reduzida a um círculo quando o usuário escolhe quadrado.
 
 Quando uma textura é compartilhada por vários subsets, o painel oferece `Limitar
 ao subset`. Com o filtro ativo, picking, pintura, Surface 3D, Project/Stencil e
@@ -340,7 +347,6 @@ usada no overlay do viewport e nos testes.
 Cada stroke é uma sequência de dabs amostrados ao longo do movimento do mouse e
 é gravado apenas na camada de pintura. A composição com a fonte ocorre no preview
 e na exportação. Cada dab contém:
-Cada dab contém:
 
 - centro em UV;
 - raio na textura;
@@ -353,13 +359,17 @@ Cada dab contém:
 - identificador do stroke.
 
 No `UV Brush`, `Erase`, `Stamp` e na cobertura UV de `Project/Stencil`, a forma
-`circle` usa distância radial e `square` usa a maior distância axial. O modo
-`Surface 3D` continua sendo uma máscara por distância na superfície, pois sua
-área é definida pela geometria e não por uma figura fixa no plano da tela.
+`circle` usa distância radial e `square` usa a maior distância axial. Para
+`Paint` e `Erase` quadrados, a cobertura é amostrada no footprint projetado e
+convertida para UV antes da rasterização. O modo `Surface 3D` usa distância
+euclidiana para círculo e distância L-infinito em uma base tangente local para
+quadrado. Uma área fora da geometria real continua sendo corretamente recortada;
+o editor não deve preencher espaço que não pertence à mesh.
 
-No MVP, o `UV Brush` é rasterizado no espaço UV local do triângulo atingido e o
-`Project/Stencil` usa a projeção da câmera para produzir contribuições UV. Ambos
-devem tratar explicitamente os efeitos conhecidos:
+No MVP, o `UV Brush` circular é rasterizado no espaço UV local do triângulo
+atingido; o quadrado e o `Project/Stencil` usam a projeção da câmera para
+produzir contribuições UV. Todos devem tratar explicitamente os efeitos
+conhecidos:
 
 - distorção do círculo em UV quando a superfície está inclinada;
 - seams que interrompem a pintura;
@@ -370,6 +380,12 @@ devem tratar explicitamente os efeitos conhecidos:
 Após rasterizar, o editor deve dilatar a camada nas bordas das ilhas UV afetadas.
 O raio de dilatação precisa ser configurável e limitado ao tile/ilha relevante,
 evitando uma varredura completa da textura a cada dab.
+
+Quando uma cobertura for construída por vários samples projetados, o raio UV de
+cada sample deve ser derivado do jacobiano UV local e do espaçamento na tela,
+com sobreposição suficiente para não deixar lacunas. Um raio fixo baseado apenas
+na quantidade de samples produz padrões tracejados em texturas com densidade UV
+alta ou não uniforme.
 
 Depois da prova de conceito, comparar a qualidade de duas estratégias adicionais:
 
@@ -382,8 +398,9 @@ Depois da prova de conceito, comparar a qualidade de duas estratégias adicionai
 
 O pincel circular usa distância radial e falloff. O pincel quadrado usa a maior
 distância entre os eixos locais do dab, mantendo o mesmo raio, dureza e opacidade.
-Os dois modos devem compartilhar clipping, alpha blend, tiles sujos e Undo/Redo;
-a forma não pode alterar a textura base.
+Cursor, pintura normal, `Surface 3D`, borracha, clipping, alpha blend, tiles sujos
+e Undo/Redo devem compartilhar a mesma definição de forma; a forma não pode
+alterar a textura base.
 
 A decisão deve ser baseada em fixtures de rosto, mão e personagem completo, não em
 uma esfera sintética isolada.
@@ -516,7 +533,8 @@ uma lista de meshes incompatíveis.
   próximas).
 - Máscara por material (os filtros por subset e ilha UV já estão disponíveis).
 - Forma de dab circular ou quadrada implementada, com cursor e rasterização
-  coerentes; a escolha é persistida no projeto.
+  coerentes; a escolha é persistida no projeto. A forma quadrada deve ser
+  validada tanto na projeção normal quanto na base tangente de `Surface 3D`.
 - Carimbo por textura externa, incluindo seleção ImGui de recorte circular ou
   retangular sobre o viewport e fonte privada reutilizável.
 - Recuperação de gravação após erro de I/O implementada para projeto + camada,
@@ -548,6 +566,13 @@ uma lista de meshes incompatíveis.
   destrutiva.
 - Rasterização equivalente para dabs circulares e quadrados, mantendo dureza,
   alpha, clipping e tiles sujos.
+- Pintura e borracha normais quadradas em um quad dividido por diagonal, com
+  confirmação de que a máscara projetada não vira um polígono por causa de uma
+  única triangulação.
+- Pintura normal quadrada em uma fixture plana deve permanecer sólida dentro do
+  footprint, sem lacunas entre os samples projetados.
+- `Surface 3D` circular e quadrado na mesma fixture plana e em uma fixture
+  inclinada, verificando a métrica radial versus L-infinito tangente.
 - Projeção de stencil, oclusão e modo Pintar através.
 - Dilatação de seams e composição base + camada.
 - Clipping de dabs nas bordas da textura.
@@ -585,7 +610,9 @@ Evidência do milestone de salvamento:
   fontes intactas, sessão preservada após falhas simuladas de I/O e rejeição de
   projetos inválidos (textura, subset, frame, ilha UV e dimensões). O preview
   continua sem rebuild/upload durante os frames ociosos; o segundo stroke usa o
-  dab quadrado e a reabertura confirma a forma persistida no projeto.
+  dab quadrado e a reabertura confirma a forma persistida no projeto. O smoke
+  deve também comparar a área pintada normal quadrada com a circular e exercitar
+  `Surface 3D` quadrado.
 
 Status de execução dos backends:
 
@@ -621,7 +648,7 @@ Pendências de autoria que seguem depois do gate de backend:
 | Diferença entre preview e runtime | Tatuagem pode parecer diferente no jogo | Preview usa material real quando possível e documenta limitações de shader |
 | Backends diferentes | Reload e alpha podem divergir | Fixtures de smoke e matriz mínima de Linux, Windows e macOS |
 | Fonte externa do carimbo | Recorte pode perder alpha, orientação ou escala | Buffer privado RGBA, seleção explícita, preview com checkerboard e fixtures de recorte |
-| Forma do dab | Cursor e pixels podem representar formas diferentes | Compartilhar a mesma máscara de forma entre cursor, raster e testes |
+| Forma do dab | Cursor e pixels podem representar formas diferentes, especialmente entre UV e superfície | Compartilhar a mesma máscara de forma entre cursor, raster, projeção tangente e testes |
 
 Decisões que devem ser fechadas na Fase 0:
 

@@ -565,7 +565,9 @@ function M.tilesForPixels(buffer, samples)
     local result, seen = {}, {}
     for _, sample in ipairs(samples) do
         if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
-            for _, tile in ipairs(M.tilesForRect(buffer, sample.x, sample.y, sample.x, sample.y)) do
+            local radius = math.max(0, finiteNumber(sample.radius, 0))
+            for _, tile in ipairs(M.tilesForRect(buffer, sample.x - radius, sample.y - radius,
+                    sample.x + radius, sample.y + radius)) do
                 if not seen[tile.key] then
                     seen[tile.key] = true
                     result[#result + 1] = tile
@@ -576,13 +578,15 @@ function M.tilesForPixels(buffer, samples)
     return result
 end
 
-function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shape)
+function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shape, mode)
     assertBuffer(layer, 'layer')
     assert(layer.tileSize, 'applyProjectedSamples requires a layer created by newLayer')
     assert(type(samples) == 'table', 'samples must be a table')
     local normalizedColor = normalizeColor(color)
     opacity = clamp(finiteNumber(opacity, 1), 0, 1)
     shape = normalizeShape(shape)
+    mode = mode or 'paint'
+    assert(mode == 'paint' or mode == 'erase', 'projected sample mode must be paint or erase')
     local strongest = {}
     for _, sample in ipairs(samples) do
         if type(sample) == 'table' and type(sample.x) == 'number' and type(sample.y) == 'number' then
@@ -615,8 +619,13 @@ function M.applyProjectedSamples(layer, samples, opacity, color, deferSync, shap
             local row = rows[y + 1]
             local offset = x * M.BYTES_PER_PIXEL + 1
             local oldR, oldG, oldB, oldA = row:byte(offset, offset + 3)
-            local newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
-                normalizedColor, amount * opacity * normalizedColor.a)
+            local newR, newG, newB, newA
+            if mode == 'erase' then
+                newR, newG, newB, newA = blendErase(oldR, oldG, oldB, oldA, amount * opacity)
+            else
+                newR, newG, newB, newA = blendPaint(oldR, oldG, oldB, oldA,
+                    normalizedColor, amount * opacity * normalizedColor.a)
+            end
             if oldR ~= newR or oldG ~= newG or oldB ~= newB or oldA ~= newA then
                 rows[y + 1] = row:sub(1, offset - 1) .. string.char(newR, newG, newB, newA) ..
                     row:sub(offset + 4)

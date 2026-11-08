@@ -731,7 +731,10 @@ local function applyStrokeHit(hit, screenX, screenY)
     local radius = state.brush.radius
     local projectedSamples
     local surfaceSamples
-    if state.brush.mode == 'project' and screenX and screenY then
+    local screenProjectedMode = state.brush.mode == 'project' or
+        ((state.brush.mode == 'paint' or state.brush.mode == 'erase') and
+            state.brush.shape == 'square')
+    if screenProjectedMode and screenX and screenY then
         projectedSamples = {}
         local lastX = state.stroke.lastScreenX or screenX
         local lastY = state.stroke.lastScreenY or screenY
@@ -744,7 +747,8 @@ local function applyStrokeHit(hit, screenX, screenY)
             local sampleY = lastY + (screenY - lastY) * interpolation
             local sampleHit = step == steps and hit or hitAtScreen(sampleX, sampleY)
             if sampleHit then
-                local samples = projectSamplesAtScreen(sampleHit, sampleX, sampleY)
+                local samples = projectSamplesAtScreen(sampleHit, sampleX, sampleY,
+                    state.brush.mode == 'project' and state.paintThrough)
                 for _, sample in ipairs(samples or {}) do projectedSamples[#projectedSamples + 1] = sample end
             end
         end
@@ -763,9 +767,12 @@ local function applyStrokeHit(hit, screenX, screenY)
         end
     end
     local result
-    if state.brush.mode == 'project' and projectedSamples then
+    if (state.brush.mode == 'project' or
+            ((state.brush.mode == 'paint' or state.brush.mode == 'erase') and
+                state.brush.shape == 'square')) and projectedSamples then
         result = Raster.applyProjectedSamples(state.layer, projectedSamples, state.brush.opacity,
-            colorBytes(), true, state.brush.shape)
+            colorBytes(), true, state.brush.shape,
+            state.brush.mode == 'erase' and 'erase' or 'paint')
     elseif state.brush.mode == 'surface' and surfaceSamples then
         result = Raster.applyProjectedSamples(state.layer, surfaceSamples, state.brush.opacity,
             colorBytes(), true, state.brush.shape)
@@ -987,7 +994,7 @@ local function pointInsidePolygon(x, y, points)
     return inside
 end
 
-projectSamplesAtScreen = function(hit, screenX, screenY)
+projectSamplesAtScreen = function(hit, screenX, screenY, paintThrough)
     ensureTargetPickAcceleration()
     local footprint = brushCursorPoints(hit, screenX, screenY, screenX, screenY)
     if not footprint then return nil end
@@ -997,6 +1004,21 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
     local side = math.min(PROJECT_SAMPLE_MAX,
         math.max(9, math.ceil(diameter / PROJECT_SAMPLE_SPACING) + 1))
     if side % 2 == 0 then side = math.min(PROJECT_SAMPLE_MAX, side + 1) end
+    local sampleSpacing = diameter / math.max(1, side - 1)
+    local sampleRadius = state.brush.radius * 1.25 / math.max(1, side - 1)
+    local derivatives = brushUvDerivatives(hit, screenX, screenY)
+    if derivatives then
+        local duPerScreenPixel = math.sqrt(derivatives.duDx * derivatives.duDx +
+            derivatives.duDy * derivatives.duDy)
+        local dvPerScreenPixel = math.sqrt(derivatives.dvDx * derivatives.dvDx +
+            derivatives.dvDy * derivatives.dvDy)
+        local texturePixelsPerScreenPixel = math.max(
+            duPerScreenPixel * math.max(1, state.textureWidth - 1),
+            dvPerScreenPixel * math.max(1, state.textureHeight - 1))
+        sampleRadius = math.max(sampleRadius,
+            sampleSpacing * texturePixelsPerScreenPixel * math.sqrt(2) * .55)
+    end
+    sampleRadius = math.max(1, sampleRadius)
     local samples = {}
     for row = 0, side - 1 do
         local sampleY = screenY - screenRadius + diameter * row / (side - 1)
@@ -1010,7 +1032,7 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
             local inside = state.brush.shape == 'square' and
                 pointInsidePolygon(sampleX, sampleY, footprint) or distance <= 1
             if inside then
-                local sampleHits = state.paintThrough and hitsAtScreen(sampleX, sampleY) or
+                local sampleHits = paintThrough == true and hitsAtScreen(sampleX, sampleY) or
                     {hitAtScreen(sampleX, sampleY)}
                 local inner = state.brush.hardness
                 local amount = distance <= inner and 1 or
@@ -1022,8 +1044,7 @@ projectSamplesAtScreen = function(hit, screenX, screenY)
                                 x = sampleHit.uv.u * (state.layer.width - 1),
                                 y = sampleHit.uv.v * (state.layer.height - 1),
                                 amount = amount,
-                                radius = math.max(1, state.brush.radius * 1.25 /
-                                    math.max(1, side - 1)),
+                                radius = sampleRadius,
                                 shape = state.brush.shape,
                             }
                         end
@@ -1054,12 +1075,16 @@ surfaceSamplesAtHit = function(hit, screenX, screenY)
     end
     surfaceRadius = math.max(surfaceRadius, state.meshDiagonal * .0001)
     local triangles, acceleration = paintTriangles(), paintAcceleration()
+    local basis = Pick.surfaceBrushBasis(hit.triangle)
     local candidates = Pick.queryTrianglesSphere(hit.position, surfaceRadius,
         acceleration, triangles)
     local samples = Pick.surfaceSamplesAtPoint(hit.position, surfaceRadius,
         triangles, state.layer.width, state.layer.height, {
             candidates = candidates,
             hardness = state.brush.hardness,
+            shape = state.brush.shape,
+            tangent = basis and basis.tangent,
+            bitangent = basis and basis.bitangent,
             maxSamples = 65536,
         })
     if #samples == 0 then

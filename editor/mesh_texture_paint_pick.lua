@@ -46,6 +46,49 @@ local function normalizedNormal(ax, ay, az, bx, by, bz)
     return {x = nx / length, y = ny / length, z = nz / length}
 end
 
+local function normalizedVector(x, y, z)
+    local length = math.sqrt(x * x + y * y + z * z)
+    if length <= EPSILON then return nil end
+    return {x = x / length, y = y / length, z = z / length}
+end
+
+--- Build an orthonormal tangent frame from a triangle's position and UV edges.
+--- The frame is used by Surface 3D to give square dabs a stable local meaning.
+function M.surfaceBrushBasis(triangle)
+    if type(triangle) ~= 'table' or not validPoint(triangle.a) or
+            not validPoint(triangle.b) or not validPoint(triangle.c) or
+            type(triangle.uvA) ~= 'table' or type(triangle.uvB) ~= 'table' or
+            type(triangle.uvC) ~= 'table' then
+        return nil
+    end
+    local edge1x, edge1y, edge1z = triangle.b.x - triangle.a.x,
+        triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z
+    local edge2x, edge2y, edge2z = triangle.c.x - triangle.a.x,
+        triangle.c.y - triangle.a.y, triangle.c.z - triangle.a.z
+    local du1, dv1 = triangle.uvB.u - triangle.uvA.u, triangle.uvB.v - triangle.uvA.v
+    local du2, dv2 = triangle.uvC.u - triangle.uvA.u, triangle.uvC.v - triangle.uvA.v
+    local determinant = du1 * dv2 - du2 * dv1
+    if math.abs(determinant) <= EPSILON then return nil end
+    local tangent = normalizedVector(
+        (edge1x * dv2 - edge2x * dv1) / determinant,
+        (edge1y * dv2 - edge2y * dv1) / determinant,
+        (edge1z * dv2 - edge2z * dv1) / determinant)
+    local normal = normalizedNormal(edge1x, edge1y, edge1z, edge2x, edge2y, edge2z)
+    if not tangent or not normal then return nil end
+    local bitangentX, bitangentY, bitangentZ = cross(normal.x, normal.y, normal.z,
+        tangent.x, tangent.y, tangent.z)
+    local bitangent = normalizedVector(bitangentX, bitangentY, bitangentZ)
+    if not bitangent then return nil end
+    local rawBitangentX = (-edge1x * du2 + edge2x * du1) / determinant
+    local rawBitangentY = (-edge1y * du2 + edge2y * du1) / determinant
+    local rawBitangentZ = (-edge1z * du2 + edge2z * du1) / determinant
+    if dot(bitangent.x, bitangent.y, bitangent.z,
+            rawBitangentX, rawBitangentY, rawBitangentZ) < 0 then
+        bitangent.x, bitangent.y, bitangent.z = -bitangent.x, -bitangent.y, -bitangent.z
+    end
+    return {tangent = tangent, bitangent = bitangent, normal = normal}
+end
+
 local function positionAt(origin, direction, distance)
     return {
         x = origin.x + direction.x * distance,
@@ -188,6 +231,9 @@ function M.surfaceSamplesAtPoint(center, radius, triangles, width, height, optio
     radius = math.max(0, tonumber(radius) or 0)
     options = options or {}
     local hardness = math.max(0, math.min(1, tonumber(options.hardness) or 1))
+    local shape = options.shape == 'square' and 'square' or 'circle'
+    local tangent = options.tangent
+    local bitangent = options.bitangent
     local maxSamples = math.max(1024, math.floor(tonumber(options.maxSamples) or 65536))
     local source = options.candidates or triangles
     local scaleX, scaleY = width - 1, height - 1
@@ -231,8 +277,15 @@ function M.surfaceSamplesAtPoint(center, radius, triangles, width, height, optio
                     local dy = position.y - center.y
                     local dz = position.z - center.z
                     local distanceSquared = dx * dx + dy * dy + dz * dz
-                    if distanceSquared <= radiusSquared then
-                        local distance = math.sqrt(distanceSquared)
+                    local distance
+                    if shape == 'square' and validPoint(tangent) and validPoint(bitangent) then
+                        local localX = dot(dx, dy, dz, tangent.x, tangent.y, tangent.z)
+                        local localY = dot(dx, dy, dz, bitangent.x, bitangent.y, bitangent.z)
+                        distance = math.max(math.abs(localX), math.abs(localY))
+                    else
+                        distance = math.sqrt(distanceSquared)
+                    end
+                    if distance <= radius then
                         local amount = distance <= innerRadius and 1 or
                             (innerRadius >= radius and 0 or
                                 math.max(0, 1 - (distance - innerRadius) / (radius - innerRadius)))

@@ -153,6 +153,13 @@ local projectedSquareResult = Raster.applyProjectedSamples(projectedSquare, {
 assert(projectedSquareResult.changedPixels == 9,
     'projected square samples must use the complete destination footprint')
 assertPixel(projectedSquare, 1, 1, 255, 128, 0, 255)
+local projectedErase = Raster.newLayer(5, 5, 2)
+Raster.applyProjectedSamples(projectedErase, {{x=2, y=2, amount=1, radius=1}}, 1,
+    {r=255, g=0, b=0, a=255}, false, 'square')
+local projectedEraseResult = Raster.applyProjectedSamples(projectedErase,
+    {{x=2, y=2, amount=1, radius=1}}, 1, {r=0, g=0, b=0, a=255}, false, 'square', 'erase')
+assert(projectedEraseResult.changedPixels == 9 and Raster.sample(projectedErase, 2, 2).a == 0,
+    'projected square erase must clear the complete destination footprint')
 
 local paddingSource = Raster.newLayer(5, 5, 2)
 Raster.paint(paddingSource, {x = 2, y = 2, radius = 0, hardness = 1, opacity = 1,

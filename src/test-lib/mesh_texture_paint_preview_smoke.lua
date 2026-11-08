@@ -55,7 +55,7 @@ os.remove(temp)
 local source, fixture, capture = temp .. '.png', temp .. '.msh', temp .. '_capture.png'
 local rt, started, failed, stage, settled = nil, nil, false, 0, 0
 local originalPixels, redPixels, meshReloads, idleBuilds, idleUploads
-local squareProjectPixels
+local squareProjectPixels, squareSurfacePixels
 local original = string.rep(string.char(100, 100, 100, 255), 32 * 32)
 
 local function protect(fn)
@@ -212,6 +212,21 @@ function onLoop()
             local circleProjectPixels = paintedPixels()
             assert(squareProjectPixels > circleProjectPixels,
                 'Square Project/Stencil must cover more texels than the circle')
+            rt:clear()
+            loadMesh(fixture)
+            state.brush.mode = 'surface'
+            paint({r=1,g=1,b=1,a=1}, false, 'square')
+        elseif stage == 12 then
+            squareSurfacePixels = paintedPixels()
+            assert(squareSurfacePixels > 0, 'Square Surface 3D did not paint')
+            rt:clear()
+            loadMesh(fixture)
+            state.brush.mode = 'surface'
+            paint({r=1,g=1,b=1,a=1}, false, 'circle')
+        elseif stage == 13 then
+            local circleSurfacePixels = paintedPixels()
+            assert(squareSurfacePixels > circleSurfacePixels,
+                'Square Surface 3D must cover more texels than the circle')
             state.brush.mode = 'paint'
             idleBuilds, idleUploads = state.previewBuilds, state.previewTextureReloads
         else
