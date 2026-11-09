@@ -114,6 +114,7 @@ local state = {
     orbiting = false,
     panning = false,
     painting = false,
+    strokeModal = false,
     stroke = nil,
     undo = {},
     redo = {},
@@ -1590,7 +1591,7 @@ local function cancelStroke()
     state.layer.touched = stroke.touchedBefore
     state.modified = stroke.modifiedBefore
     state.exportDirty = stroke.exportDirtyBefore
-    state.stroke, state.painting = nil, false
+    state.stroke, state.painting, state.strokeModal = nil, false, false
     state.status = tLang.L('mtp_stroke_cancelled')
     return true
 end
@@ -1609,6 +1610,29 @@ local function processPendingStroke()
         stroke.queue, stroke.queueHead = {}, 1
         if stroke.finishRequested then finishStroke() end
     end
+end
+
+local function showStrokeModal()
+    if state.strokeModal then
+        tImGui.OpenPopup('##mesh_texture_paint_stroke_wait')
+    end
+    local opened = tImGui.BeginPopupModal('##mesh_texture_paint_stroke_wait', false,
+        tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'))
+    if not opened then return end
+    if not state.strokeModal then
+        tImGui.CloseCurrentPopup()
+        tImGui.EndPopup()
+        return
+    end
+    tImGui.Text(tLang.L('mtp_waiting_stroke'))
+    if tImGui.Button(tLang.L('mtp_cancel_stroke'), {x=120, y=0}) then
+        if state.stroke then cancelStroke() else state.strokeModal = false end
+        tImGui.CloseCurrentPopup()
+    elseif not state.stroke then
+        state.strokeModal = false
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
 end
 
 local function history(redo)
@@ -2367,12 +2391,13 @@ function onLoop(delta)
     showTexture()
     showExternalStampOverlay()
     showBrushCursor()
+    showStrokeModal()
     tUtil.showOverlayMessage()
 end
 
 function onTouchDown(key, x, y)
     state.mouse.x, state.mouse.y = x, y
-    if state.stampOverlay then return end
+    if state.stampOverlay or state.strokeModal then return end
     if imguiCapturesMouse() then return end
     if state.previewJob then return end
     if key == 0 then
@@ -2408,7 +2433,7 @@ end
 function onTouchMove(key, x, y)
     local dx, dy = x - state.mouse.x, y - state.mouse.y
     state.mouse.x, state.mouse.y = x, y
-    if state.stampOverlay then return end
+    if state.stampOverlay or state.strokeModal then return end
     if imguiCapturesMouse() or state.previewJob then return end
     if state.painting then
         local hit = hitAtScreen(x, y)
@@ -2444,15 +2469,21 @@ function onTouchUp(key, x, y)
     end
     local captured = imguiCapturesMouse()
     if key == 1 then
-        if state.stroke then state.stroke.finishRequested = true else finishStroke() end
+        if state.stroke then
+            state.stroke.finishRequested = true
+            state.strokeModal = true
+        else
+            finishStroke()
+        end
     end
     state.orbiting, state.panning = false, false
     state.mouse.x, state.mouse.y = x, y
+    if state.strokeModal then return end
     if key ~= 1 and not captured then state.hoverPickPending = true end
 end
 
 function onTouchZoom(zoom)
-    if state.stampOverlay or imguiCapturesMouse() or state.previewJob then return end
+    if state.stampOverlay or state.strokeModal or imguiCapturesMouse() or state.previewJob then return end
     state.cameraOrbit.distance = math.max(.1, state.cameraOrbit.distance * (zoom > 0 and .9 or 1.1))
     applyCamera()
     state.hoverPickPending = true
@@ -2468,10 +2499,15 @@ function onKeyDown(key)
         cancelStroke()
         return
     end
+    if key == mbm.getKeyCode('ESC') and state.strokeModal then
+        state.strokeModal = false
+        return
+    end
     if key == mbm.getKeyCode('ESC') and state.previewJob then
         cancelPreviewJob()
         return
     end
+    if state.strokeModal then return end
     if imguiCapturesKeyboard() then return end
     if key == mbm.getKeyCode('control') then state.keyControl = true
     elseif state.keyControl and key == mbm.getKeyCode('Z') then history(false)
