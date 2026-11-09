@@ -131,6 +131,8 @@ local brushUvDerivatives
 local stopPreviewAnimations
 local projectSamplesAtScreen
 local surfaceSamplesAtHit
+local hitAtScreen
+local hitsAtScreen
 
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
@@ -843,7 +845,7 @@ local function applyStrokeHit(hit, screenX, screenY)
     end
 end
 
-local function hitAtScreen(x, y)
+hitAtScreen = function(x, y)
     if not state.target then return nil end
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return nil end
@@ -855,7 +857,7 @@ local function hitAtScreen(x, y)
     return Pick.pickTriangles(origin, direction, triangles)
 end
 
-local function hitsAtScreen(x, y)
+hitsAtScreen = function(x, y)
     if not state.target then return {} end
     local ok, ox, oy, oz, dx, dy, dz = dpCall(mbm.getPickRay, x, y)
     if not ok then return {} end
@@ -1415,7 +1417,7 @@ end
 
 local function showBrushCursor()
     if not (state.target and state.hoverHit and state.textureWidth > 0 and state.textureHeight > 0) then return end
-    if state.painting or state.previewJob or tImGui.GetWantCaptureMouse() then return end
+    if state.previewJob or tImGui.GetWantCaptureMouse() then return end
     local mouse = tImGui.GetMousePos()
     if not mouse or not tonumber(mouse.x) or not tonumber(mouse.y) or
             mouse.x < -100000 or mouse.y < -100000 then return end
