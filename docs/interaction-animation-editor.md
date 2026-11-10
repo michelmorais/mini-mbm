@@ -1,6 +1,6 @@
 # Interaction Animation Editor
 
-Status: **primeiro protótipo standalone implementado; ainda não registrado no launcher**.
+Status: **primeiro protótipo standalone implementado e registrado nos shortcuts Linux/macOS**.
 
 O protótipo pode ser aberto diretamente com:
 
@@ -8,6 +8,9 @@ O protótipo pode ser aberto diretamente com:
 bin/debug/linux_x86/mini-mbm --scene editor/interaction_animation_editor.lua \\
     --disable_select_monitor --nosplash -w 1400 -h 900
 ```
+
+Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
+`interaction_animation_editor`.
 
 Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
 relógio principal, preview, eventos básicos de transformação/troca de animação e
@@ -17,8 +20,10 @@ implementado.
 O viewport inicial desta entrega também possui a base de navegação esperada para
 um editor 3D: painel de órbita de câmera inspirado no `scene_editor3d.lua`,
 linhas de origem X/Y/Z, seleção das meshes por clique, pan/orbit na view e um
-gizmo de eixos para mover ou rotacionar o ator selecionado. A timeline fica
-ancorada na parte inferior com altura reduzida para preservar a área de preview.
+gizmo de eixos ou anéis XYZ para mover ou rotacionar o ator selecionado. O ator
+pode ser deselecionado clicando no espaço vazio ou pressionando `ESC`; nesse
+caso o gizmo é ocultado. A timeline fica ancorada no rodapé com altura reduzida
+para preservar a área de preview.
 Essas transformações alteram a transformação base relativa da mesh e continuam
 sendo exportadas como dados do projeto.
 

@@ -18,6 +18,7 @@ engine's normal `--scene` option.
 | Font Maker | `font_maker.lua` | `font_maker` | This inventory | Inventory only |
 | GUI Editor | `gui_editor.lua` | `gui_editor` | This inventory | Inventory only |
 | Image Mesh Editor | `image_mesh_editor.lua` | `imesh` | [Image Mesh Editor](image-mesh-editor.md) | Guide |
+| Interaction Animation Editor | `interaction_animation_editor.lua` | `interaction_animation_editor` | [Interaction Animation Editor](interaction-animation-editor.md) | Guide |
 | Mesh Debug | `mesh_debug.lua` | `mesh_debug` | [Mesh Simplification](mesh-simplification.md), [Mesh Audit](mesh-audit.md), [Mesh Debug capture](mesh-debug-auto-capture.md) | Related guides |
 | Articulated Mesh Editor | `mesh_maker_articulated.lua` | `mesh_articulated` | [Articulated Mesh Editor](articulated-mesh-editor.md) | Guide |
 | Mesh Texture Paint Editor | `mesh_texture_paint_editor.lua` | `mesh_texture_paint_editor` | [Mesh Texture Paint Editor](mesh-texture-paint-editor.md) | Guide |

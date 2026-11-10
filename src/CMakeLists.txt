@@ -2088,6 +2088,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias for mesh_debug"
         COMMAND cmake -E echo "alias for mesh_texture_paint_editor"
         COMMAND cmake -E echo "alias for facial_rig_editor"
+        COMMAND cmake -E echo "alias for interaction_animation_editor"
         COMMAND cmake -E echo "alias for morph_editor"
         COMMAND cmake -E echo "alias for shader_editor"
         COMMAND cmake -E echo "alias for particle_editor"
@@ -2109,6 +2110,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias mesh_texture_paint_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_texture_paint_editor.lua --nosplash --name mesh_texture_paint_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua  --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
@@ -2194,6 +2196,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias mesh_texture_paint_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_texture_paint_editor.lua -w 1470 -h 900 --nosplash --name mesh_texture_paint_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua -w 1470 -h 900 --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua -w 1470 -h 900 --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua -w 1470 -h 900 --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua -w 1470 -h 900 --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua -w 1470 -h 900 --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua -w 1470 -h 900 --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
