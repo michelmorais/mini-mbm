@@ -33,7 +33,7 @@ local S = {
     actors = {
         rat = {
             label = 'rat',
-            path = '/home/michel/Ratworks/assets/meshes/Cyclopsv2.msh',
+            path = '',
             base = {x = 180, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
             bundle = nil,
             object = nil,
@@ -46,7 +46,7 @@ local S = {
         },
         machine = {
             label = 'machine',
-            path = '/home/michel/Ratworks/assets/meshes/ChompBot.msh',
+            path = '',
             base = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
             bundle = nil,
             object = nil,
@@ -57,6 +57,10 @@ local S = {
             runtimeStartTime = 0,
             offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         },
+    },
+    samplePaths = {
+        rat = '/home/michel/Ratworks/assets/meshes/Cyclopsv2.msh',
+        machine = '/home/michel/Ratworks/assets/meshes/ChompBot.msh',
     },
     actorOrder = {'rat', 'machine'},
     clockActor = 'machine',
@@ -79,16 +83,22 @@ local S = {
     mouse = {left = false, right = false, x = 0, y = 0},
     cameraDrag = nil,
     windows = {
-        main = 'iae_main',
-        actors = 'iae_actors',
-        events = 'iae_events',
-        timeline = 'iae_timeline',
-        camera = 'iae_camera',
+        actors = '',
+        events = '',
+        timeline = '',
+        camera = '',
     },
 }
 
 local function L(key)
     return tLang.L('iae_' .. key)
+end
+
+local function refreshWindowTitles()
+    S.windows.actors = L('actors')
+    S.windows.events = L('events')
+    S.windows.timeline = L('timeline')
+    S.windows.camera = L('camera')
 end
 
 local function dpCall(fn, ...)
@@ -289,7 +299,7 @@ local function updateGizmo()
         object:setColor(table.unpack(definition.color))
         object.visible = S.transformMode == 'move'
     end
-    local radius = math.max(length * 0.72, 20)
+    local radius = math.max(actorMeshExtent(entry) * 1.1, 40)
     local previousRadius = S.gizmo.radius
     local radiusChanged = not previousRadius or math.abs(previousRadius - radius) > 1e-6
     local axesWorld = {
@@ -320,7 +330,7 @@ local function updateGizmo()
             object:set(points, 1)
         end
         object.alwaysOnTop = true
-        object.alwaysOnTopPriority = 10
+        object.alwaysOnTopPriority = 20
         object.alwaysRender = true
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(definition.color))
@@ -689,11 +699,16 @@ local function loadActor(id, path)
     return true
 end
 
-local function loadDefaults()
-    local loadedRat = io.open(actor('rat').path, 'rb')
-    if loadedRat then loadedRat:close(); loadActor('rat', actor('rat').path) end
-    local loadedMachine = io.open(actor('machine').path, 'rb')
-    if loadedMachine then loadedMachine:close(); loadActor('machine', actor('machine').path) end
+local function loadSampleProject()
+    for _, id in ipairs(S.actorOrder) do
+        local path = S.samplePaths[id]
+        local file = io.open(path, 'rb')
+        if file then
+            file:close()
+            actor(id).path = path
+            loadActor(id, path)
+        end
+    end
     local machine = actor('machine')
     for _, clip in ipairs(clipList(machine)) do
         if clip.name == 'bite' then machine.clipKey = clip.key; S.clockKey = clip.key; break end
@@ -703,6 +718,7 @@ local function loadDefaults()
         if clip.name == 'Eaten' then rat.clipKey = clip.key; break end
     end
     seekAll(0, false)
+    S.status = L('sample_loaded')
 end
 
 local function openActorFile(id)
@@ -923,6 +939,8 @@ local function showActors()
     local opened = tImGui.Begin(S.windows.actors, true, 0)
     if opened then
         tImGui.Text(L('actors'))
+        if tImGui.Button(L('load_sample')) then loadSampleProject() end
+        tImGui.Separator()
         actorPanel('rat')
         actorPanel('machine')
         tImGui.Separator()
@@ -1067,6 +1085,7 @@ local function showMainMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(L('file')) then
         if tImGui.MenuItem(L('load_project')) then loadProject() end
+        if tImGui.MenuItem(L('load_sample')) then loadSampleProject() end
         if tImGui.MenuItem(L('save_project')) then saveProject() end
         if tImGui.MenuItem(L('export')) then exportSpec() end
         tImGui.Separator()
@@ -1074,14 +1093,15 @@ local function showMainMenu()
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(L('options')) then
-        if tImGui.MenuItem(L('english')) then tLang.setLanguage('en') end
-        if tImGui.MenuItem(L('portuguese')) then tLang.setLanguage('pt_br') end
+        if tImGui.MenuItem(L('english')) then tLang.setLanguage('en'); refreshWindowTitles() end
+        if tImGui.MenuItem(L('portuguese')) then tLang.setLanguage('pt_br'); refreshWindowTitles() end
         tImGui.EndMenu()
     end
     tImGui.EndMainMenuBar()
 end
 
 function onInitScene()
+    refreshWindowTitles()
     S.camera = mbm.getCamera('3d')
     S.camera:setFar(9999999)
     applyCamera()
@@ -1089,7 +1109,6 @@ function onInitScene()
     tUtil.sMessageOverlay = L('welcome')
     tUtil.bRightSide = true
     tUtil.tTimerOverlay:start()
-    loadDefaults()
 end
 
 function onLoop(delta)

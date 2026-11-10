@@ -12,6 +12,10 @@ bin/debug/linux_x86/mini-mbm --scene editor/interaction_animation_editor.lua \\
 Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
 `interaction_animation_editor`.
 
+O editor inicia sem meshes carregadas. O botão/menu `Load sample meshes` carrega
+as meshes `Cyclopsv2.msh` e `ChompBot.msh` do Ratworks para testes rápidos; ao
+salvar o projeto, os caminhos dessas duas meshes são incluídos no arquivo Lua.
+
 Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
 relógio principal, preview, eventos básicos de transformação/troca de animação e
 salvamento/exportação Lua. O player definitivo para uso em runtime ainda não foi
