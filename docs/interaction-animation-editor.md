@@ -1,6 +1,26 @@
 # Interaction Animation Editor
 
-Status: **proposta de editor; ainda não implementado**.
+Status: **primeiro protótipo standalone implementado; ainda não registrado no launcher**.
+
+O protótipo pode ser aberto diretamente com:
+
+```sh
+bin/debug/linux_x86/mini-mbm --scene editor/interaction_animation_editor.lua \\
+    --disable_select_monitor --nosplash -w 1400 -h 900
+```
+
+Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
+relógio principal, preview, eventos básicos de transformação/troca de animação e
+salvamento/exportação Lua. O player definitivo para uso em runtime ainda não foi
+implementado.
+
+O viewport inicial desta entrega também possui a base de navegação esperada para
+um editor 3D: painel de órbita de câmera inspirado no `scene_editor3d.lua`,
+linhas de origem X/Y/Z, seleção das meshes por clique, pan/orbit na view e um
+gizmo de eixos para mover ou rotacionar o ator selecionado. A timeline fica
+ancorada na parte inferior com altura reduzida para preservar a área de preview.
+Essas transformações alteram a transformação base relativa da mesh e continuam
+sendo exportadas como dados do projeto.
 
 Este documento registra o plano para um editor de sequências de interação entre
 duas ou mais meshes. O caso inicial é a interação entre o rato e a máquina do
