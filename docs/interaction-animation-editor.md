@@ -42,6 +42,12 @@ O editor não criará necessariamente uma terceira animação dentro de um arqui
 `.msh`. Ele criará uma sequência que coordena instâncias de meshes, animações,
 transformações relativas e eventos.
 
+A sequência possui uma âncora de interação selecionável no editor. Inicialmente
+ela é a máquina, porque o clip `bite` é o relógio principal. Os eixos de edição
+do gizmo são derivados da transformação da âncora, permitindo que o rato seja
+editado de forma consistente mesmo quando a interação inteira estiver orientada
+para outra direção no mundo.
+
 ## Contexto atual
 
 No protótipo do Ratworks, a interação é disparada manualmente pelo código:

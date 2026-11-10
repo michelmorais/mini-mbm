@@ -63,6 +63,7 @@ local S = {
         machine = '/home/michel/Ratworks/assets/meshes/ChompBot.msh',
     },
     actorOrder = {'rat', 'machine'},
+    anchorActor = 'machine',
     clockActor = 'machine',
     clockKey = '',
     time = 0,
@@ -155,10 +156,75 @@ local function dot(ax, ay, az, bx, by, bz)
     return ax * bx + ay * by + az * bz
 end
 
-local function axisVector(name)
-    if name == 'x' then return 1, 0, 0 end
-    if name == 'y' then return 0, 1, 0 end
-    return 0, 0, 1
+local normalizedDirection
+
+local function multiplyRotation(a, b)
+    local result = {}
+    for row = 1, 3 do
+        result[row] = {}
+        for column = 1, 3 do
+            result[row][column] = a[row][1] * b[1][column] +
+                a[row][2] * b[2][column] + a[row][3] * b[3][column]
+        end
+    end
+    return result
+end
+
+local function identityRotation()
+    return {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
+end
+
+local function axisRotation(axis, angle)
+    local x, y, z = axis.x, axis.y, axis.z
+    local cosine, sine = math.cos(angle), math.sin(angle)
+    local complement = 1 - cosine
+    return {
+        {complement * x * x + cosine, complement * x * y + sine * z, complement * x * z - sine * y},
+        {complement * y * x - sine * z, complement * y * y + cosine, complement * y * z + sine * x},
+        {complement * z * x + sine * y, complement * z * y - sine * x, complement * z * z + cosine},
+    }
+end
+
+local function eulerRotation(rx, ry, rz)
+    local xRotation = axisRotation({x = 1, y = 0, z = 0}, rx)
+    local yRotation = axisRotation({x = 0, y = 1, z = 0}, ry)
+    local zRotation = axisRotation({x = 0, y = 0, z = 1}, rz)
+    return multiplyRotation(zRotation, multiplyRotation(yRotation, multiplyRotation(xRotation, identityRotation())))
+end
+
+local function rotationDirection(matrix, row)
+    return normalizedDirection(matrix[row][1], matrix[row][2], matrix[row][3])
+end
+
+local function interactionAxes()
+    local entry = actor(S.anchorActor)
+    local matrix = eulerRotation(math.rad(entry.base.rx), math.rad(entry.base.ry), math.rad(entry.base.rz))
+    return {
+        x = rotationDirection(matrix, 1),
+        y = rotationDirection(matrix, 2),
+        z = rotationDirection(matrix, 3),
+    }
+end
+
+local function anchorEulerRotation(rx, ry, rz)
+    local axes = interactionAxes()
+    local xRotation = axisRotation(axes.x, math.rad(rx or 0))
+    local yRotation = axisRotation(axes.y, math.rad(ry or 0))
+    local zRotation = axisRotation(axes.z, math.rad(rz or 0))
+    return multiplyRotation(zRotation, multiplyRotation(yRotation, multiplyRotation(xRotation, identityRotation())))
+end
+
+local function matrixToEulerDegrees(matrix)
+    local y = math.asin(math.max(-1, math.min(1, matrix[3][1])))
+    local x, z
+    if math.abs(matrix[3][1]) > 0.999999 then
+        x = 0
+        z = math.atan(matrix[1][2], matrix[2][2])
+    else
+        x = math.atan(-matrix[3][2], matrix[3][3])
+        z = math.atan(-matrix[2][1], matrix[1][1])
+    end
+    return math.deg(x), math.deg(y), math.deg(z)
 end
 
 local function rayAxisParameter(sx, sy, origin, axis)
@@ -248,7 +314,7 @@ local function hideGizmo()
     S.gizmo.axesWorld = nil
 end
 
-local function normalizedDirection(x, y, z)
+normalizedDirection = function(x, y, z)
     local length = math.sqrt(x * x + y * y + z * z)
     if length <= 1e-8 then return nil end
     return {x = x / length, y = y / length, z = z / length}
@@ -274,19 +340,33 @@ local function updateGizmo()
     local origin = actorPosition(entry)
     local length = math.max(actorMeshExtent(entry) * 0.8, 32)
     local previousOrigin, previousLength = S.gizmo.origin, S.gizmo.length
+    local previousAxes = S.gizmo.axesWorld
     local originChanged = not previousOrigin or previousOrigin.x ~= origin.x or
         previousOrigin.y ~= origin.y or previousOrigin.z ~= origin.z
     local lengthChanged = not previousLength or math.abs(previousLength - length) > 1e-6
+    local axesWorld = interactionAxes()
+    local axesChanged = not previousAxes
+    if previousAxes then
+        for _, name in ipairs({'x', 'y', 'z'}) do
+            local oldAxis, newAxis = previousAxes[name], axesWorld[name]
+            if math.abs(oldAxis.x - newAxis.x) > 1e-6 or math.abs(oldAxis.y - newAxis.y) > 1e-6 or
+                    math.abs(oldAxis.z - newAxis.z) > 1e-6 then
+                axesChanged = true
+                break
+            end
+        end
+    end
     local definitions = {
-        x = {x = 1, y = 0, z = 0, color = {1, 0.15, 0.15, 1}},
-        y = {x = 0, y = 1, z = 0, color = {0.15, 1, 0.2, 1}},
-        z = {x = 0, y = 0, z = 1, color = {0.2, 0.45, 1, 1}},
+        x = {axis = axesWorld.x, color = {1, 0.15, 0.15, 1}},
+        y = {axis = axesWorld.y, color = {0.15, 1, 0.2, 1}},
+        z = {axis = axesWorld.z, color = {0.2, 0.45, 1, 1}},
     }
     for name, definition in pairs(definitions) do
         local object = S.gizmo.axes[name]
-        local points = {0, 0, 0, definition.x * length, definition.y * length, definition.z * length}
+        local axis = definition.axis
+        local points = {0, 0, 0, axis.x * length, axis.y * length, axis.z * length}
         if object then
-            if lengthChanged then object:set(points, 1) end
+            if lengthChanged or axesChanged then object:set(points, 1) end
         else
             object = line:new('3d', 0, 0, 0)
             object:add(points)
@@ -299,14 +379,9 @@ local function updateGizmo()
         object:setColor(table.unpack(definition.color))
         object.visible = S.transformMode == 'move'
     end
-    local radius = math.max(actorMeshExtent(entry) * 1.1, 40)
+    local radius = math.max(actorMeshExtent(entry) * 0.55, 20)
     local previousRadius = S.gizmo.radius
-    local radiusChanged = not previousRadius or math.abs(previousRadius - radius) > 1e-6
-    local axesWorld = {
-        x = {x = 1, y = 0, z = 0},
-        y = {x = 0, y = 1, z = 0},
-        z = {x = 0, y = 0, z = 1},
-    }
+    local radiusChanged = not previousRadius or math.abs(previousRadius - radius) > 1e-6 or axesChanged
     local ringDefinitions = {
         x = {u = axesWorld.y, v = axesWorld.z, color = {1, 0.15, 0.15, 1}},
         y = {u = axesWorld.z, v = axesWorld.x, color = {0.15, 1, 0.2, 1}},
@@ -314,12 +389,14 @@ local function updateGizmo()
     }
     for name, definition in pairs(ringDefinitions) do
         local object = S.gizmo.rings[name]
+        local created = false
         if not object then
             object = line:new('3d', 0, 0, 0)
             S.gizmo.rings[name] = object
             radiusChanged = true
+            created = true
         end
-        if radiusChanged then
+        if created or radiusChanged then
             local points = {}
             for item = 0, 64 do
                 local angle = item / 64 * math.pi * 2
@@ -327,7 +404,7 @@ local function updateGizmo()
                 points[#points + 1] = (definition.u.y * math.cos(angle) + definition.v.y * math.sin(angle)) * radius
                 points[#points + 1] = (definition.u.z * math.cos(angle) + definition.v.z * math.sin(angle)) * radius
             end
-            object:set(points, 1)
+            if created then object:add(points) else object:set(points, 1) end
         end
         object.alwaysOnTop = true
         object.alwaysOnTopPriority = 20
@@ -357,10 +434,10 @@ local function pickActor(sx, sy)
 end
 
 local function pickGizmoAxis(sx, sy)
-    if S.transformMode ~= 'move' or not S.gizmo.origin or not S.gizmo.length then return nil end
+    if S.transformMode ~= 'move' or not S.gizmo.origin or not S.gizmo.length or not S.gizmo.axesWorld then return nil end
     local bestName, bestDistance
     local threshold = math.max(S.gizmo.length * 0.12, 12)
-    for name, axis in pairs({x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}) do
+    for name, axis in pairs(S.gizmo.axesWorld) do
         local endpoint = {
             x = S.gizmo.origin.x + axis.x * S.gizmo.length,
             y = S.gizmo.origin.y + axis.y * S.gizmo.length,
@@ -428,8 +505,8 @@ local function beginViewportInteraction(key, x, y)
         end
         local axisName = S.selectedActor and pickGizmoAxis(x, y) or nil
         if axisName and entry and S.gizmo.origin then
-            local ax, ay, az = axisVector(axisName)
-            local parameter = rayAxisParameter(x, y, S.gizmo.origin, {x = ax, y = ay, z = az})
+            local axis = S.gizmo.axesWorld[axisName]
+            local parameter = rayAxisParameter(x, y, S.gizmo.origin, axis)
             if parameter then
                 if S.playing then
                     S.playing = false
@@ -438,7 +515,7 @@ local function beginViewportInteraction(key, x, y)
                     mode = 'move',
                     actor = S.selectedActor,
                     axisName = axisName,
-                    axis = {x = ax, y = ay, z = az},
+                    axis = cloneTable(axis),
                     startParameter = parameter,
                     origin = cloneTable(S.gizmo.origin),
                     base = cloneTable(entry.base),
@@ -492,10 +569,10 @@ local function updateViewportInteraction(x, y)
                     local cosAngle = math.max(-1, math.min(1,
                         start.x * current.x + start.y * current.y + start.z * current.z))
                     local angle = math.atan(sinAngle, cosAngle)
-                    local degrees = math.deg(angle)
-                    entry.base.rx = drag.base.rx + (drag.axisName == 'x' and degrees or 0)
-                    entry.base.ry = drag.base.ry + (drag.axisName == 'y' and degrees or 0)
-                    entry.base.rz = drag.base.rz + (drag.axisName == 'z' and degrees or 0)
+                    local baseRotation = eulerRotation(math.rad(drag.base.rx), math.rad(drag.base.ry),
+                        math.rad(drag.base.rz))
+                    local rotated = multiplyRotation(baseRotation, axisRotation(drag.axis, angle))
+                    entry.base.rx, entry.base.ry, entry.base.rz = matrixToEulerDegrees(rotated)
                     applyTransform(entry)
                     drag.moved = true
                     S.modified = true
@@ -578,10 +655,10 @@ applyTransform = function(entry)
     if not entry.object then return end
     local base, offset = entry.base, entry.offset
     entry.object:setPos(base.x + offset.x, base.y + offset.y, base.z + offset.z)
-    entry.object:setAngle(
-        math.rad(base.rx + offset.rx),
-        math.rad(base.ry + offset.ry),
-        math.rad(base.rz + offset.rz))
+    local baseRotation = eulerRotation(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
+    local rotation = multiplyRotation(baseRotation, entry.offsetRotation or identityRotation())
+    local rx, ry, rz = matrixToEulerDegrees(rotation)
+    entry.object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
     entry.object:setScale(base.sx, base.sy, base.sz)
 end
 
@@ -634,12 +711,13 @@ local function applyEvent(event)
     local entry = actor(event.target)
     if not entry then return end
     if event.action == 'transform' then
-        entry.offset.x = entry.offset.x + (event.x or 0)
-        entry.offset.y = entry.offset.y + (event.y or 0)
-        entry.offset.z = entry.offset.z + (event.z or 0)
-        entry.offset.rx = entry.offset.rx + (event.rx or 0)
-        entry.offset.ry = entry.offset.ry + (event.ry or 0)
-        entry.offset.rz = entry.offset.rz + (event.rz or 0)
+        local axes = interactionAxes()
+        local x, y, z = event.x or 0, event.y or 0, event.z or 0
+        entry.offset.x = entry.offset.x + axes.x.x * x + axes.y.x * y + axes.z.x * z
+        entry.offset.y = entry.offset.y + axes.x.y * x + axes.y.y * y + axes.z.y * z
+        entry.offset.z = entry.offset.z + axes.x.z * x + axes.y.z * y + axes.z.z * z
+        local deltaRotation = anchorEulerRotation(event.rx, event.ry, event.rz)
+        entry.offsetRotation = multiplyRotation(entry.offsetRotation or identityRotation(), deltaRotation)
         applyTransform(entry)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
@@ -655,6 +733,7 @@ local function resetOffsets()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         entry.offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0}
+        entry.offsetRotation = identityRotation()
         applyTransform(entry)
     end
 end
@@ -700,6 +779,8 @@ local function loadActor(id, path)
 end
 
 local function loadSampleProject()
+    S.anchorActor = 'machine'
+    S.gizmo.axesWorld = nil
     for _, id in ipairs(S.actorOrder) do
         local path = S.samplePaths[id]
         local file = io.open(path, 'rb')
@@ -748,9 +829,10 @@ end
 
 local function serializeProject()
     local project = {
-        version = 1,
+        version = 2,
         actors = {},
         actorOrder = cloneTable(S.actorOrder),
+        anchorActor = S.anchorActor,
         clockActor = S.clockActor,
         clockKey = S.clockKey,
         time = S.time,
@@ -771,7 +853,9 @@ local function applyProject(project)
     if type(project) ~= 'table' then error(L('invalid_project')) end
     S.playing = false
     S.events = cloneTable(project.events or {})
+    S.anchorActor = project.anchorActor == 'rat' and 'rat' or 'machine'
     S.clockActor = project.clockActor == 'rat' and 'rat' or 'machine'
+    S.gizmo.axesWorld = nil
     S.clockKey = project.clockKey or ''
     S.time = tonumber(project.time) or 0
     for _, id in ipairs(S.actorOrder) do
@@ -967,6 +1051,15 @@ local function showActors()
             seekAll(0, false)
         end
         tImGui.Text(string.format(L('clock_duration'), clockDuration()))
+        local anchorChoices = {L('rat'), L('machine')}
+        local anchorIndex = S.anchorActor == 'rat' and 1 or 2
+        local anchorChanged, nextAnchor = tImGui.Combo(L('anchor_actor'), anchorIndex, anchorChoices)
+        if anchorChanged then
+            S.anchorActor = nextAnchor == 1 and 'rat' or 'machine'
+            S.modified = true
+            S.gizmo.axesWorld = nil
+        end
+        tImGui.TextWrapped(L('anchor_space_note'))
         local modeIndex = tImGui.RadioButton(L('move'), S.transformMode == 'move' and 1 or 2, 1)
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(L('rotate'), modeIndex, 2)
