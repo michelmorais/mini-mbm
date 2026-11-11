@@ -131,6 +131,28 @@ O editor também poderá oferecer um relógio livre da sequência para ações q
 continuem depois do fim do clip principal. Esse período posterior deverá ser
 explícito; não se deve silenciosamente aceitar tempos fora da duração do relógio.
 
+### Base da interação
+
+A base de cada ator é definida no tempo `0` da sequência:
+
+- a posição e a rotação configuradas nos campos `POS` e `ROT` ou pelo gizmo;
+- a animação selecionada no painel do ator, iniciada no tempo `0`;
+- a escala configurada para o ator.
+
+O `clipKey` selecionado é a animação base. Um evento `play` posterior pode
+substituí-la a partir do seu próprio tempo. A âncora define os eixos usados para
+interpretar os deslocamentos e rotações dos eventos.
+
+No editor, essa base é a pose de referência da prévia. No runtime, a interação
+deverá capturar a pose real dos objetos no momento em que começar e aplicar os
+eventos relativos a essa pose; as coordenadas absolutas usadas na prévia não
+devem limitar a posição da interação no mundo.
+
+O fluxo atual para estabelecer a base é ajustar os atores no tempo `0`, escolher
+as animações base e salvar o projeto. Como melhoria de usabilidade, podemos
+adicionar depois uma ação explícita `Set current pose as base` para registrar
+essa decisão sem depender apenas do tempo da timeline.
+
 ### Gatilhos
 
 Os gatilhos podem observar qualquer ator ou o relógio principal:

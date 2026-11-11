@@ -1292,8 +1292,6 @@ local function showEvents()
         tImGui.Text(L('events'))
         if tImGui.Button(L('add_event')) then addEvent() end
         tImGui.SameLine()
-        if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
-        tImGui.SameLine()
         if tImGui.Button(L('remove_event')) then removeSelectedEvent() end
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
@@ -1335,6 +1333,8 @@ local function showEvents()
                 end
             end
         end
+        tImGui.Separator()
+        if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
     end
     tImGui.End()
 end
