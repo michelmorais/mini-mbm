@@ -216,10 +216,11 @@ selecione o ator e use o gizmo para alterar sua pose. O editor mantém a pose
 inicial como base. O botão `Capture transform` cria um evento no tempo atual e
 preenche automaticamente os deslocamentos e rotações relativos à base.
 Cada evento de transformação pode ser `Instant` ou `Smooth`. No modo suave,
-`Duration (s)` define a janela anterior ao tempo do evento durante a qual o
-editor interpola posição e rotação até atingir o deslocamento final. A janela
-é limitada pelo último evento `play` do mesmo ator, para que uma transformação
-não comece antes da animação que ela acompanha.
+`Transition interval (s)` define explicitamente os tempos de início e fim da
+interpolação de posição e rotação. O início nunca pode ser menor que zero nem
+maior que o fim, e o fim nunca pode ultrapassar a duração da animação escolhida
+como relógio mestre. O evento é considerado concluído no fim do intervalo; não
+há mais uma regra implícita baseada em `Duration` ou no último evento `play`.
 
 ## Ações previstas
 

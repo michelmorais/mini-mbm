@@ -151,21 +151,18 @@ local function anchorRotation(axes, rx, ry, rz)
     return multiply(zRotation, multiply(yRotation, multiply(xRotation, identity())))
 end
 
-local function transformProgress(event, time, events)
-    local eventTime = event.time or 0
-    if time < eventTime then return 0 end
+local function transformProgress(event, time)
     if event.transition ~= 'smooth' then return 1 end
-    local duration = math.max(tonumber(event.duration) or 0.2, 0.0001)
-    local transitionStart = math.max(0, eventTime - duration)
-    local lastPlayTime = 0
-    for _, previous in ipairs(events or {}) do
-        if previous.action == 'play' and previous.target == event.target and
-                (previous.time or 0) <= eventTime then
-            lastPlayTime = math.max(lastPlayTime, previous.time or 0)
-        end
+    local transitionEnd = tonumber(event.transitionEnd) or tonumber(event.time) or 0
+    local transitionStart = tonumber(event.transitionStart)
+    if transitionStart == nil then
+        transitionStart = transitionEnd - math.max(tonumber(event.duration) or 0.2, 0.0001)
     end
-    transitionStart = math.max(transitionStart, lastPlayTime)
-    local progress = math.max(0, math.min(1, (time - transitionStart) / duration))
+    transitionStart = math.max(0, transitionStart)
+    transitionEnd = math.max(transitionStart, transitionEnd)
+    if time < transitionStart then return 0 end
+    if transitionEnd <= transitionStart then return time >= transitionEnd and 1 or 0 end
+    local progress = math.max(0, math.min(1, (time - transitionStart) / (transitionEnd - transitionStart)))
     return progress * progress * (3 - 2 * progress)
 end
 
@@ -195,7 +192,7 @@ local function applyTransforms(instance)
     end
     for _, event in ipairs(instance.definition.events or {}) do
         if event.action == 'transform' and offsets[event.target] then
-            local progress = transformProgress(event, instance.time, instance.definition.events)
+            local progress = transformProgress(event, instance.time)
             if progress > 0 then
                 local offset = offsets[event.target]
                 local x = (event.x or 0) * progress

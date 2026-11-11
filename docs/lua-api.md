@@ -1746,7 +1746,7 @@ local v = tImGui.Checkbox("label", bool_value)   -- returns only the new/current
 -- Sliders (return changed:bool, newValue)
 local c, v  = tImGui.SliderFloat("label", value, min, max, fmt?)
 local c, v  = tImGui.SliderInt("label", value, min, max)
-local c, v1, v2    = tImGui.SliderFloat2("label", v1, v2, min, max)
+local c, values     = tImGui.SliderFloat2("label", v1, v2, min, max) -- values[1], values[2]
 local c, v1,v2,v3  = tImGui.SliderFloat3("label", v1, v2, v3, min, max)
 local c, v1,v2,v3,v4 = tImGui.SliderFloat4("label", v1, v2, v3, v4, min, max)
 

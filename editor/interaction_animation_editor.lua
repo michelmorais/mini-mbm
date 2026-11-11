@@ -810,21 +810,37 @@ local function clockDuration()
     return math.max(0.01, clip.duration or 0)
 end
 
-local function transformProgress(event, time, events)
-    local eventTime = event.time or 0
-    if time < eventTime then return 0 end
-    if event.transition ~= 'smooth' then return 1 end
-    local duration = math.max(tonumber(event.duration) or 0.2, 0.0001)
-    local transitionStart = math.max(0, eventTime - duration)
-    local lastPlayTime = 0
-    for _, previous in ipairs(events or S.events) do
-        if previous.action == 'play' and previous.target == event.target and
-                (previous.time or 0) <= eventTime then
-            lastPlayTime = math.max(lastPlayTime, previous.time or 0)
-        end
+local function clamp(value, minimum, maximum)
+    return math.max(minimum, math.min(maximum, value))
+end
+
+local function transitionRange(event, maximumTime)
+    local finish = tonumber(event.transitionEnd)
+    if finish == nil then finish = tonumber(event.time) or 0 end
+    local start = tonumber(event.transitionStart)
+    if start == nil then
+        start = finish - math.max(tonumber(event.duration) or 0.2, 0.0001)
     end
-    transitionStart = math.max(transitionStart, lastPlayTime)
-    local progress = math.max(0, math.min(1, (time - transitionStart) / duration))
+    start = clamp(start, 0, maximumTime)
+    finish = clamp(finish, start, maximumTime)
+    return start, finish
+end
+
+local function normalizeTransition(event, maximumTime)
+    if event.transition ~= 'smooth' then return end
+    local start, finish = transitionRange(event, maximumTime)
+    event.transitionStart = start
+    event.transitionEnd = finish
+    event.time = finish
+    event.duration = nil
+end
+
+local function transformProgress(event, time)
+    if event.transition ~= 'smooth' then return 1 end
+    local transitionStart, transitionEnd = transitionRange(event, clockDuration())
+    if time < transitionStart then return 0 end
+    if transitionEnd <= transitionStart then return time >= transitionEnd and 1 or 0 end
+    local progress = clamp((time - transitionStart) / (transitionEnd - transitionStart), 0, 1)
     return progress * progress * (3 - 2 * progress)
 end
 
@@ -878,7 +894,7 @@ local function seekAll(time, keepPlaying)
     end
     for _, event in ipairs(S.events) do
         if event.action == 'transform' then
-            applyEvent(event, transformProgress(event, S.time, S.events))
+            applyEvent(event, transformProgress(event, S.time))
         elseif (event.time or 0) <= S.time then
             applyEvent(event)
         end
@@ -952,8 +968,11 @@ local function pausePlayback()
 end
 
 local function serializeProject()
+    local events = cloneTable(S.events)
+    local maximumTime = clockDuration()
+    for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 5,
+        version = 6,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -963,7 +982,7 @@ local function serializeProject()
         clockKey = S.clockKey,
         duration = clockDuration(),
         time = S.time,
-        events = cloneTable(S.events),
+        events = events,
     }
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
@@ -1024,6 +1043,8 @@ local function applyProject(project)
     S.gizmo.axesWorld = nil
     S.clockKey = project.clockKey or ''
     if S.clockKey == '' and actor(S.clockActor) then S.clockKey = actor(S.clockActor).clipKey or '' end
+    local maximumTime = clockDuration()
+    for _, event in ipairs(S.events) do normalizeTransition(event, maximumTime) end
     S.time = tonumber(project.time) or 0
     seekAll(S.time, false)
     S.modified = false
@@ -1133,7 +1154,7 @@ local function captureTransformEvent()
         for index, previous in ipairs(S.events) do
             if index == S.selectedEvent then break end
             if previous.action == 'transform' and previous.target == id then
-                local progress = transformProgress(previous, S.time, S.events)
+                local progress = transformProgress(previous, S.time)
                 if progress > 0 then
                     prefixRotation = multiplyRotation(prefixRotation, anchorEulerRotation(
                         (previous.rx or 0) * progress,
@@ -1142,7 +1163,7 @@ local function captureTransformEvent()
                 end
             end
         end
-        local selectedProgress = transformProgress(event, S.time, S.events)
+        local selectedProgress = transformProgress(event, S.time)
         local selectedRotation = anchorEulerRotation(
             (event.rx or 0) * selectedProgress,
             (event.ry or 0) * selectedProgress,
@@ -1156,26 +1177,34 @@ local function captureTransformEvent()
             multiplyRotation(baseDeltaRotation, totalRotation))
     end
     local rx, ry, rz = rotationToAnchorEuler(eventRotation)
-    if not event then
+    local isNewEvent = not event
+    if isNewEvent then
         event = {
             time = S.time,
             target = id,
             action = 'transform',
             transition = 'instant',
-            duration = 0.2,
             clipKey = '',
         }
         table.insert(S.events, event)
         S.selectedEvent = #S.events
     end
-    event.time = S.time
+    if event.transition == 'smooth' then
+        local start, finish = transitionRange(event, clockDuration())
+        event.transitionStart = start
+        event.transitionEnd = finish
+        event.time = finish
+        event.duration = nil
+    else
+        event.time = S.time
+    end
     event.target = id
     event.action = 'transform'
     local capturedX = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z)
     local capturedY = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
     local capturedZ = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
     if event then
-        local selectedProgress = transformProgress(event, S.time, S.events)
+        local selectedProgress = transformProgress(event, S.time)
         event.x = (event.x or 0) * selectedProgress + capturedX
         event.y = (event.y or 0) * selectedProgress + capturedY
         event.z = (event.z or 0) * selectedProgress + capturedZ
@@ -1201,7 +1230,6 @@ local function addEvent()
         action = 'transform',
         x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0,
         transition = 'instant',
-        duration = 0.2,
         clipKey = '',
     })
     S.selectedEvent = #S.events
@@ -1245,7 +1273,7 @@ local function updatePlayback(delta)
     resetOffsets()
     for _, event in ipairs(S.events) do
         if event.action == 'transform' then
-            applyEvent(event, transformProgress(event, S.time, S.events))
+            applyEvent(event, transformProgress(event, S.time))
         end
     end
     for _, id in ipairs(S.actorOrder) do
@@ -1421,7 +1449,12 @@ local function showEvents()
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
                 S.selectedEvent = index
                 S.playing = false
-                seekAll(event.time or 0, false)
+                local eventTime = event.time or 0
+                if event.transition == 'smooth' then
+                    local _, transitionEnd = transitionRange(event, clockDuration())
+                    eventTime = transitionEnd
+                end
+                seekAll(eventTime, false)
             end
         end
         local event = S.events[S.selectedEvent]
@@ -1429,7 +1462,19 @@ local function showEvents()
             tImGui.Separator()
             tImGui.SetNextItemWidth(105)
             local c, value = tImGui.InputFloat(L('event_time'), event.time or 0)
-            if c then event.time = math.max(0, value); S.modified = true; seekAll(S.time, false) end
+            if c then
+                if event.transition == 'smooth' then
+                    local start = select(1, transitionRange(event, clockDuration()))
+                    local finish = clamp(value, start, clockDuration())
+                    event.transitionStart = start
+                    event.transitionEnd = finish
+                    event.time = finish
+                else
+                    event.time = clamp(value, 0, clockDuration())
+                end
+                S.modified = true
+                seekAll(S.time, false)
+            end
             local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
             for index, id in ipairs(targetIds) do
                 targetNames[index] = actorName(id, actor(id))
@@ -1457,17 +1502,34 @@ local function showEvents()
                     {L('instant'), L('smooth')})
                 if transitionChanged then
                     event.transition = transitionIndex == 2 and 'smooth' or 'instant'
-                    if event.transition == 'smooth' and (tonumber(event.duration) or 0) <= 0 then
-                        event.duration = 0.2
+                    if event.transition == 'smooth' then
+                        local start = clamp(event.time or S.time, 0, clockDuration())
+                        local finish = math.min(clockDuration(), start + 0.2)
+                        event.transitionStart = start
+                        event.transitionEnd = finish
+                        event.time = finish
+                        event.duration = nil
+                    else
+                        event.time = select(2, transitionRange(event, clockDuration()))
+                        event.transitionStart = nil
+                        event.transitionEnd = nil
+                        event.duration = nil
                     end
                     S.modified = true
                     seekAll(S.time, false)
                 end
                 if event.transition == 'smooth' then
-                    tImGui.SetNextItemWidth(105)
-                    local durationChanged, duration = tImGui.InputFloat(L('transition_duration'), event.duration or 0.2)
-                    if durationChanged then
-                        event.duration = math.max(0.001, duration)
+                    local start, finish = transitionRange(event, clockDuration())
+                    tImGui.SetNextItemWidth(210)
+                    local rangeChanged, range = tImGui.SliderFloat2(
+                        L('transition_interval'), start, finish, 0, clockDuration())
+                    if rangeChanged then
+                        start = clamp(range[1], 0, clockDuration())
+                        finish = clamp(range[2], start, clockDuration())
+                        event.transitionStart = start
+                        event.transitionEnd = finish
+                        event.time = finish
+                        event.duration = nil
                         S.modified = true
                         seekAll(S.time, false)
                     end
