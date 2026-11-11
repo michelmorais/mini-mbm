@@ -219,6 +219,9 @@ Para criar um evento visualmente, mova a timeline para o instante desejado,
 selecione o ator e use o gizmo para alterar sua pose. O editor mantém a pose
 inicial como base. O botão `Capture transform` cria um evento no tempo atual e
 preenche automaticamente os deslocamentos e rotações relativos à base.
+Cada evento de transformação pode ser `Instant` ou `Smooth`. No modo suave,
+`Duration (s)` define por quanto tempo o editor interpola posição e rotação até
+atingir o deslocamento final.
 
 ## Ações previstas
 
