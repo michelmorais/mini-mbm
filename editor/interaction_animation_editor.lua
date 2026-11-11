@@ -249,6 +249,15 @@ local function identityRotation()
     return {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
 end
 
+local function isIdentityRotation(matrix)
+    return math.abs(matrix[1][1] - 1) < 0.000001 and
+        math.abs(matrix[2][2] - 1) < 0.000001 and
+        math.abs(matrix[3][3] - 1) < 0.000001 and
+        math.abs(matrix[1][2]) < 0.000001 and math.abs(matrix[1][3]) < 0.000001 and
+        math.abs(matrix[2][1]) < 0.000001 and math.abs(matrix[2][3]) < 0.000001 and
+        math.abs(matrix[3][1]) < 0.000001 and math.abs(matrix[3][2]) < 0.000001
+end
+
 local function transposeRotation(matrix)
     return {
         {matrix[1][1], matrix[2][1], matrix[3][1]},
@@ -756,10 +765,15 @@ applyTransform = function(entry)
     if not entry.object then return end
     local base, offset = entry.base, entry.offset
     entry.object:setPos(base.x + offset.x, base.y + offset.y, base.z + offset.z)
-    local baseRotation = eulerRotation(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
-    local rotation = multiplyRotation(baseRotation, entry.offsetRotation or identityRotation())
-    local rx, ry, rz = matrixToEulerDegrees(rotation)
-    entry.object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
+    local offsetRotation = entry.offsetRotation or identityRotation()
+    if isIdentityRotation(offsetRotation) then
+        entry.object:setAngle(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
+    else
+        local baseRotation = eulerRotation(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
+        local rotation = multiplyRotation(baseRotation, offsetRotation)
+        local rx, ry, rz = matrixToEulerDegrees(rotation)
+        entry.object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
+    end
     entry.object:setScale(base.sx, base.sy, base.sz)
 end
 

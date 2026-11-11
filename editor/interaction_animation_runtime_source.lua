@@ -37,6 +37,14 @@ end
 local function identity()
     return {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
 end
+local function isIdentity(matrix)
+    return math.abs(matrix[1][1] - 1) < 0.000001 and
+        math.abs(matrix[2][2] - 1) < 0.000001 and
+        math.abs(matrix[3][3] - 1) < 0.000001 and
+        math.abs(matrix[1][2]) < 0.000001 and math.abs(matrix[1][3]) < 0.000001 and
+        math.abs(matrix[2][1]) < 0.000001 and math.abs(matrix[2][3]) < 0.000001 and
+        math.abs(matrix[3][1]) < 0.000001 and math.abs(matrix[3][2]) < 0.000001
+end
 
 local function transpose(matrix)
     return {
@@ -213,8 +221,13 @@ local function applyTransforms(instance)
     for id, actor in pairs(instance.actors) do
         local base = actor.base
         local offset = offsets[id]
-        local baseRotation = eulerRotation(base.angle.x, base.angle.y, base.angle.z)
-        local rx, ry, rz = rotationToEuler(multiply(baseRotation, offset.rotation))
+        local rx, ry, rz
+        if isIdentity(offset.rotation) then
+            rx, ry, rz = base.angle.x, base.angle.y, base.angle.z
+        else
+            local baseRotation = eulerRotation(base.angle.x, base.angle.y, base.angle.z)
+            rx, ry, rz = rotationToEuler(multiply(baseRotation, offset.rotation))
+        end
         actor.object:setPos(base.position.x + offset.position.x,
             base.position.y + offset.position.y, base.position.z + offset.position.z)
         actor.object:setAngle(rx, ry, rz)
@@ -250,10 +263,13 @@ local function resetInstance(instance)
     instance.activeClips = {}
     instance.finished = false
     instance.running = true
-    local clockActor = instance.actors[instance.definition.clockActor]
-    if clockActor then
-        playClip(clockActor.object, instance.definition.clockKey)
-        instance.activeClips[instance.definition.clockActor] = instance.definition.clockKey
+    for id, actor in pairs(instance.actors) do
+        local key = actor.definition.clipKey
+        if id == instance.definition.clockActor then key = instance.definition.clockKey end
+        if key and key ~= '' then
+            playClip(actor.object, key)
+            instance.activeClips[id] = key
+        end
     end
     applyPlayEvents(instance, -0.0001, 0, true)
     applyTransforms(instance)
