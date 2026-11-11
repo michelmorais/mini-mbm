@@ -23,15 +23,11 @@ criados antes do modelo de atores genéricos devem ser recriados neste estágio.
 O idioma selecionado no menu `Options` também é salvo no projeto e restaurado
 ao carregá-lo.
 
-Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
-relógio principal, preview, eventos básicos de transformação/troca de animação e
-salvamento/exportação Lua. O player definitivo para uso em runtime ainda não foi
-implementado.
-
-Os eventos existentes nesta etapa são eventos de preview do editor. Eles ainda
-não constituem um player real-time completo para o jogo: faltam o módulo Lua
-executável, o ciclo de vida da interação e a execução robusta de gatilhos no
-runtime.
+Esta entrega cobre carregamento das duas meshes, seleção de clips, relógio
+principal, preview, eventos básicos de transformação/troca de animação,
+salvamento do projeto e exportação de um módulo Lua executável para runtime.
+O módulo contém o ciclo de vida básico da interação e a execução dos gatilhos
+de transformação e troca de animação.
 
 O viewport inicial desta entrega também possui a base de navegação esperada para
 um editor 3D: painel de órbita de câmera inspirado no `scene_editor3d.lua`,
@@ -144,9 +140,9 @@ substituí-la a partir do seu próprio tempo. A âncora define os eixos usados p
 interpretar os deslocamentos e rotações dos eventos.
 
 No editor, essa base é a pose de referência da prévia. No runtime, a interação
-deverá capturar a pose real dos objetos no momento em que começar e aplicar os
-eventos relativos a essa pose; as coordenadas absolutas usadas na prévia não
-devem limitar a posição da interação no mundo.
+captura a pose real dos objetos no momento em que começa e aplica os eventos
+relativos a essa pose; as coordenadas absolutas usadas na prévia não limitam a
+posição da interação no mundo.
 
 O fluxo atual para estabelecer a base é ajustar os atores no tempo `0`, escolher
 as animações base e clicar em `Set base reference` na janela de atores. Essa
@@ -288,15 +284,15 @@ return {
 }
 ```
 
-O formato acima é ilustrativo. O editor poderá gerar uma forma mais compacta,
-mas deve preservar a separação entre atores, relógio, gatilhos e ações.
+O formato acima é ilustrativo. O editor preserva a separação entre atores,
+relógio, gatilhos e ações na especificação embutida no módulo exportado.
 
 ## Exportação como módulo Lua
 
 O resultado será um arquivo Lua carregável com `require`, e não um trecho que
 precise ser copiado manualmente para `onLoop`.
 
-A interface de runtime prevista é:
+A interface de runtime exportada é:
 
 ```lua
 local reaction = require "interactions.chomp_eat"
@@ -308,20 +304,29 @@ local instance = reaction.start {
 
 -- No onLoop(delta):
 instance:update(delta)
+
+-- Opcionalmente:
+instance:restart()
+instance:stop()
+if instance:isFinished() then
+    -- a interacao terminou
+end
 ```
 
-O módulo exportado deverá:
+O módulo exportado:
 
 - receber as instâncias reais dos atores;
 - capturar as poses iniciais;
-- iniciar os clips configurados;
-- observar tempos e callbacks de finalização;
+- iniciar os clips configurados nos eventos `play`;
+- observar os tempos da timeline e finalizar ao atingir a duração do relógio;
 - aplicar cada evento uma única vez;
 - aplicar transformações relativas;
 - permitir reinício e encerramento da interação.
 
-Callbacks Lua continuarão disponíveis para efeitos que não sejam cobertos pelas
-ações padrão do editor.
+Os nomes usados na tabela de `start` devem corresponder ao nome do ator no
+editor, ou ao identificador interno (`actor1`/`actor2`). Eventos de callback e
+outras ações não visuais continuam reservados para a próxima extensão do
+editor.
 
 ## Validação e erros do editor
 

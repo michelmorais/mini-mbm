@@ -20,14 +20,14 @@
 
    Interaction Animation Editor
 
-   First prototype for synchronizing two mesh instances and authoring relative
-   interaction events. The exported Lua file is a data specification; the runtime
-   player will be added in a later milestone.
+   Editor for synchronizing mesh instances and authoring relative interaction
+   events. Exported Lua files are self-contained runtime reaction modules.
 ]]--
 
 tImGui = require 'ImGui'
 tUtil = require 'editor_utils'
 local Animation = require 'mesh_to_sprite_animation'
+local reactionRuntimeSource = require 'interaction_animation_runtime_source'
 
 local actorSlots = {'actor1', 'actor2'}
 
@@ -946,7 +946,7 @@ end
 
 local function serializeProject()
     local project = {
-        version = 4,
+        version = 5,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -954,6 +954,7 @@ local function serializeProject()
         anchorActor = S.anchorActor,
         clockActor = S.clockActor,
         clockKey = S.clockKey,
+        duration = clockDuration(),
         time = S.time,
         events = cloneTable(S.events),
     }
@@ -1068,10 +1069,24 @@ local function loadProject(path)
     end
 end
 
+local function saveReactionModule(path)
+    local output = {'local definition = {}'}
+    tUtil.save('definition', serializeProject(), output)
+    for line in reactionRuntimeSource:gmatch('[^\n]+') do table.insert(output, line) end
+    local file = io.open(path, 'w')
+    if not file then
+        setStatus(L('save_failed'), true)
+        return false
+    end
+    for _, line in ipairs(output) do file:write(line .. '\n') end
+    file:close()
+    return true
+end
+
 local function exportSpec(path)
     path = path or mbm.saveFile(exportSuggestion(), 'lua')
     if not path then return end
-    if saveLua(path, 'interaction', serializeProject(), true) then
+    if saveReactionModule(path) then
         setStatus(string.format(L('exported'), path))
     end
 end
