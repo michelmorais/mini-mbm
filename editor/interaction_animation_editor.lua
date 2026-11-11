@@ -31,10 +31,9 @@ local reactionRuntimeSource = require 'interaction_animation_runtime_source'
 
 local actorSlots = {'actor1', 'actor2'}
 
-local function newActorState(baseX, defaultName)
+local function newActorState(baseX)
     return {
         active = false,
-        label = defaultName or '',
         path = '',
         base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
         bundle = nil,
@@ -50,8 +49,8 @@ end
 
 local S = {
     actors = {
-        actor1 = newActorState(180, 'actor_1'),
-        actor2 = newActorState(0, 'actor_2'),
+        actor1 = newActorState(180),
+        actor2 = newActorState(0),
     },
     actorOrder = {},
     anchorActor = nil,
@@ -73,6 +72,11 @@ local S = {
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, axesWorld = nil, drag = nil},
     originLines = {x = nil, y = nil, z = nil},
     showOrigins = true,
+    xzPlane = nil,
+    showXZPlane = true,
+    xzPlaneSize = nil,
+    xzPlaneX = nil,
+    xzPlaneZ = nil,
     mouse = {left = false, right = false, x = 0, y = 0},
     cameraDrag = nil,
     windows = {
@@ -146,7 +150,6 @@ end
 
 local function actorName(id, entry)
     if not entry then return '' end
-    if entry.label and entry.label ~= '' then return entry.label end
     return string.format(L('actor_default'), actorSlotIndex(id) or 1)
 end
 
@@ -188,7 +191,7 @@ end
 local function addActor()
     for index, id in ipairs(actorSlots) do
         if not S.actors[id].active then
-            S.actors[id] = newActorState(index == 1 and 180 or 0, index == 1 and 'actor_1' or 'actor_2')
+            S.actors[id] = newActorState(index == 1 and 180 or 0)
             S.actors[id].active = true
             rebuildActorOrder()
             S.baseReference = nil
@@ -732,6 +735,40 @@ local function createOriginLines()
     setOriginsVisible(S.showOrigins)
 end
 
+local function createXZPlane()
+    local points = {
+        -0.5, 0, -0.5,  0.5, 0, -0.5,  0.5, 0,  0.5,
+        -0.5, 0, -0.5,  0.5, 0,  0.5, -0.5, 0,  0.5,
+         0.5, 0, -0.5, -0.5, 0, -0.5,  0.5, 0,  0.5,
+         0.5, 0,  0.5, -0.5, 0, -0.5, -0.5, 0,  0.5,
+    }
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(points, nil, 'interaction_animation_xz_plane') then
+        object:destroy()
+        return
+    end
+    object:setColor(0.24, 0.30, 0.38, 0.18)
+    object.alwaysRender = true
+    object.visible = S.showXZPlane
+    S.xzPlane = object
+end
+
+local function updateXZPlane()
+    local object = S.xzPlane
+    if not object then return end
+    local camera = S.cameraOrbit
+    local size = math.max(400, camera.distance * 2.4)
+    if not S.xzPlaneSize or math.abs(S.xzPlaneSize - size) > 0.001 then
+        object:setScale(size, 1, size)
+        S.xzPlaneSize = size
+    end
+    if S.xzPlaneX ~= camera.fx or S.xzPlaneZ ~= camera.fz then
+        object:setPos(camera.fx, 0, camera.fz)
+        S.xzPlaneX, S.xzPlaneZ = camera.fx, camera.fz
+    end
+    object.visible = S.showXZPlane
+end
+
 local function clipList(entry)
     local list = {{key = '', label = L('no_animation'), kind = 'none', name = '', duration = 0}}
     if not entry or not entry.bundle then return list end
@@ -1001,7 +1038,6 @@ local function serializeProject()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         project.actors[id] = {
-            name = entry.label,
             path = entry.path,
             base = cloneTable(entry.base),
             clipKey = entry.clipKey,
@@ -1014,7 +1050,7 @@ local function clearActorSlots()
     for index, id in ipairs(actorSlots) do
         local entry = S.actors[id]
         if entry.object then entry.object:destroy() end
-        S.actors[id] = newActorState(index == 1 and 180 or 0, index == 1 and 'actor_1' or 'actor_2')
+        S.actors[id] = newActorState(index == 1 and 180 or 0)
     end
     S.actorOrder = {}
     S.anchorActor = nil
@@ -1038,7 +1074,6 @@ local function applyProject(project)
         if saved then
             local entry = S.actors[id]
             entry.active = true
-            entry.label = saved.name or saved.label or entry.label
             entry.base = cloneTable(saved.base or entry.base)
             entry.clipKey = saved.clipKey or ''
             if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
@@ -1304,9 +1339,6 @@ local function actorPanel(id)
     local entry = actor(id)
     if not entry then return end
     if tImGui.TreeNode(actorName(id, entry) .. '##' .. id) then
-        tImGui.SetNextItemWidth(190)
-        local nameChanged, name = tImGui.InputText(L('actor_name') .. '##' .. id, entry.label or '')
-        if nameChanged then entry.label = name; S.modified = true end
         local wasAnchor = S.anchorActor == id
         local anchorChecked = tImGui.Checkbox(L('anchor') .. '##' .. id, wasAnchor)
         if anchorChecked and not wasAnchor then
@@ -1447,6 +1479,8 @@ local function showCameraPanel()
         if changed then c.fz = value; applyCamera() end
         local showOrigins = tImGui.Checkbox(L('show_origins'), S.showOrigins)
         if showOrigins ~= S.showOrigins then setOriginsVisible(showOrigins) end
+        local showXZPlane = tImGui.Checkbox(L('show_xz_plane'), S.showXZPlane)
+        if showXZPlane ~= S.showXZPlane then S.showXZPlane = showXZPlane end
     end
     tImGui.End()
 end
@@ -1614,6 +1648,7 @@ function onInitScene()
     S.camera = mbm.getCamera('3d')
     S.camera:setFar(9999999)
     applyCamera()
+    createXZPlane()
     createOriginLines()
     tUtil.bRightSide = false
     tUtil.showMessage(L('welcome'), 13.5)
@@ -1627,6 +1662,7 @@ function onLoop(delta)
     showEvents()
     showTimeline()
     updateGizmo()
+    updateXZPlane()
     tUtil.showOverlayMessage()
 end
 
@@ -1676,6 +1712,7 @@ function onTouchUp(key, x, y)
 end
 
 function onFinalizeScene()
+    if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for _, object in pairs(S.originLines) do
         if object then object:destroy() end
     end

@@ -39,6 +39,12 @@ para preservar a área de preview.
 Essas transformações alteram a transformação base relativa da mesh e continuam
 sendo exportadas como dados do projeto.
 
+O viewport também possui um plano visual criado dinamicamente no plano XZ,
+posicionado em `Y = 0`. Seu tamanho acompanha a distância da câmera e sua
+posição acompanha o foco horizontal da órbita. A visibilidade pode ser alternada
+em `Camera > Show XZ plane`; o plano é somente uma referência visual e não é
+salvo no projeto nem participa da interação exportada.
+
 Este documento registra o desenho e o estado implementado do editor de
 sequências de interação entre duas ou mais meshes. O caso validado é a
 interação entre o rato e a máquina do projeto Ratworks:
@@ -112,19 +118,19 @@ quando um gatilho não puder ser satisfeito.
 
 ### Atores
 
-Cada mesh carregada no projeto é um ator identificado por um nome lógico. Os dois
-slots atuais são genéricos (`actor1` e `actor2`); o editor não cria atores com os
-nomes `rat` ou `machine` por padrão:
+Cada mesh carregada no projeto ocupa um slot interno estável. Os dois slots atuais
+são `actor1` e `actor2`; o editor não solicita nomes personalizados e não salva
+um nome de ator no projeto:
 
 ```lua
 actors = {
-    actor1 = { name = "actor_1", file = "ChompBot.msh" },
-    actor2 = { name = "actor_2", file = "Cyclopsv2.msh" }
+    actor1 = { file = "ChompBot.msh" },
+    actor2 = { file = "Cyclopsv2.msh" }
 }
 ```
 
-O identificador do slot é usado pelos eventos exportados; o nome definido pelo
-usuário serve para identificar o ator na interface. O arquivo `.msh` continua
+O identificador do slot é usado pelos eventos exportados e também é a única
+identidade necessária no runtime. O arquivo `.msh` continua
 sendo um recurso independente e pode ser instanciado em qualquer posição da cena.
 Na interface, o ator mostra apenas o basename da mesh, enquanto o caminho
 completo permanece salvo no projeto. A escolha da mesh é feita pelo botão
@@ -137,12 +143,12 @@ baseado no tempo de um clip específico, por exemplo:
 
 ```lua
 clock = {
-    actor = "actor_1",
+    actor = "actor1",
     animation = "bite"
 }
 ```
 
-Nesse caso, um evento em `0.2` ocorre quando `actor_1:bite` atingir 0,2 s,
+Nesse caso, um evento em `0.2` ocorre quando `actor1:bite` atingir 0,2 s,
 independentemente da posição absoluta da máquina na cena.
 
 O editor também poderá oferecer um relógio livre da sequência para ações que
@@ -188,13 +194,13 @@ Exemplos conceituais:
 { when = { clock = 0.2 }, action = ... }
 
 { when = {
-    actor = "actor_1",
+    actor = "actor1",
     animation = "bite",
     time = 1.0
 }, action = ... }
 
 { when = {
-    actor = "actor_2",
+    actor = "actor2",
     animation = "Eaten",
     ended = true
 }, action = ... }
@@ -215,7 +221,7 @@ Exemplo:
 {
     when = { clock = 1.0 },
     action = {
-        actor = "actor_1",
+        actor = "actor2",
         transform = {
             position = { x = 0, y = -2, z = 0 },
             rotation = { x = 0, y = 20, z = 0 }
@@ -266,27 +272,27 @@ Uma sequência inicial poderia ser representada assim:
 ```lua
 return {
     clock = {
-        actor = "actor_1",
+        actor = "actor1",
         animation = "bite"
     },
 
     actors = {
-        actor_1 = { file = "ChompBot.msh" },
-        actor_2 = { file = "Cyclopsv2.msh" }
+        actor1 = { file = "ChompBot.msh" },
+        actor2 = { file = "Cyclopsv2.msh" }
     },
 
     events = {
         {
             when = { clock = 0.2 },
             action = {
-                actor = "actor_2",
+                actor = "actor2",
                 playSkeletalAnimation = "Eaten"
             }
         },
         {
             when = { clock = 1.0 },
             action = {
-                actor = "actor_2",
+                actor = "actor2",
                 transform = {
                     position = { x = 0, y = -2, z = 0 },
                     rotation = { x = 0, y = 20, z = 0 }
@@ -295,12 +301,12 @@ return {
         },
         {
             when = {
-                actor = "actor_2",
+                actor = "actor2",
                 animation = "Eaten",
                 ended = true
             },
             action = {
-                actor = "actor_2",
+                actor = "actor2",
                 destroy = true
             }
         }
@@ -322,8 +328,8 @@ A interface de runtime exportada é:
 local reaction = require "chomp_eat-interaction"
 
 local instance = reaction.start {
-    actor_1 = machineObject,
-    actor_2 = ratObject
+    actor1 = machineObject,
+    actor2 = ratObject
 }
 
 -- No onLoop(delta):
@@ -347,10 +353,11 @@ O módulo exportado:
 - aplicar transformações relativas;
 - permitir reinício e encerramento da interação.
 
-Os nomes usados na tabela de `start` devem corresponder ao nome do ator no
-editor, ou ao identificador interno (`actor1`/`actor2`). No projeto validado,
-os nomes lógicos são `actor_1` e `actor_2`. Eventos de callback e outras ações
-não visuais continuam reservados para a próxima extensão do editor.
+As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
+O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela
+integração atual do Ratworks. Não há nomes definidos pelo usuário nessa camada.
+Eventos de callback e outras ações não visuais continuam reservados para a
+próxima extensão do editor.
 
 ## Validação e erros do editor
 

@@ -186,7 +186,8 @@ local function bindActors(definition, bindings)
     local actors = {}
     for id, actorDefinition in pairs(definition.actors or {}) do
         local name = actorDefinition.name or id
-        local object = bindings[name] or bindings[id]
+        local fixedName = id:gsub('^(actor)(%d+)$', '%1_%2')
+        local object = bindings[name] or bindings[fixedName] or bindings[id]
         if not object then error('Missing interaction actor binding: ' .. tostring(name)) end
         actors[id] = {id = id, definition = actorDefinition, object = object, base = readTransform(object)}
     end
