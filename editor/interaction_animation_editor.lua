@@ -810,13 +810,20 @@ local function clockDuration()
     return math.max(0.01, clip.duration or 0)
 end
 
-local function transformProgress(event, time)
+local function transformProgress(event, time, events)
     local eventTime = event.time or 0
-    if event.transition ~= 'smooth' then
-        return time >= eventTime and 1 or 0
-    end
+    if time < eventTime then return 0 end
+    if event.transition ~= 'smooth' then return 1 end
     local duration = math.max(tonumber(event.duration) or 0.2, 0.0001)
     local transitionStart = math.max(0, eventTime - duration)
+    local lastPlayTime = 0
+    for _, previous in ipairs(events or S.events) do
+        if previous.action == 'play' and previous.target == event.target and
+                (previous.time or 0) <= eventTime then
+            lastPlayTime = math.max(lastPlayTime, previous.time or 0)
+        end
+    end
+    transitionStart = math.max(transitionStart, lastPlayTime)
     local progress = math.max(0, math.min(1, (time - transitionStart) / duration))
     return progress * progress * (3 - 2 * progress)
 end
@@ -871,7 +878,7 @@ local function seekAll(time, keepPlaying)
     end
     for _, event in ipairs(S.events) do
         if event.action == 'transform' then
-            applyEvent(event, transformProgress(event, S.time))
+            applyEvent(event, transformProgress(event, S.time, S.events))
         elseif (event.time or 0) <= S.time then
             applyEvent(event)
         end
@@ -1126,7 +1133,7 @@ local function captureTransformEvent()
         for index, previous in ipairs(S.events) do
             if index == S.selectedEvent then break end
             if previous.action == 'transform' and previous.target == id then
-                local progress = transformProgress(previous, S.time)
+                local progress = transformProgress(previous, S.time, S.events)
                 if progress > 0 then
                     prefixRotation = multiplyRotation(prefixRotation, anchorEulerRotation(
                         (previous.rx or 0) * progress,
@@ -1135,7 +1142,11 @@ local function captureTransformEvent()
                 end
             end
         end
-        local selectedRotation = anchorEulerRotation(event.rx or 0, event.ry or 0, event.rz or 0)
+        local selectedProgress = transformProgress(event, S.time, S.events)
+        local selectedRotation = anchorEulerRotation(
+            (event.rx or 0) * selectedProgress,
+            (event.ry or 0) * selectedProgress,
+            (event.rz or 0) * selectedProgress)
         eventRotation = multiplyRotation(
             multiplyRotation(transposeRotation(prefixRotation),
                 multiplyRotation(baseDeltaRotation, prefixRotation)), selectedRotation)
@@ -1164,9 +1175,10 @@ local function captureTransformEvent()
     local capturedY = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
     local capturedZ = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
     if event then
-        event.x = (event.x or 0) + capturedX
-        event.y = (event.y or 0) + capturedY
-        event.z = (event.z or 0) + capturedZ
+        local selectedProgress = transformProgress(event, S.time, S.events)
+        event.x = (event.x or 0) * selectedProgress + capturedX
+        event.y = (event.y or 0) * selectedProgress + capturedY
+        event.z = (event.z or 0) * selectedProgress + capturedZ
     else
         event.x = capturedX
         event.y = capturedY
@@ -1233,7 +1245,7 @@ local function updatePlayback(delta)
     resetOffsets()
     for _, event in ipairs(S.events) do
         if event.action == 'transform' then
-            applyEvent(event, transformProgress(event, S.time))
+            applyEvent(event, transformProgress(event, S.time, S.events))
         end
     end
     for _, id in ipairs(S.actorOrder) do

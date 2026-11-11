@@ -217,8 +217,9 @@ inicial como base. O botão `Capture transform` cria um evento no tempo atual e
 preenche automaticamente os deslocamentos e rotações relativos à base.
 Cada evento de transformação pode ser `Instant` ou `Smooth`. No modo suave,
 `Duration (s)` define a janela anterior ao tempo do evento durante a qual o
-editor interpola posição e rotação até atingir o deslocamento final. Assim, o
-tempo do evento representa o instante em que a transformação já foi concluída.
+editor interpola posição e rotação até atingir o deslocamento final. A janela
+é limitada pelo último evento `play` do mesmo ator, para que uma transformação
+não comece antes da animação que ela acompanha.
 
 ## Ações previstas
 
