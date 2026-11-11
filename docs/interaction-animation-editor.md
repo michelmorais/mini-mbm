@@ -139,8 +139,22 @@ completo permanece salvo no projeto. A escolha da mesh é feita pelo botão
 
 ### Relógio da interação
 
-Uma interação possui um relógio principal configurável. O relógio pode ser
-baseado no tempo de um clip específico, por exemplo:
+Uma interação possui uma timeline própria e um relógio principal configurável.
+São conceitos diferentes:
+
+- a duração da timeline pertence ao projeto e define a extensão total da
+  interação;
+- o relógio identifica o ator e o clip usados como referência para sincronizar
+  os eventos;
+- a duração de um clip não encerra automaticamente a timeline do projeto.
+
+Ao criar um projeto, a duração inicial da timeline deve ser o maior tempo entre
+as animações base dos atores carregados. Depois de criada, essa duração é um
+valor do projeto e pode ser ampliada para incluir ações posteriores ao fim dos
+clips. Trocar a animação do relógio não deve reduzir silenciosamente a duração
+da timeline.
+
+O relógio pode ser baseado no tempo de um clip específico, por exemplo:
 
 ```lua
 clock = {
@@ -150,11 +164,17 @@ clock = {
 ```
 
 Nesse caso, um evento em `0.2` ocorre quando `actor1:bite` atingir 0,2 s,
-independentemente da posição absoluta da máquina na cena.
+independentemente da posição absoluta da máquina na cena. Se `bite` terminar
+antes da timeline, o clip pode permanecer no seu último frame enquanto a
+timeline continua avançando e os eventos posteriores continuam válidos.
 
-O editor também poderá oferecer um relógio livre da sequência para ações que
-continuem depois do fim do clip principal. Esse período posterior deverá ser
-explícito; não se deve silenciosamente aceitar tempos fora da duração do relógio.
+O módulo exportado deve usar a duração da timeline para determinar quando a
+interação termina. O relógio serve para sincronização; não é o limite global da
+sequência.
+
+Esta é a regra temporal desejada para o projeto. A implementação atual ainda
+usa a duração do relógio em alguns limites do editor; essa será ajustada na
+próxima etapa.
 
 ### Base da interação
 
@@ -256,9 +276,25 @@ rotações e fatores de escala relativos à base.
 Cada evento de transformação pode ser `Instant` ou `Smooth`. No modo suave,
 `Transition interval (s)` define explicitamente os tempos de início e fim da
 interpolação de posição, rotação e escala. O início nunca pode ser menor que zero nem
-maior que o fim, e o fim nunca pode ultrapassar a duração da animação escolhida
-como relógio mestre. O evento é considerado concluído no fim do intervalo; não
-há mais uma regra implícita baseada em `Duration` ou no último evento `play`.
+maior que o fim. A suavização deve ser associada ao intervalo da animação
+atual, e não esticada automaticamente até o fim da timeline do projeto. O
+evento é considerado concluído no fim do intervalo; não há mais uma regra
+implícita baseada no último evento `play`.
+
+Quando a referência for o clip do relógio mestre, o intervalo da suavização é
+calculado dentro do período desse clip. Por exemplo, se `bite` começar em
+`0.2 s`, durar `1.5 s`, e a suavização for desejada entre 30% e 100% do clip,
+os tempos absolutos da timeline serão `0.65 s` e `1.70 s`:
+
+```text
+inicio = 0.2 + (1.5 * 0.30) = 0.65 s
+fim    = 0.2 + (1.5 * 1.00) = 1.70 s
+```
+
+Depois de `1.70 s`, a transformação já está concluída, mas a timeline pode
+continuar até a sua duração de projeto. Em uma etapa posterior, outros atores
+ou clips poderão fornecer a referência da suavização; nesse caso, a mesma regra
+será aplicada ao intervalo do clip ativo associado ao evento.
 
 Alterações manuais feitas depois do tempo `0` são apenas uma prévia da pose
 atual. Se a timeline for movida, reiniciada ou reproduzida sem usar `Capture
@@ -287,6 +323,8 @@ Uma sequência inicial poderia ser representada assim:
 
 ```lua
 return {
+    duration = 3.0,
+
     clock = {
         actor = "actor1",
         animation = "bite"
@@ -364,7 +402,7 @@ O módulo exportado:
 - receber as instâncias reais dos atores;
 - capturar as poses iniciais;
 - iniciar os clips configurados nos eventos `play`;
-- observar os tempos da timeline e finalizar ao atingir a duração do relógio;
+- observar os tempos da timeline e finalizar ao atingir a duração do projeto;
 - aplicar cada evento uma única vez;
 - aplicar transformações relativas;
 - permitir reinício e encerramento da interação.
@@ -384,7 +422,7 @@ O editor deve apresentar erro ou aviso claro nos seguintes casos:
 - tipo de animação incompatível com a ação solicitada;
 - relógio baseado em clip inexistente;
 - duração inválida, negativa ou não finita;
-- gatilho além da duração do relógio sem período posterior explícito;
+- evento além da duração da timeline do projeto;
 - gatilho de término aplicado a clip cíclico;
 - transformação com valores não finitos;
 - múltiplas ações conflitantes no mesmo ator e instante;
