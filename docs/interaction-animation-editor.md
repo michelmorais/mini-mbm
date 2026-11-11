@@ -351,7 +351,7 @@ A primeira versão do editor deverá conter:
 3. seleção dos clips disponíveis;
 4. escolha do relógio principal;
 5. viewport com reprodução conjunta;
-6. play, pause, avanço, reinício e scrub;
+6. play, pause, avanço, retrocesso, reinício e scrub;
 7. timeline de gatilhos;
 8. edição de transformações relativas;
 9. ações de troca de animação e callbacks;
@@ -363,6 +363,10 @@ Todas as operações caras, como carregamento, reconstrução de prévia e
 serialização, deverão acontecer somente quando os dados mudarem ou quando o
 usuário solicitar uma ação explícita. Uma timeline parada não deve executar
 `seek`, reconstruir meshes ou serializar o projeto continuamente.
+
+Ao pressionar `Play` quando a timeline já estiver no fim, a reprodução retorna
+automaticamente ao início. Os botões de avanço e retrocesso movem a timeline
+um frame de 1/30 s por vez e mantêm a reprodução pausada.
 
 ## Fora do escopo inicial
 

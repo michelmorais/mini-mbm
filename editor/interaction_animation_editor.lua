@@ -931,7 +931,11 @@ local function playPlayback()
         setStatus(L('clock_missing'), true)
         return
     end
-    seekAll(S.time, true)
+    if S.time >= clockDuration() - 0.0001 then
+        seekAll(0, true)
+    else
+        seekAll(S.time, true)
+    end
     S.playing = true
 end
 
@@ -1468,6 +1472,8 @@ local function showTimeline()
         if tImGui.Button(L('pause')) then pausePlayback() end
         tImGui.SameLine()
         if tImGui.Button(L('restart')) then resetPlayback() end
+        tImGui.SameLine()
+        if tImGui.Button(L('step_back')) then pausePlayback(); seekAll(math.max(0, S.time - 1 / 30), false) end
         tImGui.SameLine()
         if tImGui.Button(L('step')) then pausePlayback(); seekAll(math.min(maxTime, S.time + 1 / 30), false) end
     end
