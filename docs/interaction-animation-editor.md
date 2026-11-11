@@ -190,6 +190,13 @@ posição ou orientação no mundo.
 Na primeira versão, a transformação relativa será da mesh inteira. Transformar
 ossos ou partes articuladas individualmente fica para uma etapa posterior.
 
+### Captura de uma transformação
+
+Para criar um evento visualmente, mova a timeline para o instante desejado,
+selecione o ator e use o gizmo para alterar sua pose. O editor mantém a pose
+inicial como base. O botão `Capture transform` cria um evento no tempo atual e
+preenche automaticamente os deslocamentos e rotações relativos à base.
+
 ## Ações previstas
 
 O primeiro conjunto de ações deverá incluir:

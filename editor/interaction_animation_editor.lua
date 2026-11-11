@@ -68,6 +68,7 @@ local S = {
     camera = nil,
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 800, fx = 80, fy = 50, fz = 0},
     selectedActor = nil,
+    captureOrigins = {},
     transformMode = 'move',
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, axesWorld = nil, drag = nil},
     originLines = {x = nil, y = nil, z = nil},
@@ -172,6 +173,11 @@ local function setClockActor(id)
     S.clockKey = actor(id).clipKey or ''
 end
 
+local function ensureCaptureOrigin(id, entry)
+    if S.time <= 0 or S.captureOrigins[id] then return end
+    S.captureOrigins[id] = cloneTable(entry.base)
+end
+
 local function addActor()
     for index, id in ipairs(actorSlots) do
         if not S.actors[id].active then
@@ -235,6 +241,14 @@ local function identityRotation()
     return {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
 end
 
+local function transposeRotation(matrix)
+    return {
+        {matrix[1][1], matrix[2][1], matrix[3][1]},
+        {matrix[1][2], matrix[2][2], matrix[3][2]},
+        {matrix[1][3], matrix[2][3], matrix[3][3]},
+    }
+end
+
 local function axisRotation(axis, angle)
     local x, y, z = axis.x, axis.y, axis.z
     local cosine, sine = math.cos(angle), math.sin(angle)
@@ -293,6 +307,17 @@ local function matrixToEulerDegrees(matrix)
         z = math.atan(-matrix[2][1], matrix[1][1])
     end
     return math.deg(x), math.deg(y), math.deg(z)
+end
+
+local function rotationToAnchorEuler(matrix)
+    local axes = interactionAxes()
+    local basis = {
+        {axes.x.x, axes.y.x, axes.z.x},
+        {axes.x.y, axes.y.y, axes.z.y},
+        {axes.x.z, axes.y.z, axes.z.z},
+    }
+    local localRotation = multiplyRotation(transposeRotation(basis), multiplyRotation(matrix, basis))
+    return matrixToEulerDegrees(localRotation)
 end
 
 local function rayAxisParameter(sx, sy, origin, axis)
@@ -554,6 +579,7 @@ local function beginViewportInteraction(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
         local entry = S.selectedActor and actor(S.selectedActor) or nil
+        if entry then ensureCaptureOrigin(S.selectedActor, entry) end
         local ring = S.selectedActor and pickRotationRing(x, y) or nil
         if ring and entry and S.gizmo.origin then
             if S.playing then S.playing = false end
@@ -810,6 +836,7 @@ end
 
 local function seekAll(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, clockDuration()))
+    S.captureOrigins = {}
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
@@ -909,6 +936,7 @@ local function clearActorSlots()
     S.clockActor = nil
     S.clockKey = ''
     S.selectedActor = nil
+    S.captureOrigins = {}
 end
 
 local function applyProject(project)
@@ -1010,10 +1038,50 @@ local function eventLabel(event, index)
     return string.format('%d: %.3fs %s %s', index, event.time or 0, target, action)
 end
 
+local function captureTransformEvent()
+    local id = S.selectedActor
+    local entry = id and actor(id) or nil
+    if not entry then
+        setStatus(L('capture_actor_missing'), true)
+        return
+    end
+    if S.playing then S.playing = false end
+    local origin = S.captureOrigins[id] or cloneTable(entry.base)
+    local current = entry.base
+    local axes = interactionAxes()
+    local dx, dy, dz = current.x - origin.x, current.y - origin.y, current.z - origin.z
+    local eventRotation = multiplyRotation(
+        transposeRotation(entry.offsetRotation or identityRotation()),
+        multiplyRotation(
+            multiplyRotation(
+                transposeRotation(eulerRotation(math.rad(origin.rx), math.rad(origin.ry), math.rad(origin.rz))),
+                eulerRotation(math.rad(current.rx), math.rad(current.ry), math.rad(current.rz))),
+            entry.offsetRotation or identityRotation()))
+    local rx, ry, rz = rotationToAnchorEuler(eventRotation)
+    table.insert(S.events, {
+        time = S.time,
+        target = id,
+        action = 'transform',
+        x = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z),
+        y = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z),
+        z = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z),
+        rx = rx,
+        ry = ry,
+        rz = rz,
+        clipKey = '',
+    })
+    entry.base = cloneTable(origin)
+    S.captureOrigins[id] = nil
+    S.selectedEvent = #S.events
+    S.modified = true
+    seekAll(S.time, false)
+    setStatus(string.format(L('captured'), actorName(id, entry), S.time))
+end
+
 local function addEvent()
     table.insert(S.events, {
         time = S.time,
-        target = S.clockActor,
+        target = S.selectedActor or S.clockActor,
         action = 'transform',
         x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0,
         clipKey = '',
@@ -1101,11 +1169,11 @@ local function actorPanel(id)
             end
             local base = entry.base
             tImGui.SetNextItemWidth(105)
-            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then base.x = n1; applyTransform(entry); S.modified = true end
+            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then ensureCaptureOrigin(id, entry); base.x = n1; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then base.y = n2; applyTransform(entry); S.modified = true end
+            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then ensureCaptureOrigin(id, entry); base.y = n2; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then base.z = n3; applyTransform(entry); S.modified = true end
+            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then ensureCaptureOrigin(id, entry); base.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
         else
@@ -1171,22 +1239,22 @@ local function showActors()
             local base = selected.base
             tImGui.SetNextItemWidth(105)
             local changed, value = tImGui.InputFloat('POS X##iae_selected_pos_x', base.x)
-            if changed then base.x = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.x = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Y##iae_selected_pos_y', base.y)
-            if changed then base.y = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.y = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Z##iae_selected_pos_z', base.z)
-            if changed then base.z = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.z = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT X##iae_selected_rot_x', base.rx)
-            if changed then base.rx = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.rx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Y##iae_selected_rot_y', base.ry)
-            if changed then base.ry = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.ry = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Z##iae_selected_rot_z', base.rz)
-            if changed then base.rz = value; applyTransform(selected); S.modified = true end
+            if changed then ensureCaptureOrigin(S.selectedActor, selected); base.rz = value; applyTransform(selected); S.modified = true end
             tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
         else
             tImGui.Text(L('select_actor_hint'))
@@ -1224,6 +1292,8 @@ local function showEvents()
         tImGui.Text(L('events'))
         if tImGui.Button(L('add_event')) then addEvent() end
         tImGui.SameLine()
+        if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
+        tImGui.SameLine()
         if tImGui.Button(L('remove_event')) then removeSelectedEvent() end
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
@@ -1233,6 +1303,7 @@ local function showEvents()
         local event = S.events[S.selectedEvent]
         if event then
             tImGui.Separator()
+            tImGui.SetNextItemWidth(105)
             local c, value = tImGui.InputFloat(L('event_time'), event.time or 0)
             if c then event.time = math.max(0, value); S.modified = true; seekAll(S.time, false) end
             local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
@@ -1241,20 +1312,24 @@ local function showEvents()
                 if event.target == id then targetIndex = index end
             end
             if #targetIds > 0 then
+                tImGui.SetNextItemWidth(210)
             local targetChanged, nextTarget = tImGui.Combo(L('event_target'), targetIndex, targetNames)
                 if targetChanged then event.target = targetIds[nextTarget]; S.modified = true end
             end
+            tImGui.SetNextItemWidth(210)
             local actionChanged, actionIndex = tImGui.Combo(L('event_action'), event.action == 'play' and 2 or 1, {L('transform'), L('play')})
             if actionChanged then event.action = actionIndex == 2 and 'play' or 'transform'; S.modified = true; seekAll(S.time, false) end
             if event.action == 'play' then
                 local target = actor(event.target)
                 local clips, names, current = clipList(target), {}, 1
                 for index, clip in ipairs(clips) do names[index] = clip.label; if clip.key == event.clipKey then current = index end end
+                tImGui.SetNextItemWidth(230)
                 local clipChanged, clipIndex = tImGui.Combo(L('event_animation'), current, names)
                 if clipChanged then event.clipKey = clips[clipIndex].key; S.modified = true; seekAll(S.time, false) end
             else
                 local fields = {{'x', L('offset_x')}, {'y', L('offset_y')}, {'z', L('offset_z')}, {'rx', L('offset_rx')}, {'ry', L('offset_ry')}, {'rz', L('offset_rz')}}
                 for _, field in ipairs(fields) do
+                    tImGui.SetNextItemWidth(105)
                     local changed, value = tImGui.InputFloat(field[2], event[field[1]] or 0)
                     if changed then event[field[1]] = value; S.modified = true; seekAll(S.time, false) end
                 end
