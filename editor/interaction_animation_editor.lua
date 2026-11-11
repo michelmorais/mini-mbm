@@ -1772,7 +1772,7 @@ local function showEvents()
 end
 
 local function showTimeline()
-    tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.12, 390)
+    tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.16, 390)
     local opened = tImGui.Begin(S.windows.timeline, true, 0)
     if opened then
         local maxTime = projectDuration()
