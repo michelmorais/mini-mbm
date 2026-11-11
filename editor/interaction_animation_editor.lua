@@ -124,6 +124,13 @@ local function directoryOf(path)
     return tostring(path or ''):gsub('\\', '/'):match('^(.*)/[^/]*$') or '.'
 end
 
+local function exportSuggestion()
+    if not S.projectPath or S.projectPath == '' then return 'interaction.lua' end
+    local filename = tUtil.getShortName(S.projectPath) or 'interaction'
+    filename = filename:gsub('%.iae%.lua$', ''):gsub('%.lua$', '')
+    return directoryOf(S.projectPath) .. '/' .. filename .. '-interaction.lua'
+end
+
 local function actor(id)
     local entry = S.actors[id]
     return entry and entry.active and entry or nil
@@ -989,7 +996,7 @@ local function loadProject(path)
 end
 
 local function exportSpec(path)
-    path = path or mbm.saveFile(S.projectPath or '', 'lua')
+    path = path or mbm.saveFile(exportSuggestion(), 'lua')
     if not path then return end
     if saveLua(path, 'interaction', serializeProject(), true) then
         setStatus(string.format(L('exported'), path))
@@ -1074,11 +1081,8 @@ local function actorPanel(id)
             setAnchorActor(id)
             S.modified = true
         end
-        tImGui.SetNextItemWidth(250)
-        local changed, path = tImGui.InputText(L('path') .. '##' .. id, entry.path or '')
-        if changed then entry.path = path; S.modified = true end
-        if tImGui.Button(L('load') .. '##' .. id) then loadActor(id, entry.path); seekAll(S.time, false) end
-        tImGui.SameLine()
+        local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
+        tImGui.Text(string.format(L('mesh_file'), meshName))
         if tImGui.Button(L('browse') .. '##' .. id) then openActorFile(id) end
         if entry.bundle then
             local clips = clipList(entry)

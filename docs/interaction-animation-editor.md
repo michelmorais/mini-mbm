@@ -108,6 +108,9 @@ actors = {
 O identificador do slot é usado pelos eventos exportados; o nome definido pelo
 usuário serve para identificar o ator na interface. O arquivo `.msh` continua
 sendo um recurso independente e pode ser instanciado em qualquer posição da cena.
+Na interface, o ator mostra apenas o basename da mesh, enquanto o caminho
+completo permanece salvo no projeto. A escolha da mesh é feita pelo botão
+`Browse`, que já carrega o arquivo.
 
 ### Relógio da interação
 
