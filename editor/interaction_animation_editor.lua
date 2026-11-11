@@ -29,38 +29,33 @@ tImGui = require 'ImGui'
 tUtil = require 'editor_utils'
 local Animation = require 'mesh_to_sprite_animation'
 
+local actorSlots = {'actor1', 'actor2'}
+
+local function newActorState(baseX, defaultName)
+    return {
+        active = false,
+        label = defaultName or '',
+        path = '',
+        base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
+        bundle = nil,
+        object = nil,
+        clipKey = '',
+        runtimeKey = nil,
+        runtimeClip = nil,
+        runtimeOverride = false,
+        runtimeStartTime = 0,
+        offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
+    }
+end
+
 local S = {
     actors = {
-        rat = {
-            label = 'rat',
-            path = '',
-            base = {x = 180, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
-            bundle = nil,
-            object = nil,
-            clipKey = '',
-            runtimeKey = nil,
-            runtimeClip = nil,
-            runtimeOverride = false,
-            runtimeStartTime = 0,
-            offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
-        },
-        machine = {
-            label = 'machine',
-            path = '',
-            base = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
-            bundle = nil,
-            object = nil,
-            clipKey = '',
-            runtimeKey = nil,
-            runtimeClip = nil,
-            runtimeOverride = false,
-            runtimeStartTime = 0,
-            offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
-        },
+        actor1 = newActorState(180, 'actor_1'),
+        actor2 = newActorState(0, 'actor_2'),
     },
-    actorOrder = {'rat', 'machine'},
-    anchorActor = 'machine',
-    clockActor = 'machine',
+    actorOrder = {},
+    anchorActor = nil,
+    clockActor = nil,
     clockKey = '',
     time = 0,
     playing = false,
@@ -87,7 +82,9 @@ local S = {
     },
 }
 
-local function L(key)
+local L
+
+L = function(key)
     return tLang.L('iae_' .. key)
 end
 
@@ -98,12 +95,20 @@ local function refreshWindowTitles()
     S.windows.camera = L('camera')
 end
 
+local function setStatus(message, warning)
+    S.status = tostring(message or '')
+    if warning then
+        tUtil.showMessageWarn(S.status, 6)
+    else
+        tUtil.showMessage(S.status, 6)
+    end
+end
+
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
     if not result[1] then
-        S.status = tostring(result[2])
+        setStatus(result[2], true)
         print('[interaction_animation_editor] ' .. S.status)
-        tUtil.showMessageWarn(S.status, 6)
     end
     return table.unpack(result, 1, result.n)
 end
@@ -120,7 +125,60 @@ local function directoryOf(path)
 end
 
 local function actor(id)
-    return S.actors[id]
+    local entry = S.actors[id]
+    return entry and entry.active and entry or nil
+end
+
+local function actorSlotIndex(id)
+    for index, slot in ipairs(actorSlots) do
+        if slot == id then return index end
+    end
+    return nil
+end
+
+local function actorName(id, entry)
+    if not entry then return '' end
+    if entry.label and entry.label ~= '' then return entry.label end
+    return string.format(L('actor_default'), actorSlotIndex(id) or 1)
+end
+
+local function rebuildActorOrder()
+    S.actorOrder = {}
+    for _, id in ipairs(actorSlots) do
+        if S.actors[id].active then table.insert(S.actorOrder, id) end
+    end
+end
+
+local function activeActorIds()
+    return S.actorOrder
+end
+
+local function setAnchorActor(id)
+    if not actor(id) then return end
+    S.anchorActor = id
+    S.gizmo.axesWorld = nil
+end
+
+local function setClockActor(id)
+    if not actor(id) then return end
+    S.clockActor = id
+    S.clockKey = actor(id).clipKey or ''
+end
+
+local function addActor()
+    for index, id in ipairs(actorSlots) do
+        if not S.actors[id].active then
+            S.actors[id] = newActorState(index == 1 and 180 or 0, index == 1 and 'actor_1' or 'actor_2')
+            S.actors[id].active = true
+            rebuildActorOrder()
+            if not S.anchorActor then setAnchorActor(id) end
+            if not S.clockActor then setClockActor(id) end
+            S.selectedActor = id
+            S.modified = true
+            return id
+        end
+    end
+    return nil
 end
 
 local applyTransform
@@ -194,6 +252,13 @@ end
 
 local function interactionAxes()
     local entry = actor(S.anchorActor)
+    if not entry then
+        return {
+            x = {x = 1, y = 0, z = 0},
+            y = {x = 0, y = 1, z = 0},
+            z = {x = 0, y = 0, z = 1},
+        }
+    end
     local matrix = eulerRotation(math.rad(entry.base.rx), math.rad(entry.base.ry), math.rad(entry.base.rz))
     return {
         x = rotationDirection(matrix, 1),
@@ -620,7 +685,7 @@ end
 
 local function clipList(entry)
     local list = {{key = '', label = L('no_animation'), kind = 'none', name = '', duration = 0}}
-    if not entry.bundle then return list end
+    if not entry or not entry.bundle then return list end
     for _, clip in ipairs(entry.bundle.skeletal or {}) do
         table.insert(list, {
             key = 'skeletal:' .. clip.name,
@@ -695,7 +760,9 @@ local function seekClip(entry, clip, time, playing)
 end
 
 local function clockClip()
-    return findClip(actor(S.clockActor), S.clockKey)
+    local entry = actor(S.clockActor)
+    if not entry then return clipList(nil)[1] end
+    return findClip(entry, S.clockKey)
 end
 
 local function clockDuration()
@@ -753,6 +820,7 @@ end
 local function loadActor(id, path)
     if not path or path == '' then return false end
     local entry = actor(id)
+    if not entry then return false end
     local ok, bundle = dpCall(function()
         mbm.addPath(directoryOf(path))
         return Animation.load(path, 'auto')
@@ -770,7 +838,7 @@ local function loadActor(id, path)
     entry.object.alwaysRender = true
     applyTransform(entry)
     S.modified = true
-    S.status = string.format(L('loaded'), id, path)
+    setStatus(string.format(L('loaded'), actorName(id, entry), path))
     return true
 end
 
@@ -787,7 +855,7 @@ end
 
 local function playPlayback()
     if clockClip().kind == 'none' then
-        S.status = L('clock_missing')
+        setStatus(L('clock_missing'), true)
         return
     end
     seekAll(S.time, true)
@@ -801,7 +869,8 @@ end
 
 local function serializeProject()
     local project = {
-        version = 2,
+        version = 3,
+        language = tLang.getLanguage(),
         actors = {},
         actorOrder = cloneTable(S.actorOrder),
         anchorActor = S.anchorActor,
@@ -813,6 +882,7 @@ local function serializeProject()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         project.actors[id] = {
+            name = entry.label,
             path = entry.path,
             base = cloneTable(entry.base),
             clipKey = entry.clipKey,
@@ -821,23 +891,52 @@ local function serializeProject()
     return project
 end
 
+local function clearActorSlots()
+    for index, id in ipairs(actorSlots) do
+        local entry = S.actors[id]
+        if entry.object then entry.object:destroy() end
+        S.actors[id] = newActorState(index == 1 and 180 or 0, index == 1 and 'actor_1' or 'actor_2')
+    end
+    S.actorOrder = {}
+    S.anchorActor = nil
+    S.clockActor = nil
+    S.clockKey = ''
+    S.selectedActor = nil
+end
+
 local function applyProject(project)
     if type(project) ~= 'table' then error(L('invalid_project')) end
+    if project.language == 'en' or project.language == 'pt_br' then
+        tLang.setLanguage(project.language)
+        refreshWindowTitles()
+    end
     S.playing = false
-    S.events = cloneTable(project.events or {})
-    S.anchorActor = project.anchorActor == 'rat' and 'rat' or 'machine'
-    S.clockActor = project.clockActor == 'rat' and 'rat' or 'machine'
-    S.gizmo.axesWorld = nil
-    S.clockKey = project.clockKey or ''
-    S.time = tonumber(project.time) or 0
-    for _, id in ipairs(S.actorOrder) do
-        local saved = project.actors and project.actors[id]
+    clearActorSlots()
+    local savedActors = project.actors or {}
+    for index, id in ipairs(actorSlots) do
+        local saved = savedActors[id]
         if saved then
-            actor(id).base = cloneTable(saved.base or actor(id).base)
-            actor(id).clipKey = saved.clipKey or ''
+            local entry = S.actors[id]
+            entry.active = true
+            entry.label = saved.name or saved.label or entry.label
+            entry.base = cloneTable(saved.base or entry.base)
+            entry.clipKey = saved.clipKey or ''
             if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
         end
     end
+    rebuildActorOrder()
+    local anchorActor = project.anchorActor
+    local clockActor = project.clockActor
+    S.anchorActor = actor(anchorActor) and anchorActor or S.actorOrder[1]
+    S.clockActor = actor(clockActor) and clockActor or S.actorOrder[1]
+    S.events = cloneTable(project.events or {})
+    for _, event in ipairs(S.events) do
+        if not actor(event.target) then event.target = S.actorOrder[1] end
+    end
+    S.gizmo.axesWorld = nil
+    S.clockKey = project.clockKey or ''
+    if S.clockKey == '' and actor(S.clockActor) then S.clockKey = actor(S.clockActor).clipKey or '' end
+    S.time = tonumber(project.time) or 0
     seekAll(S.time, false)
     S.modified = false
 end
@@ -849,7 +948,7 @@ local function saveLua(path, name, value, returnValue)
     if returnValue then table.insert(output, 'return ' .. name) end
     local file = io.open(path, 'w')
     if not file then
-        S.status = L('save_failed')
+        setStatus(L('save_failed'), true)
         return false
     end
     for _, line in ipairs(output) do file:write(line .. '\n') end
@@ -864,7 +963,7 @@ local function saveProject(path)
     if saveLua(path, 'interactionProject', serializeProject(), false) then
         S.projectPath = path
         S.modified = false
-        S.status = string.format(L('saved'), path)
+        setStatus(string.format(L('saved'), path))
     end
 end
 
@@ -873,19 +972,19 @@ local function loadProject(path)
     if not path then return end
     local fn, err = loadfile(path)
     if not fn then
-        S.status = tostring(err)
+        setStatus(err, true)
         return
     end
     interactionProject = nil
     local ok = dpCall(fn)
     if not ok or type(interactionProject) ~= 'table' then
-        S.status = L('invalid_project')
+        setStatus(L('invalid_project'), true)
         return
     end
     local applied = dpCall(applyProject, interactionProject)
     if applied then
         S.projectPath = path
-        S.status = string.format(L('loaded_project'), path)
+        setStatus(string.format(L('loaded_project'), path))
     end
 end
 
@@ -893,12 +992,13 @@ local function exportSpec(path)
     path = path or mbm.saveFile(S.projectPath or '', 'lua')
     if not path then return end
     if saveLua(path, 'interaction', serializeProject(), true) then
-        S.status = string.format(L('exported'), path)
+        setStatus(string.format(L('exported'), path))
     end
 end
 
 local function eventLabel(event, index)
-    local target = event.target or 'actor'
+    local targetEntry = actor(event.target)
+    local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or L('transform')
     return string.format('%d: %.3fs %s %s', index, event.time or 0, target, action)
 end
@@ -926,11 +1026,16 @@ end
 local function updatePlayback(delta)
     if not S.playing then return end
     local clip = clockClip()
+    local clockEntry = actor(S.clockActor)
+    if not clockEntry or clip.kind == 'none' or not clockEntry.object then
+        S.playing = false
+        return
+    end
     local value
     if clip.kind == 'skeletal' then
-        value = actor(S.clockActor).object:getSkeletalAnimationTime()
+        value = clockEntry.object:getSkeletalAnimationTime()
     elseif clip.kind == 'articulated' then
-        value = actor(S.clockActor).object:getArticulatedAnimationTime(clip.name)
+        value = clockEntry.object:getArticulatedAnimationTime(clip.name)
     end
     local previousTime = S.time
     S.time = value or (S.time + math.max(delta or 0, 0))
@@ -958,8 +1063,19 @@ end
 
 local function actorPanel(id)
     local entry = actor(id)
-    if tImGui.TreeNode(entry.label .. '##' .. id) then
-        local changed, path = tImGui.InputText(L('path') .. '##' .. id, entry.path or '', 512)
+    if not entry then return end
+    if tImGui.TreeNode(actorName(id, entry) .. '##' .. id) then
+        tImGui.SetNextItemWidth(190)
+        local nameChanged, name = tImGui.InputText(L('actor_name') .. '##' .. id, entry.label or '')
+        if nameChanged then entry.label = name; S.modified = true end
+        local wasAnchor = S.anchorActor == id
+        local anchorChecked = tImGui.Checkbox(L('anchor') .. '##' .. id, wasAnchor)
+        if anchorChecked and not wasAnchor then
+            setAnchorActor(id)
+            S.modified = true
+        end
+        tImGui.SetNextItemWidth(250)
+        local changed, path = tImGui.InputText(L('path') .. '##' .. id, entry.path or '')
         if changed then entry.path = path; S.modified = true end
         if tImGui.Button(L('load') .. '##' .. id) then loadActor(id, entry.path); seekAll(S.time, false) end
         tImGui.SameLine()
@@ -971,6 +1087,7 @@ local function actorPanel(id)
                 names[index] = clip.label
                 if clip.key == entry.clipKey then current = index end
             end
+            tImGui.SetNextItemWidth(230)
             local clipChanged, clipIndex = tImGui.Combo(L('animation') .. '##' .. id, current, names)
             if clipChanged then
                 entry.clipKey = clips[clipIndex].key
@@ -979,8 +1096,11 @@ local function actorPanel(id)
                 seekAll(S.time, false)
             end
             local base = entry.base
+            tImGui.SetNextItemWidth(105)
             local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then base.x = n1; applyTransform(entry); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then base.y = n2; applyTransform(entry); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then base.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
@@ -996,40 +1116,41 @@ local function showActors()
     local opened = tImGui.Begin(S.windows.actors, true, 0)
     if opened then
         tImGui.Text(L('actors'))
+        if tImGui.Button(L('add_actor')) then
+            if not addActor() then setStatus(L('actor_limit'), true) end
+        end
+        if #S.actorOrder == 0 then tImGui.TextWrapped(L('add_actor_hint')) end
         tImGui.Separator()
-        actorPanel('rat')
-        actorPanel('machine')
-        tImGui.Separator()
-        local choices = {L('rat'), L('machine')}
-        local clockIndex = S.clockActor == 'rat' and 1 or 2
-        local clockChanged, nextClock = tImGui.Combo(L('clock_actor'), clockIndex, choices)
-        if clockChanged then
-            S.clockActor = nextClock == 1 and 'rat' or 'machine'
-            S.clockKey = actor(S.clockActor).clipKey
-            S.modified = true
-            seekAll(S.time, false)
-        end
-        local clockNames, clockCurrent = {}, 1
-        for index, clip in ipairs(clipList(actor(S.clockActor))) do
-            clockNames[index] = clip.label
-            if clip.key == S.clockKey then clockCurrent = index end
-        end
-        local clockChanged2, clockIndex2 = tImGui.Combo(L('clock_animation'), clockCurrent, clockNames)
-        if clockChanged2 then
-            S.clockKey = clipList(actor(S.clockActor))[clockIndex2].key
-            actor(S.clockActor).clipKey = S.clockKey
-            S.time = 0
-            S.modified = true
-            seekAll(0, false)
-        end
-        tImGui.Text(string.format(L('clock_duration'), clockDuration()))
-        local anchorChoices = {L('rat'), L('machine')}
-        local anchorIndex = S.anchorActor == 'rat' and 1 or 2
-        local anchorChanged, nextAnchor = tImGui.Combo(L('anchor_actor'), anchorIndex, anchorChoices)
-        if anchorChanged then
-            S.anchorActor = nextAnchor == 1 and 'rat' or 'machine'
-            S.modified = true
-            S.gizmo.axesWorld = nil
+        for _, id in ipairs(S.actorOrder) do actorPanel(id) end
+        if #S.actorOrder > 0 then
+            tImGui.Separator()
+            local choices, clockIndex = {}, 1
+            for index, id in ipairs(S.actorOrder) do
+                choices[index] = actorName(id, actor(id))
+                if id == S.clockActor then clockIndex = index end
+            end
+            tImGui.SetNextItemWidth(210)
+            local clockChanged, nextClock = tImGui.Combo(L('clock_actor'), clockIndex, choices)
+            if clockChanged then
+                setClockActor(S.actorOrder[nextClock])
+                S.modified = true
+                seekAll(S.time, false)
+            end
+            local clockNames, clockCurrent = {}, 1
+            for index, clip in ipairs(clipList(actor(S.clockActor))) do
+                clockNames[index] = clip.label
+                if clip.key == S.clockKey then clockCurrent = index end
+            end
+            tImGui.SetNextItemWidth(230)
+            local clockChanged2, clockIndex2 = tImGui.Combo(L('clock_animation'), clockCurrent, clockNames)
+            if clockChanged2 then
+                S.clockKey = clipList(actor(S.clockActor))[clockIndex2].key
+                actor(S.clockActor).clipKey = S.clockKey
+                S.time = 0
+                S.modified = true
+                seekAll(0, false)
+            end
+            tImGui.Text(string.format(L('clock_duration'), clockDuration()))
         end
         tImGui.TextWrapped(L('anchor_space_note'))
         local modeIndex = tImGui.RadioButton(L('move'), S.transformMode == 'move' and 1 or 2, 1)
@@ -1039,28 +1160,33 @@ local function showActors()
             S.transformMode = modeIndex == 2 and 'rotate' or 'move'
             S.gizmo.drag = nil
         end
-        if S.selectedActor then
+        if S.selectedActor and actor(S.selectedActor) then
             local selected = actor(S.selectedActor)
             tImGui.Separator()
-            tImGui.Text(string.format('%s: %s', L('selected_actor'), selected.label))
+            tImGui.Text(string.format('%s: %s', L('selected_actor'), actorName(S.selectedActor, selected)))
             local base = selected.base
+            tImGui.SetNextItemWidth(105)
             local changed, value = tImGui.InputFloat('POS X##iae_selected_pos_x', base.x)
             if changed then base.x = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Y##iae_selected_pos_y', base.y)
             if changed then base.y = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Z##iae_selected_pos_z', base.z)
             if changed then base.z = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT X##iae_selected_rot_x', base.rx)
             if changed then base.rx = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Y##iae_selected_rot_y', base.ry)
             if changed then base.ry = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Z##iae_selected_rot_z', base.rz)
             if changed then base.rz = value; applyTransform(selected); S.modified = true end
             tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
         else
             tImGui.Text(L('select_actor_hint'))
         end
-        if S.status ~= '' then tImGui.TextWrapped(S.status) end
     end
     tImGui.End()
 end
@@ -1105,8 +1231,15 @@ local function showEvents()
             tImGui.Separator()
             local c, value = tImGui.InputFloat(L('event_time'), event.time or 0)
             if c then event.time = math.max(0, value); S.modified = true; seekAll(S.time, false) end
-            local targetChanged, targetIndex = tImGui.Combo(L('event_target'), event.target == 'rat' and 1 or 2, {L('rat'), L('machine')})
-            if targetChanged then event.target = targetIndex == 1 and 'rat' or 'machine'; S.modified = true end
+            local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
+            for index, id in ipairs(targetIds) do
+                targetNames[index] = actorName(id, actor(id))
+                if event.target == id then targetIndex = index end
+            end
+            if #targetIds > 0 then
+            local targetChanged, nextTarget = tImGui.Combo(L('event_target'), targetIndex, targetNames)
+                if targetChanged then event.target = targetIds[nextTarget]; S.modified = true end
+            end
             local actionChanged, actionIndex = tImGui.Combo(L('event_action'), event.action == 'play' and 2 or 1, {L('transform'), L('play')})
             if actionChanged then event.action = actionIndex == 2 and 'play' or 'transform'; S.modified = true; seekAll(S.time, false) end
             if event.action == 'play' then
@@ -1157,8 +1290,16 @@ local function showMainMenu()
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(L('options')) then
-        if tImGui.MenuItem(L('english')) then tLang.setLanguage('en'); refreshWindowTitles() end
-        if tImGui.MenuItem(L('portuguese')) then tLang.setLanguage('pt_br'); refreshWindowTitles() end
+        if tImGui.MenuItem(L('english')) then
+            tLang.setLanguage('en')
+            refreshWindowTitles()
+            S.modified = true
+        end
+        if tImGui.MenuItem(L('portuguese')) then
+            tLang.setLanguage('pt_br')
+            refreshWindowTitles()
+            S.modified = true
+        end
         tImGui.EndMenu()
     end
     tImGui.EndMainMenuBar()
@@ -1170,9 +1311,8 @@ function onInitScene()
     S.camera:setFar(9999999)
     applyCamera()
     createOriginLines()
-    tUtil.sMessageOverlay = L('welcome')
-    tUtil.bRightSide = true
-    tUtil.tTimerOverlay:start()
+    tUtil.bRightSide = false
+    tUtil.showMessage(L('welcome'), 13.5)
 end
 
 function onLoop(delta)

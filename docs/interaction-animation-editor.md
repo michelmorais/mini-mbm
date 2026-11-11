@@ -13,9 +13,15 @@ Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
 `interaction_animation_editor`. O editor também aparece no seletor de
 aplicacoes padrao de Linux, macOS e Windows (`mini-mbm-dev`).
 
-O editor inicia sem meshes carregadas. Para testar a composição atual do Ratworks,
+O editor inicia sem atores ou meshes carregados. Use `Add actor` para criar um
+dos dois slots disponíveis; cada ator pode receber um nome opcional, uma mesh e
+uma animação. Apenas um ator pode ser marcado como âncora por vez. Para testar a
+composição atual do Ratworks,
 abra o projeto salvo `test.iae.lua` pelo menu `File > Load project` ou pelo atalho
-`Ctrl+O`. Os caminhos das meshes são mantidos no próprio projeto.
+`Ctrl+O`. Os caminhos das meshes são mantidos no próprio projeto. Projetos
+criados antes do modelo de atores genéricos devem ser recriados neste estágio.
+O idioma selecionado no menu `Options` também é salvo no projeto e restaurado
+ao carregá-lo.
 
 Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
 relógio principal, preview, eventos básicos de transformação/troca de animação e
@@ -88,17 +94,20 @@ quando um gatilho não puder ser satisfeito.
 
 ### Atores
 
-Cada mesh carregada no projeto é um ator identificado por um nome lógico:
+Cada mesh carregada no projeto é um ator identificado por um nome lógico. Os dois
+slots atuais são genéricos (`actor1` e `actor2`); o editor não cria atores com os
+nomes `rat` ou `machine` por padrão:
 
 ```lua
 actors = {
-    rat = { file = "Cyclopsv2.msh" },
-    machine = { file = "ChompBot.msh" }
+    actor1 = { name = "rat", file = "Cyclopsv2.msh" },
+    actor2 = { name = "machine", file = "ChompBot.msh" }
 }
 ```
 
-O nome lógico é usado pelos eventos exportados. O arquivo `.msh` continua sendo
-um recurso independente e pode ser instanciado em qualquer posição da cena.
+O identificador do slot é usado pelos eventos exportados; o nome definido pelo
+usuário serve para identificar o ator na interface. O arquivo `.msh` continua
+sendo um recurso independente e pode ser instanciado em qualquer posição da cena.
 
 ### Relógio da interação
 
