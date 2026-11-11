@@ -1039,7 +1039,9 @@ local function eventLabel(event, index)
 end
 
 local function captureTransformEvent()
-    local id = S.selectedActor
+    local selectedEvent = S.events[S.selectedEvent]
+    local event = selectedEvent and selectedEvent.action == 'transform' and selectedEvent or nil
+    local id = event and event.target or S.selectedActor or (selectedEvent and selectedEvent.target)
     local entry = id and actor(id) or nil
     if not entry then
         setStatus(L('capture_actor_missing'), true)
@@ -1058,21 +1060,28 @@ local function captureTransformEvent()
                 eulerRotation(math.rad(current.rx), math.rad(current.ry), math.rad(current.rz))),
             entry.offsetRotation or identityRotation()))
     local rx, ry, rz = rotationToAnchorEuler(eventRotation)
-    table.insert(S.events, {
-        time = S.time,
-        target = id,
-        action = 'transform',
-        x = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z),
-        y = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z),
-        z = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z),
-        rx = rx,
-        ry = ry,
-        rz = rz,
-        clipKey = '',
-    })
+    if not event then
+        event = {
+            time = S.time,
+            target = id,
+            action = 'transform',
+            clipKey = '',
+        }
+        table.insert(S.events, event)
+        S.selectedEvent = #S.events
+    end
+    event.time = S.time
+    event.target = id
+    event.action = 'transform'
+    event.x = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z)
+    event.y = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
+    event.z = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
+    event.rx = rx
+    event.ry = ry
+    event.rz = rz
+    event.clipKey = ''
     entry.base = cloneTable(origin)
     S.captureOrigins[id] = nil
-    S.selectedEvent = #S.events
     S.modified = true
     seekAll(S.time, false)
     setStatus(string.format(L('captured'), actorName(id, entry), S.time))
