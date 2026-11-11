@@ -747,7 +747,7 @@ local function createXZPlane()
         object:destroy()
         return
     end
-    object:setColor(0.24, 0.30, 0.38, 0.18)
+    object:setColor(0.24, 0.30, 0.38, 0.8)
     object.alwaysRender = true
     object.visible = S.showXZPlane
     S.xzPlane = object
