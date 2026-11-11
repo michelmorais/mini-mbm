@@ -149,9 +149,10 @@ eventos relativos a essa pose; as coordenadas absolutas usadas na prévia não
 devem limitar a posição da interação no mundo.
 
 O fluxo atual para estabelecer a base é ajustar os atores no tempo `0`, escolher
-as animações base e salvar o projeto. Como melhoria de usabilidade, podemos
-adicionar depois uma ação explícita `Set current pose as base` para registrar
-essa decisão sem depender apenas do tempo da timeline.
+as animações base e clicar em `Set base reference` na janela de atores. Essa
+referência contém as posições, rotações e animações iniciais absolutas de cada
+ator e é salva no projeto. A captura de transformações usa essa referência,
+mesmo que a pose visual temporária tenha sido alterada durante a edição.
 
 ### Gatilhos
 
