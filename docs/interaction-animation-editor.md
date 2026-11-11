@@ -14,8 +14,8 @@ Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
 aplicacoes padrao de Linux, macOS e Windows (`mini-mbm-dev`).
 
 O editor inicia sem atores ou meshes carregados. Use `Add actor` para criar um
-dos dois slots disponíveis; cada ator pode receber um nome opcional, uma mesh e
-uma animação. Apenas um ator pode ser marcado como âncora por vez. Para testar a
+dos dois slots disponíveis; cada ator pode receber uma mesh e uma animação.
+Apenas um ator pode ser marcado como âncora por vez. Para testar a
 composição atual do Ratworks,
 abra o projeto salvo `test.iae.lua` pelo menu `File > Load project` ou pelo atalho
 `Ctrl+O`. Os caminhos das meshes são mantidos no próprio projeto. Projetos
@@ -36,8 +36,9 @@ gizmo de eixos ou anéis XYZ para mover ou rotacionar o ator selecionado. O ator
 pode ser deselecionado clicando no espaço vazio ou pressionando `ESC`; nesse
 caso o gizmo é ocultado. A timeline fica ancorada no rodapé com altura reduzida
 para preservar a área de preview.
-Essas transformações alteram a transformação base relativa da mesh e continuam
-sendo exportadas como dados do projeto.
+No tempo `0`, essas transformações definem a pose base relativa da mesh e são
+exportadas como dados do projeto. Em qualquer tempo maior que `0`, alterações
+manuais são uma prévia temporária até serem capturadas em um evento.
 
 O viewport também possui um plano visual criado dinamicamente no plano XZ,
 posicionado em `Y = 0`. Seu tamanho acompanha a distância da câmera e sua
@@ -172,11 +173,12 @@ captura a pose real dos objetos no momento em que começa e aplica os eventos
 relativos a essa pose; as coordenadas absolutas usadas na prévia não limitam a
 posição da interação no mundo.
 
-O fluxo atual para estabelecer a base é ajustar os atores no tempo `0`, escolher
-as animações base e clicar em `Set base reference` na janela de atores. Essa
-referência contém as posições, rotações e animações iniciais absolutas de cada
-ator e é salva no projeto. A captura de transformações usa essa referência,
-mesmo que a pose visual temporária tenha sido alterada durante a edição.
+O fluxo atual para estabelecer a base é ajustar os atores no tempo `0` e
+escolher as animações base. A referência é criada e atualizada automaticamente
+nesse instante; não há uma ação separada para defini-la. Essa referência contém
+as posições, rotações, escalas e animações iniciais de cada ator e é salva no
+projeto. A captura de transformações usa essa referência, mesmo que a pose
+visual temporária tenha sido alterada durante a edição.
 
 ### Gatilhos
 
@@ -224,15 +226,17 @@ Exemplo:
         actor = "actor2",
         transform = {
             position = { x = 0, y = -2, z = 0 },
-            rotation = { x = 0, y = 20, z = 0 }
+            rotation = { x = 0, y = 20, z = 0 },
+            scale = { x = 0.5, y = 0.5, z = 0.5 }
         }
     }
 }
 ```
 
 O runtime captura a transformação inicial do rato e aplica esse deslocamento
-relativo. A sequência pode, portanto, ser usada quando o rato estiver em outra
-posição ou orientação no mundo.
+relativo. A escala usa fatores multiplicativos: `1.0` preserva a escala base,
+`2.0` dobra o tamanho e `0.5` reduz pela metade. A sequência pode, portanto,
+ser usada quando o rato estiver em outra posição, orientação ou escala no mundo.
 
 Na primeira versão, a transformação relativa será da mesh inteira. Transformar
 ossos ou partes articuladas individualmente fica para uma etapa posterior.
@@ -240,15 +244,22 @@ ossos ou partes articuladas individualmente fica para uma etapa posterior.
 ### Captura de uma transformação
 
 Para criar um evento visualmente, mova a timeline para o instante desejado,
-selecione o ator e use o gizmo para alterar sua pose. O editor mantém a pose
-inicial como base. O botão `Capture transform` cria um evento no tempo atual e
-preenche automaticamente os deslocamentos e rotações relativos à base.
+selecione o ator e use o gizmo ou os campos de transformação para alterar sua
+pose. O editor mantém a pose inicial como base. O botão `Capture transform`
+cria um evento no tempo atual e preenche automaticamente os deslocamentos,
+rotações e fatores de escala relativos à base.
 Cada evento de transformação pode ser `Instant` ou `Smooth`. No modo suave,
 `Transition interval (s)` define explicitamente os tempos de início e fim da
-interpolação de posição e rotação. O início nunca pode ser menor que zero nem
+interpolação de posição, rotação e escala. O início nunca pode ser menor que zero nem
 maior que o fim, e o fim nunca pode ultrapassar a duração da animação escolhida
 como relógio mestre. O evento é considerado concluído no fim do intervalo; não
 há mais uma regra implícita baseada em `Duration` ou no último evento `play`.
+
+Alterações manuais feitas depois do tempo `0` são apenas uma prévia da pose
+atual. Se a timeline for movida, reiniciada ou reproduzida sem usar `Capture
+transform`, essa prévia é descartada e a pose volta para a base mais os eventos
+já definidos. Para tornar a alteração permanente na interação, capture-a em um
+evento.
 
 ## Ações previstas
 

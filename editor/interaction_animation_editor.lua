@@ -36,6 +36,7 @@ local function newActorState(baseX)
         active = false,
         path = '',
         base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
+        previewBase = nil,
         bundle = nil,
         object = nil,
         clipKey = '',
@@ -44,6 +45,7 @@ local function newActorState(baseX)
         runtimeOverride = false,
         runtimeStartTime = 0,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
+        offsetScale = {x = 1, y = 1, z = 1},
     }
 end
 
@@ -125,6 +127,19 @@ local function cloneTable(value)
     return copy
 end
 
+-- At time zero the editable pose is the project's base pose. At any later
+-- time, manual edits are only a preview until the user captures them into an
+-- event. This prevents an uncaptured edit from silently changing the origin.
+local function displayBase(entry)
+    return entry.previewBase or entry.base
+end
+
+local function editableBase(entry)
+    if math.abs(S.time) <= 1e-6 then return entry.base end
+    if not entry.previewBase then entry.previewBase = cloneTable(entry.base) end
+    return entry.previewBase
+end
+
 local function directoryOf(path)
     return tostring(path or ''):gsub('\\', '/'):match('^(.*)/[^/]*$') or '.'
 end
@@ -186,6 +201,11 @@ local function buildBaseReference()
         }
     end
     return reference
+end
+
+local function refreshBaseReferenceAtZero()
+    if math.abs(S.time) > 1e-6 or #S.actorOrder == 0 then return end
+    S.baseReference = buildBaseReference()
 end
 
 local function addActor()
@@ -396,9 +416,9 @@ local function actorPosition(entry)
         if ok and x and y and z then return {x = x, y = y, z = z} end
     end
     return {
-        x = entry.base.x + entry.offset.x,
-        y = entry.base.y + entry.offset.y,
-        z = entry.base.z + entry.offset.z,
+        x = displayBase(entry).x + entry.offset.x,
+        y = displayBase(entry).y + entry.offset.y,
+        z = displayBase(entry).z + entry.offset.z,
     }
 end
 
@@ -609,7 +629,7 @@ local function beginViewportInteraction(key, x, y)
                 axis = cloneTable(ring.axis),
                 startDirection = cloneTable(ring.direction),
                 origin = cloneTable(S.gizmo.origin),
-                base = cloneTable(entry.base),
+                base = cloneTable(displayBase(entry)),
                 startX = x,
                 startY = y,
                 moved = false,
@@ -631,7 +651,7 @@ local function beginViewportInteraction(key, x, y)
                     axis = cloneTable(axis),
                     startParameter = parameter,
                     origin = cloneTable(S.gizmo.origin),
-                    base = cloneTable(entry.base),
+                    base = cloneTable(displayBase(entry)),
                     startX = x,
                     startY = y,
                     moved = false,
@@ -662,9 +682,10 @@ local function updateViewportInteraction(x, y)
             local parameter = rayAxisParameter(x, y, drag.origin, drag.axis)
             if parameter then
                 local amount = parameter - drag.startParameter
-                entry.base.x = drag.base.x + drag.axis.x * amount
-                entry.base.y = drag.base.y + drag.axis.y * amount
-                entry.base.z = drag.base.z + drag.axis.z * amount
+                local base = editableBase(entry)
+                base.x = drag.base.x + drag.axis.x * amount
+                base.y = drag.base.y + drag.axis.y * amount
+                base.z = drag.base.z + drag.axis.z * amount
                 applyTransform(entry)
                 drag.moved = true
                 S.modified = true
@@ -685,7 +706,8 @@ local function updateViewportInteraction(x, y)
                     local baseRotation = eulerRotation(math.rad(drag.base.rx), math.rad(drag.base.ry),
                         math.rad(drag.base.rz))
                     local rotated = multiplyRotation(baseRotation, axisRotation(drag.axis, angle))
-                    entry.base.rx, entry.base.ry, entry.base.rz = matrixToEulerDegrees(rotated)
+                    local base = editableBase(entry)
+                    base.rx, base.ry, base.rz = matrixToEulerDegrees(rotated)
                     applyTransform(entry)
                     drag.moved = true
                     S.modified = true
@@ -800,7 +822,7 @@ end
 
 applyTransform = function(entry)
     if not entry.object then return end
-    local base, offset = entry.base, entry.offset
+    local base, offset = displayBase(entry), entry.offset
     entry.object:setPos(base.x + offset.x, base.y + offset.y, base.z + offset.z)
     local offsetRotation = entry.offsetRotation or identityRotation()
     if isIdentityRotation(offsetRotation) then
@@ -811,7 +833,9 @@ applyTransform = function(entry)
         local rx, ry, rz = matrixToEulerDegrees(rotation)
         entry.object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
     end
-    entry.object:setScale(base.sx, base.sy, base.sz)
+    local scale = entry.offsetScale or {x = 1, y = 1, z = 1}
+    entry.object:setScale(base.sx * scale.x, base.sy * scale.y, base.sz * scale.z)
+    refreshBaseReferenceAtZero()
 end
 
 local function stopEntry(entry)
@@ -913,6 +937,12 @@ local function applyEvent(event, progress)
             (event.ry or 0) * progress,
             (event.rz or 0) * progress)
         entry.offsetRotation = multiplyRotation(entry.offsetRotation or identityRotation(), deltaRotation)
+        local scaleX = 1 + ((event.sx or 1) - 1) * progress
+        local scaleY = 1 + ((event.sy or 1) - 1) * progress
+        local scaleZ = 1 + ((event.sz or 1) - 1) * progress
+        local scale = entry.offsetScale or {x = 1, y = 1, z = 1}
+        scale.x, scale.y, scale.z = scale.x * scaleX, scale.y * scaleY, scale.z * scaleZ
+        entry.offsetScale = scale
         applyTransform(entry)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
@@ -929,12 +959,17 @@ local function resetOffsets()
         local entry = actor(id)
         entry.offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0}
         entry.offsetRotation = identityRotation()
+        entry.offsetScale = {x = 1, y = 1, z = 1}
         applyTransform(entry)
     end
 end
 
 local function seekAll(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, clockDuration()))
+    for _, id in ipairs(S.actorOrder) do
+        local entry = actor(id)
+        if entry then entry.previewBase = nil end
+    end
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
@@ -951,16 +986,6 @@ local function seekAll(time, keepPlaying)
         end
     end
     S.lastAppliedTime = S.time
-end
-
-local function setBaseReference()
-    if #S.actorOrder == 0 then
-        setStatus(L('base_reference_missing'), true)
-        return
-    end
-    S.baseReference = buildBaseReference()
-    S.modified = true
-    setStatus(L('base_reference_set'))
 end
 
 local function loadActor(id, path)
@@ -1184,14 +1209,17 @@ local function captureTransformEvent()
         setStatus(L('capture_actor_missing'), true)
         return
     end
-    local reference = S.baseReference and S.baseReference.actors[id]
+    if S.playing then S.playing = false end
+    if not S.baseReference then
+        S.baseReference = buildBaseReference()
+    end
+    local reference = S.baseReference.actors[id]
     if not reference then
         setStatus(L('base_reference_missing'), true)
         return
     end
-    if S.playing then S.playing = false end
     local origin = reference.base
-    local current = entry.base
+    local current = displayBase(entry)
     local axes = interactionAxes()
     local dx, dy, dz = current.x - origin.x, current.y - origin.y, current.z - origin.z
     local eventRotation
@@ -1252,21 +1280,39 @@ local function captureTransformEvent()
     local capturedX = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z)
     local capturedY = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
     local capturedZ = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
-    if event then
+    local function scaleRatio(currentValue, originValue)
+        if math.abs(originValue) < 1e-6 then return 1 end
+        return currentValue / originValue
+    end
+    local capturedScaleX = scaleRatio(current.sx, origin.sx)
+    local capturedScaleY = scaleRatio(current.sy, origin.sy)
+    local capturedScaleZ = scaleRatio(current.sz, origin.sz)
+    if not isNewEvent then
         local selectedProgress = transformProgress(event, S.time)
         event.x = (event.x or 0) * selectedProgress + capturedX
         event.y = (event.y or 0) * selectedProgress + capturedY
         event.z = (event.z or 0) * selectedProgress + capturedZ
+        if selectedProgress > 1e-6 then
+            local currentScaleX = 1 + ((event.sx or 1) - 1) * selectedProgress
+            local currentScaleY = 1 + ((event.sy or 1) - 1) * selectedProgress
+            local currentScaleZ = 1 + ((event.sz or 1) - 1) * selectedProgress
+            event.sx = 1 + (capturedScaleX * currentScaleX - 1) / selectedProgress
+            event.sy = 1 + (capturedScaleY * currentScaleY - 1) / selectedProgress
+            event.sz = 1 + (capturedScaleZ * currentScaleZ - 1) / selectedProgress
+        else
+            event.sx, event.sy, event.sz = capturedScaleX, capturedScaleY, capturedScaleZ
+        end
     else
         event.x = capturedX
         event.y = capturedY
         event.z = capturedZ
+        event.sx, event.sy, event.sz = capturedScaleX, capturedScaleY, capturedScaleZ
     end
     event.rx = rx
     event.ry = ry
     event.rz = rz
     event.clipKey = ''
-    entry.base = cloneTable(origin)
+    entry.previewBase = nil
     S.modified = true
     seekAll(S.time, false)
     setStatus(string.format(L('captured'), actorName(id, entry), S.time))
@@ -1277,7 +1323,7 @@ local function addEvent()
         time = S.time,
         target = S.selectedActor or S.clockActor,
         action = 'transform',
-        x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0,
+        x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1,
         transition = 'instant',
         clipKey = '',
     })
@@ -1363,13 +1409,13 @@ local function actorPanel(id)
                 S.modified = true
                 seekAll(S.time, false)
             end
-            local base = entry.base
+            local base = displayBase(entry)
             tImGui.SetNextItemWidth(105)
-            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then base.x = n1; applyTransform(entry); S.modified = true end
+            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then base.y = n2; applyTransform(entry); S.modified = true end
+            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then base.z = n3; applyTransform(entry); S.modified = true end
+            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
         else
@@ -1392,8 +1438,7 @@ local function showActors()
         for _, id in ipairs(S.actorOrder) do actorPanel(id) end
         if #S.actorOrder > 0 then
             tImGui.Separator()
-            if tImGui.Button(L('set_base_reference')) then setBaseReference() end
-            tImGui.TextWrapped(S.baseReference and L('base_reference_set') or L('base_reference_missing'))
+            tImGui.TextWrapped(L('base_reference_auto'))
             local choices, clockIndex = {}, 1
             for index, id in ipairs(S.actorOrder) do
                 choices[index] = actorName(id, actor(id))
@@ -1434,26 +1479,36 @@ local function showActors()
             local selected = actor(S.selectedActor)
             tImGui.Separator()
             tImGui.Text(string.format('%s: %s', L('selected_actor'), actorName(S.selectedActor, selected)))
-            local base = selected.base
+            local base = displayBase(selected)
             tImGui.SetNextItemWidth(105)
             local changed, value = tImGui.InputFloat('POS X##iae_selected_pos_x', base.x)
-            if changed then base.x = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.x = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Y##iae_selected_pos_y', base.y)
-            if changed then base.y = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.y = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Z##iae_selected_pos_z', base.z)
-            if changed then base.z = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.z = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT X##iae_selected_rot_x', base.rx)
-            if changed then base.rx = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.rx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Y##iae_selected_rot_y', base.ry)
-            if changed then base.ry = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.ry = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Z##iae_selected_rot_z', base.rz)
-            if changed then base.rz = value; applyTransform(selected); S.modified = true end
+            if changed then local edited = editableBase(selected); edited.rz = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
+            changed, value = tImGui.InputFloat(L('scale_x') .. '##iae_selected_scale_x', base.sx, 0.05)
+            if changed then local edited = editableBase(selected); edited.sx = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
+            changed, value = tImGui.InputFloat(L('scale_y') .. '##iae_selected_scale_y', base.sy, 0.05)
+            if changed then local edited = editableBase(selected); edited.sy = value; applyTransform(selected); S.modified = true end
+            tImGui.SetNextItemWidth(105)
+            changed, value = tImGui.InputFloat(L('scale_z') .. '##iae_selected_scale_z', base.sz, 0.05)
+            if changed then local edited = editableBase(selected); edited.sz = value; applyTransform(selected); S.modified = true end
             tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
+            if math.abs(S.time) > 1e-6 then tImGui.TextWrapped(L('preview_transform_note')) end
         else
             tImGui.Text(L('select_actor_hint'))
         end
@@ -1582,10 +1637,18 @@ local function showEvents()
                         seekAll(S.time, false)
                     end
                 end
-                local fields = {{'x', L('offset_x')}, {'y', L('offset_y')}, {'z', L('offset_z')}, {'rx', L('offset_rx')}, {'ry', L('offset_ry')}, {'rz', L('offset_rz')}}
+                local fields = {{'x', L('offset_x'), 0}, {'y', L('offset_y'), 0}, {'z', L('offset_z'), 0},
+                    {'rx', L('offset_rx'), 0}, {'ry', L('offset_ry'), 0}, {'rz', L('offset_rz'), 0},
+                    {'sx', L('scale_x'), 1, 0.05}, {'sy', L('scale_y'), 1, 0.05},
+                    {'sz', L('scale_z'), 1, 0.05}}
                 for _, field in ipairs(fields) do
                     tImGui.SetNextItemWidth(105)
-                    local changed, value = tImGui.InputFloat(field[2], event[field[1]] or 0)
+                    local changed, value
+                    if field[4] then
+                        changed, value = tImGui.InputFloat(field[2], event[field[1]] or field[3], field[4])
+                    else
+                        changed, value = tImGui.InputFloat(field[2], event[field[1]] or field[3])
+                    end
                     if changed then event[field[1]] = value; S.modified = true; seekAll(S.time, false) end
                 end
             end

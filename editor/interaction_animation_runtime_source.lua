@@ -197,7 +197,11 @@ end
 local function applyTransforms(instance)
     local offsets = {}
     for id in pairs(instance.actors) do
-        offsets[id] = {position = {x = 0, y = 0, z = 0}, rotation = identity()}
+        offsets[id] = {
+            position = {x = 0, y = 0, z = 0},
+            rotation = identity(),
+            scale = {x = 1, y = 1, z = 1},
+        }
     end
     for _, event in ipairs(instance.definition.events or {}) do
         if event.action == 'transform' and offsets[event.target] then
@@ -216,6 +220,9 @@ local function applyTransforms(instance)
                 offset.rotation = multiply(offset.rotation, anchorRotation(instance.axes,
                     (event.rx or 0) * progress, (event.ry or 0) * progress,
                     (event.rz or 0) * progress))
+                offset.scale.x = offset.scale.x * (1 + ((event.sx or 1) - 1) * progress)
+                offset.scale.y = offset.scale.y * (1 + ((event.sy or 1) - 1) * progress)
+                offset.scale.z = offset.scale.z * (1 + ((event.sz or 1) - 1) * progress)
             end
         end
     end
@@ -232,7 +239,8 @@ local function applyTransforms(instance)
         actor.object:setPos(base.position.x + offset.position.x,
             base.position.y + offset.position.y, base.position.z + offset.position.z)
         actor.object:setAngle(rx, ry, rz)
-        actor.object:setScale(base.scale.x, base.scale.y, base.scale.z)
+        actor.object:setScale(base.scale.x * offset.scale.x,
+            base.scale.y * offset.scale.y, base.scale.z * offset.scale.z)
     end
 end
 
