@@ -1522,7 +1522,7 @@ local function showEvents()
                     local start, finish = transitionRange(event, clockDuration())
                     tImGui.SetNextItemWidth(210)
                     local rangeChanged, range = tImGui.SliderFloat2(
-                        L('transition_interval'), start, finish, 0, clockDuration())
+                        L('transition_interval'), {start, finish}, 0, clockDuration())
                     if rangeChanged then
                         start = clamp(range[1], 0, clockDuration())
                         finish = clamp(range[2], start, clockDuration())
