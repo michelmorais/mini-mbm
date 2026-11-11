@@ -76,6 +76,7 @@ int main(const int argc,const char **argv)
             {"Mesh Editor"                 , STR_PT_BR_MESH_EDITOR,               "mesh_debug.lua"},
             {"Mesh Texture Paint Editor"   , STR_PT_BR_MESH_TEXTURE_PAINT_EDITOR, "mesh_texture_paint_editor.lua"},
             {"Skeletal Animation Editor"   , STR_PT_BR_SKELETAL_ANIMATION_EDITOR, "skeletal_animation_editor.lua"},
+            {"Interaction Animation Editor", STR_PT_BR_INTERACTION_ANIMATION_EDITOR, "interaction_animation_editor.lua"},
             {"Facial Rig Editor"           , STR_PT_BR_FACIAL_RIG_EDITOR,         "facial_rig_editor.lua"},
             {"Morph Editor"                , STR_PT_BR_MORPH_EDITOR,              "morph_region_editor.lua"},
             {"Mesh to Sprite"              , STR_PT_BR_MESH_TO_SPRITE_EDITOR,     "mesh_to_sprite_editor.lua"},

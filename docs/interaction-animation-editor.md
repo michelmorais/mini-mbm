@@ -10,16 +10,22 @@ bin/debug/linux_x86/mini-mbm --scene editor/interaction_animation_editor.lua \\
 ```
 
 Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
-`interaction_animation_editor`.
+`interaction_animation_editor`. O editor também aparece no seletor de
+aplicacoes padrao de Linux, macOS e Windows (`mini-mbm-dev`).
 
-O editor inicia sem meshes carregadas. O botão/menu `Load sample meshes` carrega
-as meshes `Cyclopsv2.msh` e `ChompBot.msh` do Ratworks para testes rápidos; ao
-salvar o projeto, os caminhos dessas duas meshes são incluídos no arquivo Lua.
+O editor inicia sem meshes carregadas. Para testar a composição atual do Ratworks,
+abra o projeto salvo `test.iae.lua` pelo menu `File > Load project` ou pelo atalho
+`Ctrl+O`. Os caminhos das meshes são mantidos no próprio projeto.
 
 Esta primeira entrega cobre carregamento das duas meshes, seleção de clips,
 relógio principal, preview, eventos básicos de transformação/troca de animação e
 salvamento/exportação Lua. O player definitivo para uso em runtime ainda não foi
 implementado.
+
+Os eventos existentes nesta etapa são eventos de preview do editor. Eles ainda
+não constituem um player real-time completo para o jogo: faltam o módulo Lua
+executável, o ciclo de vida da interação e a execução robusta de gatilhos no
+runtime.
 
 O viewport inicial desta entrega também possui a base de navegação esperada para
 um editor 3D: painel de órbita de câmera inspirado no `scene_editor3d.lua`,

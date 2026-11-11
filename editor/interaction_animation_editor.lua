@@ -58,10 +58,6 @@ local S = {
             offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         },
     },
-    samplePaths = {
-        rat = '/home/michel/Ratworks/assets/meshes/Cyclopsv2.msh',
-        machine = '/home/michel/Ratworks/assets/meshes/ChompBot.msh',
-    },
     actorOrder = {'rat', 'machine'},
     anchorActor = 'machine',
     clockActor = 'machine',
@@ -778,30 +774,6 @@ local function loadActor(id, path)
     return true
 end
 
-local function loadSampleProject()
-    S.anchorActor = 'machine'
-    S.gizmo.axesWorld = nil
-    for _, id in ipairs(S.actorOrder) do
-        local path = S.samplePaths[id]
-        local file = io.open(path, 'rb')
-        if file then
-            file:close()
-            actor(id).path = path
-            loadActor(id, path)
-        end
-    end
-    local machine = actor('machine')
-    for _, clip in ipairs(clipList(machine)) do
-        if clip.name == 'bite' then machine.clipKey = clip.key; S.clockKey = clip.key; break end
-    end
-    local rat = actor('rat')
-    for _, clip in ipairs(clipList(rat)) do
-        if clip.name == 'Eaten' then rat.clipKey = clip.key; break end
-    end
-    seekAll(0, false)
-    S.status = L('sample_loaded')
-end
-
 local function openActorFile(id)
     local entry = actor(id)
     local path = mbm.openFile(entry.path or '', 'msh')
@@ -886,7 +858,8 @@ local function saveLua(path, name, value, returnValue)
 end
 
 local function saveProject(path)
-    path = path or mbm.saveFile(S.projectPath or '', 'iae.lua')
+    path = path or S.projectPath
+    if not path or path == '' then path = mbm.saveFile('', 'iae.lua') end
     if not path then return end
     if saveLua(path, 'interactionProject', serializeProject(), false) then
         S.projectPath = path
@@ -1023,7 +996,6 @@ local function showActors()
     local opened = tImGui.Begin(S.windows.actors, true, 0)
     if opened then
         tImGui.Text(L('actors'))
-        if tImGui.Button(L('load_sample')) then loadSampleProject() end
         tImGui.Separator()
         actorPanel('rat')
         actorPanel('machine')
@@ -1178,7 +1150,6 @@ local function showMainMenu()
     if not tImGui.BeginMainMenuBar() then return end
     if tImGui.BeginMenu(L('file')) then
         if tImGui.MenuItem(L('load_project')) then loadProject() end
-        if tImGui.MenuItem(L('load_sample')) then loadSampleProject() end
         if tImGui.MenuItem(L('save_project')) then saveProject() end
         if tImGui.MenuItem(L('export')) then exportSpec() end
         tImGui.Separator()
