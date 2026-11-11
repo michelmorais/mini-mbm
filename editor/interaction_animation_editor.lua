@@ -811,11 +811,13 @@ local function clockDuration()
 end
 
 local function transformProgress(event, time)
-    local startTime = event.time or 0
-    if time < startTime then return 0 end
-    if event.transition ~= 'smooth' then return 1 end
+    local eventTime = event.time or 0
+    if event.transition ~= 'smooth' then
+        return time >= eventTime and 1 or 0
+    end
     local duration = math.max(tonumber(event.duration) or 0.2, 0.0001)
-    local progress = math.max(0, math.min(1, (time - startTime) / duration))
+    local transitionStart = math.max(0, eventTime - duration)
+    local progress = math.max(0, math.min(1, (time - transitionStart) / duration))
     return progress * progress * (3 - 2 * progress)
 end
 
@@ -1096,13 +1098,33 @@ local function captureTransformEvent()
     local current = entry.base
     local axes = interactionAxes()
     local dx, dy, dz = current.x - origin.x, current.y - origin.y, current.z - origin.z
-    local eventRotation = multiplyRotation(
-        transposeRotation(entry.offsetRotation or identityRotation()),
-        multiplyRotation(
-            multiplyRotation(
-                transposeRotation(eulerRotation(math.rad(origin.rx), math.rad(origin.ry), math.rad(origin.rz))),
-                eulerRotation(math.rad(current.rx), math.rad(current.ry), math.rad(current.rz))),
-            entry.offsetRotation or identityRotation()))
+    local eventRotation
+    local originRotation = eulerRotation(math.rad(origin.rx), math.rad(origin.ry), math.rad(origin.rz))
+    local currentRotation = eulerRotation(math.rad(current.rx), math.rad(current.ry), math.rad(current.rz))
+    local baseDeltaRotation = multiplyRotation(transposeRotation(originRotation), currentRotation)
+    if event then
+        local prefixRotation = identityRotation()
+        for index, previous in ipairs(S.events) do
+            if index == S.selectedEvent then break end
+            if previous.action == 'transform' and previous.target == id then
+                local progress = transformProgress(previous, S.time)
+                if progress > 0 then
+                    prefixRotation = multiplyRotation(prefixRotation, anchorEulerRotation(
+                        (previous.rx or 0) * progress,
+                        (previous.ry or 0) * progress,
+                        (previous.rz or 0) * progress))
+                end
+            end
+        end
+        local selectedRotation = anchorEulerRotation(event.rx or 0, event.ry or 0, event.rz or 0)
+        eventRotation = multiplyRotation(
+            multiplyRotation(transposeRotation(prefixRotation),
+                multiplyRotation(baseDeltaRotation, prefixRotation)), selectedRotation)
+    else
+        local totalRotation = entry.offsetRotation or identityRotation()
+        eventRotation = multiplyRotation(transposeRotation(totalRotation),
+            multiplyRotation(baseDeltaRotation, totalRotation))
+    end
     local rx, ry, rz = rotationToAnchorEuler(eventRotation)
     if not event then
         event = {
@@ -1119,9 +1141,18 @@ local function captureTransformEvent()
     event.time = S.time
     event.target = id
     event.action = 'transform'
-    event.x = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z)
-    event.y = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
-    event.z = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
+    local capturedX = dot(dx, dy, dz, axes.x.x, axes.x.y, axes.x.z)
+    local capturedY = dot(dx, dy, dz, axes.y.x, axes.y.y, axes.y.z)
+    local capturedZ = dot(dx, dy, dz, axes.z.x, axes.z.y, axes.z.z)
+    if event then
+        event.x = (event.x or 0) + capturedX
+        event.y = (event.y or 0) + capturedY
+        event.z = (event.z or 0) + capturedZ
+    else
+        event.x = capturedX
+        event.y = capturedY
+        event.z = capturedZ
+    end
     event.rx = rx
     event.ry = ry
     event.rz = rz
@@ -1358,6 +1389,8 @@ local function showEvents()
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
                 S.selectedEvent = index
+                S.playing = false
+                seekAll(event.time or 0, false)
             end
         end
         local event = S.events[S.selectedEvent]
