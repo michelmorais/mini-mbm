@@ -59,6 +59,8 @@ local S = {
     clockActor = nil,
     clockKey = '',
     time = 0,
+    timelineDuration = 0.01,
+    timelineDurationExplicit = false,
     playing = false,
     events = {},
     selectedEvent = 0,
@@ -885,19 +887,83 @@ local function clockDuration()
     return math.max(0.01, clip.duration or 0)
 end
 
+local function selectedClip(id)
+    local entry = actor(id)
+    if not entry then return clipList(nil)[1] end
+    local key = entry.clipKey
+    if id == S.clockActor and S.clockKey ~= '' then key = S.clockKey end
+    return findClip(entry, key)
+end
+
+local function refreshDefaultTimelineDuration()
+    if S.timelineDurationExplicit then return end
+    local maximum = 0
+    for _, id in ipairs(S.actorOrder) do
+        local clip = selectedClip(id)
+        maximum = math.max(maximum, clip.duration or 0)
+    end
+    S.timelineDuration = math.max(0.01, maximum)
+end
+
+local function projectDuration()
+    return math.max(0.01, S.timelineDuration or 0)
+end
+
+local function maximumEventTime()
+    local maximum = 0
+    for _, event in ipairs(S.events) do
+        maximum = math.max(maximum, tonumber(event.time) or 0)
+    end
+    return maximum
+end
+
+local function activeClipRange(id, sampleTime)
+    local entry = actor(id)
+    if not entry then return 0, 0 end
+    local clip = selectedClip(id)
+    local start = 0
+    local time = tonumber(sampleTime) or 0
+    for _, event in ipairs(S.events) do
+        local eventTime = tonumber(event.time) or 0
+        if eventTime > time then break end
+        if event.action == 'play' and event.target == id then
+            local eventClip = findClip(entry, event.clipKey)
+            if eventClip.kind ~= 'none' then
+                clip = eventClip
+                start = eventTime
+            end
+        end
+    end
+    return start, start + math.max(0, clip.duration or 0)
+end
+
+local function transitionBounds(event, maximumTime)
+    local lower = 0
+    local upper = maximumTime or projectDuration()
+    local sampleTime = tonumber(event.transitionStart) or tonumber(event.time) or S.time
+    local clipStart, clipEnd = activeClipRange(event.target, sampleTime)
+    if clipEnd > clipStart + 1e-6 and sampleTime <= clipEnd + 1e-6 then
+        lower = clipStart
+        upper = math.min(upper, clipEnd)
+    end
+    if upper < lower then upper = lower end
+    return lower, upper
+end
+
 local function clamp(value, minimum, maximum)
     return math.max(minimum, math.min(maximum, value))
 end
 
 local function transitionRange(event, maximumTime)
+    local lower, upper = transitionBounds(event, maximumTime)
     local finish = tonumber(event.transitionEnd)
     if finish == nil then finish = tonumber(event.time) or 0 end
     local start = tonumber(event.transitionStart)
     if start == nil then
         start = finish - math.max(tonumber(event.duration) or 0.2, 0.0001)
     end
-    start = clamp(start, 0, maximumTime)
-    finish = clamp(finish, start, maximumTime)
+    start = clamp(start, lower, upper)
+    finish = clamp(finish, start, upper)
     return start, finish
 end
 
@@ -912,7 +978,7 @@ end
 
 local function transformProgress(event, time)
     if event.transition ~= 'smooth' then return 1 end
-    local transitionStart, transitionEnd = transitionRange(event, clockDuration())
+    local transitionStart, transitionEnd = transitionRange(event, projectDuration())
     if time < transitionStart then return 0 end
     if transitionEnd <= transitionStart then return time >= transitionEnd and 1 or 0 end
     local progress = clamp((time - transitionStart) / (transitionEnd - transitionStart), 0, 1)
@@ -965,7 +1031,7 @@ local function resetOffsets()
 end
 
 local function seekAll(time, keepPlaying)
-    S.time = math.max(0, math.min(time or 0, clockDuration()))
+    S.time = math.max(0, math.min(time or 0, projectDuration()))
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         if entry then entry.previewBase = nil end
@@ -1008,6 +1074,13 @@ local function sortEvents()
     S.selectedEvent = selectedIndex > 0 and selectedIndex or math.min(S.selectedEvent, #S.events)
 end
 
+local function setTimelineDuration(value)
+    local requested = tonumber(value) or S.timelineDuration
+    local minimum = math.max(0.01, maximumEventTime())
+    S.timelineDuration = math.max(minimum, requested)
+    S.timelineDurationExplicit = true
+end
+
 local function loadActor(id, path)
     if not path or path == '' then return false end
     local entry = actor(id)
@@ -1027,6 +1100,7 @@ local function loadActor(id, path)
     entry.runtimeStartTime = 0
     entry.clipKey = entry.clipKey or ''
     entry.object.alwaysRender = true
+    refreshDefaultTimelineDuration()
     applyTransform(entry)
     S.baseReference = nil
     S.modified = true
@@ -1050,7 +1124,7 @@ local function playPlayback()
         setStatus(L('clock_missing'), true)
         return
     end
-    if S.time >= clockDuration() - 0.0001 then
+    if S.time >= projectDuration() - 0.0001 then
         seekAll(0, true)
     else
         seekAll(S.time, true)
@@ -1065,10 +1139,10 @@ end
 
 local function serializeProject()
     local events = cloneTable(S.events)
-    local maximumTime = clockDuration()
+    local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 6,
+        version = 7,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1076,7 +1150,7 @@ local function serializeProject()
         anchorActor = S.anchorActor,
         clockActor = S.clockActor,
         clockKey = S.clockKey,
-        duration = clockDuration(),
+        duration = projectDuration(),
         time = S.time,
         events = events,
     }
@@ -1103,6 +1177,8 @@ local function clearActorSlots()
     S.clockKey = ''
     S.selectedActor = nil
     S.baseReference = nil
+    S.timelineDuration = 0.01
+    S.timelineDurationExplicit = false
 end
 
 local function applyProject(project)
@@ -1125,6 +1201,12 @@ local function applyProject(project)
         end
     end
     rebuildActorOrder()
+    S.timelineDurationExplicit = tonumber(project.version or 0) >= 7 and tonumber(project.duration) ~= nil
+    if S.timelineDurationExplicit then
+        S.timelineDuration = math.max(0.01, tonumber(project.duration) or 0)
+    else
+        refreshDefaultTimelineDuration()
+    end
     S.baseReference = cloneTable(project.baseReference) or buildBaseReference()
     local anchorActor = project.anchorActor
     local clockActor = project.clockActor
@@ -1137,7 +1219,9 @@ local function applyProject(project)
     S.gizmo.axesWorld = nil
     S.clockKey = project.clockKey or ''
     if S.clockKey == '' and actor(S.clockActor) then S.clockKey = actor(S.clockActor).clipKey or '' end
-    local maximumTime = clockDuration()
+    if not S.timelineDurationExplicit then refreshDefaultTimelineDuration() end
+    S.timelineDuration = math.max(projectDuration(), maximumEventTime())
+    local maximumTime = projectDuration()
     for _, event in ipairs(S.events) do normalizeTransition(event, maximumTime) end
     sortEvents()
     S.time = tonumber(project.time) or 0
@@ -1289,7 +1373,7 @@ local function captureTransformEvent()
         sortEvents()
     end
     if event.transition == 'smooth' then
-        local start, finish = transitionRange(event, clockDuration())
+        local start, finish = transitionRange(event, projectDuration())
         event.transitionStart = start
         event.transitionEnd = finish
         event.time = finish
@@ -1370,16 +1454,10 @@ local function updatePlayback(delta)
         S.playing = false
         return
     end
-    local value
-    if clip.kind == 'skeletal' then
-        value = clockEntry.object:getSkeletalAnimationTime()
-    elseif clip.kind == 'articulated' then
-        value = clockEntry.object:getArticulatedAnimationTime(clip.name)
-    end
     local previousTime = S.time
-    S.time = value or (S.time + math.max(delta or 0, 0))
-    if S.time >= clockDuration() - 0.0001 then
-        S.time = clockDuration()
+    S.time = math.min(projectDuration(), S.time + math.max(delta or 0, 0))
+    if S.time >= projectDuration() - 0.0001 then
+        S.time = projectDuration()
         S.playing = false
     end
     for _, event in ipairs(S.events) do
@@ -1398,7 +1476,7 @@ local function updatePlayback(delta)
         local entry = actor(id)
         local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
         local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' and id ~= S.clockActor then seekClip(entry, selected, localTime, true) end
+        if selected.kind ~= 'none' then seekClip(entry, selected, localTime, true) end
         applyTransform(entry)
     end
     if not S.playing then seekAll(S.time, false) end
@@ -1429,6 +1507,7 @@ local function actorPanel(id)
             if clipChanged then
                 entry.clipKey = clips[clipIndex].key
                 if id == S.clockActor then S.clockKey = entry.clipKey end
+                refreshDefaultTimelineDuration()
                 S.modified = true
                 seekAll(S.time, false)
             end
@@ -1471,6 +1550,7 @@ local function showActors()
             local clockChanged, nextClock = tImGui.Combo(L('clock_actor'), clockIndex, choices)
             if clockChanged then
                 setClockActor(S.actorOrder[nextClock])
+                refreshDefaultTimelineDuration()
                 S.modified = true
                 seekAll(S.time, false)
             end
@@ -1484,6 +1564,7 @@ local function showActors()
             if clockChanged2 then
                 S.clockKey = clipList(actor(S.clockActor))[clockIndex2].key
                 actor(S.clockActor).clipKey = S.clockKey
+                refreshDefaultTimelineDuration()
                 S.time = 0
                 S.modified = true
                 seekAll(0, false)
@@ -1577,7 +1658,7 @@ local function showEvents()
                 S.playing = false
                 local eventTime = event.time or 0
                 if event.transition == 'smooth' then
-                    local _, transitionEnd = transitionRange(event, clockDuration())
+                    local _, transitionEnd = transitionRange(event, projectDuration())
                     eventTime = transitionEnd
                 end
                 seekAll(eventTime, false)
@@ -1590,13 +1671,14 @@ local function showEvents()
             local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
             if c then
                 if event.transition == 'smooth' then
-                    local start = select(1, transitionRange(event, clockDuration()))
-                    local finish = clamp(value, start, clockDuration())
+                    local start = select(1, transitionRange(event, projectDuration()))
+                    local _, maximum = transitionBounds(event, projectDuration())
+                    local finish = clamp(value, start, maximum)
                     event.transitionStart = start
                     event.transitionEnd = finish
                     event.time = finish
                 else
-                    event.time = clamp(value, 0, clockDuration())
+                    event.time = clamp(value, 0, projectDuration())
                 end
                 sortEvents()
                 S.modified = true
@@ -1630,14 +1712,15 @@ local function showEvents()
                 if transitionChanged then
                     event.transition = transitionIndex == 2 and 'smooth' or 'instant'
                     if event.transition == 'smooth' then
-                        local start = clamp(event.time or S.time, 0, clockDuration())
-                        local finish = math.min(clockDuration(), start + 0.2)
+                        local minimum, maximum = transitionBounds(event, projectDuration())
+                        local start = clamp(event.time or S.time, minimum, maximum)
+                        local finish = math.min(maximum, start + 0.2)
                         event.transitionStart = start
                         event.transitionEnd = finish
                         event.time = finish
                         event.duration = nil
                     else
-                        event.time = select(2, transitionRange(event, clockDuration()))
+                        event.time = select(2, transitionRange(event, projectDuration()))
                         event.transitionStart = nil
                         event.transitionEnd = nil
                         event.duration = nil
@@ -1647,13 +1730,14 @@ local function showEvents()
                     seekAll(S.time, false)
                 end
                 if event.transition == 'smooth' then
-                    local start, finish = transitionRange(event, clockDuration())
+                    local start, finish = transitionRange(event, projectDuration())
+                    local minimum, maximum = transitionBounds(event, projectDuration())
                     tImGui.SetNextItemWidth(210)
                     local rangeChanged, range = tImGui.SliderFloat2(
-                        L('transition_interval'), {start, finish}, 0, clockDuration())
+                        L('transition_interval'), {start, finish}, minimum, maximum)
                     if rangeChanged then
-                        start = clamp(range[1], 0, clockDuration())
-                        finish = clamp(range[2], start, clockDuration())
+                        start = clamp(range[1], minimum, maximum)
+                        finish = clamp(range[2], start, maximum)
                         event.transitionStart = start
                         event.transitionEnd = finish
                         event.time = finish
@@ -1691,7 +1775,16 @@ local function showTimeline()
     tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.12, 390)
     local opened = tImGui.Begin(S.windows.timeline, true, 0)
     if opened then
-        local maxTime = clockDuration()
+        local maxTime = projectDuration()
+        tImGui.SetNextItemWidth(120)
+        local durationChanged, durationValue = tImGui.InputFloat(
+            L('timeline_duration'), S.timelineDuration, 0.05)
+        if durationChanged then
+            setTimelineDuration(durationValue)
+            S.modified = true
+            maxTime = projectDuration()
+            seekAll(S.time, false)
+        end
         local changed, value = tImGui.SliderFloat(L('time'), S.time, 0, maxTime)
         if changed then pausePlayback(); seekAll(value, false) end
         tImGui.Text(string.format(L('timeline_status'), S.time, maxTime))

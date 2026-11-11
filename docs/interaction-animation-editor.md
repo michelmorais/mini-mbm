@@ -172,9 +172,9 @@ O módulo exportado deve usar a duração da timeline para determinar quando a
 interação termina. O relógio serve para sincronização; não é o limite global da
 sequência.
 
-Esta é a regra temporal desejada para o projeto. A implementação atual ainda
-usa a duração do relógio em alguns limites do editor; essa será ajustada na
-próxima etapa.
+Essa regra é aplicada pelo editor e pelo módulo exportado. O campo `duration`
+do projeto representa a duração da timeline; a duração exibida do relógio é
+apenas informativa e não reduz esse valor.
 
 ### Base da interação
 
@@ -439,7 +439,7 @@ A primeira versão do editor contém:
 1. carregamento de duas meshes;
 2. seleção do papel de cada ator;
 3. seleção dos clips disponíveis;
-4. escolha do relógio principal;
+4. escolha do relógio principal e edição da duração da timeline do projeto;
 5. viewport com reprodução conjunta;
 6. play, pause, avanço, retrocesso, reinício e scrub;
 7. timeline de gatilhos;
