@@ -1,6 +1,6 @@
 # Interaction Animation Editor
 
-Status: **primeiro protótipo standalone implementado e registrado nos shortcuts Linux/macOS**.
+Status: **editor implementado e runtime validado no protótipo Ratworks**.
 
 O protótipo pode ser aberto diretamente com:
 
@@ -39,9 +39,9 @@ para preservar a área de preview.
 Essas transformações alteram a transformação base relativa da mesh e continuam
 sendo exportadas como dados do projeto.
 
-Este documento registra o plano para um editor de sequências de interação entre
-duas ou mais meshes. O caso inicial é a interação entre o rato e a máquina do
-projeto Ratworks:
+Este documento registra o desenho e o estado implementado do editor de
+sequências de interação entre duas ou mais meshes. O caso validado é a
+interação entre o rato e a máquina do projeto Ratworks:
 
 - `Cyclopsv2.msh`, com a animação esquelética `Eaten`;
 - `ChompBot.msh`, com a animação articulada `bite`.
@@ -56,6 +56,28 @@ do gizmo são derivados da transformação da âncora, permitindo que o rato sej
 editado de forma consistente mesmo quando a interação inteira estiver orientada
 para outra direção no mundo.
 
+## Milestone validado no Ratworks
+
+O módulo exportado foi integrado ao protótipo do jogo e validado em uma cena de
+teste independente. A cena permite alternar a flag `machine_look_to_left` entre
+as orientações esquerda e direita da máquina. Em ambas as orientações, a mesma
+interação mantém o comportamento visual esperado:
+
+- a interação captura a pose atual dos atores quando `start` é chamado;
+- o clip base de cada ator começa no início da interação;
+- os deslocamentos e rotações são relativos à pose capturada, não à posição
+  absoluta usada na prévia do editor;
+- a máquina continua sendo a âncora dos eixos relativos;
+- o rato entra na boca com a mesma translação e rotação quando a máquina está
+  orientada para a esquerda ou para a direita;
+- o corpo Box2D do rato é destruído ao reservar o ator para a interação, pois a
+  física não deve continuar sobrescrevendo a transformação controlada pela
+  sequência.
+
+Essa validação confirma que uma sequência exportada pode ser disparada em
+qualquer ponto compatível da cena sem recalcular manualmente os eventos para a
+orientação absoluta dos atores.
+
 ## Contexto atual
 
 No protótipo do Ratworks, a interação é disparada manualmente pelo código:
@@ -66,7 +88,7 @@ No protótipo do Ratworks, a interação é disparada manualmente pelo código:
 4. a máquina e o rato são removidos ou avançam para a próxima ação quando os
    clips terminam.
 
-O editor deverá permitir ajustar essa composição visualmente sem transformar
+O editor permite ajustar essa composição visualmente sem transformar
    cada tentativa de sincronização em código manual.
 
 ### Duração dos clips
@@ -96,8 +118,8 @@ nomes `rat` ou `machine` por padrão:
 
 ```lua
 actors = {
-    actor1 = { name = "rat", file = "Cyclopsv2.msh" },
-    actor2 = { name = "machine", file = "ChompBot.msh" }
+    actor1 = { name = "actor_1", file = "ChompBot.msh" },
+    actor2 = { name = "actor_2", file = "Cyclopsv2.msh" }
 }
 ```
 
@@ -115,12 +137,12 @@ baseado no tempo de um clip específico, por exemplo:
 
 ```lua
 clock = {
-    actor = "machine",
+    actor = "actor_1",
     animation = "bite"
 }
 ```
 
-Nesse caso, um evento em `0.2` ocorre quando `machine:bite` atingir 0,2 s,
+Nesse caso, um evento em `0.2` ocorre quando `actor_1:bite` atingir 0,2 s,
 independentemente da posição absoluta da máquina na cena.
 
 O editor também poderá oferecer um relógio livre da sequência para ações que
@@ -166,13 +188,13 @@ Exemplos conceituais:
 { when = { clock = 0.2 }, action = ... }
 
 { when = {
-    actor = "machine",
+    actor = "actor_1",
     animation = "bite",
     time = 1.0
 }, action = ... }
 
 { when = {
-    actor = "rat",
+    actor = "actor_2",
     animation = "Eaten",
     ended = true
 }, action = ... }
@@ -193,7 +215,7 @@ Exemplo:
 {
     when = { clock = 1.0 },
     action = {
-        actor = "rat",
+        actor = "actor_1",
         transform = {
             position = { x = 0, y = -2, z = 0 },
             rotation = { x = 0, y = 20, z = 0 }
@@ -244,27 +266,27 @@ Uma sequência inicial poderia ser representada assim:
 ```lua
 return {
     clock = {
-        actor = "machine",
+        actor = "actor_1",
         animation = "bite"
     },
 
     actors = {
-        rat = { file = "Cyclopsv2.msh" },
-        machine = { file = "ChompBot.msh" }
+        actor_1 = { file = "ChompBot.msh" },
+        actor_2 = { file = "Cyclopsv2.msh" }
     },
 
     events = {
         {
             when = { clock = 0.2 },
             action = {
-                actor = "rat",
+                actor = "actor_2",
                 playSkeletalAnimation = "Eaten"
             }
         },
         {
             when = { clock = 1.0 },
             action = {
-                actor = "rat",
+                actor = "actor_2",
                 transform = {
                     position = { x = 0, y = -2, z = 0 },
                     rotation = { x = 0, y = 20, z = 0 }
@@ -273,12 +295,12 @@ return {
         },
         {
             when = {
-                actor = "rat",
+                actor = "actor_2",
                 animation = "Eaten",
                 ended = true
             },
             action = {
-                actor = "rat",
+                actor = "actor_2",
                 destroy = true
             }
         }
@@ -297,11 +319,11 @@ precise ser copiado manualmente para `onLoop`.
 A interface de runtime exportada é:
 
 ```lua
-local reaction = require "interactions.chomp_eat"
+local reaction = require "chomp_eat-interaction"
 
 local instance = reaction.start {
-    rat = ratObject,
-    machine = machineObject
+    actor_1 = machineObject,
+    actor_2 = ratObject
 }
 
 -- No onLoop(delta):
@@ -326,9 +348,9 @@ O módulo exportado:
 - permitir reinício e encerramento da interação.
 
 Os nomes usados na tabela de `start` devem corresponder ao nome do ator no
-editor, ou ao identificador interno (`actor1`/`actor2`). Eventos de callback e
-outras ações não visuais continuam reservados para a próxima extensão do
-editor.
+editor, ou ao identificador interno (`actor1`/`actor2`). No projeto validado,
+os nomes lógicos são `actor_1` e `actor_2`. Eventos de callback e outras ações
+não visuais continuam reservados para a próxima extensão do editor.
 
 ## Validação e erros do editor
 
@@ -349,9 +371,9 @@ No caso de `ChompBot/bite`, um gatilho em 1,0 s é válido quando o asset carreg
 possui duração de 1,5 s. O editor não deve rejeitá-lo com base em uma duração
 fixa ou em documentação antiga.
 
-## Interface planejada
+## Interface implementada
 
-A primeira versão do editor deverá conter:
+A primeira versão do editor contém:
 
 1. carregamento de duas meshes;
 2. seleção do papel de cada ator;
@@ -361,7 +383,7 @@ A primeira versão do editor deverá conter:
 6. play, pause, avanço, retrocesso, reinício e scrub;
 7. timeline de gatilhos;
 8. edição de transformações relativas;
-9. ações de troca de animação e callbacks;
+9. ações de troca de animação e transformação;
 10. validação visual e textual;
 11. salvar e carregar o projeto do editor;
 12. exportar o módulo Lua para `require`.
@@ -389,11 +411,8 @@ gatilhos e exportação Lua estiver validado com o caso do rato e da máquina.
 
 ## Próximas etapas
 
-1. Confirmar, no editor, os clips e suas durações nos dois assets do Ratworks.
-2. Definir o formato final do projeto salvo pelo editor.
-3. Implementar a prévia com relógio baseado em `ChompBot/bite`.
-4. Implementar eventos de tempo e término de animação.
-5. Implementar transformações relativas.
-6. Exportar o primeiro módulo Lua executável no Ratworks.
-7. Adicionar testes para tempos inválidos, clips cíclicos, reinício e eventos
-   executados uma única vez.
+1. Adicionar testes automatizados para tempos inválidos, clips cíclicos,
+   reinício e eventos executados uma única vez.
+2. Expandir os tipos de ação, incluindo callbacks Lua, visibilidade e
+   destruição como ações configuráveis da sequência.
+3. Avaliar suporte a mais de dois atores depois de estabilizar o formato atual.
