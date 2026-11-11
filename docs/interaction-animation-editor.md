@@ -190,6 +190,11 @@ Os gatilhos podem observar qualquer ator ou o relógio principal:
 - término de um clip não cíclico;
 - evento manual ou callback Lua.
 
+Os eventos aparecem na janela em ordem cronológica. Um evento novo é inserido
+diretamente na posição correspondente ao tempo atual da timeline; se o tempo de
+um evento existente for alterado, a lista é reordenada e o evento editado
+continua selecionado.
+
 Exemplos conceituais:
 
 ```lua

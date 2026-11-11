@@ -988,6 +988,26 @@ local function seekAll(time, keepPlaying)
     S.lastAppliedTime = S.time
 end
 
+local function sortEvents()
+    local selected = S.events[S.selectedEvent]
+    local indexed = {}
+    for index, event in ipairs(S.events) do
+        indexed[index] = {event = event, index = index}
+    end
+    table.sort(indexed, function(left, right)
+        local leftTime = left.event.time or 0
+        local rightTime = right.event.time or 0
+        if leftTime == rightTime then return left.index < right.index end
+        return leftTime < rightTime
+    end)
+    local selectedIndex = 0
+    for index, item in ipairs(indexed) do
+        S.events[index] = item.event
+        if item.event == selected then selectedIndex = index end
+    end
+    S.selectedEvent = selectedIndex > 0 and selectedIndex or math.min(S.selectedEvent, #S.events)
+end
+
 local function loadActor(id, path)
     if not path or path == '' then return false end
     local entry = actor(id)
@@ -1119,6 +1139,7 @@ local function applyProject(project)
     if S.clockKey == '' and actor(S.clockActor) then S.clockKey = actor(S.clockActor).clipKey or '' end
     local maximumTime = clockDuration()
     for _, event in ipairs(S.events) do normalizeTransition(event, maximumTime) end
+    sortEvents()
     S.time = tonumber(project.time) or 0
     seekAll(S.time, false)
     S.modified = false
@@ -1265,6 +1286,7 @@ local function captureTransformEvent()
         }
         table.insert(S.events, event)
         S.selectedEvent = #S.events
+        sortEvents()
     end
     if event.transition == 'smooth' then
         local start, finish = transitionRange(event, clockDuration())
@@ -1328,6 +1350,7 @@ local function addEvent()
         clipKey = '',
     })
     S.selectedEvent = #S.events
+    sortEvents()
     S.modified = true
 end
 
@@ -1541,7 +1564,7 @@ local function showCameraPanel()
 end
 
 local function showEvents()
-    tUtil.setInitialWindowPositionRight(S.windows.events, 0, 390, 330, 360, 360)
+    tUtil.setInitialWindowPositionRight(S.windows.events, 0, 390, 330, 360, 560)
     local opened = tImGui.Begin(S.windows.events, true, 0)
     if opened then
         tImGui.Text(L('events'))
@@ -1564,7 +1587,7 @@ local function showEvents()
         if event then
             tImGui.Separator()
             tImGui.SetNextItemWidth(105)
-            local c, value = tImGui.InputFloat(L('event_time'), event.time or 0)
+            local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
             if c then
                 if event.transition == 'smooth' then
                     local start = select(1, transitionRange(event, clockDuration()))
@@ -1575,6 +1598,7 @@ local function showEvents()
                 else
                     event.time = clamp(value, 0, clockDuration())
                 end
+                sortEvents()
                 S.modified = true
                 seekAll(S.time, false)
             end
@@ -1618,6 +1642,7 @@ local function showEvents()
                         event.transitionEnd = nil
                         event.duration = nil
                     end
+                    sortEvents()
                     S.modified = true
                     seekAll(S.time, false)
                 end
@@ -1633,6 +1658,7 @@ local function showEvents()
                         event.transitionEnd = finish
                         event.time = finish
                         event.duration = nil
+                        sortEvents()
                         S.modified = true
                         seekAll(S.time, false)
                     end
@@ -1653,8 +1679,10 @@ local function showEvents()
                 end
             end
         end
-        tImGui.Separator()
-        if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
+        if not event or event.action == 'transform' then
+            tImGui.Separator()
+            if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
+        end
     end
     tImGui.End()
 end
