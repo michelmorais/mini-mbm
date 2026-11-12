@@ -321,6 +321,7 @@ O primeiro conjunto de ações deverá incluir:
 - iniciar, pausar, retomar ou trocar uma animação;
 - aplicar transformação relativa;
 - interpolar uma transformação durante um intervalo;
+- emitir uma notificação nomeada em um instante da timeline;
 - alterar visibilidade;
 - destruir ou liberar um ator;
 - chamar uma função Lua definida pelo usuário.
@@ -355,6 +356,13 @@ return {
             action = {
                 actor = "actor2",
                 playSkeletalAnimation = "Eaten"
+            }
+        },
+        {
+            id = "fluid_start",
+            when = { clock = 0.6 },
+            action = {
+                notify = true
             }
         },
         {
@@ -448,6 +456,11 @@ callbacks dos eventos são habilitados novamente para a nova execução.
 O editor sugere IDs como `event_1` para novos eventos. Projetos antigos podem
 manter eventos sem ID. IDs preenchidos devem ser únicos; o editor bloqueia o
 salvamento e a exportação enquanto houver duplicidade.
+
+A ação `Notify event` não possui ator-alvo e não altera meshes. Ela apenas
+dispara `onEvent` no tempo mestre informado, permitindo que o jogo inicie
+fluido, áudio, partículas ou outra lógica externa. O tempo do evento não é
+limitado à duração de um clip individual, mas à duração da timeline do projeto.
 
 As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
 O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela

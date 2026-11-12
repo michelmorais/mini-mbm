@@ -1217,7 +1217,7 @@ local function applyProject(project)
     S.clockActor = actor(clockActor) and clockActor or S.actorOrder[1]
     S.events = cloneTable(project.events or {})
     for _, event in ipairs(S.events) do
-        if not actor(event.target) then event.target = S.actorOrder[1] end
+        if event.action ~= 'notify' and not actor(event.target) then event.target = S.actorOrder[1] end
         if type(event.id) ~= 'string' then event.id = '' end
     end
     S.gizmo.axesWorld = nil
@@ -1338,6 +1338,10 @@ local function exportSpec(path)
 end
 
 local function eventLabel(event, index)
+    if event.action == 'notify' then
+        local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
+        return string.format('%d: %.3fs%s %s', index, event.time or 0, identifier, L('notify_event'))
+    end
     local targetEntry = actor(event.target)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or L('transform')
@@ -1737,19 +1741,37 @@ local function showEvents()
                 S.modified = true
                 seekAll(S.time, false)
             end
-            local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
-            for index, id in ipairs(targetIds) do
-                targetNames[index] = actorName(id, actor(id))
-                if event.target == id then targetIndex = index end
-            end
-            if #targetIds > 0 then
-                tImGui.SetNextItemWidth(210)
-            local targetChanged, nextTarget = tImGui.Combo(L('event_target'), targetIndex, targetNames)
-                if targetChanged then event.target = targetIds[nextTarget]; S.modified = true end
+            if event.action ~= 'notify' then
+                local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
+                for index, id in ipairs(targetIds) do
+                    targetNames[index] = actorName(id, actor(id))
+                    if event.target == id then targetIndex = index end
+                end
+                if #targetIds > 0 then
+                    tImGui.SetNextItemWidth(210)
+                    local targetChanged, nextTarget = tImGui.Combo(L('event_target'), targetIndex, targetNames)
+                    if targetChanged then event.target = targetIds[nextTarget]; S.modified = true end
+                end
             end
             tImGui.SetNextItemWidth(210)
-            local actionChanged, actionIndex = tImGui.Combo(L('event_action'), event.action == 'play' and 2 or 1, {L('transform'), L('play')})
-            if actionChanged then event.action = actionIndex == 2 and 'play' or 'transform'; S.modified = true; seekAll(S.time, false) end
+            local actionIndex = event.action == 'play' and 2 or event.action == 'notify' and 3 or 1
+            local actionChanged, nextActionIndex = tImGui.Combo(
+                L('event_action'), actionIndex, {L('transform'), L('play'), L('notify_event')})
+            if actionChanged then
+                event.action = nextActionIndex == 2 and 'play' or nextActionIndex == 3 and 'notify' or 'transform'
+                if event.action == 'notify' then
+                    event.target = nil
+                    event.clipKey = ''
+                    event.transition = 'instant'
+                    event.transitionStart = nil
+                    event.transitionEnd = nil
+                    event.duration = nil
+                elseif not actor(event.target) then
+                    event.target = S.selectedActor or S.clockActor
+                end
+                S.modified = true
+                seekAll(S.time, false)
+            end
             if event.action == 'play' then
                 local target = actor(event.target)
                 local clips, names, current = clipList(target), {}, 1
@@ -1757,7 +1779,7 @@ local function showEvents()
                 tImGui.SetNextItemWidth(230)
                 local clipChanged, clipIndex = tImGui.Combo(L('event_animation'), current, names)
                 if clipChanged then event.clipKey = clips[clipIndex].key; S.modified = true; seekAll(S.time, false) end
-            else
+            elseif event.action == 'transform' then
                 tImGui.SetNextItemWidth(210)
                 local transitionChanged, transitionIndex = tImGui.Combo(
                     L('transition'), event.transition == 'smooth' and 2 or 1,
