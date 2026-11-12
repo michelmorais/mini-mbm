@@ -13,9 +13,9 @@ Em uma build Linux/macOS com Lua, o shortcut gerado pelo CMake é
 `interaction_animation_editor`. O editor também aparece no seletor de
 aplicacoes padrao de Linux, macOS e Windows (`mini-mbm-dev`).
 
-O editor inicia sem atores ou meshes carregados. Use `Add actor` para criar um
-dos dois slots disponíveis; cada ator pode receber uma mesh e uma animação.
-Apenas um ator pode ser marcado como âncora por vez. Para testar a
+O editor inicia sem atores ou meshes carregados. Use `Add actor` para criar
+slots dinâmicos (`actor1`, `actor2`, `actor3`, ...); cada ator pode receber uma
+mesh e uma animação. Apenas um ator pode ser marcado como âncora por vez. Para testar a
 composição atual do Ratworks,
 abra o projeto salvo `test.iae.lua` pelo menu `File > Load project` ou pelo atalho
 `Ctrl+O`. Os caminhos das meshes são mantidos no próprio projeto. Projetos
@@ -23,9 +23,10 @@ criados antes do modelo de atores genéricos devem ser recriados neste estágio.
 O idioma selecionado no menu `Options` também é salvo no projeto e restaurado
 ao carregá-lo.
 
-Esta entrega cobre carregamento das duas meshes, seleção de clips, relógio
+Esta entrega cobre carregamento de múltiplas meshes, seleção de clips, relógio
 principal, preview, eventos básicos de transformação/troca de animação,
-salvamento do projeto e exportação de um módulo Lua executável para runtime.
+salvamento do projeto, salvamento com novo caminho e exportação de um módulo
+Lua executável para runtime.
 O módulo contém o ciclo de vida básico da interação e a execução dos gatilhos
 de transformação e troca de animação.
 
@@ -119,9 +120,9 @@ quando um gatilho não puder ser satisfeito.
 
 ### Atores
 
-Cada mesh carregada no projeto ocupa um slot interno estável. Os dois slots atuais
-são `actor1` e `actor2`; o editor não solicita nomes personalizados e não salva
-um nome de ator no projeto:
+Cada mesh carregada no projeto ocupa um slot interno estável. Os slots são
+`actor1`, `actor2`, `actor3` e assim por diante; o editor não solicita nomes
+personalizados e não salva um nome de ator no projeto:
 
 ```lua
 actors = {
@@ -131,7 +132,9 @@ actors = {
 ```
 
 O identificador do slot é usado pelos eventos exportados e também é a única
-identidade necessária no runtime. O arquivo `.msh` continua
+identidade necessária no runtime. Uma única âncora define os eixos da interação;
+os demais atores são percorridos em loop e recebem suas transformações relativas
+nesse mesmo espaço. O arquivo `.msh` continua
 sendo um recurso independente e pode ser instanciado em qualquer posição da cena.
 Na interface, o ator mostra apenas o basename da mesh, enquanto o caminho
 completo permanece salvo no projeto. A escolha da mesh é feita pelo botão
@@ -467,9 +470,10 @@ estado inicial de visibilidade faz parte da pose base e é restaurado por
 `restart()` ou `stop()`. Uma ação de visibilidade também pode ser observada
 por `onEvent` quando for atingida.
 
-As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
-O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela
-integração atual do Ratworks. Não há nomes definidos pelo usuário nessa camada.
+As chaves da tabela de `start` devem usar os slots internos (`actor1`, `actor2`,
+`actor3`, ...). O runtime também aceita os aliases fixos correspondentes
+(`actor_1`, `actor_2`, `actor_3`, ...), usados pela integração atual do Ratworks.
+Não há nomes definidos pelo usuário nessa camada.
 Callbacks inválidos causam erro no início da interação.
 
 ## Validação e erros do editor
@@ -517,7 +521,7 @@ encerramento e a opção `continueClipsAfterTimeline`.
 
 A primeira versão do editor contém:
 
-1. carregamento de duas meshes;
+1. carregamento de múltiplas meshes;
 2. seleção do papel de cada ator;
 3. seleção dos clips disponíveis;
 4. escolha do relógio principal e edição da duração da timeline do projeto;
@@ -525,10 +529,16 @@ A primeira versão do editor contém:
 6. play, pause, avanço, retrocesso, reinício e scrub;
 7. timeline de gatilhos;
 8. edição de transformações relativas;
-9. ações de troca de animação e transformação;
+9. ações de troca de animação, transformação, notificação e visibilidade;
 10. validação visual e textual;
-11. salvar e carregar o projeto do editor;
+11. salvar, salvar como e carregar o projeto do editor;
 12. exportar o módulo Lua para `require`.
+
+No menu `File`, `Save project` grava diretamente no caminho ativo do projeto.
+`Save project as...` sempre abre o diálogo de gravação para escolher outro
+arquivo; o caminho ativo só muda depois que o novo projeto é gravado com
+sucesso. Cancelar o diálogo ou falhar na gravação preserva o projeto e o
+caminho atuais.
 
 Todas as operações caras, como carregamento, reconstrução de prévia e
 serialização, deverão acontecer somente quando os dados mudarem ou quando o
@@ -555,6 +565,6 @@ gatilhos e exportação Lua estiver validado com o caso do rato e da máquina.
 
 1. Adicionar testes automatizados para tempos inválidos, clips cíclicos,
    reinício e eventos executados uma única vez.
-2. Expandir os tipos de ação, incluindo visibilidade e destruição como ações
-   configuráveis da sequência.
-3. Avaliar suporte a mais de dois atores depois de estabilizar o formato atual.
+2. Expandir os tipos de ação, incluindo destruição como ação configurável da
+   sequência, mantendo a decisão final de liberar recursos no jogo.
+3. Avaliar edição de grupos e organização visual para projetos com muitos atores.

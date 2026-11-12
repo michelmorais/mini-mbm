@@ -29,7 +29,7 @@ tUtil = require 'editor_utils'
 local Animation = require 'mesh_to_sprite_animation'
 local reactionRuntimeSource = require 'interaction_animation_runtime_source'
 
-local actorSlots = {'actor1', 'actor2'}
+local actorSlots = {}
 
 local function newActorState(baseX)
     return {
@@ -50,10 +50,7 @@ local function newActorState(baseX)
 end
 
 local S = {
-    actors = {
-        actor1 = newActorState(180),
-        actor2 = newActorState(0),
-    },
+    actors = {},
     actorOrder = {},
     anchorActor = nil,
     clockActor = nil,
@@ -160,10 +157,8 @@ local function actor(id)
 end
 
 local function actorSlotIndex(id)
-    for index, slot in ipairs(actorSlots) do
-        if slot == id then return index end
-    end
-    return nil
+    local index = tostring(id or ''):match('^actor(%d+)$')
+    return index and tonumber(index) or nil
 end
 
 local function actorName(id, entry)
@@ -212,20 +207,22 @@ local function refreshBaseReferenceAtZero()
 end
 
 local function addActor()
-    for index, id in ipairs(actorSlots) do
-        if not S.actors[id].active then
-            S.actors[id] = newActorState(index == 1 and 180 or 0)
-            S.actors[id].active = true
-            rebuildActorOrder()
-            S.baseReference = nil
-            if not S.anchorActor then setAnchorActor(id) end
-            if not S.clockActor then setClockActor(id) end
-            S.selectedActor = id
-            S.modified = true
-            return id
-        end
+    local index = #actorSlots + 1
+    local id = 'actor' .. index
+    while S.actors[id] do
+        index = index + 1
+        id = 'actor' .. index
     end
-    return nil
+    table.insert(actorSlots, id)
+    S.actors[id] = newActorState(index == 1 and 180 or 0)
+    S.actors[id].active = true
+    rebuildActorOrder()
+    S.baseReference = nil
+    if not S.anchorActor then setAnchorActor(id) end
+    if not S.clockActor then setClockActor(id) end
+    S.selectedActor = id
+    S.modified = true
+    return id
 end
 
 local applyTransform
@@ -1173,11 +1170,12 @@ local function serializeProject()
 end
 
 local function clearActorSlots()
-    for index, id in ipairs(actorSlots) do
+    for _, id in ipairs(actorSlots) do
         local entry = S.actors[id]
         if entry.object then entry.object:destroy() end
-        S.actors[id] = newActorState(index == 1 and 180 or 0)
     end
+    actorSlots = {}
+    S.actors = {}
     S.actorOrder = {}
     S.anchorActor = nil
     S.clockActor = nil
@@ -1198,16 +1196,35 @@ local function applyProject(project)
     S.playing = false
     clearActorSlots()
     local savedActors = project.actors or {}
-    for index, id in ipairs(actorSlots) do
-        local saved = savedActors[id]
-        if saved then
-            local entry = S.actors[id]
-            entry.active = true
-            entry.base = cloneTable(saved.base or entry.base)
-            entry.base.visible = entry.base.visible ~= false
-            entry.clipKey = saved.clipKey or ''
-            if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
-        end
+    local savedOrder = project.actorOrder or {}
+    local loaded = {}
+    local function loadSavedActor(id, saved)
+        if type(id) ~= 'string' or type(saved) ~= 'table' or loaded[id] then return end
+        local index = tonumber(id:match('^actor(%d+)$')) or (#actorSlots + 1)
+        table.insert(actorSlots, id)
+        local entry = newActorState(index == 1 and 180 or 0)
+        entry.active = true
+        entry.base = cloneTable(saved.base or entry.base)
+        entry.base.visible = entry.base.visible ~= false
+        entry.clipKey = saved.clipKey or ''
+        S.actors[id] = entry
+        if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
+        loaded[id] = true
+    end
+    for _, id in ipairs(savedOrder) do
+        loadSavedActor(id, savedActors[id])
+    end
+    local remaining = {}
+    for id, saved in pairs(savedActors) do
+        if not loaded[id] then table.insert(remaining, {id = id, saved = saved}) end
+    end
+    table.sort(remaining, function(left, right)
+        local leftNumber = tonumber(tostring(left.id):match('^actor(%d+)$')) or math.huge
+        local rightNumber = tonumber(tostring(right.id):match('^actor(%d+)$')) or math.huge
+        return leftNumber < rightNumber
+    end)
+    for _, item in ipairs(remaining) do
+        loadSavedActor(item.id, item.saved)
     end
     rebuildActorOrder()
     S.timelineDurationExplicit = tonumber(project.version or 0) >= 7 and tonumber(project.duration) ~= nil
@@ -1297,6 +1314,12 @@ local function saveProject(path)
         S.modified = false
         setStatus(string.format(L('saved'), path))
     end
+end
+
+local function saveProjectAs()
+    if not validateEventIds() then return end
+    local path = mbm.saveFile(S.projectPath or '', 'iae.lua')
+    if path then saveProject(path) end
 end
 
 local function loadProject(path)
@@ -1591,7 +1614,7 @@ local function showActors()
     if opened then
         tImGui.Text(L('actors'))
         if tImGui.Button(L('add_actor')) then
-            if not addActor() then setStatus(L('actor_limit'), true) end
+            addActor()
         end
         if #S.actorOrder == 0 then tImGui.TextWrapped(L('add_actor_hint')) end
         tImGui.Separator()
@@ -1915,6 +1938,7 @@ local function showMainMenu()
     if tImGui.BeginMenu(L('file')) then
         if tImGui.MenuItem(L('load_project')) then loadProject() end
         if tImGui.MenuItem(L('save_project')) then saveProject() end
+        if tImGui.MenuItem(L('save_project_as')) then saveProjectAs() end
         if tImGui.MenuItem(L('export')) then exportSpec() end
         tImGui.Separator()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
