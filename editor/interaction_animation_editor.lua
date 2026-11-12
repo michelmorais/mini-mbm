@@ -1102,6 +1102,20 @@ local function normalizeTransition(event, maximumTime)
     event.duration = nil
 end
 
+local function normalizeEventDefaults(event)
+    if type(event) ~= 'table' or event.action ~= 'transform' then return end
+    if event.x == nil then event.x = 0 end
+    if event.y == nil then event.y = 0 end
+    if event.z == nil then event.z = 0 end
+    if event.rx == nil then event.rx = 0 end
+    if event.ry == nil then event.ry = 0 end
+    if event.rz == nil then event.rz = 0 end
+    if event.sx == nil then event.sx = 1 end
+    if event.sy == nil then event.sy = 1 end
+    if event.sz == nil then event.sz = 1 end
+    if event.transition == nil then event.transition = 'instant' end
+end
+
 local function transformProgress(event, time)
     if event.transition ~= 'smooth' then return 1 end
     local transitionStart, transitionEnd = transitionRange(event, projectDuration())
@@ -1369,6 +1383,7 @@ local function applyProject(project)
     S.clockActor = actor(clockActor) and clockActor or S.actorOrder[1]
     S.events = cloneTable(project.events or {})
     for _, event in ipairs(S.events) do
+        normalizeEventDefaults(event)
         if event.action ~= 'notify' and not actor(event.target) then event.target = S.actorOrder[1] end
         if type(event.id) ~= 'string' then event.id = '' end
     end
@@ -1434,6 +1449,7 @@ local function validateProject(forExport)
         return true
     end
 
+    for _, event in ipairs(S.events) do normalizeEventDefaults(event) end
     if not validateEventIds() then return false end
     local duration = S.timelineDuration
     if not finite(duration) or duration <= 0 then
