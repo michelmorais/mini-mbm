@@ -26,6 +26,7 @@ Engine version: see `mbm.get("mbm")` at runtime.
 13b. [Plugin: bullet3d](#13b-plugin-bullet3d)
 13c. [Plugin: tilemap](#13c-plugin-tilemap-tiled-editor)
 13d. [Plugin: steam](#13d-plugin-steam)
+13e. [Plugin: interaction_animation_runtime](#13e-plugin-interaction_animation_runtime)
 14. [print() extensions](#14-print-extensions)
 
 [Complete plugin method index](lua-plugin-symbols.md)
@@ -2041,6 +2042,58 @@ strings use the global request mode. Overlay dialog examples include `"achieveme
 `"friends"`, `"community"`, `"stats"`, `"leaderboards"`, and `"officialgamegroup"`.
 Leaderboard callbacks are processed by the plugin's engine lifecycle; no manual Lua
 `runCallbacks` function is exported.
+
+---
+
+## 13e. Plugin: interaction_animation_runtime
+
+The interaction animation runtime is a C++ Lua plugin built whenever `USE_LUA=1`.
+On Android, iOS and macOS App Store builds it is linked into the executable and
+resolved by the engine's embedded `require` loader.
+It consumes the definition exported by the [Interaction Animation Editor](interaction-animation-editor.md)
+and operates on bound `mesh` objects. It does not load mesh files; the game owns the
+mesh instances and supplies them in `actors`.
+
+```lua
+local definition = require "chomp_eat-interaction"
+local runtime = require "interaction_animation_runtime"
+
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = machine,
+        actor2 = rat,
+    },
+    callbacks = {
+        onStart = function(instance) end,
+        onEvent = function(instance, event, index) end,
+        onFinish = function(instance) end,
+    },
+}
+
+function onLoop(delta)
+    if not instance:update(delta) then
+        -- The master timeline has finished.
+    end
+end
+```
+
+`runtime.start(config)` returns an interaction instance. Actor keys can use the
+internal slot name (`actor1`) or its underscore alias (`actor_1`). Every actor
+defined in the interaction must have a bound 3D `mesh` object.
+
+| Call | Returns / behavior |
+|---|---|
+| `runtime.start(config)` | interaction instance; captures each mesh's current transform and starts the base clips |
+| `instance:update(delta)` | boolean; advances the master timeline and returns `false` after it finishes |
+| `instance:restart()` | the instance; restores captured transforms, rearms events and starts again |
+| `instance:stop()` | the instance; stops active clips, restores captured transforms and finishes |
+| `instance:isFinished()` | boolean |
+
+Callbacks are optional. `onEvent(instance,event,index)` is called when an event is
+reached; `event` is a table containing the exported event fields and `index` is
+one-based. The runtime calls callbacks only at lifecycle or event boundaries, not
+for every internal interpolation step.
 
 ---
 

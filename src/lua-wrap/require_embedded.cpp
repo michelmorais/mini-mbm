@@ -46,6 +46,13 @@ extern "C"
 #endif
 #endif
 
+#if defined USE_INTERACTION_ANIMATION_RUNTIME
+    #include <interaction-animation-runtime/interaction-animation-runtime-lua.h>
+#ifndef REQUIRE_EMBEDDED
+    #define REQUIRE_EMBEDDED
+#endif
+#endif
+
 #if defined REQUIRE_EMBEDDED
     #pragma message("REQUIRE_EMBEDDED is enabled, one or more library is linked, usually this is for ANDROID")
     #pragma message("plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)")
@@ -78,6 +85,13 @@ extern "C"
             #pragma message("Using USE_IMGUI embedded, usually this is for ANDROID")
             if(strcmp(name,"ImGui") == 0)
                 return luaopen_ImGui(lua);
+        #endif
+
+        #if defined USE_INTERACTION_ANIMATION_RUNTIME
+            #pragma message("Using interaction animation runtime embedded for this platform")
+            if((strcmp(name,"interaction_animation_runtime") == 0 ||
+                strcmp(name,"libinteraction_animation_runtime") == 0))
+                return luaopen_interaction_animation_runtime(lua);
         #endif
         lua_pushnil(lua);
         return 1;

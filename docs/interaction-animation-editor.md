@@ -64,13 +64,6 @@ O menu `File` oferece:
 
 O idioma selecionado no menu `Options` e salvo no projeto.
 
-Em `Options > Runtime export`, o editor permite escolher como o runtime sera
-exportado. `Embed runtime` e o padrao e mantem cada modulo exportado
-autocontido. `Use shared runtime file` grava tambem
-`interaction_animation_runtime.lua` no mesmo diretorio do modulo exportado e
-faz o modulo usar `require "interaction_animation_runtime"`. Nesse modo, os
-dois arquivos precisam permanecer em um diretorio disponivel em `package.path`.
-
 ## Projeto `.iae.lua`
 
 O projeto e um arquivo Lua que atribui uma tabela a `interactionProject`.
@@ -82,7 +75,6 @@ interactionProject = {
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
-    runtimeExportMode = "embedded",
     anchorActor = "actor1",
     clockActor = "actor1",
     clockKey = "articulated:bite",
@@ -221,15 +213,19 @@ callbacks.
 
 ## Modulo Lua exportado
 
-O arquivo exportado e um modulo Lua com a definicao da interacao. Por padrao,
-ele tambem contem o runtime completo e pode ser usado sozinho:
+O arquivo exportado contem somente a definicao da interacao. O runtime oficial
+e implementado em C++ pelo modulo `interaction_animation_runtime`:
 
 ```lua
-local reaction = require "my_interaction"
+local definition = require "my_interaction"
+local runtime = require "interaction_animation_runtime"
 
-local instance = reaction.start {
-    actor1 = machineObject,
-    actor2 = characterObject,
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = machineObject,
+        actor2 = characterObject,
+    },
     callbacks = {
         onStart = function(instance)
             -- Preparacao opcional da interacao.
@@ -248,19 +244,7 @@ function onLoop(delta)
 end
 ```
 
-Quando `runtimeExportMode` e `"shared"`, o arquivo exportado usa:
-
-```lua
-local runtime = require "interaction_animation_runtime"
-return runtime.create(definition)
-```
-
-Nesse caso, o editor gera o arquivo `interaction_animation_runtime.lua` ao
-lado do modulo exportado. O arquivo compartilhado contem a mesma implementacao
-do runtime, mas pode ser reutilizado por varios modulos de interacao. O jogo
-deve manter esse diretorio no `package.path`.
-
-As chaves de `start` podem usar o slot interno (`actor1`) ou seu alias com
+As chaves de `actors` podem usar o slot interno (`actor1`) ou seu alias com
 underscore (`actor_1`). O mesmo vale para os demais slots.
 
 Ao iniciar, o runtime:

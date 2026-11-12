@@ -569,6 +569,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(BOX2D_LUA_LIB              ${PLUGINS}/box2d)
     set(TILED_LIB   		       ${PLUGINS}/tiled)
     set(STEAM_LUA_LIB              ${PLUGINS}/steam)
+    set(INTERACTION_ANIMATION_RUNTIME_LIB ${PLUGINS}/interaction-animation-runtime)
     set(PORT_AUDIO_LIB 		       ${THIRD_PARTY}/portaudio)
     set(BOX2D_LIB                  ${THIRD_PARTY}/box2d-${BOX2DLIB_VERSION})
     
@@ -585,6 +586,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(TILED_LIBRARY                   tilemap)
     set(PORT_AUDIO_WRAPPER_LIBRARY      pa_wrapper)
     set(PLUGIN_HELPER_LIBRARY           plugin_helper)
+    set(INTERACTION_ANIMATION_RUNTIME_LIBRARY interaction_animation_runtime)
     
     
     set(CORE_MBM_LIB 			${SRC}/core_mbm)
@@ -1193,6 +1195,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if (USE_LUA)
         # we always need plugin-helper when using LUA script
         add_subdirectory(${PLUGIN_LIB}                   ${PLUGIN_LIB})
+        add_subdirectory(${INTERACTION_ANIMATION_RUNTIME_LIB}
+                         ${INTERACTION_ANIMATION_RUNTIME_LIB})
         if(PLAT_LOWER STREQUAL "android")
             if(USE_IMGUI)
                 add_subdirectory(${IMGUI_LIB} 		${IMGUI_LIB})
