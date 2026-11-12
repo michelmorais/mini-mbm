@@ -294,8 +294,9 @@ all plugin `.dll` files into `bin\debug\windows_x86\` or `bin\release\windows_x8
 MinGW runtime DLLs (`libgcc_s_*.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll`),
 the audio backend DLL (`portaudio_x86.dll`), the graphics backend DLLs
 (`D3DCompiler_47.dll`; `libEGL.dll` + `libGLESv2.dll` for OpenGL ES), and the
-`editor\` folder of Lua scripts are all copied automatically next to the
-executables by CMake POST_BUILD steps, so no manual copying is required.
+`editor\` folder of Lua scripts are staged automatically by the shared
+`mini-mbm-runtime-assets` CMake target. Both `mini-mbm` and `mini-mbm-dev`
+depend on this target, so no manual copying is required.
 
 ```cmd
 mkdir build
@@ -341,9 +342,50 @@ rem Open the dev launcher (ImGui tool selector — same as the MSVS mini-mbm-dev
 bin\release\windows_x86\mini-mbm-dev.exe
 ```
 
-> **Tip:** CMake copies the editor folder and the enabled third-party runtime DLLs
-> through its POST_BUILD steps. `copy-dlls.bat` is for the Visual Studio output;
-> plugin DLLs are copied by the CMake Windows delivery step.
+> **Tip:** CMake stages the editor folder and the enabled third-party runtime DLLs
+> through `mini-mbm-runtime-assets`. `copy-dlls.bat` is for the Visual Studio
+> output; plugin DLLs are produced by their build targets and are included by
+> the CMake Windows delivery step.
+
+---
+
+## Adding a Lua Plugin
+
+A desktop Lua plugin is a shared library loaded by `require`. Keep the plugin
+name consistent across the CMake target, DLL filename, Lua entry points, and
+the Lua call:
+
+```text
+target:  interaction_animation_runtime
+DLL:     interaction_animation_runtime.dll
+Lua:     require "interaction_animation_runtime"
+entry:   luaopen_interaction_animation_runtime
+```
+
+For a new plugin:
+
+1. Add its source directory and target-name variables in the root
+   `CMakeLists.txt`.
+2. Add `add_subdirectory(...)` under the appropriate `USE_*` and platform
+   guards. Lua plugins normally require `USE_LUA`.
+3. In the plugin `CMakeLists.txt`, use `SHARED` on desktop platforms and keep
+   `CMAKE_SHARED_LIBRARY_PREFIX` empty so the DLL name matches `require`.
+   Link the plugin against `LUA_LIBRARY`, `CORE_MBM_LIBRARY`, and
+   `PLUGIN_HELPER_LIBRARY` when those symbols are used.
+4. Export both `luaopen_<name>` and `luaopen_lib<name>` when compatibility with
+   both `require "<name>"` and `require "lib<name>"` is desired.
+5. If the executable can start before the DLL is built, add a target dependency
+   from `mini-mbm` and `mini-mbm-dev` to the plugin target. This is needed for
+   dynamically loaded Windows plugins.
+6. For the Visual Studio solution, add the project to the solution, set its
+   `TargetName` to the Lua module name, and keep its `OutDir` aligned with the
+   selected `Debug`/`Release` output directory. `copy-dlls.bat` should not copy
+   plugin DLLs from a second location.
+
+The CMake engine distribution collects all `SHARED_LIBRARY` and
+`MODULE_LIBRARY` targets recursively, so a new plugin does not need a separate
+entry in the installer manifest. Re-run CMake after adding the target, then
+build and verify the DLL beside the executable before testing `require`.
 
 ---
 
