@@ -349,6 +349,18 @@ local function matrixToEulerDegrees(matrix)
     return math.deg(x), math.deg(y), math.deg(z)
 end
 
+local function unwrapAngleDegrees(angle, reference)
+    if reference == nil then return angle end
+    local turns = math.floor((reference - angle) / 360 + 0.5)
+    return angle + turns * 360
+end
+
+local function unwrapEulerDegrees(rx, ry, rz, reference)
+    return unwrapAngleDegrees(rx, reference.rx),
+        unwrapAngleDegrees(ry, reference.ry),
+        unwrapAngleDegrees(rz, reference.rz)
+end
+
 local function rotationToAnchorEuler(matrix)
     local axes = interactionAxes()
     local basis = {
@@ -630,6 +642,13 @@ local function beginViewportInteraction(key, x, y)
                 startDirection = cloneTable(ring.direction),
                 origin = cloneTable(S.gizmo.origin),
                 base = cloneTable(displayBase(entry)),
+                lastAngle = 0,
+                accumulatedAngle = 0,
+                lastEuler = {
+                    rx = displayBase(entry).rx,
+                    ry = displayBase(entry).ry,
+                    rz = displayBase(entry).rz,
+                },
                 startX = x,
                 startY = y,
                 moved = false,
@@ -703,11 +722,22 @@ local function updateViewportInteraction(x, y)
                     local cosAngle = math.max(-1, math.min(1,
                         start.x * current.x + start.y * current.y + start.z * current.z))
                     local angle = math.atan(sinAngle, cosAngle)
+                    local deltaAngle = angle - drag.lastAngle
+                    if deltaAngle > math.pi then
+                        deltaAngle = deltaAngle - 2 * math.pi
+                    elseif deltaAngle < -math.pi then
+                        deltaAngle = deltaAngle + 2 * math.pi
+                    end
+                    drag.accumulatedAngle = drag.accumulatedAngle + deltaAngle
+                    drag.lastAngle = angle
                     local baseRotation = eulerRotation(math.rad(drag.base.rx), math.rad(drag.base.ry),
                         math.rad(drag.base.rz))
-                    local rotated = multiplyRotation(baseRotation, axisRotation(drag.axis, angle))
+                    local rotated = multiplyRotation(baseRotation,
+                        axisRotation(drag.axis, drag.accumulatedAngle))
                     local base = editableBase(entry)
-                    base.rx, base.ry, base.rz = matrixToEulerDegrees(rotated)
+                    local rx, ry, rz = matrixToEulerDegrees(rotated)
+                    base.rx, base.ry, base.rz = unwrapEulerDegrees(rx, ry, rz, drag.lastEuler)
+                    drag.lastEuler = {rx = base.rx, ry = base.ry, rz = base.rz}
                     applyTransform(entry)
                     drag.moved = true
                     S.modified = true
@@ -1432,7 +1462,13 @@ local function captureTransformEvent()
         eventRotation = multiplyRotation(transposeRotation(totalRotation),
             multiplyRotation(baseDeltaRotation, totalRotation))
     end
-    local rx, ry, rz = rotationToAnchorEuler(eventRotation)
+    local rawRx, rawRy, rawRz = rotationToAnchorEuler(eventRotation)
+    local rotationReference = {
+        rx = current.rx - origin.rx,
+        ry = current.ry - origin.ry,
+        rz = current.rz - origin.rz,
+    }
+    local rx, ry, rz = unwrapEulerDegrees(rawRx, rawRy, rawRz, rotationReference)
     local isNewEvent = not event
     if isNewEvent then
         event = {

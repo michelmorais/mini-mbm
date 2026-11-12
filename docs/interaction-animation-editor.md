@@ -40,6 +40,10 @@ para preservar a área de preview.
 No tempo `0`, essas transformações definem a pose base relativa da mesh e são
 exportadas como dados do projeto. Em qualquer tempo maior que `0`, alterações
 manuais são uma prévia temporária até serem capturadas em um evento.
+Os anéis de rotação mantêm o ângulo acumulado durante o arraste, portanto os
+campos `ROT` podem ultrapassar `180` e `360` graus. Isso permite registrar duas
+ou mais voltas no mesmo eixo; a orientação visual equivalente não perde a
+quantidade de voltas armazenada.
 
 O viewport também possui um plano visual criado dinamicamente no plano XZ,
 posicionado em `Y = 0`. Seu tamanho acompanha a distância da câmera e sua
