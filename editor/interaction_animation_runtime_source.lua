@@ -21,8 +21,6 @@
 ]]
 
 return [[
-local reaction = {}
-
 local function multiply(a, b)
     local result = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
     for row = 1, 3 do
@@ -338,6 +336,9 @@ local function finishInstance(instance)
     if instance.callbacks.onFinish then instance.callbacks.onFinish(instance) end
 end
 
+local function create(definition)
+    local reaction = {}
+
 function reaction.start(bindings)
     bindings = bindings or {}
     local callbacks = bindings.callbacks or {}
@@ -410,4 +411,5 @@ function reaction._definition()
 end
 
 return reaction
+end
 ]]
