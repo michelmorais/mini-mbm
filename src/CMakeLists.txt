@@ -166,6 +166,13 @@ if (USE_LUA)
     endif()
 endif()
 
+if (USE_LUA AND
+    (ENGINE_TARGET_PLATFORM STREQUAL "Android" OR
+     ENGINE_TARGET_PLATFORM STREQUAL "iOS" OR
+     (ENGINE_TARGET_PLATFORM STREQUAL "MacOs" AND MAS_DELIVERY)))
+    add_definitions(-DUSE_INTERACTION_ANIMATION_RUNTIME)
+endif()
+
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     #plugins must be added definitions here
@@ -1999,6 +2006,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
+    message(STATUS "Interaction animation runtime is enabled — linking statically for Android")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+
 endif()
 
 # plugins for iOS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2025,6 +2035,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
+    message(STATUS "Interaction animation runtime is enabled — linking statically for iOS")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+
 endif()
 
 # plugins for macOS MAS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2050,6 +2063,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
         message(STATUS "USE_IMGUI is enabled — linking statically for macOS MAS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
+
+    message(STATUS "Interaction animation runtime is enabled — linking statically for macOS MAS")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
 
 endif()
 
