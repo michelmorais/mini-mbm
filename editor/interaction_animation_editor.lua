@@ -1218,6 +1218,7 @@ local function applyProject(project)
     S.events = cloneTable(project.events or {})
     for _, event in ipairs(S.events) do
         if not actor(event.target) then event.target = S.actorOrder[1] end
+        if type(event.id) ~= 'string' then event.id = '' end
     end
     S.gizmo.axesWorld = nil
     S.clockKey = project.clockKey or ''
@@ -1231,6 +1232,38 @@ local function applyProject(project)
     S.time = tonumber(project.time) or 0
     seekAll(S.time, false)
     S.modified = false
+end
+
+local function eventIdExists(identifier, except)
+    for index, event in ipairs(S.events) do
+        if index ~= except and event.id == identifier then return true end
+    end
+    return false
+end
+
+local function nextEventId()
+    local index = #S.events + 1
+    local identifier = 'event_' .. index
+    while eventIdExists(identifier) do
+        index = index + 1
+        identifier = 'event_' .. index
+    end
+    return identifier
+end
+
+local function validateEventIds()
+    local seen = {}
+    for _, event in ipairs(S.events) do
+        local identifier = event.id or ''
+        if identifier ~= '' then
+            if seen[identifier] then
+                setStatus(string.format(L('event_id_duplicate'), identifier), true)
+                return false
+            end
+            seen[identifier] = true
+        end
+    end
+    return true
 end
 
 local function saveLua(path, name, value, returnValue)
@@ -1249,6 +1282,7 @@ local function saveLua(path, name, value, returnValue)
 end
 
 local function saveProject(path)
+    if not validateEventIds() then return end
     path = path or S.projectPath
     if not path or path == '' then path = mbm.saveFile('', 'iae.lua') end
     if not path then return end
@@ -1295,6 +1329,7 @@ local function saveReactionModule(path)
 end
 
 local function exportSpec(path)
+    if not validateEventIds() then return end
     path = path or mbm.saveFile(exportSuggestion(), 'lua')
     if not path then return end
     if saveReactionModule(path) then
@@ -1306,7 +1341,8 @@ local function eventLabel(event, index)
     local targetEntry = actor(event.target)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or L('transform')
-    return string.format('%d: %.3fs %s %s', index, event.time or 0, target, action)
+    local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
+    return string.format('%d: %.3fs%s %s %s', index, event.time or 0, identifier, target, action)
 end
 
 local function captureTransformEvent()
@@ -1366,6 +1402,7 @@ local function captureTransformEvent()
     local isNewEvent = not event
     if isNewEvent then
         event = {
+            id = nextEventId(),
             time = S.time,
             target = id,
             action = 'transform',
@@ -1430,6 +1467,7 @@ end
 
 local function addEvent()
     table.insert(S.events, {
+        id = nextEventId(),
         time = S.time,
         target = S.selectedActor or S.clockActor,
         action = 'transform',
@@ -1675,6 +1713,13 @@ local function showEvents()
         local event = S.events[S.selectedEvent]
         if event then
             tImGui.Separator()
+            tImGui.SetNextItemWidth(180)
+            local idChanged, identifier = tImGui.InputText(L('event_id'), event.id or '')
+            if idChanged then
+                event.id = identifier:gsub('[%z\1-\31\127]', '')
+                S.modified = true
+                validateEventIds()
+            end
             tImGui.SetNextItemWidth(105)
             local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
             if c then

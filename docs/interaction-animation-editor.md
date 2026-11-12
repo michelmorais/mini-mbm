@@ -350,6 +350,7 @@ return {
 
     events = {
         {
+            id = "rat_entered_mouth",
             when = { clock = 0.2 },
             action = {
                 actor = "actor2",
@@ -436,11 +437,17 @@ O módulo exportado:
 Os callbacks são fornecidos pelo jogo na chamada `start`; eles não são
 serializados no projeto `.iae.lua`. `onStart` é chamado depois que a pose base
 e os clips iniciais foram preparados. `onEvent` é chamado uma vez para cada
-evento atingido, recebendo a instância, a tabela do evento e seu índice. Para
-uma transformação suave, o callback ocorre no início do intervalo de
-transição. `onFinish` é chamado uma vez quando a timeline termina ou quando
+evento atingido, recebendo a instância, a tabela do evento e seu índice. A
+tabela pode conter o campo opcional `id`, que permite ao jogo identificar o
+evento sem depender de sua posição na lista. Para uma transformação suave, o
+callback ocorre no início do intervalo de transição. `onFinish` é chamado uma
+vez quando a timeline termina ou quando
 `stop()` encerra explicitamente a interação. Em `restart()`, `onStart` e os
 callbacks dos eventos são habilitados novamente para a nova execução.
+
+O editor sugere IDs como `event_1` para novos eventos. Projetos antigos podem
+manter eventos sem ID. IDs preenchidos devem ser únicos; o editor bloqueia o
+salvamento e a exportação enquanto houver duplicidade.
 
 As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
 O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela
