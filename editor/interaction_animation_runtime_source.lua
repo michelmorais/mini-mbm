@@ -133,6 +133,7 @@ local function readTransform(object)
         position = {x = position.x, y = position.y, z = position.z},
         angle = {x = angle.x, y = angle.y, z = angle.z},
         scale = {x = scale.x, y = scale.y, z = scale.z},
+        visible = object.visible ~= false,
     }
 end
 
@@ -140,6 +141,7 @@ local function setTransform(object, transform)
     object:setPos(transform.position.x, transform.position.y, transform.position.z)
     object:setAngle(transform.angle.x, transform.angle.y, transform.angle.z)
     object:setScale(transform.scale.x, transform.scale.y, transform.scale.z)
+    object.visible = transform.visible ~= false
 end
 
 local function interactionAxes(anchorTransform)
@@ -254,6 +256,18 @@ local function applyTransforms(instance)
     end
 end
 
+local function applyVisibility(instance)
+    for id, actor in pairs(instance.actors) do
+        actor.object.visible = actor.base.visible ~= false
+    end
+    for _, event in ipairs(instance.definition.events or {}) do
+        if event.action == 'visibility' and instance.actors[event.target] and
+            (tonumber(event.time) or 0) <= instance.time then
+            instance.actors[event.target].object.visible = event.visible ~= false
+        end
+    end
+end
+
 local function applyPlayEvents(instance, previousTime, currentTime, includeInitial)
     for index, event in ipairs(instance.definition.events or {}) do
         if event.action == 'play' and not instance.fired[index] then
@@ -310,6 +324,7 @@ local function resetInstance(instance)
     applyPlayEvents(instance, -0.0001, 0, true)
     notifyEvents(instance, -0.0001, 0, true)
     applyTransforms(instance)
+    applyVisibility(instance)
 end
 
 local function notifyStart(instance)
@@ -357,6 +372,7 @@ function reaction.start(bindings)
         applyPlayEvents(self, previousTime, self.time, false)
         notifyEvents(self, previousTime, self.time, false)
         applyTransforms(self)
+        applyVisibility(self)
         if self.time >= self.duration then
             if not self.continueClipsAfterTimeline then
                 for id, actor in pairs(self.actors) do

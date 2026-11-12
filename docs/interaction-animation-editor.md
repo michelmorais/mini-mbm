@@ -462,6 +462,11 @@ dispara `onEvent` no tempo mestre informado, permitindo que o jogo inicie
 fluido, áudio, partículas ou outra lógica externa. O tempo do evento não é
 limitado à duração de um clip individual, mas à duração da timeline do projeto.
 
+A ação `Visibility` exige um ator-alvo e altera `visible` no tempo mestre. O
+estado inicial de visibilidade faz parte da pose base e é restaurado por
+`restart()` ou `stop()`. Uma ação de visibilidade também pode ser observada
+por `onEvent` quando for atingida.
+
 As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
 O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela
 integração atual do Ratworks. Não há nomes definidos pelo usuário nessa camada.

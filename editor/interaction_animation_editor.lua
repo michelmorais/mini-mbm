@@ -35,7 +35,7 @@ local function newActorState(baseX)
     return {
         active = false,
         path = '',
-        base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1},
+        base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, visible = true},
         previewBase = nil,
         bundle = nil,
         object = nil,
@@ -1018,6 +1018,8 @@ local function applyEvent(event, progress)
             entry.runtimeStartTime = event.time or 0
             seekClip(entry, clip, math.max(0, S.time - entry.runtimeStartTime), S.playing)
         end
+    elseif event.action == 'visibility' then
+        entry.object.visible = event.visible ~= false
     end
 end
 
@@ -1041,6 +1043,7 @@ local function seekAll(time, keepPlaying)
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         stopEntry(entry)
+        if entry.object then entry.object.visible = displayBase(entry).visible ~= false end
         local clip = findClip(entry, entry.clipKey)
         seekClip(entry, clip, S.time, keepPlaying == true)
         applyTransform(entry)
@@ -1100,7 +1103,9 @@ local function loadActor(id, path)
     entry.runtimeOverride = false
     entry.runtimeStartTime = 0
     entry.clipKey = entry.clipKey or ''
+    entry.base.visible = entry.base.visible ~= false
     entry.object.alwaysRender = true
+    entry.object.visible = entry.base.visible
     refreshDefaultTimelineDuration()
     applyTransform(entry)
     S.baseReference = nil
@@ -1199,6 +1204,7 @@ local function applyProject(project)
             local entry = S.actors[id]
             entry.active = true
             entry.base = cloneTable(saved.base or entry.base)
+            entry.base.visible = entry.base.visible ~= false
             entry.clipKey = saved.clipKey or ''
             if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
         end
@@ -1344,7 +1350,8 @@ local function eventLabel(event, index)
     end
     local targetEntry = actor(event.target)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
-    local action = event.action == 'play' and L('play_animation') or L('transform')
+    local action = event.action == 'play' and L('play_animation') or
+        event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
     return string.format('%d: %.3fs%s %s %s', index, event.time or 0, identifier, target, action)
 end
@@ -1509,7 +1516,8 @@ local function updatePlayback(delta)
     end
     for _, event in ipairs(S.events) do
         local eventTime = event.time or 0
-        if event.action == 'play' and eventTime > previousTime and eventTime <= S.time then
+        if (event.action == 'play' or event.action == 'visibility') and
+            eventTime > previousTime and eventTime <= S.time then
             applyEvent(event)
         end
     end
@@ -1754,13 +1762,25 @@ local function showEvents()
                 end
             end
             tImGui.SetNextItemWidth(210)
-            local actionIndex = event.action == 'play' and 2 or event.action == 'notify' and 3 or 1
+            local actionIndex = event.action == 'play' and 2 or
+                event.action == 'notify' and 3 or event.action == 'visibility' and 4 or 1
             local actionChanged, nextActionIndex = tImGui.Combo(
-                L('event_action'), actionIndex, {L('transform'), L('play'), L('notify_event')})
+                L('event_action'), actionIndex,
+                {L('transform'), L('play'), L('notify_event'), L('visibility')})
             if actionChanged then
-                event.action = nextActionIndex == 2 and 'play' or nextActionIndex == 3 and 'notify' or 'transform'
+                event.action = nextActionIndex == 2 and 'play' or
+                    nextActionIndex == 3 and 'notify' or
+                    nextActionIndex == 4 and 'visibility' or 'transform'
                 if event.action == 'notify' then
                     event.target = nil
+                    event.clipKey = ''
+                    event.transition = 'instant'
+                    event.transitionStart = nil
+                    event.transitionEnd = nil
+                    event.duration = nil
+                elseif event.action == 'visibility' then
+                    event.target = actor(event.target) and event.target or S.selectedActor or S.clockActor
+                    event.visible = event.visible ~= false
                     event.clipKey = ''
                     event.transition = 'instant'
                     event.transitionStart = nil
@@ -1779,6 +1799,13 @@ local function showEvents()
                 tImGui.SetNextItemWidth(230)
                 local clipChanged, clipIndex = tImGui.Combo(L('event_animation'), current, names)
                 if clipChanged then event.clipKey = clips[clipIndex].key; S.modified = true; seekAll(S.time, false) end
+            elseif event.action == 'visibility' then
+                local visible = tImGui.Checkbox(L('visible'), event.visible ~= false)
+                if visible ~= (event.visible ~= false) then
+                    event.visible = visible
+                    S.modified = true
+                    seekAll(S.time, false)
+                end
             elseif event.action == 'transform' then
                 tImGui.SetNextItemWidth(210)
                 local transitionChanged, transitionIndex = tImGui.Combo(
