@@ -37,6 +37,10 @@ gizmo de eixos ou anéis XYZ para mover ou rotacionar o ator selecionado. O ator
 pode ser deselecionado clicando no espaço vazio ou pressionando `ESC`; nesse
 caso o gizmo é ocultado. A timeline fica ancorada no rodapé com altura reduzida
 para preservar a área de preview.
+Ao selecionar um evento, o ator associado recebe por alguns segundos um cubo
+amarelo translúcido com contorno, usando a mesma referência visual do cubo de
+captura do `mesh_debug.lua`. Isso permite identificar rapidamente qual mesh o
+evento controla.
 No tempo `0`, essas transformações definem a pose base relativa da mesh e são
 exportadas como dados do projeto. Em qualquer tempo maior que `0`, alterações
 manuais são uma prévia temporária até serem capturadas em um evento.

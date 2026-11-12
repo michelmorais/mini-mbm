@@ -72,6 +72,7 @@ local S = {
     baseReference = nil,
     transformMode = 'move',
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, axesWorld = nil, drag = nil},
+    eventHighlight = {actor = nil, remaining = 0, shape = nil, line = nil},
     originLines = {x = nil, y = nil, z = nil},
     showOrigins = true,
     xzPlane = nil,
@@ -448,6 +449,102 @@ end
 
 local function actorPickRadius(entry)
     return actorMeshExtent(entry) * 0.45
+end
+
+local function eventHighlightVertices()
+    local h = 0.5
+    local corners = {
+        {-h, -h, h}, {-h, h, h}, {h, h, h}, {h, -h, h},
+        {-h, -h, -h}, {-h, h, -h}, {h, h, -h}, {h, -h, -h},
+    }
+    local faces = {
+        {1, 2, 3}, {1, 3, 4}, {8, 7, 6}, {8, 6, 5},
+        {5, 6, 2}, {5, 2, 1}, {4, 3, 7}, {4, 7, 8},
+        {2, 6, 7}, {2, 7, 3}, {5, 1, 4}, {5, 4, 8},
+    }
+    local vertices = {}
+    for _, face in ipairs(faces) do
+        for _, index in ipairs(face) do
+            local corner = corners[index]
+            vertices[#vertices + 1] = corner[1]
+            vertices[#vertices + 1] = corner[2]
+            vertices[#vertices + 1] = corner[3]
+        end
+    end
+    return vertices
+end
+
+local function hideEventHighlight()
+    local highlight = S.eventHighlight
+    highlight.actor = nil
+    highlight.remaining = 0
+    if highlight.shape then highlight.shape.visible = false end
+    if highlight.line then highlight.line.visible = false end
+end
+
+local function ensureEventHighlight()
+    local highlight = S.eventHighlight
+    if highlight.shape and highlight.line then return true end
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(eventHighlightVertices(), nil, 'interaction_animation_event_highlight') then
+        object:destroy()
+        return false
+    end
+    object:setColor(1, 0.65, 0.05, 0.12)
+    object.alwaysOnTop = true
+    object.alwaysOnTopPriority = 5
+    object.alwaysRender = true
+    object.visible = false
+    local outline = line:new('3d', 0, 0, 0)
+    outline:drawBounding(object, false)
+    outline:setColor(1, 0.75, 0.1)
+    outline.alwaysOnTop = true
+    outline.alwaysOnTopPriority = 6
+    outline.alwaysRender = true
+    outline.visible = false
+    highlight.shape = object
+    highlight.line = outline
+    return true
+end
+
+local function showEventHighlight(event)
+    local id = event and event.action ~= 'notify' and event.target or nil
+    local entry = id and actor(id) or nil
+    if not entry or not entry.object or not ensureEventHighlight() then
+        hideEventHighlight()
+        return
+    end
+    S.eventHighlight.actor = id
+    S.eventHighlight.remaining = 3
+end
+
+local function updateEventHighlight(delta)
+    local highlight = S.eventHighlight
+    if not highlight.actor then return end
+    highlight.remaining = highlight.remaining - math.max(delta or 0, 0)
+    local entry = actor(highlight.actor)
+    if highlight.remaining <= 0 or not entry or not entry.object then
+        hideEventHighlight()
+        return
+    end
+    local ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+    if not ok or not width or not height or not depth then
+        ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
+    end
+    if not ok then
+        hideEventHighlight()
+        return
+    end
+    width, height, depth = math.max(width or 0.01, 0.01), math.max(height or 0.01, 0.01),
+        math.max(depth or 0.01, 0.01)
+    local center = actorPosition(entry)
+    local scale = 1.10
+    highlight.shape:setPos(center.x, center.y, center.z)
+    highlight.shape:setScale(width * scale, height * scale, depth * scale)
+    highlight.shape.visible = true
+    highlight.line:setPos(center.x, center.y, center.z)
+    highlight.line:setScale(width * scale, height * scale, depth * scale)
+    highlight.line.visible = true
 end
 
 local function hideGizmo()
@@ -1654,6 +1751,7 @@ local function addEvent()
     S.selectedEvent = #S.events
     sortEvents()
     S.modified = true
+    showEventHighlight(S.events[S.selectedEvent])
 end
 
 local function removeSelectedEvent()
@@ -1662,6 +1760,7 @@ local function removeSelectedEvent()
     S.selectedEvent = math.min(S.selectedEvent, #S.events)
     S.modified = true
     seekAll(S.time, false)
+    showEventHighlight(S.events[S.selectedEvent])
 end
 
 local function updatePlayback(delta)
@@ -1885,6 +1984,7 @@ local function showEvents()
                     eventTime = transitionEnd
                 end
                 seekAll(eventTime, false)
+                showEventHighlight(event)
             end
         end
         local event = S.events[S.selectedEvent]
@@ -1923,7 +2023,11 @@ local function showEvents()
                 if #targetIds > 0 then
                     tImGui.SetNextItemWidth(210)
                     local targetChanged, nextTarget = tImGui.Combo(L('event_target'), targetIndex, targetNames)
-                    if targetChanged then event.target = targetIds[nextTarget]; S.modified = true end
+                    if targetChanged then
+                        event.target = targetIds[nextTarget]
+                        S.modified = true
+                        showEventHighlight(event)
+                    end
                 end
             end
             tImGui.SetNextItemWidth(210)
@@ -1956,6 +2060,7 @@ local function showEvents()
                 end
                 S.modified = true
                 seekAll(S.time, false)
+                showEventHighlight(event)
             end
             if event.action == 'play' then
                 local target = actor(event.target)
@@ -2121,6 +2226,7 @@ function onLoop(delta)
     showEvents()
     showTimeline()
     updateGizmo()
+    updateEventHighlight(delta)
     updateXZPlane()
     tUtil.showOverlayMessage()
 end
@@ -2171,6 +2277,9 @@ function onTouchUp(key, x, y)
 end
 
 function onFinalizeScene()
+    hideEventHighlight()
+    if S.eventHighlight.shape then S.eventHighlight.shape:destroy(); S.eventHighlight.shape = nil end
+    if S.eventHighlight.line then S.eventHighlight.line:destroy(); S.eventHighlight.line = nil end
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for _, object in pairs(S.originLines) do
         if object then object:destroy() end
