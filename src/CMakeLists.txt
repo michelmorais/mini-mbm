@@ -581,25 +581,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                 "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
         endif()
 
-        foreach(_DLL ${_ENGINE_RT_DLLS})
-            if(EXISTS "${_DLL}")
-                add_custom_command(TARGET mini-mbm POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${_DLL}"
-                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
-                    COMMENT "Copying runtime DLL: ${_DLL}")
-            else()
-                message(WARNING "Runtime DLL not found (skipped): ${_DLL}")
-            endif()
-        endforeach()
-
-        # Copy the editor/ Lua scripts next to the executable so that
-        # mini-mbm.exe and mini-mbm-dev.exe can find them without extra setup.
-        add_custom_command(TARGET mini-mbm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/editor"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
-            COMMENT "Copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
     endif()
 
     # ── Windows game delivery (GameDir + NSIS installer + WiX MSI + ZIP) ──────
@@ -1334,27 +1315,41 @@ endif()
         # Editor diagnostics must remain visible, including when launched from Explorer.
         target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,console)
 
-        # Copy runtime DLLs and editor/ scripts next to mini-mbm-dev.exe.
-        # (mini-mbm POST_BUILD already copies them, but mini-mbm-dev may be
-        #  built independently so we copy them here too.)
+        message(STATUS "mini-mbm-dev target enabled (MinGW dev launcher)")
+    endif() # mini-mbm-dev
+
+    # Both MinGW launchers use the same runtime directory. Keep the shared
+    # DLL/editor staging in one target: independent POST_BUILD copy commands
+    # on mini-mbm and mini-mbm-dev race when engine-stage builds both targets
+    # in parallel.
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(_MINI_MBM_RUNTIME_ASSET_COMMANDS
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/editor"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor")
+
         foreach(_DLL ${_ENGINE_RT_DLLS})
             if(EXISTS "${_DLL}")
-                add_custom_command(TARGET mini-mbm-dev POST_BUILD
+                list(APPEND _MINI_MBM_RUNTIME_ASSET_COMMANDS
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${_DLL}"
-                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
-                    COMMENT "mini-mbm-dev: copying runtime DLL: ${_DLL}")
+                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/")
+            else()
+                message(WARNING "Runtime DLL not found (skipped): ${_DLL}")
             endif()
         endforeach()
 
-        add_custom_command(TARGET mini-mbm-dev POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/editor"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
-            COMMENT "mini-mbm-dev: copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
-
-        message(STATUS "mini-mbm-dev target enabled (MinGW dev launcher)")
-    endif() # mini-mbm-dev
+        add_custom_target(mini-mbm-runtime-assets
+            ${_MINI_MBM_RUNTIME_ASSET_COMMANDS}
+            COMMENT "Staging shared Windows runtime DLLs and editor/"
+            VERBATIM)
+        add_dependencies(mini-mbm mini-mbm-runtime-assets)
+        if(TARGET mini-mbm-dev)
+            add_dependencies(mini-mbm-dev mini-mbm-runtime-assets)
+        endif()
+    endif()
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)

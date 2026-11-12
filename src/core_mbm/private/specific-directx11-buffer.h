@@ -22,6 +22,7 @@
 
 #include <core_mbm/render-features.h>
 #include <d3d11.h>
+#include <cstdint>
 #include <vector>
 
 namespace mbm
@@ -53,10 +54,10 @@ namespace mbm
         std::vector<ID3D11Buffer *> facialMorphVertexIdBufferVB;
         UINT vertexStride;
         bool dynamicVertexBuffer;
-        uint32_t facialMorphTextureWidth;
-        uint32_t facialMorphTextureHeight;
-        uint32_t facialMorphRowsPerTarget;
-        uint32_t facialMorphTargetCount;
+        std::uint32_t facialMorphTextureWidth;
+        std::uint32_t facialMorphTextureHeight;
+        std::uint32_t facialMorphRowsPerTarget;
+        std::uint32_t facialMorphTargetCount;
         bool facialMorphHasNormals;
         BUFFER_SPECIFIC() noexcept;
         ~BUFFER_SPECIFIC();
