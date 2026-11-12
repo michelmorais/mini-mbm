@@ -1125,12 +1125,12 @@ local function playPlayback()
         setStatus(L('clock_missing'), true)
         return
     end
+    S.playing = true
     if S.time >= projectDuration() - 0.0001 then
         seekAll(0, true)
     else
         seekAll(S.time, true)
     end
-    S.playing = true
 end
 
 local function pausePlayback()
@@ -1460,9 +1460,10 @@ local function updatePlayback(delta)
     end
     local previousTime = S.time
     S.time = math.min(projectDuration(), S.time + math.max(delta or 0, 0))
+    local reachedTimelineEnd = false
     if S.time >= projectDuration() - 0.0001 then
         S.time = projectDuration()
-        S.playing = false
+        reachedTimelineEnd = true
     end
     for _, event in ipairs(S.events) do
         local eventTime = event.time or 0
@@ -1480,9 +1481,12 @@ local function updatePlayback(delta)
         local entry = actor(id)
         local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
         local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' then seekClip(entry, selected, localTime, true) end
+        if selected.kind ~= 'none' and (not reachedTimelineEnd or not S.continueClipsAfterTimeline) then
+            seekClip(entry, selected, localTime, true)
+        end
         applyTransform(entry)
     end
+    if reachedTimelineEnd then S.playing = false end
     if not S.playing and not S.continueClipsAfterTimeline then seekAll(S.time, false) end
 end
 
@@ -1789,6 +1793,7 @@ local function showTimeline()
             maxTime = projectDuration()
             seekAll(S.time, false)
         end
+        tImGui.SameLine()
         local continueClips = tImGui.Checkbox(
             L('continue_clips_after_timeline'), S.continueClipsAfterTimeline)
         if continueClips ~= S.continueClipsAfterTimeline then
