@@ -521,6 +521,21 @@ bin/debug/linux_x86/lua-5.4.1.exe \
 Esse teste cobre eventos únicos, transformações suaves, callbacks, reinício,
 encerramento e a opção `continueClipsAfterTimeline`.
 
+O projeto e o módulo exportado também podem ser verificados como artefatos,
+sem abrir uma janela. O teste confirma a ordem dos atores, os caminhos das
+meshes, a âncora, o relógio, a duração da timeline e a preservação de uma
+rotação maior que 360 graus:
+
+```sh
+bin/debug/linux_x86/lua-5.4.1.exe \
+    tests/interaction_animation_project_test.lua \
+    /home/michel/mini-mbm/new-chomp_eat.iae.lua \
+    /home/michel/Ratworks/new-chomp_eat-interaction.lua
+```
+
+Para uma validação completa, execute também o teste de runtime passando o
+módulo exportado como argumento.
+
 ## Interface implementada
 
 A primeira versão do editor contém:
