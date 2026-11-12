@@ -61,6 +61,7 @@ local S = {
     time = 0,
     timelineDuration = 0.01,
     timelineDurationExplicit = false,
+    continueClipsAfterTimeline = false,
     playing = false,
     events = {},
     selectedEvent = 0,
@@ -1151,6 +1152,7 @@ local function serializeProject()
         clockActor = S.clockActor,
         clockKey = S.clockKey,
         duration = projectDuration(),
+        continueClipsAfterTimeline = S.continueClipsAfterTimeline,
         time = S.time,
         events = events,
     }
@@ -1179,6 +1181,7 @@ local function clearActorSlots()
     S.baseReference = nil
     S.timelineDuration = 0.01
     S.timelineDurationExplicit = false
+    S.continueClipsAfterTimeline = false
 end
 
 local function applyProject(project)
@@ -1221,6 +1224,7 @@ local function applyProject(project)
     if S.clockKey == '' and actor(S.clockActor) then S.clockKey = actor(S.clockActor).clipKey or '' end
     if not S.timelineDurationExplicit then refreshDefaultTimelineDuration() end
     S.timelineDuration = math.max(projectDuration(), maximumEventTime())
+    S.continueClipsAfterTimeline = project.continueClipsAfterTimeline == true
     local maximumTime = projectDuration()
     for _, event in ipairs(S.events) do normalizeTransition(event, maximumTime) end
     sortEvents()
@@ -1479,7 +1483,7 @@ local function updatePlayback(delta)
         if selected.kind ~= 'none' then seekClip(entry, selected, localTime, true) end
         applyTransform(entry)
     end
-    if not S.playing then seekAll(S.time, false) end
+    if not S.playing and not S.continueClipsAfterTimeline then seekAll(S.time, false) end
 end
 
 local function actorPanel(id)
@@ -1784,6 +1788,12 @@ local function showTimeline()
             S.modified = true
             maxTime = projectDuration()
             seekAll(S.time, false)
+        end
+        local continueClips = tImGui.Checkbox(
+            L('continue_clips_after_timeline'), S.continueClipsAfterTimeline)
+        if continueClips ~= S.continueClipsAfterTimeline then
+            S.continueClipsAfterTimeline = continueClips
+            S.modified = true
         end
         local changed, value = tImGui.SliderFloat(L('time'), S.time, 0, maxTime)
         if changed then pausePlayback(); seekAll(value, false) end

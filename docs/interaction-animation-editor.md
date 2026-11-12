@@ -172,6 +172,18 @@ O módulo exportado deve usar a duração da timeline para determinar quando a
 interação termina. O relógio serve para sincronização; não é o limite global da
 sequência.
 
+O projeto possui a opção `continueClipsAfterTimeline`, disponível na janela
+`Timeline` e desativada por padrão:
+
+- `false`: os clips ativos são pausados quando a timeline termina;
+- `true`: a timeline e seus eventos terminam, mas os clips continuam sendo
+  reproduzidos pelo engine.
+
+Essa opção controla somente a reprodução dos clips. A decisão de destruir,
+manter ou reutilizar os atores pertence ao jogo, inclusive quando um clip está
+em loop. `isFinished()` indica o fim da timeline e dos eventos da interação;
+não representa uma ordem para destruir os atores.
+
 Essa regra é aplicada pelo editor e pelo módulo exportado. O campo `duration`
 do projeto representa a duração da timeline; a duração exibida do relógio é
 apenas informativa e não reduz esse valor.
@@ -324,6 +336,7 @@ Uma sequência inicial poderia ser representada assim:
 ```lua
 return {
     duration = 3.0,
+    continueClipsAfterTimeline = false,
 
     clock = {
         actor = "actor1",

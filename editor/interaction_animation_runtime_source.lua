@@ -291,6 +291,7 @@ function reaction.start(bindings)
         actors = bindActors(definition, bindings),
         time = 0,
         duration = tonumber(definition.duration) or eventMaximumTime(definition),
+        continueClipsAfterTimeline = definition.continueClipsAfterTimeline == true,
         fired = {},
         activeClips = {},
         finished = false,
@@ -308,8 +309,10 @@ function reaction.start(bindings)
         applyPlayEvents(self, previousTime, self.time, false)
         applyTransforms(self)
         if self.time >= self.duration then
-            for id, actor in pairs(self.actors) do
-                pauseClip(actor.object, self.activeClips[id] or actor.definition.clipKey)
+            if not self.continueClipsAfterTimeline then
+                for id, actor in pairs(self.actors) do
+                    pauseClip(actor.object, self.activeClips[id] or actor.definition.clipKey)
+                end
             end
             self.finished = true
             self.running = false
