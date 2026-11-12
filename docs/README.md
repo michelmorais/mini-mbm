@@ -33,6 +33,7 @@ guides.
 - [Normal Map Editor](normal-map-editor.md)
 - [Normal mapping](normal-mapping.md)
 - [Skeletal Animation Editor](skeletal-animation-editor.md)
+- [Interaction Animation Editor](interaction-animation-editor.md) (implementado; limitado inicialmente a dois atores)
 
 The [editor inventory](editors.md) is the source of truth for all 21 launchers, aliases,
 dedicated guides, and known guide gaps. The ordinary Font, GUI, Particle, Physics, Scene,

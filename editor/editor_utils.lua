@@ -104,7 +104,7 @@ tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width, max_he
     local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
     local win_height                = tUtil.getEditorWindowHeightLimit(iMenuBarHeight, y, max_height)
     local min_width = math.min(width, tUtil.iWindowMinWidth)
-    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,width)}, {x = max_width or iW,y = win_height})
+    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,80)}, {x = max_width or iW,y = win_height})
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Once'))
@@ -122,7 +122,7 @@ tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width, max_hei
     local tPosWin                   = {x = x,y = iMenuBarHeight + y }
     local win_height                = tUtil.getEditorWindowHeightLimit(iMenuBarHeight, y, max_height)
     local min_width = math.min(width, tUtil.iWindowMinWidth)
-    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,width)}, {x = max_width or iW,y = win_height})
+    tImGui.SetNextWindowSizeConstraints({x = min_width,y = math.min(win_height,80)}, {x = max_width or iW,y = win_height})
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Once'))

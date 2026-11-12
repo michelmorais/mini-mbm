@@ -1,1 +1,6 @@
 * text=auto eol=lf
+
+# Windows command scripts must retain native line endings so cmd.exe parses
+# them consistently after checkout.
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -33,6 +33,10 @@ file(MAKE_DIRECTORY "${_stage}")
 
 set(_executables "@ENGINE_PACKAGE_EXECUTABLES@;@ENGINE_CGAL_EXTERNAL_EXECUTABLES@")
 set(_libraries "@ENGINE_PACKAGE_LIBRARIES@;@ENGINE_EXTERNAL_LIBRARIES@")
+# Optional external lists can be empty. Remove the resulting empty list item
+# before validating the required distribution files.
+list(REMOVE_ITEM _executables "")
+list(REMOVE_ITEM _libraries "")
 set(_stage_executables "")
 set(_stage_libraries "")
 foreach(_kind executables libraries)

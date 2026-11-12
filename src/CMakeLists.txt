@@ -166,6 +166,13 @@ if (USE_LUA)
     endif()
 endif()
 
+if (USE_LUA AND
+    (ENGINE_TARGET_PLATFORM STREQUAL "Android" OR
+     ENGINE_TARGET_PLATFORM STREQUAL "iOS" OR
+     (ENGINE_TARGET_PLATFORM STREQUAL "MacOs" AND MAS_DELIVERY)))
+    add_definitions(-DUSE_INTERACTION_ANIMATION_RUNTIME)
+endif()
+
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     #plugins must be added definitions here
@@ -574,25 +581,6 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                 "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
         endif()
 
-        foreach(_DLL ${_ENGINE_RT_DLLS})
-            if(EXISTS "${_DLL}")
-                add_custom_command(TARGET mini-mbm POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${_DLL}"
-                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
-                    COMMENT "Copying runtime DLL: ${_DLL}")
-            else()
-                message(WARNING "Runtime DLL not found (skipped): ${_DLL}")
-            endif()
-        endforeach()
-
-        # Copy the editor/ Lua scripts next to the executable so that
-        # mini-mbm.exe and mini-mbm-dev.exe can find them without extra setup.
-        add_custom_command(TARGET mini-mbm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/editor"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
-            COMMENT "Copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
     endif()
 
     # ── Windows game delivery (GameDir + NSIS installer + WiX MSI + ZIP) ──────
@@ -795,11 +783,16 @@ cd /d \"%~dp0\"\r\n\
         endforeach()
 
         # 3. Copy plugin DLLs from the build output directory.
-        #    Generated cmake -P script runs after build so the DLLs exist.
+        #    On Windows DLL targets use CMAKE_RUNTIME_OUTPUT_DIRECTORY. Keep
+        #    the library directory as a fallback for generators that place
+        #    shared libraries there.
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/copy_win_plugins.cmake"
             CONTENT
-"file(GLOB _DLL_FILES \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.dll\")
+"file(GLOB _DLL_FILES
+    \"@CMAKE_RUNTIME_OUTPUT_DIRECTORY@/*.dll\"
+    \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.dll\")
+list(REMOVE_DUPLICATES _DLL_FILES)
 foreach(_F \${_DLL_FILES})
     file(COPY \"\${_F}\" DESTINATION \"@_WIN_GAMEDIR@/\")
 endforeach()
@@ -1322,27 +1315,41 @@ endif()
         # Editor diagnostics must remain visible, including when launched from Explorer.
         target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,console)
 
-        # Copy runtime DLLs and editor/ scripts next to mini-mbm-dev.exe.
-        # (mini-mbm POST_BUILD already copies them, but mini-mbm-dev may be
-        #  built independently so we copy them here too.)
+        message(STATUS "mini-mbm-dev target enabled (MinGW dev launcher)")
+    endif() # mini-mbm-dev
+
+    # Both MinGW launchers use the same runtime directory. Keep the shared
+    # DLL/editor staging in one target: independent POST_BUILD copy commands
+    # on mini-mbm and mini-mbm-dev race when engine-stage builds both targets
+    # in parallel.
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(_MINI_MBM_RUNTIME_ASSET_COMMANDS
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/editor"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor")
+
         foreach(_DLL ${_ENGINE_RT_DLLS})
             if(EXISTS "${_DLL}")
-                add_custom_command(TARGET mini-mbm-dev POST_BUILD
+                list(APPEND _MINI_MBM_RUNTIME_ASSET_COMMANDS
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${_DLL}"
-                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
-                    COMMENT "mini-mbm-dev: copying runtime DLL: ${_DLL}")
+                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/")
+            else()
+                message(WARNING "Runtime DLL not found (skipped): ${_DLL}")
             endif()
         endforeach()
 
-        add_custom_command(TARGET mini-mbm-dev POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/editor"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
-            COMMENT "mini-mbm-dev: copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
-
-        message(STATUS "mini-mbm-dev target enabled (MinGW dev launcher)")
-    endif() # mini-mbm-dev
+        add_custom_target(mini-mbm-runtime-assets
+            ${_MINI_MBM_RUNTIME_ASSET_COMMANDS}
+            COMMENT "Staging shared Windows runtime DLLs and editor/"
+            VERBATIM)
+        add_dependencies(mini-mbm mini-mbm-runtime-assets)
+        if(TARGET mini-mbm-dev)
+            add_dependencies(mini-mbm-dev mini-mbm-runtime-assets)
+        endif()
+    endif()
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)
@@ -1999,6 +2006,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
+    message(STATUS "Interaction animation runtime is enabled — linking statically for Android")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+
 endif()
 
 # plugins for iOS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2025,6 +2035,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
+    message(STATUS "Interaction animation runtime is enabled — linking statically for iOS")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+
 endif()
 
 # plugins for macOS MAS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2050,6 +2063,9 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
         message(STATUS "USE_IMGUI is enabled — linking statically for macOS MAS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
+
+    message(STATUS "Interaction animation runtime is enabled — linking statically for macOS MAS")
+    target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
 
 endif()
 
@@ -2088,6 +2104,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias for mesh_debug"
         COMMAND cmake -E echo "alias for mesh_texture_paint_editor"
         COMMAND cmake -E echo "alias for facial_rig_editor"
+        COMMAND cmake -E echo "alias for interaction_animation_editor"
         COMMAND cmake -E echo "alias for morph_editor"
         COMMAND cmake -E echo "alias for shader_editor"
         COMMAND cmake -E echo "alias for particle_editor"
@@ -2109,6 +2126,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias mesh_texture_paint_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_texture_paint_editor.lua --nosplash --name mesh_texture_paint_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua  --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
@@ -2194,6 +2212,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias mesh_texture_paint_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_texture_paint_editor.lua -w 1470 -h 900 --nosplash --name mesh_texture_paint_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua -w 1470 -h 900 --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua -w 1470 -h 900 --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua -w 1470 -h 900 --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua -w 1470 -h 900 --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua -w 1470 -h 900 --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua -w 1470 -h 900 --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
