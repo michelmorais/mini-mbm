@@ -1319,6 +1319,112 @@ local function validateEventIds()
     return true
 end
 
+local function validateProject(forExport)
+    local function fail(key, ...)
+        setStatus(string.format(L(key), ...), true)
+        return false
+    end
+
+    local function finite(value)
+        return type(value) == 'number' and value == value and math.abs(value) < math.huge
+    end
+
+    local function checkNumber(value, key, label)
+        if not finite(value) then return fail(key, label) end
+        return true
+    end
+
+    if not validateEventIds() then return false end
+    local duration = S.timelineDuration
+    if not finite(duration) or duration <= 0 then
+        return fail('validation_duration')
+    end
+
+    local seenActors = {}
+    local actorCount = 0
+    for _, id in ipairs(S.actorOrder) do
+        local entry = actor(id)
+        if type(id) ~= 'string' or seenActors[id] or not entry then
+            return fail('validation_actor_order', tostring(id))
+        end
+        seenActors[id] = true
+        actorCount = actorCount + 1
+        if forExport and (not entry.path or entry.path == '') then
+            return fail('validation_actor_mesh', actorName(id, entry))
+        end
+        for _, field in ipairs({'x', 'y', 'z', 'rx', 'ry', 'rz', 'sx', 'sy', 'sz'}) do
+            if not checkNumber(entry.base[field], 'validation_actor_transform',
+                actorName(id, entry) .. '.' .. field) then return false end
+        end
+        if forExport and entry.clipKey ~= '' and findClip(entry, entry.clipKey).kind == 'none' then
+            return fail('validation_actor_clip', actorName(id, entry), entry.clipKey)
+        end
+    end
+    for id, entry in pairs(S.actors) do
+        if entry.active and not seenActors[id] then
+            return fail('validation_actor_order', tostring(id))
+        end
+    end
+    if forExport and actorCount == 0 then return fail('validation_no_actors') end
+
+    if actorCount > 0 then
+        if not actor(S.anchorActor) then return fail('validation_anchor') end
+        if not actor(S.clockActor) then return fail('validation_clock_actor') end
+        if forExport and clockClip().kind == 'none' then
+            return fail('validation_clock_animation')
+        end
+    end
+
+    for index, event in ipairs(S.events) do
+        local label = event.id and event.id ~= '' and event.id or tostring(index)
+        if type(event.action) ~= 'string' or
+            (event.action ~= 'transform' and event.action ~= 'play' and
+                event.action ~= 'notify' and event.action ~= 'visibility') then
+            return fail('validation_event_action', label)
+        end
+        local time = tonumber(event.time)
+        if not checkNumber(time, 'validation_event_time', label) or time < 0 or time > duration then
+            return fail('validation_event_time', label)
+        end
+        if event.action ~= 'notify' and not actor(event.target) then
+            return fail('validation_event_target', label)
+        end
+        if event.action == 'play' then
+            if type(event.clipKey) ~= 'string' or event.clipKey == '' then
+                return fail('validation_event_clip', label)
+            end
+            if forExport and findClip(actor(event.target), event.clipKey).kind == 'none' then
+                return fail('validation_event_clip', label)
+            end
+        elseif event.action == 'visibility' then
+            if event.visible ~= nil and type(event.visible) ~= 'boolean' then
+                return fail('validation_event_visible', label)
+            end
+        elseif event.action == 'transform' then
+            for _, field in ipairs({'x', 'y', 'z', 'rx', 'ry', 'rz', 'sx', 'sy', 'sz'}) do
+                if not checkNumber(event[field], 'validation_event_number', label .. '.' .. field) then
+                    return false
+                end
+            end
+            if event.transition ~= 'instant' and event.transition ~= 'smooth' then
+                return fail('validation_event_transition', label)
+            end
+            if event.transition == 'smooth' then
+                local start = tonumber(event.transitionStart)
+                local finish = tonumber(event.transitionEnd or event.time)
+                if not finite(start) or not finite(finish) or start < 0 or finish < start or finish > duration then
+                    return fail('validation_event_range', label)
+                end
+                local lower, upper = transitionBounds(event, duration)
+                if start < lower - 1e-6 or finish > upper + 1e-6 then
+                    return fail('validation_event_range', label)
+                end
+            end
+        end
+    end
+    return true
+end
+
 local function saveLua(path, name, value, returnValue)
     local output = {}
     if returnValue then table.insert(output, 'local ' .. name .. ' = {}') end
@@ -1335,7 +1441,7 @@ local function saveLua(path, name, value, returnValue)
 end
 
 local function saveProject(path)
-    if not validateEventIds() then return end
+    if not validateProject(false) then return end
     path = path or S.projectPath
     if not path or path == '' then path = mbm.saveFile('', 'iae.lua') end
     if not path then return end
@@ -1347,7 +1453,7 @@ local function saveProject(path)
 end
 
 local function saveProjectAs()
-    if not validateEventIds() then return end
+    if not validateProject(false) then return end
     local path = mbm.saveFile(S.projectPath or '', 'iae.lua')
     if path then saveProject(path) end
 end
@@ -1388,7 +1494,7 @@ local function saveReactionModule(path)
 end
 
 local function exportSpec(path)
-    if not validateEventIds() then return end
+    if not validateProject(true) then return end
     path = path or mbm.saveFile(exportSuggestion(), 'lua')
     if not path then return end
     if saveReactionModule(path) then

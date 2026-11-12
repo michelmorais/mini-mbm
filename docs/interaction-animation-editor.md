@@ -495,6 +495,12 @@ O editor deve apresentar erro ou aviso claro nos seguintes casos:
 - múltiplas ações conflitantes no mesmo ator e instante;
 - evento que depende de uma animação que nunca foi iniciada.
 
+Ao salvar, o editor valida a estrutura, referências, tempos, transformações e
+transições do projeto. Ao exportar, aplica também as verificações necessárias
+para o runtime: pelo menos um ator, meshes carregadas, clips válidos e uma
+animação válida para o relógio mestre. A operação é bloqueada quando encontra
+um erro impeditivo e a mensagem aparece no aviso padrão do editor.
+
 No caso de `ChompBot/bite`, um gatilho em 1,0 s é válido quando o asset carregado
 possui duração de 1,5 s. O editor não deve rejeitá-lo com base em uma duração
 fixa ou em documentação antiga.
@@ -520,6 +526,10 @@ bin/debug/linux_x86/lua-5.4.1.exe \
 
 Esse teste cobre eventos únicos, transformações suaves, callbacks, reinício,
 encerramento e a opção `continueClipsAfterTimeline`.
+
+O teste de projeto cobre a validação automatizada do formato multi-ator e da
+exportação. Ele verifica também a preservação de rotações maiores que 360 graus
+no arquivo `.iae.lua` e no módulo Lua resultante.
 
 O projeto e o módulo exportado também podem ser verificados como artefatos,
 sem abrir uma janela. O teste confirma a ordem dos atores, os caminhos das
