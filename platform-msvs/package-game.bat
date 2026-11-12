@@ -53,16 +53,26 @@ pushd %~dp0..
 set "ENGINE_ROOT=%CD%"
 popd
 
-rem VS solution outputs to bin\debug\windows_x86\ or bin\release\windows_x86\
+rem The Visual Studio solution writes to platform-msvs\Debug or Release.
+rem Keep the CMake/MinGW output as a fallback for the same packager.
 if /i "%CONFIG%"=="Debug" (
-    set "BIN_DIR=%ENGINE_ROOT%\bin\debug\windows_x86"
+    set "MSVS_BIN_DIR=%ENGINE_ROOT%\platform-msvs\Debug"
+    set "CMAKE_BIN_DIR=%ENGINE_ROOT%\bin\debug\windows_x86"
 ) else (
-    set "BIN_DIR=%ENGINE_ROOT%\bin\release\windows_x86"
+    set "MSVS_BIN_DIR=%ENGINE_ROOT%\platform-msvs\Release"
+    set "CMAKE_BIN_DIR=%ENGINE_ROOT%\bin\release\windows_x86"
+)
+
+set "BIN_DIR=%MSVS_BIN_DIR%"
+set "EXE_SRC=%BIN_DIR%\mini_mbm.exe"
+if not exist "%EXE_SRC%" set "EXE_SRC=%BIN_DIR%\mini-mbm.exe"
+if not exist "%EXE_SRC%" (
+    set "BIN_DIR=%CMAKE_BIN_DIR%"
+    set "EXE_SRC=%BIN_DIR%\mini-mbm.exe"
 )
 
 set "GAMEDIR=%ENGINE_ROOT%\%GAME_NAME_SAFE%.GameDir"
 set "ASSETS_DST=%GAMEDIR%\assets"
-set "EXE_SRC=%BIN_DIR%\mini-mbm.exe"
 set "EXE_DST=%GAMEDIR%\%GAME_NAME_SAFE%.exe"
 
 echo.

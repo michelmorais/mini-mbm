@@ -11,6 +11,7 @@
     <ProjectGuid>{C1A7E5D2-6B4F-4E91-9C30-5D8F2A7B1046}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>interaction_animation_runtime</RootNamespace>
+    <TargetName>interaction_animation_runtime</TargetName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

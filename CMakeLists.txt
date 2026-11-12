@@ -1238,6 +1238,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         endif()
     endif()
 
+    # The Windows Lua runtime plugin is a DLL loaded by require().  Keep it in
+    # the build graph of the executable targets so a MinGW build cannot finish
+    # with mini-mbm present but interaction_animation_runtime.dll missing.
+    if (ENGINE_TARGET_PLATFORM STREQUAL "Windows"
+        AND USE_LUA
+        AND TARGET ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+        if (TARGET mini-mbm)
+            add_dependencies(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+        endif()
+        if (TARGET mini-mbm-dev)
+            add_dependencies(mini-mbm-dev ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+        endif()
+    endif()
+
     #The following plugins are supposed to be 'helpers' in editor. We are not going to build it for Android
     if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA AND USE_TILEMAP)
         add_subdirectory(${TILED_LIB}       ${TILED_LIB})

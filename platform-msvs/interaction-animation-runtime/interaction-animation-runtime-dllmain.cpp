@@ -21,7 +21,6 @@
 
 #pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "lua5.4.lib")
-#pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "plugin-helper.lib")
 
 BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)

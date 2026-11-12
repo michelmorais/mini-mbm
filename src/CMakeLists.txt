@@ -802,11 +802,16 @@ cd /d \"%~dp0\"\r\n\
         endforeach()
 
         # 3. Copy plugin DLLs from the build output directory.
-        #    Generated cmake -P script runs after build so the DLLs exist.
+        #    On Windows DLL targets use CMAKE_RUNTIME_OUTPUT_DIRECTORY. Keep
+        #    the library directory as a fallback for generators that place
+        #    shared libraries there.
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/copy_win_plugins.cmake"
             CONTENT
-"file(GLOB _DLL_FILES \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.dll\")
+"file(GLOB _DLL_FILES
+    \"@CMAKE_RUNTIME_OUTPUT_DIRECTORY@/*.dll\"
+    \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.dll\")
+list(REMOVE_DUPLICATES _DLL_FILES)
 foreach(_F \${_DLL_FILES})
     file(COPY \"\${_F}\" DESTINATION \"@_WIN_GAMEDIR@/\")
 endforeach()

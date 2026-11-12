@@ -1,90 +1,95 @@
-rem -> expected destination folder
-rem -> command line: Call $(SolutionDir)copy-dlls.bat $(OutDir)
+@echo off
+rem Copies third-party runtime files used by the Visual Studio output.
+rem Plugin DLLs are produced directly in OutDir by their own MSBuild projects;
+rem they must not be copied from a second/stale directory here.
+rem
+rem Usage: copy-dlls.bat <OutDir> <x32|Win32|x64>
 
-setlocal enabledelayedexpansion
+setlocal EnableExtensions EnableDelayedExpansion
 
-set destinationFolder=%1
-set is64bits=%2
+set "DESTINATION_FOLDER=%~1"
+set "ARCH=%~2"
 
-pushd %~dp0
-pushd "..\"
-set mypath=%CD%
-popd
-popd
-
-echo !mypath!
-echo "may mypath is !mypath!"
-
-if %is64bits%=="x64" (
-
-echo "64 bits build"
-echo "Copying needed 64 bits DLLs (for Windows) to  %destinationFolder%"
-    
-set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
-set libEGL_source=%mypath%\third-party\gles\libs\libEGL.dll.lib
-
-set libEGLv2_dll=%mypath%\third-party\gles\bin\libGLESv2.dll
-set libEGLv2_source=%mypath%\third-party\gles\libs\libGLESv2.dll.lib
-
-echo "COPY !libEGL_source! !destinationFolder!"
-COPY "!libEGL_source!" "!destinationFolder!"
-
-echo "COPY !libEGL_dll! !destinationFolder!"
-COPY "!libEGL_dll!" "!destinationFolder!"
-
-echo "COPY !libEGLv2_source! !destinationFolder!"
-COPY "!libEGLv2_source!" "!destinationFolder!"
-
-echo "COPY !libEGLv2_dll! !destinationFolder!"
-COPY "!libEGLv2_dll!" "!destinationFolder!"
-
-    set editor_source=%mypath%\editor
-    echo "XCOPY !editor_source! !destinationFolder!"
-    XCOPY "!editor_source!" "!destinationFolder!" /E /I /Y
-
-) else (
-    echo "32 bits build"
-    echo "Copying needed 32 bits DLLs (for Windows) to  %destinationFolder%"
-
-    set portaudio_source=%mypath%\third-party\portaudio\Windows\bin\portaudio_x86.dll
-
-    set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
-    set libEGL_source=%mypath%\third-party\gles\libs\libEGL.dll.lib
-
-    set libEGLv2_dll=%mypath%\third-party\gles\bin\libGLESv2.dll
-    set libEGLv2_source=%mypath%\third-party\gles\libs\libGLESv2.dll.lib
-
-    set d3dcompiler_source=%mypath%\third-party\gles\bin\d3dcompiler_47.dll
-
-    set mini_mbm_lib_source=%mypath%\src\mini-mbm-lib\mini-mbm-lib.h
-
-    set editor_source=%mypath%\editor
-
-    echo "COPY !portaudio_source! !destinationFolder!"
-    COPY "!portaudio_source!" "!destinationFolder!"
-
-    echo "COPY !libEGL_source! !destinationFolder!"
-    COPY "!libEGL_source!" "!destinationFolder!"
-
-    echo "COPY !libEGL_dll! !destinationFolder!"
-    COPY "!libEGL_dll!" "!destinationFolder!"
-
-    echo "COPY !libEGLv2_source! !destinationFolder!"
-    COPY "!libEGLv2_source!" "!destinationFolder!"
-
-    echo "COPY !libEGLv2_dll! !destinationFolder!"
-    COPY "!libEGLv2_dll!" "!destinationFolder!"
-
-    echo "COPY !d3dcompiler_source! !destinationFolder!"
-    COPY "!d3dcompiler_source!" "!destinationFolder!"
-
-    echo "COPY !mini_mbm_lib_source! !destinationFolder!"
-    COPY "!mini_mbm_lib_source!" "!destinationFolder!"
-
-    echo "XCOPY !editor_source! !destinationFolder!"
-    XCOPY "!editor_source!" "!destinationFolder!" /E /I /Y
+if not defined DESTINATION_FOLDER (
+    echo [copy-dlls] ERROR: destination folder is missing.
+    echo [copy-dlls] Usage: copy-dlls.bat ^<OutDir^> ^<x32^|Win32^|x64^>
+    exit /b 1
 )
 
+if not defined ARCH (
+    echo [copy-dlls] ERROR: architecture is missing.
+    echo [copy-dlls] Usage: copy-dlls.bat ^<OutDir^> ^<x32^|Win32^|x64^>
+    exit /b 1
+)
 
+if /i "%ARCH%"=="x32" set "ARCH=x32"
+if /i "%ARCH%"=="Win32" set "ARCH=x32"
+if /i "%ARCH%"=="x64" set "ARCH=x64"
+if /i not "%ARCH%"=="x32" if /i not "%ARCH%"=="x64" (
+    echo [copy-dlls] ERROR: unsupported architecture "%~2".
+    echo [copy-dlls] Expected x32, Win32, or x64.
+    exit /b 1
+)
+
+pushd "%~dp0.." >nul
+set "ENGINE_ROOT=%CD%"
+popd >nul
+
+if not exist "%DESTINATION_FOLDER%\" (
+    mkdir "%DESTINATION_FOLDER%"
+    if errorlevel 1 (
+        echo [copy-dlls] ERROR: could not create "%DESTINATION_FOLDER%".
+        exit /b 1
+    )
+)
+
+echo [copy-dlls] Copying third-party files to "%DESTINATION_FOLDER%" (%ARCH%)...
+
+call :copy_file "%ENGINE_ROOT%\third-party\gles\bin\libEGL.dll" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+call :copy_file "%ENGINE_ROOT%\third-party\gles\libs\libEGL.dll.lib" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+call :copy_file "%ENGINE_ROOT%\third-party\gles\bin\libGLESv2.dll" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+call :copy_file "%ENGINE_ROOT%\third-party\gles\libs\libGLESv2.dll.lib" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+call :copy_file "%ENGINE_ROOT%\third-party\gles\bin\d3dcompiler_47.dll" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+call :copy_file "%ENGINE_ROOT%\src\mini-mbm-lib\mini-mbm-lib.h" "%DESTINATION_FOLDER%"
+if errorlevel 1 exit /b 1
+
+if /i "%ARCH%"=="x32" (
+    call :copy_file "%ENGINE_ROOT%\third-party\portaudio\Windows\bin\portaudio_x86.dll" "%DESTINATION_FOLDER%"
+    if errorlevel 1 exit /b 1
+)
+
+call :copy_tree "%ENGINE_ROOT%\editor" "%DESTINATION_FOLDER%\editor"
+if errorlevel 1 exit /b 1
+
+echo [copy-dlls] Done. Plugin DLLs, including interaction_animation_runtime.dll,
+echo [copy-dlls] are supplied by their MSBuild targets in the same output folder.
 exit /b 0
 
+:copy_file
+if not exist "%~1" (
+    echo [copy-dlls] ERROR: required file not found: "%~1"
+    exit /b 1
+)
+copy /Y "%~1" "%~2\" >nul
+if errorlevel 1 (
+    echo [copy-dlls] ERROR: failed to copy "%~1".
+    exit /b 1
+)
+exit /b 0
+
+:copy_tree
+if not exist "%~1\" (
+    echo [copy-dlls] ERROR: required directory not found: "%~1"
+    exit /b 1
+)
+xcopy "%~1" "%~2\" /E /I /Y /Q >nul
+if errorlevel 1 (
+    echo [copy-dlls] ERROR: failed to copy "%~1".
+    exit /b 1
+)
+exit /b 0

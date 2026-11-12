@@ -49,8 +49,10 @@ Or open **Visual Studio → File → Open → Project/Solution…** and browse t
 
 ## Solution Projects
 
-All projects live under `platform-msvs/` and build into the shared `bin/` and
-`libs/` output directories at the repo root.
+All projects live under `platform-msvs/`. The Visual Studio solution writes
+executables, DLLs, import libraries, and editor scripts to
+`platform-msvs\Debug\` or `platform-msvs\Release\`. The separate CMake/MinGW
+workflow uses the `bin/` and `libs/` directories described below.
 
 | Project name | Directory | Description |
 |---|---|---|
@@ -68,6 +70,7 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 | **tilemap** | `tilemap/` | Tiled tile-map plugin |
 | **tiny_obj_loader** | `tiny-obj-loader/` | Tiny OBJ mesh loader library |
 | **plugin-helper** | `plugin-helper/` | Shared utilities for plugin development (Lua shader bindings, class identification) |
+| **interaction-animation-runtime** | `interaction-animation-runtime/` | Lua runtime DLL for `require "interaction_animation_runtime"` |
 | **distribution** | `distribution/` | Asset packaging DLL — AES-128-CBC encrypted SQLite archive library |
 | **distribution_exe** | `distribution-exe/` | `distribution.exe` CLI — packs/extracts `.asset` files; called by `package-game.bat` |
 | **libTest** | `libTest/` | Unit and integration test library |
@@ -234,20 +237,23 @@ coverage on Linux.
 
 ## Post-Build: Copying DLLs
 
-After the first successful build, run `copy-dlls.bat` to copy the required runtime
-DLLs (OpenGL ES emulation, Lua, etc.) next to the output executable:
+The MSBuild pre-build steps invoke `copy-dlls.bat` automatically for the projects
+that need third-party files. It copies the graphics/audio runtime files and the
+editor scripts; Lua and plugin DLLs are built by their own solution projects and
+are emitted directly into the same output directory.
 
 > **Note:** DirectSound (`-DAUDIO=dsound`) uses a Windows system DLL — no audio
 > file needs to be copied.
 
 ```cmd
 cd platform-msvs
-copy-dlls.bat Debug
-copy-dlls.bat Release
+copy-dlls.bat "%CD%\Debug" x32
+copy-dlls.bat "%CD%\Release" x32
 ```
 
-The script sources DLLs from the `third-party/` tree. Re-run it whenever you add
-a new plugin or switch the audio/graphics backend.
+The script sources third-party files from the repository tree. Re-run it only
+when staging an output directory manually; adding a plugin does not require
+adding a second copy rule because the plugin target writes its DLL to `OutDir`.
 
 ---
 
@@ -255,10 +261,10 @@ a new plugin or switch the audio/graphics backend.
 
 | Artifact | Path |
 |---|---|
-| Debug executable | `bin\debug\windows_x86\mini-mbm.exe` |
-| Release executable | `bin\release\windows_x86\mini-mbm.exe` |
-| Debug static libraries | `libs\debug\windows_x86\` |
-| Release static libraries | `libs\release\windows_x86\` |
+| Debug executable | `platform-msvs\Debug\mini_mbm.exe` |
+| Release executable | `platform-msvs\Release\mini_mbm.exe` |
+| Debug DLLs/import libraries | `platform-msvs\Debug\` |
+| Release DLLs/import libraries | `platform-msvs\Release\` |
 
 ---
 
@@ -335,10 +341,9 @@ rem Open the dev launcher (ImGui tool selector — same as the MSVS mini-mbm-dev
 bin\release\windows_x86\mini-mbm-dev.exe
 ```
 
-> **Tip:** To also copy the `editor\` folder and the third-party runtime DLLs
-> (portaudio, gles) to the output directory for a self-contained run from the
-> bin folder, use `copy-dlls.bat` as described in the [Post-Build: Copying DLLs](#post-build-copying-dlls)
-> section above — it is the same script used for Visual Studio builds.
+> **Tip:** CMake copies the editor folder and the enabled third-party runtime DLLs
+> through its POST_BUILD steps. `copy-dlls.bat` is for the Visual Studio output;
+> plugin DLLs are copied by the CMake Windows delivery step.
 
 ---
 
@@ -725,11 +730,12 @@ All three installers perform a **per-user install** (no UAC prompt):
 
 #### Steps performed
 
-1. Reads the built `mini-mbm.exe` from `bin\debug|release\windows_x86\`
+1. Reads `platform-msvs\Debug\mini_mbm.exe` or `platform-msvs\Release\mini_mbm.exe`;
+   if no MSVS executable exists, it falls back to the CMake `bin\debug|release\windows_x86\mini-mbm.exe`
 2. Renames it to `<GameName>.exe` inside `<GameName>.GameDir\`
 3. Copies runtime DLLs from `third-party\` (d3dcompiler, libEGL/libGLESv2)
-4. Copies `distribution.dll` from the bin output directory
-5. Copies plugin DLLs from the bin output directory
+4. Copies `distribution.dll` from the selected output directory
+5. Copies plugin DLLs from the selected output directory
 6. Packs game assets into `GameDir\assets\<GameName>.asset` using `distribution.exe` (encrypted if password supplied)
 7. Writes `launch.bat` (launches `<GameName>.exe` with the correct working directory)
 8. Generates and runs NSIS (if `makensis` is in `PATH` or its default install location)
