@@ -396,7 +396,19 @@ local reaction = require "chomp_eat-interaction"
 
 local instance = reaction.start {
     actor1 = machineObject,
-    actor2 = ratObject
+    actor2 = ratObject,
+
+    callbacks = {
+        onStart = function(instance)
+            -- opcional: preparar a interacao, remover fisica etc.
+        end,
+        onEvent = function(instance, event, index)
+            -- opcional: reagir a um evento discreto da timeline
+        end,
+        onFinish = function(instance)
+            -- opcional: liberar recursos ou iniciar a proxima acao
+        end
+    }
 }
 
 -- No onLoop(delta):
@@ -419,12 +431,21 @@ O módulo exportado:
 - aplicar cada evento uma única vez;
 - aplicar transformações relativas;
 - permitir reinício e encerramento da interação.
+- chamar callbacks opcionais de início, evento e finalização.
+
+Os callbacks são fornecidos pelo jogo na chamada `start`; eles não são
+serializados no projeto `.iae.lua`. `onStart` é chamado depois que a pose base
+e os clips iniciais foram preparados. `onEvent` é chamado uma vez para cada
+evento atingido, recebendo a instância, a tabela do evento e seu índice. Para
+uma transformação suave, o callback ocorre no início do intervalo de
+transição. `onFinish` é chamado uma vez quando a timeline termina ou quando
+`stop()` encerra explicitamente a interação. Em `restart()`, `onStart` e os
+callbacks dos eventos são habilitados novamente para a nova execução.
 
 As chaves da tabela de `start` devem usar os slots internos (`actor1`/`actor2`).
 O runtime também aceita os aliases fixos `actor_1`/`actor_2`, usados pela
 integração atual do Ratworks. Não há nomes definidos pelo usuário nessa camada.
-Eventos de callback e outras ações não visuais continuam reservados para a
-próxima extensão do editor.
+Callbacks inválidos causam erro no início da interação.
 
 ## Validação e erros do editor
 
@@ -444,6 +465,28 @@ O editor deve apresentar erro ou aviso claro nos seguintes casos:
 No caso de `ChompBot/bite`, um gatilho em 1,0 s é válido quando o asset carregado
 possui duração de 1,5 s. O editor não deve rejeitá-lo com base em uma duração
 fixa ou em documentação antiga.
+
+## Teste automatizado do runtime
+
+O comportamento do runtime pode ser verificado sem abrir uma janela usando
+meshes falsas que registram as chamadas de animação, transformação e pausa:
+
+```sh
+bin/debug/linux_x86/lua-5.4.1.exe \
+    tests/interaction_animation_runtime_test.lua
+```
+
+Também é possível validar um módulo exportado específico, incluindo o arquivo
+gerado para o protótipo Ratworks:
+
+```sh
+bin/debug/linux_x86/lua-5.4.1.exe \
+    tests/interaction_animation_runtime_test.lua \
+    /home/michel/Ratworks/logic/chomp_eat-interaction.lua
+```
+
+Esse teste cobre eventos únicos, transformações suaves, callbacks, reinício,
+encerramento e a opção `continueClipsAfterTimeline`.
 
 ## Interface implementada
 
@@ -487,6 +530,6 @@ gatilhos e exportação Lua estiver validado com o caso do rato e da máquina.
 
 1. Adicionar testes automatizados para tempos inválidos, clips cíclicos,
    reinício e eventos executados uma única vez.
-2. Expandir os tipos de ação, incluindo callbacks Lua, visibilidade e
-   destruição como ações configuráveis da sequência.
+2. Expandir os tipos de ação, incluindo visibilidade e destruição como ações
+   configuráveis da sequência.
 3. Avaliar suporte a mais de dois atores depois de estabilizar o formato atual.

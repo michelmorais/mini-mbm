@@ -182,6 +182,16 @@ local function eventMaximumTime(definition)
     return maximum
 end
 
+local function eventTriggerTime(event)
+    local time = tonumber(event.time) or 0
+    if event.action == 'transform' and event.transition == 'smooth' then
+        local start = tonumber(event.transitionStart)
+        if start ~= nil then return start end
+        return time - math.max(tonumber(event.duration) or 0.2, 0.0001)
+    end
+    return time
+end
+
 local function bindActors(definition, bindings)
     local actors = {}
     for id, actorDefinition in pairs(definition.actors or {}) do
@@ -262,6 +272,22 @@ local function applyPlayEvents(instance, previousTime, currentTime, includeIniti
     end
 end
 
+local function notifyEvents(instance, previousTime, currentTime, includeInitial)
+    for index, event in ipairs(instance.definition.events or {}) do
+        if not instance.notified[index] then
+            local eventTime = eventTriggerTime(event)
+            local reached = includeInitial and eventTime <= currentTime or
+                eventTime > previousTime and eventTime <= currentTime
+            if reached then
+                instance.notified[index] = true
+                if instance.callbacks.onEvent then
+                    instance.callbacks.onEvent(instance, event, index)
+                end
+            end
+        end
+    end
+end
+
 local function resetInstance(instance)
     for id, actor in pairs(instance.actors) do
         stopClip(actor.object, instance.activeClips[id] or actor.definition.clipKey)
@@ -269,6 +295,7 @@ local function resetInstance(instance)
     end
     instance.time = 0
     instance.fired = {}
+    instance.notified = {}
     instance.activeClips = {}
     instance.finished = false
     instance.running = true
@@ -281,18 +308,39 @@ local function resetInstance(instance)
         end
     end
     applyPlayEvents(instance, -0.0001, 0, true)
+    notifyEvents(instance, -0.0001, 0, true)
     applyTransforms(instance)
+end
+
+local function notifyStart(instance)
+    if instance.callbacks.onStart then instance.callbacks.onStart(instance) end
+end
+
+local function finishInstance(instance)
+    if instance.finished then return end
+    instance.finished = true
+    instance.running = false
+    if instance.callbacks.onFinish then instance.callbacks.onFinish(instance) end
 end
 
 function reaction.start(bindings)
     bindings = bindings or {}
+    local callbacks = bindings.callbacks or {}
+    if type(callbacks) ~= 'table' then error('Interaction callbacks must be a table') end
+    for _, name in ipairs({'onStart', 'onEvent', 'onFinish'}) do
+        if callbacks[name] ~= nil and type(callbacks[name]) ~= 'function' then
+            error('Interaction callback must be a function: ' .. name)
+        end
+    end
     local instance = {
         definition = definition,
         actors = bindActors(definition, bindings),
+        callbacks = callbacks,
         time = 0,
         duration = tonumber(definition.duration) or eventMaximumTime(definition),
         continueClipsAfterTimeline = definition.continueClipsAfterTimeline == true,
         fired = {},
+        notified = {},
         activeClips = {},
         finished = false,
         running = true,
@@ -307,6 +355,7 @@ function reaction.start(bindings)
         local amount = math.max(0, tonumber(delta) or 0)
         self.time = math.min(self.duration, previousTime + amount)
         applyPlayEvents(self, previousTime, self.time, false)
+        notifyEvents(self, previousTime, self.time, false)
         applyTransforms(self)
         if self.time >= self.duration then
             if not self.continueClipsAfterTimeline then
@@ -314,13 +363,13 @@ function reaction.start(bindings)
                     pauseClip(actor.object, self.activeClips[id] or actor.definition.clipKey)
                 end
             end
-            self.finished = true
-            self.running = false
+            finishInstance(self)
         end
         return not self.finished
     end
     function instance:restart()
         resetInstance(self)
+        notifyStart(self)
         return self
     end
     function instance:stop()
@@ -329,14 +378,14 @@ function reaction.start(bindings)
             setTransform(actor.object, actor.base)
         end
         self.activeClips = {}
-        self.running = false
-        self.finished = true
+        finishInstance(self)
         return self
     end
     function instance:isFinished()
         return self.finished
     end
     resetInstance(instance)
+    notifyStart(instance)
     return instance
 end
 
