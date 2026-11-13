@@ -2321,7 +2321,6 @@ local function showEvents()
                     S.modified = true
                     seekAll(S.time, false)
                 end
-                tImGui.NewLine()
                 if tImGui.Button(L('set_event_time_current'), {x = 210, y = 0}) then
                     setEventTimeToTimeline(event)
                 end
