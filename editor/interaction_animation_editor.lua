@@ -921,6 +921,15 @@ end
 local function clipList(entry)
     local list = {{key = '', label = L('no_animation'), kind = 'none', name = '', duration = 0}}
     if not entry or not entry.bundle then return list end
+    for _, clip in ipairs(entry.bundle.static or {}) do
+        table.insert(list, {
+            key = 'frame:' .. clip.name,
+            label = string.format('%s - %s (%.3fs)', L('static'), clip.name, clip.duration or 0),
+            kind = 'frame', name = clip.name, duration = clip.duration or 0,
+            loop = clip.mode == 2 or clip.mode == 4 or clip.mode == 6,
+            first = clip.first, last = clip.last, interval = clip.interval, mode = clip.mode,
+        })
+    end
     for _, clip in ipairs(entry.bundle.skeletal or {}) do
         table.insert(list, {
             key = 'skeletal:' .. clip.name,
@@ -983,7 +992,9 @@ local function seekClip(entry, clip, time, playing)
     end
     if entry.runtimeKey ~= clip.key then
         stopEntry(entry)
-        if clip.kind == 'skeletal' then
+        if clip.kind == 'frame' then
+            entry.object:setAnim(clip.name)
+        elseif clip.kind == 'skeletal' then
             assert(entry.object:playSkeletalAnimation(clip.name))
         else
             assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
@@ -992,7 +1003,10 @@ local function seekClip(entry, clip, time, playing)
         entry.runtimeClip = clip
     end
     local targetTime = math.max(0, math.min(time or 0, clip.duration or 0))
-    if clip.kind == 'skeletal' then
+    if clip.kind == 'frame' then
+        local frame = Animation.staticFrame(clip, targetTime)
+        entry.object:setIndexFrame(frame)
+    elseif clip.kind == 'skeletal' then
         assert(entry.object:seekSkeletalAnimation(targetTime))
         if not playing then entry.object:pauseSkeletalAnimation() end
     else
@@ -1823,8 +1837,18 @@ local function updatePlayback(delta)
         local entry = actor(id)
         local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
         local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' and (not reachedTimelineEnd or not S.continueClipsAfterTimeline) then
-            seekClip(entry, selected, localTime, true)
+        if selected.kind ~= 'none' then
+            if selected.kind == 'frame' and reachedTimelineEnd then
+                -- Frame seeking pauses the animation. Apply the final frame first,
+                -- then restore the asset playback mode when the project allows the
+                -- clip to continue past the master timeline.
+                seekClip(entry, selected, localTime, false)
+                if S.continueClipsAfterTimeline and (selected.mode or 0) ~= 0 then
+                    entry.object:setTypeAnim(selected.mode)
+                end
+            elseif not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, selected, localTime, true)
+            end
         end
         applyTransform(entry)
     end

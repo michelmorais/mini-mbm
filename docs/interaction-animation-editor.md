@@ -182,8 +182,14 @@ pose visual atual do ator.
 ### `play`
 
 Inicia ou troca a animacao de um ator no tempo indicado. `clipKey` usa o
-formato `skeletal:nome` ou `articulated:nome`, conforme o tipo de animacao
-descoberto no asset.
+formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
+animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
+estatica tradicional, formada por uma faixa de frames da mesh.
+
+Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
+crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
+calculado diretamente a partir do tempo mestre; no runtime, o modo original
+volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
 
 ### `notify`
 

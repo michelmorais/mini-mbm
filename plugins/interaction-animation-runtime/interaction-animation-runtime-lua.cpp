@@ -20,6 +20,7 @@
 #include "interaction-animation-runtime-lua.h"
 
 #include <plugin-helper/plugin-helper.h>
+#include <core_mbm/animation.h>
 #include <core_mbm/plugin-callback.h>
 #include <core_mbm/util-interface.h>
 #include <render/mesh.h>
@@ -342,9 +343,12 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->playSkeletalAnimation(name);
-    else if (kind == "articulated") actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
-    else return;
+    if (kind != "frame" && kind != "static" && kind != "skeletal" && kind != "articulated") return;
+    if (!actor.activeClip.empty() && actor.activeClip != key)
+        stopClip(actor, actor.activeClip);
+    if (kind == "frame" || kind == "static") actor.mesh->setAnimation(name);
+    else if (kind == "skeletal") actor.mesh->playSkeletalAnimation(name);
+    else actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
     actor.activeClip = key;
 }
 
@@ -354,7 +358,12 @@ void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &ke
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->stopSkeletalAnimation();
+    if (kind == "frame" || kind == "static")
+    {
+        if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
+            animation->setType(mbm::TYPE_ANIMATION_PAUSED);
+    }
+    else if (kind == "skeletal") actor.mesh->stopSkeletalAnimation();
     else if (kind == "articulated") actor.mesh->disableArticulatedAnimation(name);
 }
 
@@ -364,7 +373,12 @@ void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &k
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->pauseSkeletalAnimation();
+    if (kind == "frame" || kind == "static")
+    {
+        if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
+            animation->setType(mbm::TYPE_ANIMATION_PAUSED);
+    }
+    else if (kind == "skeletal") actor.mesh->pauseSkeletalAnimation();
     else if (kind == "articulated") actor.mesh->pauseArticulatedAnimation(name);
 }
 

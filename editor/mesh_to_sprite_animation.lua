@@ -116,4 +116,5 @@ end
 function M.release(a)
     if a then a.object:destroy(); a.debug=nil end
 end
+M.staticFrame = P.staticFrame
 return M
