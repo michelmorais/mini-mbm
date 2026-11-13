@@ -190,6 +190,9 @@ novo evento no mesmo instante do evento selecionado. Para uma transformacao
 suave, o menu tambem oferece a criacao no instante inicial ou final da
 transicao.
 
+Para eventos sem transicao suave, o botao `Usar tempo atual da timeline`
+atribui o tempo atual ao campo `time` do evento e reorganiza a lista.
+
 ```lua
 {
     id = "move_actor2",

@@ -1307,6 +1307,13 @@ local function setTransitionEndpoint(event, endpoint)
     seekAll(S.time, false)
 end
 
+local function setEventTimeToTimeline(event)
+    event.time = clamp(S.time, 0, projectDuration())
+    sortEvents()
+    S.modified = true
+    seekAll(S.time, false)
+end
+
 local function setTimelineDuration(value)
     local requested = tonumber(value) or S.timelineDuration
     local minimum = math.max(0.01, maximumEventTime())
@@ -2313,6 +2320,10 @@ local function showEvents()
                     sortEvents()
                     S.modified = true
                     seekAll(S.time, false)
+                end
+                tImGui.NewLine()
+                if tImGui.Button(L('set_event_time_current'), {x = 210, y = 0}) then
+                    setEventTimeToTimeline(event)
                 end
             end
             if event.action ~= 'notify' then
