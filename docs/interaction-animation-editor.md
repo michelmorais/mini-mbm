@@ -27,6 +27,7 @@ A janela `Interaction actors` permite:
 - procurar e carregar uma mesh;
 - selecionar a animacao base;
 - marcar um unico ator como ancora;
+- definir se o ator pode ser selecionado por clique no viewport;
 - escolher o ator e a animacao do relogio mestre;
 - editar posicao, rotacao e escala da pose base;
 - alternar entre os modos `Move` e `Rotate`.
@@ -98,6 +99,7 @@ interactionProject = {
         actor1 = {
             path = "meshes/machine.msh",
             clipKey = "articulated:bite",
+            selectable = true,
             base = {
                 x = 0, y = 0, z = 0,
                 rx = 0, ry = 0, rz = 0,
@@ -182,6 +184,11 @@ Abaixo do controle de intervalo, os botoes `Usar tempo atual no inicio` e
 `Usar tempo atual no fim` atribuem o tempo atual da timeline ao respectivo
 limite. Se os pontos forem definidos fora de ordem, o editor ajusta o outro
 limite para preservar `inicio <= fim`.
+
+Na lista de eventos, o botao direito abre um menu contextual para criar um
+novo evento no mesmo instante do evento selecionado. Para uma transformacao
+suave, o menu tambem oferece a criacao no instante inicial ou final da
+transicao.
 
 ```lua
 {

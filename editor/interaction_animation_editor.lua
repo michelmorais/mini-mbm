@@ -36,6 +36,7 @@ local function newActorState(baseX)
         active = false,
         path = '',
         base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, visible = true},
+        selectable = true,
         previewBase = nil,
         bundle = nil,
         object = nil,
@@ -712,7 +713,7 @@ local function pickActor(sx, sy)
     local bestId, bestDistance
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        if entry.object then
+        if entry.object and entry.selectable ~= false then
             local distance = actorPickDistance(sx, sy, entry)
             if distance and (not bestDistance or distance < bestDistance) then
                 bestId, bestDistance = id, distance
@@ -1376,7 +1377,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 7,
+        version = 8,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1395,6 +1396,7 @@ local function serializeProject()
             path = entry.path,
             base = cloneTable(entry.base),
             clipKey = entry.clipKey,
+            selectable = entry.selectable ~= false,
         }
     end
     return project
@@ -1437,6 +1439,7 @@ local function applyProject(project)
         entry.active = true
         entry.base = cloneTable(saved.base or entry.base)
         entry.base.visible = entry.base.visible ~= false
+        entry.selectable = saved.selectable ~= false
         entry.clipKey = saved.clipKey or ''
         S.actors[id] = entry
         if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
@@ -1981,20 +1984,46 @@ local function captureTransformEvent()
     setStatus(string.format(L('captured'), actorName(id, entry), S.time))
 end
 
-local function addEvent()
-    table.insert(S.events, {
+local function addEventAtTime(time, target)
+    local event = {
         id = nextEventId(),
-        time = S.time,
-        target = S.selectedActor or S.clockActor,
+        time = clamp(time or S.time, 0, projectDuration()),
+        target = actor(target) and target or S.selectedActor or S.clockActor,
         action = 'transform',
         x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1,
         transition = 'instant',
         clipKey = '',
-    })
+    }
+    table.insert(S.events, event)
     S.selectedEvent = #S.events
     sortEvents()
     S.modified = true
-    showEventHighlight(S.events[S.selectedEvent])
+    seekAll(event.time, false)
+    showEventHighlight(event)
+end
+
+local function addEvent()
+    addEventAtTime(S.time, S.selectedActor or S.clockActor)
+end
+
+local function addEventContextMenu(event, index, pending)
+    if not tImGui.BeginPopupContextItem('iae_event_context_' .. tostring(index)) then return end
+    local target = event.action ~= 'notify' and event.target or S.selectedActor or S.clockActor
+    if event.action == 'transform' and event.transition == 'smooth' then
+        local start, finish = transitionRange(event, projectDuration())
+        if tImGui.MenuItem(string.format(L('create_event_transition_start'), start)) then
+            pending.time = start
+            pending.target = target
+        end
+        if tImGui.MenuItem(string.format(L('create_event_transition_end'), finish)) then
+            pending.time = finish
+            pending.target = target
+        end
+    elseif tImGui.MenuItem(L('create_event_same_time')) then
+        pending.time = event.time or 0
+        pending.target = target
+    end
+    tImGui.EndPopup()
 end
 
 local function removeSelectedEvent()
@@ -2070,6 +2099,15 @@ local function actorPanel(id)
         local anchorChecked = tImGui.Checkbox(L('anchor') .. '##' .. id, wasAnchor)
         if anchorChecked and not wasAnchor then
             setAnchorActor(id)
+            S.modified = true
+        end
+        local selectable = tImGui.Checkbox(L('selectable') .. '##' .. id, entry.selectable ~= false)
+        if selectable ~= (entry.selectable ~= false) then
+            entry.selectable = selectable
+            if not selectable and S.selectedActor == id then
+                S.selectedActor = nil
+                hideGizmo()
+            end
             S.modified = true
         end
         local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
@@ -2232,6 +2270,7 @@ local function showEvents()
         if tImGui.Button(L('add_event')) then addEvent() end
         tImGui.SameLine()
         if tImGui.Button(L('remove_event')) then removeSelectedEvent() end
+        local pendingEvent = {}
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
                 S.selectedEvent = index
@@ -2244,6 +2283,10 @@ local function showEvents()
                 seekAll(eventTime, false)
                 showEventHighlight(event)
             end
+            addEventContextMenu(event, index, pendingEvent)
+        end
+        if pendingEvent.time ~= nil then
+            addEventAtTime(pendingEvent.time, pendingEvent.target)
         end
         local event = S.events[S.selectedEvent]
         if event then
