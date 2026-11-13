@@ -86,7 +86,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 7,
+    version = 9,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -168,17 +168,63 @@ campos `rx`, `ry` e `rz`, e fatores multiplicativos de escala nos campos `sx`,
 `transition = "instant"` aplica a transformacao imediatamente. Para uma
 transicao suave, use `transition = "smooth"`, `transitionStart` e
 `transitionEnd`. O campo `time` representa o fim da transicao. A interpolacao
-usa uma curva suave e os valores de rotacao podem ultrapassar 360 graus,
+usa smoothstep e os valores de rotacao podem ultrapassar 360 graus,
 preservando multiplas voltas.
+
+Para uma trajetoria curva, use `transition = "bezier"`. O intervalo continua
+pertencendo a timeline mestre: `transitionStart` representa `u = 0` e
+`transitionEnd` representa `u = 1`. O ator permanece fixo em `P0`, na origem
+do ator no inicio da transicao. `P3` e formado por `x`, `y` e `z` do evento;
+`P1` e `P2` sao controles relativos que definem a curvatura:
+
+```lua
+{
+    id = "move_actor2_bezier",
+    time = 10.0,
+    action = "transform",
+    target = "actor2",
+    transition = "bezier",
+    transitionStart = 7.5,
+    transitionEnd = 10.0,
+    x = 80, y = 0, z = 0,
+    rx = 0, ry = 0, rz = 720,
+    sx = 1.2, sy = 0.8, sz = 1,
+    bezier = {
+        p1 = {x = 20, y = 50, z = 0},
+        p2 = {x = 60, y = -50, z = 0}
+    }
+}
+```
+
+O runtime calcula `u` a partir do tempo mestre e avalia a curva cubica:
+
+```text
+B(u) = (1-u)^3 P0 + 3(1-u)^2u P1 + 3(1-u)u^2 P2 + u^3 P3
+```
+
+Somente `u` e normalizado entre `0` e `1`; as coordenadas dos pontos estao
+no espaco relativo usado pela interacao e nao ficam limitadas a esse intervalo.
+A posicao segue a trajetoria Bezier. Rotacao e escala usam o mesmo parametro
+normalizado, mantendo suporte a multiplas voltas e aos fatores de escala do
+evento.
 
 Os limites de `transitionStart` e `transitionEnd` sao `0` e a duracao da
 timeline do projeto. A duracao ou o fim de um clip individual nao limita uma
 transicao de transformacao.
 
 Na interface, eventos instantaneos mostram `Tempo do evento`, que e o instante
-de disparo. Eventos suaves mostram `Fim da transicao`; o controle
+de disparo. Eventos suaves e Bezier mostram `Fim da transicao`; o controle
 `Inicio / fim da transicao` edita os dois instantes da timeline mestre. Esse
 intervalo nao representa uma duracao independente.
+
+Ao selecionar um evento Bezier, o viewport exibe `P0`, `P1`, `P2` e `P3` junto
+com a curva. `P0` permanece fixo na origem do ator no inicio da transicao. `P1`, `P2` e `P3` podem
+ser selecionados e movidos nos eixos X, Y e Z pelo gizmo; mover `P3` atualiza
+os campos finais `x`, `y` e `z` do evento.
+
+Ao converter um evento sem deslocamento final para Bezier, o editor inicializa
+`P1`, `P2` e `P3` para a esquerda do ator em `-W`, `-2W` e `-3W` no eixo X,
+onde `W` e a largura atual da mesh no eixo X.
 
 Abaixo do controle de intervalo, os botoes `Usar tempo atual no inicio` e
 `Usar tempo atual no fim` atribuem o tempo atual da timeline ao respectivo
@@ -187,10 +233,10 @@ limite para preservar `inicio <= fim`.
 
 Na lista de eventos, o botao direito abre um menu contextual para criar um
 novo evento no mesmo instante do evento selecionado. Para uma transformacao
-suave, o menu tambem oferece a criacao no instante inicial ou final da
-transicao.
+suave ou Bezier, o menu tambem oferece a criacao no instante inicial ou final
+da transicao.
 
-Para eventos sem transicao suave, o botao `Usar tempo atual da timeline`
+Para eventos instantaneos, o botao `Usar tempo atual da timeline`
 atribui o tempo atual ao campo `time` do evento e reorganiza a lista.
 
 ```lua
@@ -310,8 +356,8 @@ clips ativos, restaura as poses capturadas e chama `onFinish`.
 
 Os callbacks nao sao serializados no arquivo `.iae.lua`; eles pertencem ao
 codigo do jogo. `onEvent` recebe a instancia, a tabela do evento e o indice do
-evento. Para uma transformacao suave, o callback ocorre no inicio do intervalo
-de transicao. `onFinish` e chamado uma vez por execucao, inclusive quando a
+evento. Para uma transformacao suave ou Bezier, o callback ocorre no inicio do
+intervalo de transicao. `onFinish` e chamado uma vez por execucao, inclusive quando a
 interacao e encerrada explicitamente por `stop()`.
 
 ## Validacao
@@ -326,7 +372,8 @@ Ao salvar, o editor valida:
 - tempos dentro da timeline;
 - alvos validos;
 - valores finitos das transformacoes dos eventos;
-- tipos de transicao e intervalos validos.
+- tipos de transicao e intervalos validos;
+- pontos `p1` e `p2` finitos para eventos Bezier.
 
 Ao exportar, tambem valida:
 

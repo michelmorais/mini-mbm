@@ -75,6 +75,16 @@ local S = {
     transformMode = 'move',
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, axesWorld = nil, drag = nil},
     eventHighlight = {actor = nil, remaining = 0, shape = nil, line = nil},
+    bezierOverlay = {
+        curve = nil,
+        guides = {},
+        points = {},
+        pointObjects = {},
+        selectedPoint = -1,
+        signature = nil,
+        event = nil,
+        actor = nil,
+    },
     originLines = {x = nil, y = nil, z = nil},
     showOrigins = true,
     xzPlane = nil,
@@ -93,6 +103,92 @@ local S = {
 }
 
 local L
+local projectDuration
+local transitionRange
+local seekAll
+
+local Bezier = {}
+
+function Bezier.isTimed(event)
+    return event and event.action == 'transform' and
+        (event.transition == 'smooth' or event.transition == 'bezier')
+end
+
+function Bezier.ensure(event)
+    if type(event) ~= 'table' or event.action ~= 'transform' then return end
+    if event.transition ~= 'bezier' then return end
+    event.bezier = type(event.bezier) == 'table' and event.bezier or {}
+    local p1 = type(event.bezier.p1) == 'table' and event.bezier.p1 or {}
+    local p2 = type(event.bezier.p2) == 'table' and event.bezier.p2 or {}
+    event.bezier.p1 = p1
+    event.bezier.p2 = p2
+    if p1.x == nil then p1.x = (event.x or 0) / 3 end
+    if p1.y == nil then p1.y = (event.y or 0) / 3 end
+    if p1.z == nil then p1.z = (event.z or 0) / 3 end
+    if p2.x == nil then p2.x = (event.x or 0) * 2 / 3 end
+    if p2.y == nil then p2.y = (event.y or 0) * 2 / 3 end
+    if p2.z == nil then p2.z = (event.z or 0) * 2 / 3 end
+end
+
+function Bezier.initialize(event, entry)
+    local hadBezier = type(event.bezier) == 'table'
+    Bezier.ensure(event)
+    if hadBezier then return end
+    if math.abs(event.x or 0) > 1e-6 or math.abs(event.y or 0) > 1e-6 or
+        math.abs(event.z or 0) > 1e-6 then return end
+    local width = entry and Bezier.meshWidth(entry) or 40
+    event.bezier.p1.x, event.bezier.p1.y, event.bezier.p1.z = -width, 0, 0
+    event.bezier.p2.x, event.bezier.p2.y, event.bezier.p2.z = -width * 2, 0, 0
+    event.x, event.y, event.z = -width * 3, 0, 0
+end
+
+function Bezier.point(event, index)
+    if index == 0 then return {x = 0, y = 0, z = 0} end
+    if index == 3 then return {x = event.x or 0, y = event.y or 0, z = event.z or 0} end
+    Bezier.ensure(event)
+    local source = index == 1 and event.bezier.p1 or event.bezier.p2
+    return {x = source.x or 0, y = source.y or 0, z = source.z or 0}
+end
+
+function Bezier.setPoint(event, index, point)
+    if index == 0 then return end
+    if index == 3 then
+        event.x, event.y, event.z = point.x, point.y, point.z
+        Bezier.ensure(event)
+        S.bezierOverlay.signature = nil
+        return
+    end
+    Bezier.ensure(event)
+    local target = index == 1 and event.bezier.p1 or event.bezier.p2
+    target.x, target.y, target.z = point.x, point.y, point.z
+    S.bezierOverlay.signature = nil
+end
+
+function Bezier.position(event, parameter)
+    local p1, p2, p3 = Bezier.point(event, 1), Bezier.point(event, 2), Bezier.point(event, 3)
+    local inverse = 1 - parameter
+    local weight1 = 3 * inverse * inverse * parameter
+    local weight2 = 3 * inverse * parameter * parameter
+    local weight3 = parameter * parameter * parameter
+    return {
+        x = weight1 * p1.x + weight2 * p2.x + weight3 * p3.x,
+        y = weight1 * p1.y + weight2 * p2.y + weight3 * p3.y,
+        z = weight1 * p1.z + weight2 * p2.z + weight3 * p3.z,
+    }
+end
+
+function Bezier.worldPoint(entry, point, axes)
+    local base = entry.previewBase or entry.base
+    return {
+        x = base.x + axes.x.x * point.x + axes.y.x * point.y + axes.z.x * point.z,
+        y = base.y + axes.x.y * point.x + axes.y.y * point.y + axes.z.y * point.z,
+        z = base.z + axes.x.z * point.x + axes.y.z * point.y + axes.z.z * point.z,
+    }
+end
+
+function Bezier.add(a, b)
+    return {x = a.x + b.x, y = a.y + b.y, z = a.z + b.z}
+end
 
 L = function(key)
     return tLang.L('iae_' .. key)
@@ -486,6 +582,20 @@ local function actorMeshExtent(entry, refreshBounds)
     return math.max(extent, 40 / 0.45)
 end
 
+function Bezier.markerSize(entry)
+    return math.max(3, math.min(12, actorMeshExtent(entry, true) * 0.035))
+end
+
+function Bezier.meshWidth(entry)
+    if not entry or not entry.object then return actorMeshExtent(entry or {}) end
+    -- getSize(true) gives the mesh width on its local X axis, including scale.
+    local ok, width = pcall(function() return entry.object:getSize(true) end)
+    if ok and type(width) == 'number' and width > 0 then return width end
+    ok, width = pcall(function() return entry.object:getAABB(true) end)
+    if ok and type(width) == 'number' and width > 0 then return width end
+    return actorMeshExtent(entry)
+end
+
 local function actorPickRadius(entry, refreshBounds)
     return actorMeshExtent(entry, refreshBounds) * 0.45
 end
@@ -520,6 +630,177 @@ local function eventHighlightVertices()
         end
     end
     return vertices
+end
+
+local function hideBezierOverlay()
+    local overlay = S.bezierOverlay
+    if overlay.curve then overlay.curve.visible = false end
+    for _, object in ipairs(overlay.guides) do object.visible = false end
+    for index = 0, 3 do
+        local object = overlay.pointObjects[index]
+        if object then object.visible = false end
+    end
+    overlay.points = {}
+    overlay.event = nil
+    overlay.actor = nil
+    overlay.signature = nil
+    overlay.selectedPoint = -1
+end
+
+local function updateBezierOverlay()
+    local overlay = S.bezierOverlay
+    local event = S.events[S.selectedEvent]
+    local entry = event and event.action == 'transform' and event.transition == 'bezier'
+        and actor(event.target) or nil
+    if not entry then
+        hideBezierOverlay()
+        return
+    end
+    Bezier.ensure(event)
+    local axes = interactionAxes()
+    local markerSize = Bezier.markerSize(entry)
+    local startTime, endTime = transitionRange(event, projectDuration())
+    local prefixAtStart = Bezier.otherTranslation(event.target, startTime, event)
+    local prefixAtEnd = Bezier.otherTranslation(event.target, endTime, event)
+    local points = {}
+    points[0] = Bezier.worldPoint(entry, prefixAtStart, axes)
+    points[1] = Bezier.worldPoint(entry, Bezier.add(prefixAtStart, Bezier.point(event, 1)), axes)
+    points[2] = Bezier.worldPoint(entry, Bezier.add(prefixAtStart, Bezier.point(event, 2)), axes)
+    points[3] = Bezier.worldPoint(entry, Bezier.add(prefixAtEnd, Bezier.point(event, 3)), axes)
+    local signatureParts = {tostring(event), tostring(entry), S.bezierOverlay.selectedPoint,
+        string.format('size=%.5g', markerSize)}
+    for index = 0, 3 do
+        local point = points[index]
+        signatureParts[#signatureParts + 1] = string.format('%.9g,%.9g,%.9g', point.x, point.y, point.z)
+    end
+    for _, candidate in ipairs(S.events) do
+        if candidate.action == 'transform' and candidate.target == event.target then
+            Bezier.ensure(candidate)
+            signatureParts[#signatureParts + 1] = table.concat({
+                tostring(candidate.transition), tostring(candidate.time),
+                tostring(candidate.transitionStart), tostring(candidate.transitionEnd),
+                tostring(candidate.x), tostring(candidate.y), tostring(candidate.z),
+                tostring(candidate.bezier and candidate.bezier.p1.x),
+                tostring(candidate.bezier and candidate.bezier.p1.y),
+                tostring(candidate.bezier and candidate.bezier.p1.z),
+                tostring(candidate.bezier and candidate.bezier.p2.x),
+                tostring(candidate.bezier and candidate.bezier.p2.y),
+                tostring(candidate.bezier and candidate.bezier.p2.z),
+            }, ',')
+        end
+    end
+    local signature = table.concat(signatureParts, '|')
+    if overlay.signature == signature then return end
+
+    overlay.signature = signature
+    overlay.event = event
+    overlay.actor = event.target
+    overlay.points = points
+    local curvePoints = {}
+    for sample = 0, 32 do
+        local parameter = sample / 32
+        local sampleTime = startTime + (endTime - startTime) * parameter
+        local localPoint = Bezier.add(
+            Bezier.otherTranslation(event.target, sampleTime, event),
+            Bezier.position(event, parameter))
+        local point = Bezier.worldPoint(entry, localPoint, axes)
+        curvePoints[#curvePoints + 1] = point.x
+        curvePoints[#curvePoints + 1] = point.y
+        curvePoints[#curvePoints + 1] = point.z
+    end
+    local curveCreated = false
+    if not overlay.curve then
+        overlay.curve = line:new('3d', 0, 0, 0)
+        overlay.curve.alwaysOnTop = true
+        overlay.curve.alwaysOnTopPriority = 7
+        overlay.curve.alwaysRender = true
+        curveCreated = true
+    end
+    if curveCreated then overlay.curve:add(curvePoints) else overlay.curve:set(curvePoints, 1) end
+    overlay.curve:setColor(1, 0.85, 0.15, 1)
+    overlay.curve.visible = true
+
+    local guideCount = 0
+    for segment = 0, 2 do
+        local fromPoint, toPoint = points[segment], points[segment + 1]
+        for dash = 0, 7 do
+            guideCount = guideCount + 1
+            local first = dash / 8
+            local last = first + 0.55 / 8
+            local a = {
+                x = fromPoint.x + (toPoint.x - fromPoint.x) * first,
+                y = fromPoint.y + (toPoint.y - fromPoint.y) * first,
+                z = fromPoint.z + (toPoint.z - fromPoint.z) * first,
+            }
+            local b = {
+                x = fromPoint.x + (toPoint.x - fromPoint.x) * last,
+                y = fromPoint.y + (toPoint.y - fromPoint.y) * last,
+                z = fromPoint.z + (toPoint.z - fromPoint.z) * last,
+            }
+            local object = overlay.guides[guideCount]
+            if not object then
+                object = line:new('3d', 0, 0, 0)
+                overlay.guides[guideCount] = object
+                object.alwaysOnTop = true
+                object.alwaysOnTopPriority = 6
+                object.alwaysRender = true
+                object:add({a.x, a.y, a.z, b.x, b.y, b.z})
+            else
+                object:set({a.x, a.y, a.z, b.x, b.y, b.z}, 1)
+            end
+            object:setColor(0.95, 0.65, 0.1, 0.75)
+            object.visible = true
+        end
+    end
+    for index = guideCount + 1, #overlay.guides do overlay.guides[index].visible = false end
+
+    local colors = {
+        [0] = {0.7, 0.7, 0.7, 1},
+        [1] = {1, 0.45, 0.1, 1},
+        [2] = {1, 0.45, 0.1, 1},
+        [3] = {0.25, 1, 0.35, 1},
+    }
+    for index = 0, 3 do
+        local object = overlay.pointObjects[index]
+        if not object then
+            object = shape:new('3d', 0, 0, 0)
+            if object:create(eventHighlightVertices(), nil,
+                'interaction_animation_bezier_point_' .. tostring(index)) then
+                object.alwaysOnTop = true
+                object.alwaysOnTopPriority = 8
+                object.alwaysRender = true
+                overlay.pointObjects[index] = object
+            else
+                object:destroy()
+                object = nil
+            end
+        end
+        if object then
+            local point = points[index]
+            local color = colors[index]
+            object:setPos(point.x, point.y, point.z)
+            local size = index == overlay.selectedPoint and markerSize * 1.35 or markerSize
+            object:setScale(size, size, size)
+            object:setColor(table.unpack(color))
+            object.visible = true
+        end
+    end
+end
+
+local function pickBezierPoint(sx, sy)
+    local overlay = S.bezierOverlay
+    local entry = overlay.actor and actor(overlay.actor) or nil
+    if not entry or not overlay.points then return nil end
+    local bestIndex, bestDistance
+    local radius = math.max(Bezier.markerSize(entry) * 0.85, 4)
+    for index = 0, 3 do
+        local point = overlay.points[index]
+        local distance = point and raySphereDistance(sx, sy, point, radius) or nil
+        if distance and (not bestDistance or distance < bestDistance) then
+            bestIndex, bestDistance = index, distance
+        end
+    end
+    return bestIndex
 end
 
 local function hideEventHighlight()
@@ -602,6 +883,7 @@ local function hideGizmo()
     S.gizmo.length = nil
     S.gizmo.radius = nil
     S.gizmo.axesWorld = nil
+    S.gizmo.target = nil
 end
 
 normalizedDirection = function(x, y, z)
@@ -622,12 +904,17 @@ local function rayPlaneHit(sx, sy, point, normal)
 end
 
 local function updateGizmo()
-    local entry = S.selectedActor and actor(S.selectedActor) or nil
+    local overlay = S.bezierOverlay
+    local bezierEntry = overlay.actor and actor(overlay.actor) or nil
+    local bezierPoint = bezierEntry and overlay.points[overlay.selectedPoint] or nil
+    local isBezierTarget = bezierEntry and bezierPoint and overlay.selectedPoint >= 0 and
+        overlay.selectedPoint <= 3
+    local entry = isBezierTarget and bezierEntry or (S.selectedActor and actor(S.selectedActor) or nil)
     if not entry or not entry.object then
         hideGizmo()
         return
     end
-    local origin = actorPosition(entry)
+    local origin = isBezierTarget and bezierPoint or actorPosition(entry)
     local length = math.max(actorMeshExtent(entry) * 0.8, 32)
     local previousOrigin, previousLength = S.gizmo.origin, S.gizmo.length
     local previousAxes = S.gizmo.axesWorld
@@ -667,7 +954,7 @@ local function updateGizmo()
         object.alwaysRender = true
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(definition.color))
-        object.visible = S.transformMode == 'move'
+        object.visible = isBezierTarget or S.transformMode == 'move'
     end
     local radius = math.max(actorMeshExtent(entry) * 0.55, 20)
     local previousRadius = S.gizmo.radius
@@ -701,12 +988,15 @@ local function updateGizmo()
         object.alwaysRender = true
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(definition.color))
-        object.visible = S.transformMode == 'rotate'
+        object.visible = not isBezierTarget and S.transformMode == 'rotate'
     end
     S.gizmo.origin = origin
     S.gizmo.length = length
     S.gizmo.radius = radius
     S.gizmo.axesWorld = axesWorld
+    S.gizmo.target = isBezierTarget
+        and {kind = 'bezier', actor = overlay.actor, point = overlay.selectedPoint}
+        or {kind = 'actor', actor = S.selectedActor}
 end
 
 local function pickActor(sx, sy)
@@ -724,7 +1014,9 @@ local function pickActor(sx, sy)
 end
 
 local function pickGizmoAxis(sx, sy)
-    if S.transformMode ~= 'move' or not S.gizmo.origin or not S.gizmo.length or not S.gizmo.axesWorld then return nil end
+    local target = S.gizmo.target
+    if (S.transformMode ~= 'move' and not (target and target.kind == 'bezier')) or
+        not S.gizmo.origin or not S.gizmo.length or not S.gizmo.axesWorld then return nil end
     local bestName, bestDistance
     local threshold = math.max(S.gizmo.length * 0.12, 12)
     for name, axis in pairs(S.gizmo.axesWorld) do
@@ -742,7 +1034,8 @@ local function pickGizmoAxis(sx, sy)
 end
 
 local function pickRotationRing(sx, sy)
-    if S.transformMode ~= 'rotate' or not S.gizmo.origin or not S.gizmo.radius or not S.gizmo.axesWorld then
+    if (S.transformMode ~= 'rotate' or (S.gizmo.target and S.gizmo.target.kind == 'bezier')) or
+        not S.gizmo.origin or not S.gizmo.radius or not S.gizmo.axesWorld then
         return nil
     end
     local tolerance = math.max(S.gizmo.radius * 0.12, 12)
@@ -775,14 +1068,25 @@ end
 local function beginViewportInteraction(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
+        local bezierPoint = pickBezierPoint(x, y)
+        if bezierPoint ~= nil then
+            S.bezierOverlay.selectedPoint = bezierPoint
+            S.gizmo.drag = nil
+            updateBezierOverlay()
+            updateGizmo()
+            return
+        end
         local picked = pickActor(x, y)
         if picked and picked ~= S.selectedActor then
             S.selectedActor = picked
+            S.bezierOverlay.selectedPoint = -1
             S.gizmo.drag = nil
             updateGizmo()
             return
         end
-        local entry = S.selectedActor and actor(S.selectedActor) or nil
+        local gizmoTarget = S.gizmo.target
+        local entry = gizmoTarget and gizmoTarget.kind == 'bezier' and actor(gizmoTarget.actor) or
+            (S.selectedActor and actor(S.selectedActor) or nil)
         local ring = S.selectedActor and pickRotationRing(x, y) or nil
         if ring and entry and S.gizmo.origin then
             if S.playing then S.playing = false end
@@ -807,11 +1111,34 @@ local function beginViewportInteraction(key, x, y)
             }
             return
         end
-        local axisName = S.selectedActor and pickGizmoAxis(x, y) or nil
+        local axisName = S.gizmo.target and pickGizmoAxis(x, y) or nil
         if axisName and entry and S.gizmo.origin then
             local axis = S.gizmo.axesWorld[axisName]
             local parameter = rayAxisParameter(x, y, S.gizmo.origin, axis)
             if parameter then
+                local target = S.gizmo.target
+                if target and target.kind == 'bezier' then
+                    if target.point == 0 then return end
+                    local event = S.events[S.selectedEvent]
+                    local point = event and Bezier.point(event, target.point) or nil
+                    if not point then return end
+                    if S.playing then S.playing = false end
+                    S.gizmo.drag = {
+                        mode = 'move',
+                        targetKind = 'bezier',
+                        actor = target.actor,
+                        point = target.point,
+                        axisName = axisName,
+                        axis = cloneTable(axis),
+                        startParameter = parameter,
+                        startPoint = point,
+                        origin = cloneTable(S.gizmo.origin),
+                        startX = x,
+                        startY = y,
+                        moved = false,
+                    }
+                    return
+                end
                 if S.playing then
                     S.playing = false
                 end
@@ -832,10 +1159,12 @@ local function beginViewportInteraction(key, x, y)
         end
         if picked then
             S.selectedActor = picked
+            S.bezierOverlay.selectedPoint = -1
             updateGizmo()
             return
         end
         S.selectedActor = nil
+        S.bezierOverlay.selectedPoint = -1
         hideGizmo()
         S.cameraDrag = {kind = 'orbit', startX = x, startY = y}
     elseif key == 1 then
@@ -852,12 +1181,33 @@ local function updateViewportInteraction(x, y)
             local parameter = rayAxisParameter(x, y, drag.origin, drag.axis)
             if parameter then
                 local amount = parameter - drag.startParameter
-                local base = editableBase(entry)
-                base.x = drag.base.x + drag.axis.x * amount
-                base.y = drag.base.y + drag.axis.y * amount
-                base.z = drag.base.z + drag.axis.z * amount
-                entry.rotationIntent = nil
-                applyTransform(entry)
+                if drag.targetKind == 'bezier' then
+                    local event = S.events[S.selectedEvent]
+                    if event and event.action == 'transform' and event.transition == 'bezier' then
+                        local axes = interactionAxes()
+                        local point = {
+                            x = drag.startPoint.x,
+                            y = drag.startPoint.y,
+                            z = drag.startPoint.z,
+                        }
+                        local amountX = axes.x.x * drag.axis.x + axes.x.y * drag.axis.y + axes.x.z * drag.axis.z
+                        local amountY = axes.y.x * drag.axis.x + axes.y.y * drag.axis.y + axes.y.z * drag.axis.z
+                        local amountZ = axes.z.x * drag.axis.x + axes.z.y * drag.axis.y + axes.z.z * drag.axis.z
+                        point.x = point.x + amount * amountX
+                        point.y = point.y + amount * amountY
+                        point.z = point.z + amount * amountZ
+                        Bezier.setPoint(event, drag.point, point)
+                        S.modified = true
+                        seekAll(S.time, false)
+                    end
+                else
+                    local base = editableBase(entry)
+                    base.x = drag.base.x + drag.axis.x * amount
+                    base.y = drag.base.y + drag.axis.y * amount
+                    base.z = drag.base.z + drag.axis.z * amount
+                    entry.rotationIntent = nil
+                    applyTransform(entry)
+                end
                 drag.moved = true
                 S.modified = true
             end
@@ -1120,7 +1470,7 @@ local function refreshDefaultTimelineDuration()
     S.timelineDuration = math.max(0.01, maximum)
 end
 
-local function projectDuration()
+projectDuration = function()
     return math.max(0.01, S.timelineDuration or 0)
 end
 
@@ -1142,7 +1492,7 @@ local function clamp(value, minimum, maximum)
     return math.max(minimum, math.min(maximum, value))
 end
 
-local function transitionRange(event, maximumTime)
+transitionRange = function(event, maximumTime)
     local lower, upper = transitionBounds(event, maximumTime)
     local finish = tonumber(event.transitionEnd)
     if finish == nil then finish = tonumber(event.time) or 0 end
@@ -1156,12 +1506,13 @@ local function transitionRange(event, maximumTime)
 end
 
 local function normalizeTransition(event, maximumTime)
-    if event.transition ~= 'smooth' then return end
+    if not Bezier.isTimed(event) then return end
     local start, finish = transitionRange(event, maximumTime)
     event.transitionStart = start
     event.transitionEnd = finish
     event.time = finish
     event.duration = nil
+    Bezier.ensure(event)
 end
 
 local function normalizeEventDefaults(event)
@@ -1176,15 +1527,41 @@ local function normalizeEventDefaults(event)
     if event.sy == nil then event.sy = 1 end
     if event.sz == nil then event.sz = 1 end
     if event.transition == nil then event.transition = 'instant' end
+    Bezier.ensure(event)
 end
 
 local function transformProgress(event, time)
-    if event.transition ~= 'smooth' then return 1 end
+    if event.transition == 'instant' then return 1 end
     local transitionStart, transitionEnd = transitionRange(event, projectDuration())
     if time < transitionStart then return 0 end
     if transitionEnd <= transitionStart then return time >= transitionEnd and 1 or 0 end
     local progress = clamp((time - transitionStart) / (transitionEnd - transitionStart), 0, 1)
+    if event.transition == 'bezier' then return progress end
     return progress * progress * (3 - 2 * progress)
+end
+
+function Bezier.translationAtTime(event, time)
+    local progress = transformProgress(event, time)
+    if progress <= 0 then return {x = 0, y = 0, z = 0} end
+    if event.transition == 'bezier' then return Bezier.position(event, progress) end
+    return {
+        x = (event.x or 0) * progress,
+        y = (event.y or 0) * progress,
+        z = (event.z or 0) * progress,
+    }
+end
+
+function Bezier.otherTranslation(target, time, excluded)
+    local result = {x = 0, y = 0, z = 0}
+    for _, event in ipairs(S.events) do
+        if event ~= excluded and event.action == 'transform' and event.target == target then
+            local translation = Bezier.translationAtTime(event, time)
+            result.x = result.x + translation.x
+            result.y = result.y + translation.y
+            result.z = result.z + translation.z
+        end
+    end
+    return result
 end
 
 local function applyEvent(event, progress)
@@ -1194,9 +1571,11 @@ local function applyEvent(event, progress)
         progress = progress == nil and 1 or progress
         if progress <= 0 then return end
         local axes = interactionAxes()
-        local x = (event.x or 0) * progress
-        local y = (event.y or 0) * progress
-        local z = (event.z or 0) * progress
+        local translation = event.transition == 'bezier'
+            and Bezier.position(event, progress)
+            or {x = (event.x or 0) * progress, y = (event.y or 0) * progress,
+                z = (event.z or 0) * progress}
+        local x, y, z = translation.x, translation.y, translation.z
         entry.offset.x = entry.offset.x + axes.x.x * x + axes.y.x * y + axes.z.x * z
         entry.offset.y = entry.offset.y + axes.x.y * x + axes.y.y * y + axes.z.y * z
         entry.offset.z = entry.offset.z + axes.x.z * x + axes.y.z * y + axes.z.z * z
@@ -1239,7 +1618,7 @@ local function resetOffsets()
     end
 end
 
-local function seekAll(time, keepPlaying)
+seekAll = function(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, projectDuration()))
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
@@ -1384,7 +1763,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 8,
+        version = 9,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1619,10 +1998,11 @@ local function validateProject(forExport)
                     return false
                 end
             end
-            if event.transition ~= 'instant' and event.transition ~= 'smooth' then
+            if event.transition ~= 'instant' and event.transition ~= 'smooth' and
+                event.transition ~= 'bezier' then
                 return fail('validation_event_transition', label)
             end
-            if event.transition == 'smooth' then
+            if Bezier.isTimed(event) then
                 local start = tonumber(event.transitionStart)
                 local finish = tonumber(event.transitionEnd or event.time)
                 if not finite(start) or not finite(finish) or start < 0 or finish < start or finish > duration then
@@ -1631,6 +2011,18 @@ local function validateProject(forExport)
                 local lower, upper = transitionBounds(event, duration)
                 if start < lower - 1e-6 or finish > upper + 1e-6 then
                     return fail('validation_event_range', label)
+                end
+                if event.transition == 'bezier' then
+                    Bezier.ensure(event)
+                    for _, pointName in ipairs({'p1', 'p2'}) do
+                        local point = event.bezier[pointName]
+                        for _, axis in ipairs({'x', 'y', 'z'}) do
+                            if not checkNumber(point[axis], 'validation_event_bezier',
+                                label .. '.bezier.' .. pointName .. '.' .. axis) then
+                                return false
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -1834,7 +2226,7 @@ local function eventLabel(event, index)
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
     local timeLabel
-    if event.action == 'transform' and event.transition == 'smooth' then
+    if event.action == 'transform' and Bezier.isTimed(event) then
         local start, finish = transitionRange(event, projectDuration())
         timeLabel = string.format('%.3fs -> %.3fs', start, finish)
     else
@@ -1939,7 +2331,7 @@ local function captureTransformEvent()
         S.selectedEvent = #S.events
         sortEvents()
     end
-    if event.transition == 'smooth' then
+    if Bezier.isTimed(event) then
         local start, finish = transitionRange(event, projectDuration())
         event.transitionStart = start
         event.transitionEnd = finish
@@ -2016,7 +2408,7 @@ end
 local function addEventContextMenu(event, index, pending)
     if not tImGui.BeginPopupContextItem('iae_event_context_' .. tostring(index)) then return end
     local target = event.action ~= 'notify' and event.target or S.selectedActor or S.clockActor
-    if event.action == 'transform' and event.transition == 'smooth' then
+    if event.action == 'transform' and Bezier.isTimed(event) then
         local start, finish = transitionRange(event, projectDuration())
         if tImGui.MenuItem(string.format(L('create_event_transition_start'), start)) then
             pending.time = start
@@ -2281,9 +2673,11 @@ local function showEvents()
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
                 S.selectedEvent = index
+                S.bezierOverlay.selectedPoint = -1
+                S.bezierOverlay.signature = nil
                 S.playing = false
                 local eventTime = event.time or 0
-                if event.transition == 'smooth' then
+                if Bezier.isTimed(event) then
                     local _, transitionEnd = transitionRange(event, projectDuration())
                     eventTime = transitionEnd
                 end
@@ -2305,7 +2699,7 @@ local function showEvents()
                 S.modified = true
                 validateEventIds()
             end
-            if event.transition == 'smooth' then
+            if Bezier.isTimed(event) then
                 local _, finish = transitionRange(event, projectDuration())
                 tImGui.Text(string.format(L('transition_end_value'), finish))
                 tImGui.SameLine()
@@ -2358,6 +2752,7 @@ local function showEvents()
                     event.transitionStart = nil
                     event.transitionEnd = nil
                     event.duration = nil
+                    event.bezier = nil
                 elseif event.action == 'visibility' then
                     event.target = actor(event.target) and event.target or S.selectedActor or S.clockActor
                     event.visible = event.visible ~= false
@@ -2366,6 +2761,7 @@ local function showEvents()
                     event.transitionStart = nil
                     event.transitionEnd = nil
                     event.duration = nil
+                    event.bezier = nil
                 elseif not actor(event.target) then
                     event.target = S.selectedActor or S.clockActor
                 end
@@ -2389,12 +2785,16 @@ local function showEvents()
                 end
             elseif event.action == 'transform' then
                 tImGui.SetNextItemWidth(210)
+                local currentTransition = event.transition == 'smooth' and 2 or
+                    event.transition == 'bezier' and 3 or 1
                 local transitionChanged, transitionIndex = tImGui.Combo(
-                    L('transition'), event.transition == 'smooth' and 2 or 1,
-                    {L('instant'), L('smooth')})
+                    L('transition'), currentTransition,
+                    {L('instant'), L('smooth'), L('bezier')})
                 if transitionChanged then
-                    event.transition = transitionIndex == 2 and 'smooth' or 'instant'
-                    if event.transition == 'smooth' then
+                    local previousTransition = event.transition
+                    event.transition = transitionIndex == 2 and 'smooth' or
+                        transitionIndex == 3 and 'bezier' or 'instant'
+                    if Bezier.isTimed(event) then
                         local minimum, maximum = transitionBounds(event, projectDuration())
                         local start = clamp(event.time or S.time, minimum, maximum)
                         local finish = math.min(maximum, start + 0.2)
@@ -2402,17 +2802,25 @@ local function showEvents()
                         event.transitionEnd = finish
                         event.time = finish
                         event.duration = nil
+                        if event.transition == 'bezier' and previousTransition ~= 'bezier' then
+                            Bezier.initialize(event, actor(event.target))
+                        else
+                            Bezier.ensure(event)
+                        end
                     else
                         event.time = select(2, transitionRange(event, projectDuration()))
                         event.transitionStart = nil
                         event.transitionEnd = nil
                         event.duration = nil
+                        event.bezier = nil
                     end
                     sortEvents()
+                    S.bezierOverlay.selectedPoint = -1
+                    S.bezierOverlay.signature = nil
                     S.modified = true
                     seekAll(S.time, false)
                 end
-                if event.transition == 'smooth' then
+                if Bezier.isTimed(event) then
                     local start, finish = transitionRange(event, projectDuration())
                     local minimum, maximum = transitionBounds(event, projectDuration())
                     tImGui.SetNextItemWidth(210)
@@ -2437,6 +2845,29 @@ local function showEvents()
                     tImGui.SameLine()
                     if tImGui.Button(L('set_transition_end'), {x = 105, y = 0}) then
                         setTransitionEndpoint(event, 'end')
+                    end
+                    if event.transition == 'bezier' then
+                        Bezier.ensure(event)
+                        tImGui.Separator()
+                        tImGui.Text(L('bezier_controls'))
+                        tImGui.TextWrapped(L('bezier_controls_help'))
+                        for index, pointName in ipairs({'p1', 'p2'}) do
+                            local point = event.bezier[pointName]
+                            tImGui.Text(string.format(L('bezier_point'), index))
+                            for _, axis in ipairs({'x', 'y', 'z'}) do
+                                tImGui.SetNextItemWidth(105)
+                                local changed, value = tImGui.InputFloat(
+                                    string.upper(axis) .. '##iae_bezier_' .. pointName .. '_' .. axis,
+                                    point[axis] or 0)
+                                if changed then
+                                    point[axis] = value
+                                    S.bezierOverlay.signature = nil
+                                    S.modified = true
+                                    seekAll(S.time, false)
+                                end
+                                if axis ~= 'z' then tImGui.SameLine() end
+                            end
+                        end
                     end
                 end
                 local fields = {{'x', L('offset_x'), 0}, {'y', L('offset_y'), 0}, {'z', L('offset_z'), 0},
@@ -2550,6 +2981,7 @@ function onLoop(delta)
     showCameraPanel()
     showEvents()
     showTimeline()
+    updateBezierOverlay()
     updateGizmo()
     updateEventHighlight(delta)
     updateXZPlane()
@@ -2609,6 +3041,14 @@ function onFinalizeScene()
     hideEventHighlight()
     if S.eventHighlight.shape then S.eventHighlight.shape:destroy(); S.eventHighlight.shape = nil end
     if S.eventHighlight.line then S.eventHighlight.line:destroy(); S.eventHighlight.line = nil end
+    if S.bezierOverlay.curve then S.bezierOverlay.curve:destroy(); S.bezierOverlay.curve = nil end
+    for _, object in ipairs(S.bezierOverlay.guides) do
+        if object then object:destroy() end
+    end
+    for index = 0, 3 do
+        local object = S.bezierOverlay.pointObjects[index]
+        if object then object:destroy() end
+    end
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for _, object in pairs(S.originLines) do
         if object then object:destroy() end
