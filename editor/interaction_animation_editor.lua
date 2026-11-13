@@ -44,6 +44,7 @@ local function newActorState(baseX)
         runtimeClip = nil,
         runtimeOverride = false,
         runtimeStartTime = 0,
+        rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
     }
@@ -360,6 +361,18 @@ local function unwrapEulerDegrees(rx, ry, rz, reference)
     return unwrapAngleDegrees(rx, reference.rx),
         unwrapAngleDegrees(ry, reference.ry),
         unwrapAngleDegrees(rz, reference.rz)
+end
+
+-- Euler decomposition is only a shortest representation of a rotation. Near
+-- the Y branch change, the visible base pose can legitimately report a Z
+-- value on the other side of the origin even though the user dragged the Z
+-- ring in the positive direction. Keep the matrix's signed shortest result
+-- in that case; only unwrap when the pose explicitly indicates a turn beyond
+-- 180 degrees. This preserves deliberate long rotations without converting
+-- a normal +150 degree drag into a negative rotation.
+local function capturedRotationAngle(raw, reference)
+    if reference == nil or math.abs(reference) <= 180 then return raw end
+    return unwrapAngleDegrees(raw, reference)
 end
 
 local function rotationToAnchorEuler(matrix)
@@ -842,6 +855,7 @@ local function updateViewportInteraction(x, y)
                 base.x = drag.base.x + drag.axis.x * amount
                 base.y = drag.base.y + drag.axis.y * amount
                 base.z = drag.base.z + drag.axis.z * amount
+                entry.rotationIntent = nil
                 applyTransform(entry)
                 drag.moved = true
                 S.modified = true
@@ -875,6 +889,10 @@ local function updateViewportInteraction(x, y)
                     local rx, ry, rz = matrixToEulerDegrees(rotated)
                     base.rx, base.ry, base.rz = unwrapEulerDegrees(rx, ry, rz, drag.lastEuler)
                     drag.lastEuler = {rx = base.rx, ry = base.ry, rz = base.rz}
+                    entry.rotationIntent = {
+                        axisName = drag.axisName,
+                        angle = math.deg(drag.accumulatedAngle),
+                    }
                     applyTransform(entry)
                     drag.moved = true
                     S.modified = true
@@ -1224,7 +1242,10 @@ local function seekAll(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, projectDuration()))
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        if entry then entry.previewBase = nil end
+        if entry then
+            entry.previewBase = nil
+            entry.rotationIntent = nil
+        end
     end
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
@@ -1263,6 +1284,26 @@ local function sortEvents()
         if item.event == selected then selectedIndex = index end
     end
     S.selectedEvent = selectedIndex > 0 and selectedIndex or math.min(S.selectedEvent, #S.events)
+end
+
+local function setTransitionEndpoint(event, endpoint)
+    local minimum, maximum = transitionBounds(event, projectDuration())
+    local start, finish = transitionRange(event, projectDuration())
+    local current = clamp(S.time, minimum, maximum)
+    if endpoint == 'start' then
+        start = current
+        if finish < start then finish = start end
+    else
+        finish = current
+        if finish < start then start = finish end
+    end
+    event.transitionStart = start
+    event.transitionEnd = finish
+    event.time = finish
+    event.duration = nil
+    sortEvents()
+    S.modified = true
+    seekAll(S.time, false)
 end
 
 local function setTimelineDuration(value)
@@ -1748,7 +1789,29 @@ local function captureTransformEvent()
         ry = current.ry - origin.ry,
         rz = current.rz - origin.rz,
     }
-    local rx, ry, rz = unwrapEulerDegrees(rawRx, rawRy, rawRz, rotationReference)
+    local rotationIntent = entry.rotationIntent
+    if rotationIntent then
+        local field = rotationIntent.axisName == 'x' and 'rx' or
+            rotationIntent.axisName == 'y' and 'ry' or 'rz'
+        local intendedAngle = rotationIntent.angle
+        if event then
+            intendedAngle = intendedAngle + (event[field] or 0) * transformProgress(event, S.time)
+        end
+        local otherA, otherB
+        if field == 'rx' then
+            otherA, otherB = rawRy, rawRz
+        elseif field == 'ry' then
+            otherA, otherB = rawRx, rawRz
+        else
+            otherA, otherB = rawRx, rawRy
+        end
+        if math.abs(otherA) < 0.001 and math.abs(otherB) < 0.001 then
+            rotationReference[field] = intendedAngle
+        end
+    end
+    local rx = capturedRotationAngle(rawRx, rotationReference.rx)
+    local ry = capturedRotationAngle(rawRy, rotationReference.ry)
+    local rz = capturedRotationAngle(rawRz, rotationReference.rz)
     local isNewEvent = not event
     if isNewEvent then
         event = {
@@ -1863,11 +1926,6 @@ local function updatePlayback(delta)
         end
     end
     resetOffsets()
-    for _, event in ipairs(S.events) do
-        if event.action == 'transform' then
-            applyEvent(event, transformProgress(event, S.time))
-        end
-    end
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
@@ -1885,7 +1943,17 @@ local function updatePlayback(delta)
                 seekClip(entry, selected, localTime, true)
             end
         end
-        applyTransform(entry)
+    end
+    -- Apply interaction transforms after clip sampling. Some renderable
+    -- animation operations update the selected frame/player state, so the
+    -- final object transform must be the last write in the playback pass.
+    for _, event in ipairs(S.events) do
+        if event.action == 'transform' then
+            applyEvent(event, transformProgress(event, S.time))
+        end
+    end
+    for _, id in ipairs(S.actorOrder) do
+        applyTransform(actor(id))
     end
     if reachedTimelineEnd then S.playing = false end
     if not S.playing and not S.continueClipsAfterTimeline then seekAll(S.time, false) end
@@ -1922,11 +1990,11 @@ local function actorPanel(id)
             end
             local base = displayBase(entry)
             tImGui.SetNextItemWidth(105)
-            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
+            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
+            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
+            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
         else
@@ -1995,31 +2063,31 @@ local function showActors()
             local base = displayBase(selected)
             tImGui.SetNextItemWidth(105)
             local changed, value = tImGui.InputFloat('POS X##iae_selected_pos_x', base.x)
-            if changed then local edited = editableBase(selected); edited.x = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.x = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Y##iae_selected_pos_y', base.y)
-            if changed then local edited = editableBase(selected); edited.y = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.y = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Z##iae_selected_pos_z', base.z)
-            if changed then local edited = editableBase(selected); edited.z = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.z = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT X##iae_selected_rot_x', base.rx)
-            if changed then local edited = editableBase(selected); edited.rx = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.rx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Y##iae_selected_rot_y', base.ry)
-            if changed then local edited = editableBase(selected); edited.ry = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.ry = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Z##iae_selected_rot_z', base.rz)
-            if changed then local edited = editableBase(selected); edited.rz = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.rz = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_x') .. '##iae_selected_scale_x', base.sx, 0.05)
-            if changed then local edited = editableBase(selected); edited.sx = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_y') .. '##iae_selected_scale_y', base.sy, 0.05)
-            if changed then local edited = editableBase(selected); edited.sy = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sy = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_z') .. '##iae_selected_scale_z', base.sz, 0.05)
-            if changed then local edited = editableBase(selected); edited.sz = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sz = value; applyTransform(selected); S.modified = true end
             tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
             if math.abs(S.time) > 1e-6 then tImGui.TextWrapped(L('preview_transform_note')) end
         else
@@ -2206,6 +2274,13 @@ local function showEvents()
                         sortEvents()
                         S.modified = true
                         seekAll(S.time, false)
+                    end
+                    if tImGui.Button(L('set_transition_start'), {x = 105, y = 0}) then
+                        setTransitionEndpoint(event, 'start')
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(L('set_transition_end'), {x = 105, y = 0}) then
+                        setTransitionEndpoint(event, 'end')
                     end
                 end
                 local fields = {{'x', L('offset_x'), 0}, {'y', L('offset_y'), 0}, {'z', L('offset_z'), 0},

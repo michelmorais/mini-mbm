@@ -164,6 +164,11 @@ de disparo. Eventos suaves mostram `Fim da transicao`; o controle
 `Inicio / fim da transicao` edita os dois instantes da timeline mestre. Esse
 intervalo nao representa uma duracao independente.
 
+Abaixo do controle de intervalo, os botoes `Usar tempo atual no inicio` e
+`Usar tempo atual no fim` atribuem o tempo atual da timeline ao respectivo
+limite. Se os pontos forem definidos fora de ordem, o editor ajusta o outro
+limite para preservar `inicio <= fim`.
+
 ```lua
 {
     id = "move_actor2",
