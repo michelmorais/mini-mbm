@@ -17,11 +17,19 @@ CORE_MANAGER::update()
     MESH_MANAGER::pumpAsyncLoads()        // dispatches mesh:loadAsync() completions
     util::pumpDeferredAddPathScripts()    // dispatches deferred addPath() Lua-touching work
     this->updatePhysis() / updateAudio()
-    for each plugin: plugin->onLoop(delta)  // ImGui plugin's onLoop is a no-op (just stores delta)
+    for each plugin: plugin->onLoop(delta)  // post-simulation, before rendering
 this->render()
     for each plugin: plugin->onRender()   // ImGui plugin calls ImGui::EndFrame() / ImGui::Render() here
 this->swapBuffers()
 ```
+
+`PLUGIN::onLoop(delta)` is intentionally after scene logic, deferred main-thread
+work, physics and audio, and before rendering. This is the engine-wide
+post-simulation/pre-render phase. A plugin can use it to apply the final visual
+state for the current frame; moving it before physics would allow the physics
+step to overwrite plugin changes and would silently change the contract for all
+existing plugins. Code that must affect physics belongs in scene logic or in an
+explicit physics-facing API.
 
 Key point: `pumpAsyncLoads()` and `pumpDeferredAddPathScripts()` run **on the main thread**,
 **inside** the same `NewFrame()`/`EndFrame()` bracket as the Lua `onLoop()` callback, sequentially

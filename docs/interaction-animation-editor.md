@@ -239,9 +239,7 @@ local instance = runtime.start {
     }
 }
 
-function onLoop(delta)
-    instance:update(delta)
-end
+-- A engine atualiza a interacao automaticamente pelo ciclo de plugins.
 ```
 
 As chaves de `actors` podem usar o slot interno (`actor1`) ou seu alias com
@@ -256,9 +254,10 @@ Ao iniciar, o runtime:
 5. aplica os eventos do tempo zero;
 6. chama `onStart`.
 
-`instance:update(delta)` avanca a timeline, dispara eventos, aplica
-transformacoes e atualiza visibilidade. O retorno e `false` quando a interacao
-termina.
+Depois de `runtime.start(config)`, a instancia e registrada no ciclo de plugins
+da engine. A cada frame o runtime avanca a timeline, dispara eventos, aplica
+transformacoes e atualiza visibilidade automaticamente; o jogo nao precisa
+chamar um metodo de atualizacao manual.
 
 `instance:isFinished()` informa se a timeline terminou ou se `stop()` foi
 chamado. `instance:restart()` restaura as poses capturadas, rearma eventos,

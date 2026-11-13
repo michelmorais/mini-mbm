@@ -40,9 +40,20 @@
     CALL ORDER
     ----------
     require "myplugin"  ->  luaopen_myplugin()  ->  onSubscribe()
-    every frame         ->  onLoop(delta)  ->  onRender()
+    every frame         ->  onPrepare() -> scene logic -> physics/audio -> onLoop(delta) -> render -> onRender()
     scene ends          ->  onDestroy()
     next scene          ->  luaopen_myplugin() again from scratch  ->  onSubscribe()
+
+    FRAME PHASE CONTRACT
+    --------------------
+    onLoop(delta) is the post-simulation, pre-render callback. The engine first
+    runs the scene logic (including Lua onLoop), completes deferred main-thread
+    work, updates physics and audio, and only then calls plugin onLoop methods.
+    Rendering happens after that callback. A plugin that changes a renderable
+    transform in onLoop therefore writes the final transform for the current
+    frame, while a plugin that must affect the next physics step should do so
+    from scene logic or an explicit physics-facing API. This ordering is shared
+    by all plugins and must not be changed implicitly for one plugin.
 
     DEFERRED DESTRUCTION RACE
     -------------------------
