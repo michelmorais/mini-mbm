@@ -171,6 +171,10 @@ function Bezier.worldPoint(entry, point, axes)
     }
 end
 
+function Bezier.add(a, b)
+    return {x = a.x + b.x, y = a.y + b.y, z = a.z + b.z}
+end
+
 L = function(key)
     return tLang.L('iae_' .. key)
 end
@@ -563,6 +567,10 @@ local function actorMeshExtent(entry, refreshBounds)
     return math.max(extent, 40 / 0.45)
 end
 
+function Bezier.markerSize(entry)
+    return math.max(3, math.min(12, actorMeshExtent(entry, true) * 0.035))
+end
+
 local function actorPickRadius(entry, refreshBounds)
     return actorMeshExtent(entry, refreshBounds) * 0.45
 end
@@ -614,10 +622,6 @@ local function hideBezierOverlay()
     overlay.selectedPoint = -1
 end
 
-local function bezierPointWorld(entry, event, index, axes)
-    return Bezier.worldPoint(entry, Bezier.point(event, index), axes)
-end
-
 local function updateBezierOverlay()
     local overlay = S.bezierOverlay
     local event = S.events[S.selectedEvent]
@@ -629,14 +633,36 @@ local function updateBezierOverlay()
     end
     Bezier.ensure(event)
     local axes = interactionAxes()
+    local markerSize = Bezier.markerSize(entry)
+    local startTime, endTime = transitionRange(event, projectDuration())
+    local prefixAtStart = Bezier.otherTranslation(event.target, startTime, event)
+    local prefixAtEnd = Bezier.otherTranslation(event.target, endTime, event)
     local points = {}
-    for index = 0, 3 do
-        points[index] = bezierPointWorld(entry, event, index, axes)
-    end
-    local signatureParts = {tostring(event), tostring(entry), S.bezierOverlay.selectedPoint}
+    points[0] = Bezier.worldPoint(entry, prefixAtStart, axes)
+    points[1] = Bezier.worldPoint(entry, Bezier.add(prefixAtStart, Bezier.point(event, 1)), axes)
+    points[2] = Bezier.worldPoint(entry, Bezier.add(prefixAtStart, Bezier.point(event, 2)), axes)
+    points[3] = Bezier.worldPoint(entry, Bezier.add(prefixAtEnd, Bezier.point(event, 3)), axes)
+    local signatureParts = {tostring(event), tostring(entry), S.bezierOverlay.selectedPoint,
+        string.format('size=%.5g', markerSize)}
     for index = 0, 3 do
         local point = points[index]
         signatureParts[#signatureParts + 1] = string.format('%.9g,%.9g,%.9g', point.x, point.y, point.z)
+    end
+    for _, candidate in ipairs(S.events) do
+        if candidate.action == 'transform' and candidate.target == event.target then
+            Bezier.ensure(candidate)
+            signatureParts[#signatureParts + 1] = table.concat({
+                tostring(candidate.transition), tostring(candidate.time),
+                tostring(candidate.transitionStart), tostring(candidate.transitionEnd),
+                tostring(candidate.x), tostring(candidate.y), tostring(candidate.z),
+                tostring(candidate.bezier and candidate.bezier.p1.x),
+                tostring(candidate.bezier and candidate.bezier.p1.y),
+                tostring(candidate.bezier and candidate.bezier.p1.z),
+                tostring(candidate.bezier and candidate.bezier.p2.x),
+                tostring(candidate.bezier and candidate.bezier.p2.y),
+                tostring(candidate.bezier and candidate.bezier.p2.z),
+            }, ',')
+        end
     end
     local signature = table.concat(signatureParts, '|')
     if overlay.signature == signature then return end
@@ -647,7 +673,11 @@ local function updateBezierOverlay()
     overlay.points = points
     local curvePoints = {}
     for sample = 0, 32 do
-        local localPoint = Bezier.position(event, sample / 32)
+        local parameter = sample / 32
+        local sampleTime = startTime + (endTime - startTime) * parameter
+        local localPoint = Bezier.add(
+            Bezier.otherTranslation(event.target, sampleTime, event),
+            Bezier.position(event, parameter))
         local point = Bezier.worldPoint(entry, localPoint, axes)
         curvePoints[#curvePoints + 1] = point.x
         curvePoints[#curvePoints + 1] = point.y
@@ -724,9 +754,8 @@ local function updateBezierOverlay()
             local point = points[index]
             local color = colors[index]
             object:setPos(point.x, point.y, point.z)
-            object:setScale(index == overlay.selectedPoint and 18 or 12,
-                index == overlay.selectedPoint and 18 or 12,
-                index == overlay.selectedPoint and 18 or 12)
+            local size = index == overlay.selectedPoint and markerSize * 1.35 or markerSize
+            object:setScale(size, size, size)
             object:setColor(table.unpack(color))
             object.visible = true
         end
@@ -738,7 +767,7 @@ local function pickBezierPoint(sx, sy)
     local entry = overlay.actor and actor(overlay.actor) or nil
     if not entry or not overlay.points then return nil end
     local bestIndex, bestDistance
-    local radius = math.max(actorMeshExtent(entry) * 0.10, 12)
+    local radius = math.max(Bezier.markerSize(entry) * 0.85, 4)
     for index = 0, 3 do
         local point = overlay.points[index]
         local distance = point and raySphereDistance(sx, sy, point, radius) or nil
@@ -1484,6 +1513,30 @@ local function transformProgress(event, time)
     local progress = clamp((time - transitionStart) / (transitionEnd - transitionStart), 0, 1)
     if event.transition == 'bezier' then return progress end
     return progress * progress * (3 - 2 * progress)
+end
+
+function Bezier.translationAtTime(event, time)
+    local progress = transformProgress(event, time)
+    if progress <= 0 then return {x = 0, y = 0, z = 0} end
+    if event.transition == 'bezier' then return Bezier.position(event, progress) end
+    return {
+        x = (event.x or 0) * progress,
+        y = (event.y or 0) * progress,
+        z = (event.z or 0) * progress,
+    }
+end
+
+function Bezier.otherTranslation(target, time, excluded)
+    local result = {x = 0, y = 0, z = 0}
+    for _, event in ipairs(S.events) do
+        if event ~= excluded and event.action == 'transform' and event.target == target then
+            local translation = Bezier.translationAtTime(event, time)
+            result.x = result.x + translation.x
+            result.y = result.y + translation.y
+            result.z = result.z + translation.z
+        end
+    end
+    return result
 end
 
 local function applyEvent(event, progress)

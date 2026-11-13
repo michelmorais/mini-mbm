@@ -174,7 +174,7 @@ preservando multiplas voltas.
 Para uma trajetoria curva, use `transition = "bezier"`. O intervalo continua
 pertencendo a timeline mestre: `transitionStart` representa `u = 0` e
 `transitionEnd` representa `u = 1`. O ator permanece fixo em `P0`, na origem
-do espaco relativo da ancora. `P3` e formado por `x`, `y` e `z` do evento;
+do ator no inicio da transicao. `P3` e formado por `x`, `y` e `z` do evento;
 `P1` e `P2` sao controles relativos que definem a curvatura:
 
 ```lua
@@ -218,7 +218,7 @@ de disparo. Eventos suaves e Bezier mostram `Fim da transicao`; o controle
 intervalo nao representa uma duracao independente.
 
 Ao selecionar um evento Bezier, o viewport exibe `P0`, `P1`, `P2` e `P3` junto
-com a curva. `P0` permanece fixo na origem do ator. `P1`, `P2` e `P3` podem
+com a curva. `P0` permanece fixo na origem do ator no inicio da transicao. `P1`, `P2` e `P3` podem
 ser selecionados e movidos nos eixos X, Y e Z pelo gizmo; mover `P3` atualiza
 os campos finais `x`, `y` e `z` do evento.
 
