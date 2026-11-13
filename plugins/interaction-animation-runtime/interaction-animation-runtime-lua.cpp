@@ -93,6 +93,8 @@ struct EVENT
     double sx = 1.0;
     double sy = 1.0;
     double sz = 1.0;
+    VEC3D bezierP1;
+    VEC3D bezierP2;
     bool visible = true;
 };
 
@@ -226,20 +228,33 @@ double clamp(const double value, const double minimum, const double maximum)
     return std::max(minimum, std::min(maximum, value));
 }
 
-double transformProgress(const EVENT &event, const double time)
+double transitionParameter(const EVENT &event, const double time)
 {
-    if (event.transition != "smooth") return 1.0;
+    if (event.transition == "instant") return 1.0;
     if (time < event.transitionStart) return 0.0;
     if (event.transitionEnd <= event.transitionStart)
         return time >= event.transitionEnd ? 1.0 : 0.0;
-    const double progress = clamp(
-        (time - event.transitionStart) / (event.transitionEnd - event.transitionStart), 0.0, 1.0);
-    return progress * progress * (3.0 - 2.0 * progress);
+    return clamp((time - event.transitionStart) /
+                     (event.transitionEnd - event.transitionStart),
+                 0.0, 1.0);
+}
+
+VEC3D bezierPosition(const EVENT &event, const double parameter)
+{
+    const double inverse = 1.0 - parameter;
+    const double weight1 = 3.0 * inverse * inverse * parameter;
+    const double weight2 = 3.0 * inverse * parameter * parameter;
+    const double weight3 = parameter * parameter * parameter;
+    return {
+        weight1 * event.bezierP1.x + weight2 * event.bezierP2.x + weight3 * event.x,
+        weight1 * event.bezierP1.y + weight2 * event.bezierP2.y + weight3 * event.y,
+        weight1 * event.bezierP1.z + weight2 * event.bezierP2.z + weight3 * event.z,
+    };
 }
 
 double eventTriggerTime(const EVENT &event)
 {
-    return event.action == ACTION::TRANSFORM && event.transition == "smooth"
+    return event.action == ACTION::TRANSFORM && event.transition != "instant"
         ? event.transitionStart : event.time;
 }
 
@@ -392,15 +407,20 @@ void INTERACTION_INSTANCE::applyTransforms()
         if (event.action != ACTION::TRANSFORM) continue;
         const auto found = actorIndex.find(event.target);
         if (found == actorIndex.end()) continue;
-        const double progress = transformProgress(event, time);
-        if (progress <= 0.0) continue;
+        const double parameter = transitionParameter(event, time);
+        if (parameter <= 0.0) continue;
+        const double progress = event.transition == "smooth"
+            ? parameter * parameter * (3.0 - 2.0 * parameter) : parameter;
+        const VEC3D translation = event.transition == "bezier"
+            ? bezierPosition(event, parameter)
+            : VEC3D{event.x * progress, event.y * progress, event.z * progress};
         const std::size_t index = found->second;
-        positions[index].x += axes[0].x * event.x * progress +
-            axes[1].x * event.y * progress + axes[2].x * event.z * progress;
-        positions[index].y += axes[0].y * event.x * progress +
-            axes[1].y * event.y * progress + axes[2].y * event.z * progress;
-        positions[index].z += axes[0].z * event.x * progress +
-            axes[1].z * event.y * progress + axes[2].z * event.z * progress;
+        positions[index].x += axes[0].x * translation.x +
+            axes[1].x * translation.y + axes[2].x * translation.z;
+        positions[index].y += axes[0].y * translation.x +
+            axes[1].y * translation.y + axes[2].y * translation.z;
+        positions[index].z += axes[0].z * translation.x +
+            axes[1].z * translation.y + axes[2].z * translation.z;
         rotations[index] = multiply(rotations[index], anchorRotation(axes, event, progress));
         scales[index].x *= 1.0 + (event.sx - 1.0) * progress;
         scales[index].y *= 1.0 + (event.sy - 1.0) * progress;
@@ -479,6 +499,21 @@ void INTERACTION_INSTANCE::callCallback(const int reference, const EVENT *event,
         lua_pushnumber(lua, event->sy); lua_setfield(lua, -2, "sy");
         lua_pushnumber(lua, event->sz); lua_setfield(lua, -2, "sz");
         lua_pushboolean(lua, event->visible); lua_setfield(lua, -2, "visible");
+        if (event->transition == "bezier")
+        {
+            lua_newtable(lua);
+            lua_newtable(lua);
+            lua_pushnumber(lua, event->bezierP1.x); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, event->bezierP1.y); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, event->bezierP1.z); lua_setfield(lua, -2, "z");
+            lua_setfield(lua, -2, "p1");
+            lua_newtable(lua);
+            lua_pushnumber(lua, event->bezierP2.x); lua_setfield(lua, -2, "x");
+            lua_pushnumber(lua, event->bezierP2.y); lua_setfield(lua, -2, "y");
+            lua_pushnumber(lua, event->bezierP2.z); lua_setfield(lua, -2, "z");
+            lua_setfield(lua, -2, "p2");
+            lua_setfield(lua, -2, "bezier");
+        }
         lua_pushinteger(lua, static_cast<lua_Integer>(eventIndex + 1));
         arguments = 3;
     }
@@ -754,6 +789,26 @@ bool booleanField(lua_State *lua, const int table, const char *field, const bool
     return result;
 }
 
+VEC3D pointField(lua_State *lua, const int table, const char *field,
+                 const VEC3D &fallback)
+{
+    lua_getfield(lua, table, field);
+    if (lua_isnil(lua, -1))
+    {
+        lua_pop(lua, 1);
+        return fallback;
+    }
+    const int pointTable = lua_absindex(lua, -1);
+    luaL_checktype(lua, pointTable, LUA_TTABLE);
+    const VEC3D result{
+        numberField(lua, pointTable, "x", fallback.x),
+        numberField(lua, pointTable, "y", fallback.y),
+        numberField(lua, pointTable, "z", fallback.z),
+    };
+    lua_pop(lua, 1);
+    return result;
+}
+
 std::size_t findActor(const DEFINITION &definition, const std::string &id)
 {
     const auto found = definition.actorIndex.find(id);
@@ -786,7 +841,8 @@ void parseEvent(lua_State *lua, const int table, const double duration, EVENT &e
         event.sx = numberField(lua, table, "sx", 1.0);
         event.sy = numberField(lua, table, "sy", 1.0);
         event.sz = numberField(lua, table, "sz", 1.0);
-        if (event.transition != "instant" && event.transition != "smooth")
+        if (event.transition != "instant" && event.transition != "smooth" &&
+            event.transition != "bezier")
             luaL_error(lua, "Interaction event '%s' has an invalid transition", event.id.c_str());
         event.transitionEnd = numberField(lua, table, "transitionEnd", event.time);
         event.transitionStart = numberField(lua, table, "transitionStart",
@@ -795,6 +851,27 @@ void parseEvent(lua_State *lua, const int table, const double duration, EVENT &e
         {
             event.transitionStart = event.time;
             event.transitionEnd = event.time;
+        }
+        if (event.transition == "bezier")
+        {
+            const VEC3D defaultP1{event.x / 3.0, event.y / 3.0, event.z / 3.0};
+            const VEC3D defaultP2{event.x * 2.0 / 3.0, event.y * 2.0 / 3.0,
+                                  event.z * 2.0 / 3.0};
+            lua_getfield(lua, table, "bezier");
+            if (lua_isnil(lua, -1))
+            {
+                lua_pop(lua, 1);
+                event.bezierP1 = defaultP1;
+                event.bezierP2 = defaultP2;
+            }
+            else
+            {
+                const int bezierTable = lua_absindex(lua, -1);
+                luaL_checktype(lua, bezierTable, LUA_TTABLE);
+                event.bezierP1 = pointField(lua, bezierTable, "p1", defaultP1);
+                event.bezierP2 = pointField(lua, bezierTable, "p2", defaultP2);
+                lua_pop(lua, 1);
+            }
         }
         if (event.transitionStart < 0.0 || event.transitionEnd < event.transitionStart ||
             event.transitionEnd > duration)
