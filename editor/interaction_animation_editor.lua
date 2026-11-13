@@ -105,6 +105,7 @@ local S = {
 local L
 local projectDuration
 local transitionRange
+local seekAll
 
 local Bezier = {}
 
@@ -127,6 +128,18 @@ function Bezier.ensure(event)
     if p2.x == nil then p2.x = (event.x or 0) * 2 / 3 end
     if p2.y == nil then p2.y = (event.y or 0) * 2 / 3 end
     if p2.z == nil then p2.z = (event.z or 0) * 2 / 3 end
+end
+
+function Bezier.initialize(event, entry)
+    local hadBezier = type(event.bezier) == 'table'
+    Bezier.ensure(event)
+    if hadBezier then return end
+    if math.abs(event.x or 0) > 1e-6 or math.abs(event.y or 0) > 1e-6 or
+        math.abs(event.z or 0) > 1e-6 then return end
+    local width = entry and Bezier.meshWidth(entry) or 40
+    event.bezier.p1.x, event.bezier.p1.y, event.bezier.p1.z = -width, 0, 0
+    event.bezier.p2.x, event.bezier.p2.y, event.bezier.p2.z = -width * 2, 0, 0
+    event.x, event.y, event.z = -width * 3, 0, 0
 end
 
 function Bezier.point(event, index)
@@ -571,6 +584,16 @@ end
 
 function Bezier.markerSize(entry)
     return math.max(3, math.min(12, actorMeshExtent(entry, true) * 0.035))
+end
+
+function Bezier.meshWidth(entry)
+    if not entry or not entry.object then return actorMeshExtent(entry or {}) end
+    -- getSize(true) gives the mesh width on its local X axis, including scale.
+    local ok, width = pcall(function() return entry.object:getSize(true) end)
+    if ok and type(width) == 'number' and width > 0 then return width end
+    ok, width = pcall(function() return entry.object:getAABB(true) end)
+    if ok and type(width) == 'number' and width > 0 then return width end
+    return actorMeshExtent(entry)
 end
 
 local function actorPickRadius(entry, refreshBounds)
@@ -1595,7 +1618,7 @@ local function resetOffsets()
     end
 end
 
-local function seekAll(time, keepPlaying)
+seekAll = function(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, projectDuration()))
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
@@ -2768,6 +2791,7 @@ local function showEvents()
                     L('transition'), currentTransition,
                     {L('instant'), L('smooth'), L('bezier')})
                 if transitionChanged then
+                    local previousTransition = event.transition
                     event.transition = transitionIndex == 2 and 'smooth' or
                         transitionIndex == 3 and 'bezier' or 'instant'
                     if Bezier.isTimed(event) then
@@ -2778,7 +2802,11 @@ local function showEvents()
                         event.transitionEnd = finish
                         event.time = finish
                         event.duration = nil
-                        Bezier.ensure(event)
+                        if event.transition == 'bezier' and previousTransition ~= 'bezier' then
+                            Bezier.initialize(event, actor(event.target))
+                        else
+                            Bezier.ensure(event)
+                        end
                     else
                         event.time = select(2, transitionRange(event, projectDuration()))
                         event.transitionStart = nil

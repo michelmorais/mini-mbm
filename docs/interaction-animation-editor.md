@@ -222,6 +222,10 @@ com a curva. `P0` permanece fixo na origem do ator no inicio da transicao. `P1`,
 ser selecionados e movidos nos eixos X, Y e Z pelo gizmo; mover `P3` atualiza
 os campos finais `x`, `y` e `z` do evento.
 
+Ao converter um evento sem deslocamento final para Bezier, o editor inicializa
+`P1`, `P2` e `P3` para a esquerda do ator em `-W`, `-2W` e `-3W` no eixo X,
+onde `W` e a largura atual da mesh no eixo X.
+
 Abaixo do controle de intervalo, os botoes `Usar tempo atual no inicio` e
 `Usar tempo atual no fim` atribuem o tempo atual da timeline ao respectivo
 limite. Se os pontos forem definidos fora de ordem, o editor ajusta o outro
