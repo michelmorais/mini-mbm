@@ -70,6 +70,12 @@ automaticamente nessa instancia; `ESC` encerra a janela de preview. As
 alteracoes atuais do editor sao usadas mesmo que o projeto ainda nao tenha
 sido salvo.
 
+`Save preview as...` salva o mesmo material fora do diretorio temporario. O
+arquivo escolhido e o script principal de execucao; ao lado dele o editor
+grava um projeto companheiro com a extensao `.iae.lua`. O projeto companheiro
+pode ser aberto novamente no editor e o script principal pode ser usado como
+uma base de teste independente.
+
 O idioma selecionado no menu `Options` e salvo no projeto.
 
 ## Projeto `.iae.lua`

@@ -1717,24 +1717,13 @@ local function exportSpec(path)
     end
 end
 
-local function runPreview()
-    if not validateProject(true) then return end
-    if #S.actorOrder == 0 then
-        setStatus(L('run_preview_no_actors'), true)
-        return
-    end
-
-    local projectPath = tUtil.getTemporaryFilePath('_iae_preview_project.lua')
-    local driverPath = tUtil.getTemporaryFilePath('_iae_preview_main.lua')
-    if not saveLua(projectPath, 'interactionProject', serializeProject(), true) then return end
-
+local function previewDriverSource(projectPath)
     local cameraX, cameraY, cameraZ = cameraPosition()
     local focusX, focusY, focusZ = S.cameraOrbit.fx, S.cameraOrbit.fy, S.cameraOrbit.fz
-    local driver = string.format([[
+    return string.format([[
 local project = dofile(%q)
 local reactionRuntime = require 'interaction_animation_runtime'
 local actors = {}
-local meshes = {}
 
 local function loadActor(id, definition)
     local base = definition.base or {}
@@ -1747,7 +1736,6 @@ local function loadActor(id, definition)
     object:setScale(base.sx or 1, base.sy or 1, base.sz or 1)
     object.visible = base.visible ~= false
     actors[id] = object
-    meshes[id] = object
 end
 
 function onInitScene()
@@ -1775,19 +1763,54 @@ function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') then mbm.quit() end
 end
 ]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ)
+end
 
+local function writePreviewFiles(projectPath, driverPath)
+    if not saveLua(projectPath, 'interactionProject', serializeProject(), true) then return false end
+    local driver = previewDriverSource(projectPath)
     local file, err = io.open(driverPath, 'w')
     if not file then
         setStatus(tostring(err), true)
-        return
+        return false
     end
     file:write(driver)
     file:close()
+    return true
+end
 
+local function startPreview(driverPath)
     local width, height = mbm.getSizeScreen()
     width, height = math.max(320, math.floor(width or 1280)), math.max(240, math.floor(height or 720))
     tUtil.newInstance(width, height, width, height, driverPath)
+end
+
+local function runPreview()
+    if not validateProject(true) then return end
+    if #S.actorOrder == 0 then
+        setStatus(L('run_preview_no_actors'), true)
+        return
+    end
+
+    local projectPath = tUtil.getTemporaryFilePath('_iae_preview_project.lua')
+    local driverPath = tUtil.getTemporaryFilePath('_iae_preview_main.lua')
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    startPreview(driverPath)
     setStatus(L('run_preview_started'))
+end
+
+local function savePreviewAs()
+    if not validateProject(true) then return end
+    if #S.actorOrder == 0 then
+        setStatus(L('run_preview_no_actors'), true)
+        return
+    end
+    local defaultPath = S.projectPath ~= '' and
+        S.projectPath:gsub('%.iae%.lua$', '-preview.lua') or 'interaction-preview.lua'
+    local driverPath = mbm.saveFile(defaultPath, 'lua')
+    if not driverPath then return end
+    local projectPath = driverPath:gsub('%.lua$', '') .. '.iae.lua'
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    setStatus(string.format(L('preview_saved'), driverPath, projectPath))
 end
 
 local function eventLabel(event, index)
@@ -2437,6 +2460,7 @@ local function showMainMenu()
     end
     if tImGui.BeginMenu(L('run')) then
         if tImGui.MenuItem(L('run_preview'), 'F5') then runPreview() end
+        if tImGui.MenuItem(L('save_preview_as')) then savePreviewAs() end
         tImGui.EndMenu()
     end
     if tImGui.BeginMenu(L('options')) then
