@@ -103,6 +103,8 @@ local S = {
 }
 
 local L
+local projectDuration
+local transitionRange
 
 local Bezier = {}
 
@@ -1445,7 +1447,7 @@ local function refreshDefaultTimelineDuration()
     S.timelineDuration = math.max(0.01, maximum)
 end
 
-local function projectDuration()
+projectDuration = function()
     return math.max(0.01, S.timelineDuration or 0)
 end
 
@@ -1467,7 +1469,7 @@ local function clamp(value, minimum, maximum)
     return math.max(minimum, math.min(maximum, value))
 end
 
-local function transitionRange(event, maximumTime)
+transitionRange = function(event, maximumTime)
     local lower, upper = transitionBounds(event, maximumTime)
     local finish = tonumber(event.transitionEnd)
     if finish == nil then finish = tonumber(event.time) or 0 end
