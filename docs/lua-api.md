@@ -317,6 +317,13 @@ mbm.addShader({
 |---|---|---|---|
 | `mbm.subscribe` | `(pluginUserdata)` | int | Subscribe a plugin to engine callbacks; returns plugin index |
 
+Plugin frame callbacks follow a fixed engine order. For each frame, the engine
+runs scene logic (including Lua `onLoop`), completes deferred main-thread work,
+updates physics and audio, calls each plugin's `onLoop(delta)`, and then renders
+the scene. Therefore `PLUGIN::onLoop` is a post-simulation, pre-render phase.
+Changes to renderable transforms made there are visible in the current frame;
+they must not be assumed to affect the physics step that has already completed.
+
 ### 3.15 Misc
 
 | Function | Signature | Returns | Description |
@@ -2071,11 +2078,7 @@ local instance = runtime.start {
     },
 }
 
-function onLoop(delta)
-    if not instance:update(delta) then
-        -- The master timeline has finished.
-    end
-end
+-- The engine advances the instance automatically through its plugin loop.
 ```
 
 `runtime.start(config)` returns an interaction instance. Actor keys can use the
@@ -2085,12 +2088,13 @@ defined in the interaction must have a bound 3D `mesh` object.
 | Call | Returns / behavior |
 |---|---|
 | `runtime.start(config)` | interaction instance; captures each mesh's current transform and starts the base clips |
-| `instance:update(delta)` | boolean; advances the master timeline and returns `false` after it finishes |
 | `instance:restart()` | the instance; restores captured transforms, rearms events and starts again |
 | `instance:stop()` | the instance; stops active clips, restores captured transforms and finishes |
 | `instance:isFinished()` | boolean |
 
-Callbacks are optional. `onEvent(instance,event,index)` is called when an event is
+After `runtime.start(config)`, the C++ runtime plugin registers the instance and
+advances it once per engine frame. The game must not call an update method for
+the interaction. Callbacks are optional. `onEvent(instance,event,index)` is called when an event is
 reached; `event` is a table containing the exported event fields and `index` is
 one-based. The runtime calls callbacks only at lifecycle or event boundaries, not
 for every internal interpolation step.

@@ -36,6 +36,7 @@ local function newActorState(baseX)
         active = false,
         path = '',
         base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, visible = true},
+        selectable = true,
         previewBase = nil,
         bundle = nil,
         object = nil,
@@ -44,6 +45,7 @@ local function newActorState(baseX)
         runtimeClip = nil,
         runtimeOverride = false,
         runtimeStartTime = 0,
+        rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
     }
@@ -362,6 +364,18 @@ local function unwrapEulerDegrees(rx, ry, rz, reference)
         unwrapAngleDegrees(rz, reference.rz)
 end
 
+-- Euler decomposition is only a shortest representation of a rotation. Near
+-- the Y branch change, the visible base pose can legitimately report a Z
+-- value on the other side of the origin even though the user dragged the Z
+-- ring in the positive direction. Keep the matrix's signed shortest result
+-- in that case; only unwrap when the pose explicitly indicates a turn beyond
+-- 180 degrees. This preserves deliberate long rotations without converting
+-- a normal +150 degree drag into a negative rotation.
+local function capturedRotationAngle(raw, reference)
+    if reference == nil or math.abs(reference) <= 180 then return raw end
+    return unwrapAngleDegrees(raw, reference)
+end
+
 local function rotationToAnchorEuler(matrix)
     local axes = interactionAxes()
     local basis = {
@@ -397,6 +411,28 @@ local function raySphereDistance(sx, sy, center, radius)
     return distance >= 0 and distance or -b + math.sqrt(discriminant)
 end
 
+local function rayAABBDistance(sx, sy, center, width, height, depth)
+    local ox, oy, oz, dx, dy, dz = mbm.getPickRay(sx, sy)
+    local minimum = {center.x - width * 0.5, center.y - height * 0.5, center.z - depth * 0.5}
+    local maximum = {center.x + width * 0.5, center.y + height * 0.5, center.z + depth * 0.5}
+    local origin = {ox, oy, oz}
+    local direction = {dx, dy, dz}
+    local nearDistance, farDistance = 0, math.huge
+    for axis = 1, 3 do
+        if math.abs(direction[axis]) < 1e-8 then
+            if origin[axis] < minimum[axis] or origin[axis] > maximum[axis] then return nil end
+        else
+            local first = (minimum[axis] - origin[axis]) / direction[axis]
+            local second = (maximum[axis] - origin[axis]) / direction[axis]
+            if first > second then first, second = second, first end
+            nearDistance = math.max(nearDistance, first)
+            farDistance = math.min(farDistance, second)
+            if nearDistance > farDistance then return nil end
+        end
+    end
+    return farDistance >= 0 and nearDistance or nil
+end
+
 local function raySegmentDistance(sx, sy, a, b, radius)
     local ox, oy, oz, dx, dy, dz = mbm.getPickRay(sx, sy)
     local ax, ay, az = b.x - a.x, b.y - a.y, b.z - a.z
@@ -423,9 +459,9 @@ local function raySegmentDistance(sx, sy, a, b, radius)
     return math.sqrt(ex * ex + ey * ey + ez * ez)
 end
 
-local function actorPosition(entry)
+local function actorPosition(entry, refreshBounds)
     if entry.object then
-        local ok, x, y, z = pcall(function() return entry.object:getAABBCenter() end)
+        local ok, x, y, z = pcall(function() return entry.object:getAABBCenter(refreshBounds == true) end)
         if ok and x and y and z then return {x = x, y = y, z = z} end
     end
     return {
@@ -435,20 +471,32 @@ local function actorPosition(entry)
     }
 end
 
-local function actorMeshExtent(entry)
+local function actorMeshExtent(entry, refreshBounds)
     if not entry.object then return 40 / 0.45 end
-    local ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
-    if not ok then return 40 / 0.45 end
-    local extent = math.max(width or 0, height or 0, depth or 0)
+    -- getAABB(true) is the current world-space size and includes the actor's
+    -- scale and rotation. getSize(true) is only a geometry-size fallback.
+    local ok, width, height, depth = pcall(function()
+        return entry.object:getAABB(refreshBounds == true)
+    end)
+    local extent = ok and math.max(width or 0, height or 0, depth or 0) or 0
     if extent <= 0 then
-        local aabbOk, aabbWidth, aabbHeight, aabbDepth = pcall(function() return entry.object:getAABB(true) end)
-        if aabbOk then extent = math.max(aabbWidth or 0, aabbHeight or 0, aabbDepth or 0) end
+        ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
+        if ok then extent = math.max(width or 0, height or 0, depth or 0) end
     end
     return math.max(extent, 40 / 0.45)
 end
 
-local function actorPickRadius(entry)
-    return actorMeshExtent(entry) * 0.45
+local function actorPickRadius(entry, refreshBounds)
+    return actorMeshExtent(entry, refreshBounds) * 0.45
+end
+
+local function actorPickDistance(sx, sy, entry)
+    local center = actorPosition(entry, true)
+    local ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+    if ok and width and height and depth and width > 0 and height > 0 and depth > 0 then
+        return rayAABBDistance(sx, sy, center, width, height, depth)
+    end
+    return raySphereDistance(sx, sy, center, actorPickRadius(entry, true))
 end
 
 local function eventHighlightVertices()
@@ -665,8 +713,8 @@ local function pickActor(sx, sy)
     local bestId, bestDistance
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        if entry.object then
-            local distance = raySphereDistance(sx, sy, actorPosition(entry), actorPickRadius(entry))
+        if entry.object and entry.selectable ~= false then
+            local distance = actorPickDistance(sx, sy, entry)
             if distance and (not bestDistance or distance < bestDistance) then
                 bestId, bestDistance = id, distance
             end
@@ -727,6 +775,13 @@ end
 local function beginViewportInteraction(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
+        local picked = pickActor(x, y)
+        if picked and picked ~= S.selectedActor then
+            S.selectedActor = picked
+            S.gizmo.drag = nil
+            updateGizmo()
+            return
+        end
         local entry = S.selectedActor and actor(S.selectedActor) or nil
         local ring = S.selectedActor and pickRotationRing(x, y) or nil
         if ring and entry and S.gizmo.origin then
@@ -775,7 +830,6 @@ local function beginViewportInteraction(key, x, y)
                 return
             end
         end
-        local picked = pickActor(x, y)
         if picked then
             S.selectedActor = picked
             updateGizmo()
@@ -802,6 +856,7 @@ local function updateViewportInteraction(x, y)
                 base.x = drag.base.x + drag.axis.x * amount
                 base.y = drag.base.y + drag.axis.y * amount
                 base.z = drag.base.z + drag.axis.z * amount
+                entry.rotationIntent = nil
                 applyTransform(entry)
                 drag.moved = true
                 S.modified = true
@@ -835,6 +890,10 @@ local function updateViewportInteraction(x, y)
                     local rx, ry, rz = matrixToEulerDegrees(rotated)
                     base.rx, base.ry, base.rz = unwrapEulerDegrees(rx, ry, rz, drag.lastEuler)
                     drag.lastEuler = {rx = base.rx, ry = base.ry, rz = base.rz}
+                    entry.rotationIntent = {
+                        axisName = drag.axisName,
+                        angle = math.deg(drag.accumulatedAngle),
+                    }
                     applyTransform(entry)
                     drag.moved = true
                     S.modified = true
@@ -921,6 +980,15 @@ end
 local function clipList(entry)
     local list = {{key = '', label = L('no_animation'), kind = 'none', name = '', duration = 0}}
     if not entry or not entry.bundle then return list end
+    for _, clip in ipairs(entry.bundle.static or {}) do
+        table.insert(list, {
+            key = 'frame:' .. clip.name,
+            label = string.format('%s - %s (%.3fs)', L('static'), clip.name, clip.duration or 0),
+            kind = 'frame', name = clip.name, duration = clip.duration or 0,
+            loop = clip.mode == 2 or clip.mode == 4 or clip.mode == 6,
+            first = clip.first, last = clip.last, interval = clip.interval, mode = clip.mode,
+        })
+    end
     for _, clip in ipairs(entry.bundle.skeletal or {}) do
         table.insert(list, {
             key = 'skeletal:' .. clip.name,
@@ -983,7 +1051,9 @@ local function seekClip(entry, clip, time, playing)
     end
     if entry.runtimeKey ~= clip.key then
         stopEntry(entry)
-        if clip.kind == 'skeletal' then
+        if clip.kind == 'frame' then
+            entry.object:setAnim(clip.name)
+        elseif clip.kind == 'skeletal' then
             assert(entry.object:playSkeletalAnimation(clip.name))
         else
             assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
@@ -991,13 +1061,33 @@ local function seekClip(entry, clip, time, playing)
         entry.runtimeKey = clip.key
         entry.runtimeClip = clip
     end
-    local targetTime = math.max(0, math.min(time or 0, clip.duration or 0))
-    if clip.kind == 'skeletal' then
+    local targetTime = math.max(0, time or 0)
+    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+        -- Looping static modes must wrap their sampled time. Clamping them to
+        -- the duration would keep the preview on one frame after the first
+        -- cycle, even though the asset metadata says the clip loops.
+        targetTime = targetTime % clip.duration
+    else
+        targetTime = math.min(targetTime, clip.duration or 0)
+    end
+    if clip.kind == 'frame' then
+        local frame = Animation.staticFrame(clip, targetTime)
+        entry.object:setIndexFrame(frame)
+    elseif clip.kind == 'skeletal' then
         assert(entry.object:seekSkeletalAnimation(targetTime))
         if not playing then entry.object:pauseSkeletalAnimation() end
     else
         assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
-        if not playing then entry.object:pauseArticulatedAnimation(clip.name) end
+        if playing then
+            -- Selecting an event, changing a field, and loading a project all
+            -- rebuild the pose through seekAll(..., false). That intentionally
+            -- pauses the clip. When playback resumes, make the state explicit
+            -- instead of relying only on playArticulatedAnimation() from the
+            -- key-change branch above.
+            assert(entry.object:resumeArticulatedAnimation(clip.name))
+        else
+            entry.object:pauseArticulatedAnimation(clip.name)
+        end
     end
 end
 
@@ -1042,37 +1132,10 @@ local function maximumEventTime()
     return maximum
 end
 
-local function activeClipRange(id, sampleTime)
-    local entry = actor(id)
-    if not entry then return 0, 0 end
-    local clip = selectedClip(id)
-    local start = 0
-    local time = tonumber(sampleTime) or 0
-    for _, event in ipairs(S.events) do
-        local eventTime = tonumber(event.time) or 0
-        if eventTime > time then break end
-        if event.action == 'play' and event.target == id then
-            local eventClip = findClip(entry, event.clipKey)
-            if eventClip.kind ~= 'none' then
-                clip = eventClip
-                start = eventTime
-            end
-        end
-    end
-    return start, start + math.max(0, clip.duration or 0)
-end
-
 local function transitionBounds(event, maximumTime)
-    local lower = 0
-    local upper = maximumTime or projectDuration()
-    local sampleTime = tonumber(event.transitionStart) or tonumber(event.time) or S.time
-    local clipStart, clipEnd = activeClipRange(event.target, sampleTime)
-    if clipEnd > clipStart + 1e-6 and sampleTime <= clipEnd + 1e-6 then
-        lower = clipStart
-        upper = math.min(upper, clipEnd)
-    end
-    if upper < lower then upper = lower end
-    return lower, upper
+    -- Transform transitions belong to the project timeline. A clip may have
+    -- ended already, or may continue beyond it, without limiting this event.
+    return 0, maximumTime or projectDuration()
 end
 
 local function clamp(value, minimum, maximum)
@@ -1152,9 +1215,14 @@ local function applyEvent(event, progress)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then
-            entry.runtimeOverride = true
             entry.runtimeStartTime = event.time or 0
             seekClip(entry, clip, math.max(0, S.time - entry.runtimeStartTime), S.playing)
+            -- seekClip may switch from the actor's base clip and call
+            -- stopEntry(), which clears runtimeOverride. Restore the event
+            -- override after the switch so the next frame keeps this clip
+            -- instead of returning to the base animation.
+            entry.runtimeOverride = true
+            entry.runtimeStartTime = event.time or 0
         end
     elseif event.action == 'visibility' then
         entry.object.visible = event.visible ~= false
@@ -1175,7 +1243,10 @@ local function seekAll(time, keepPlaying)
     S.time = math.max(0, math.min(time or 0, projectDuration()))
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        if entry then entry.previewBase = nil end
+        if entry then
+            entry.previewBase = nil
+            entry.rotationIntent = nil
+        end
     end
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
@@ -1214,6 +1285,33 @@ local function sortEvents()
         if item.event == selected then selectedIndex = index end
     end
     S.selectedEvent = selectedIndex > 0 and selectedIndex or math.min(S.selectedEvent, #S.events)
+end
+
+local function setTransitionEndpoint(event, endpoint)
+    local minimum, maximum = transitionBounds(event, projectDuration())
+    local start, finish = transitionRange(event, projectDuration())
+    local current = clamp(S.time, minimum, maximum)
+    if endpoint == 'start' then
+        start = current
+        if finish < start then finish = start end
+    else
+        finish = current
+        if finish < start then start = finish end
+    end
+    event.transitionStart = start
+    event.transitionEnd = finish
+    event.time = finish
+    event.duration = nil
+    sortEvents()
+    S.modified = true
+    seekAll(S.time, false)
+end
+
+local function setEventTimeToTimeline(event)
+    event.time = clamp(S.time, 0, projectDuration())
+    sortEvents()
+    S.modified = true
+    seekAll(S.time, false)
 end
 
 local function setTimelineDuration(value)
@@ -1286,7 +1384,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 7,
+        version = 8,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1305,6 +1403,7 @@ local function serializeProject()
             path = entry.path,
             base = cloneTable(entry.base),
             clipKey = entry.clipKey,
+            selectable = entry.selectable ~= false,
         }
     end
     return project
@@ -1347,6 +1446,7 @@ local function applyProject(project)
         entry.active = true
         entry.base = cloneTable(saved.base or entry.base)
         entry.base.visible = entry.base.visible ~= false
+        entry.selectable = saved.selectable ~= false
         entry.clipKey = saved.clipKey or ''
         S.actors[id] = entry
         if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
@@ -1627,6 +1727,102 @@ local function exportSpec(path)
     end
 end
 
+local function previewDriverSource(projectPath)
+    local cameraX, cameraY, cameraZ = cameraPosition()
+    local focusX, focusY, focusZ = S.cameraOrbit.fx, S.cameraOrbit.fy, S.cameraOrbit.fz
+    return string.format([[
+local project = dofile(%q)
+local reactionRuntime = require 'interaction_animation_runtime'
+local actors = {}
+
+local function loadActor(id, definition)
+    local base = definition.base or {}
+    mbm.addPath(tostring(definition.path or ''):gsub('\\', '/'):match('^(.*)/[^/]*$') or '.')
+    local object = mesh:new('3d')
+    assert(object:load(definition.path), 'Could not load interaction mesh: ' .. tostring(definition.path))
+    object.alwaysRender = true
+    object:setPos(base.x or 0, base.y or 0, base.z or 0)
+    object:setAngle(math.rad(base.rx or 0), math.rad(base.ry or 0), math.rad(base.rz or 0))
+    object:setScale(base.sx or 1, base.sy or 1, base.sz or 1)
+    object.visible = base.visible ~= false
+    actors[id] = object
+end
+
+function onInitScene()
+    mbm.setAmbientLight('3d', {r = 0.25, g = 0.25, b = 0.25, a = 1})
+    mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5},
+        {r = 1, g = 0.98, b = 0.9, a = 1})
+    local camera = mbm.getCamera('3d')
+    camera:setPos(%.17g, %.17g, %.17g)
+    camera:setFocus(%.17g, %.17g, %.17g)
+    for _, id in ipairs(project.actorOrder or {}) do
+        loadActor(id, project.actors[id])
+    end
+    reactionRuntime.start {
+        definition = project,
+        actors = actors,
+        callbacks = {
+            onStart = function() print('Interaction preview started') end,
+            onEvent = function(_, event) print('Interaction event: ' .. tostring(event.id)) end,
+            onFinish = function() print('Interaction preview finished') end,
+        },
+    }
+end
+
+function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') then mbm.quit() end
+end
+]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ)
+end
+
+local function writePreviewFiles(projectPath, driverPath)
+    if not saveLua(projectPath, 'interactionProject', serializeProject(), true) then return false end
+    local driver = previewDriverSource(projectPath)
+    local file, err = io.open(driverPath, 'w')
+    if not file then
+        setStatus(tostring(err), true)
+        return false
+    end
+    file:write(driver)
+    file:close()
+    return true
+end
+
+local function startPreview(driverPath)
+    local width, height = mbm.getSizeScreen()
+    width, height = math.max(320, math.floor(width or 1280)), math.max(240, math.floor(height or 720))
+    tUtil.newInstance(width, height, width, height, driverPath)
+end
+
+local function runPreview()
+    if not validateProject(true) then return end
+    if #S.actorOrder == 0 then
+        setStatus(L('run_preview_no_actors'), true)
+        return
+    end
+
+    local projectPath = tUtil.getTemporaryFilePath('_iae_preview_project.lua')
+    local driverPath = tUtil.getTemporaryFilePath('_iae_preview_main.lua')
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    startPreview(driverPath)
+    setStatus(L('run_preview_started'))
+end
+
+local function savePreviewAs()
+    if not validateProject(true) then return end
+    if #S.actorOrder == 0 then
+        setStatus(L('run_preview_no_actors'), true)
+        return
+    end
+    local defaultPath = S.projectPath ~= '' and
+        S.projectPath:gsub('%.iae%.lua$', '-preview.lua') or 'interaction-preview.lua'
+    local driverPath = mbm.saveFile(defaultPath, 'lua')
+    if not driverPath then return end
+    local projectPath = driverPath:gsub('%.lua$', '') .. '.iae.lua'
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    setStatus(string.format(L('preview_saved'), driverPath, projectPath))
+end
+
 local function eventLabel(event, index)
     if event.action == 'notify' then
         local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
@@ -1637,7 +1833,14 @@ local function eventLabel(event, index)
     local action = event.action == 'play' and L('play_animation') or
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
-    return string.format('%d: %.3fs%s %s %s', index, event.time or 0, identifier, target, action)
+    local timeLabel
+    if event.action == 'transform' and event.transition == 'smooth' then
+        local start, finish = transitionRange(event, projectDuration())
+        timeLabel = string.format('%.3fs -> %.3fs', start, finish)
+    else
+        timeLabel = string.format('%.3fs', event.time or 0)
+    end
+    return string.format('%d: %s%s %s %s', index, timeLabel, identifier, target, action)
 end
 
 local function captureTransformEvent()
@@ -1699,7 +1902,29 @@ local function captureTransformEvent()
         ry = current.ry - origin.ry,
         rz = current.rz - origin.rz,
     }
-    local rx, ry, rz = unwrapEulerDegrees(rawRx, rawRy, rawRz, rotationReference)
+    local rotationIntent = entry.rotationIntent
+    if rotationIntent then
+        local field = rotationIntent.axisName == 'x' and 'rx' or
+            rotationIntent.axisName == 'y' and 'ry' or 'rz'
+        local intendedAngle = rotationIntent.angle
+        if event then
+            intendedAngle = intendedAngle + (event[field] or 0) * transformProgress(event, S.time)
+        end
+        local otherA, otherB
+        if field == 'rx' then
+            otherA, otherB = rawRy, rawRz
+        elseif field == 'ry' then
+            otherA, otherB = rawRx, rawRz
+        else
+            otherA, otherB = rawRx, rawRy
+        end
+        if math.abs(otherA) < 0.001 and math.abs(otherB) < 0.001 then
+            rotationReference[field] = intendedAngle
+        end
+    end
+    local rx = capturedRotationAngle(rawRx, rotationReference.rx)
+    local ry = capturedRotationAngle(rawRy, rotationReference.ry)
+    local rz = capturedRotationAngle(rawRz, rotationReference.rz)
     local isNewEvent = not event
     if isNewEvent then
         event = {
@@ -1766,20 +1991,46 @@ local function captureTransformEvent()
     setStatus(string.format(L('captured'), actorName(id, entry), S.time))
 end
 
-local function addEvent()
-    table.insert(S.events, {
+local function addEventAtTime(time, target)
+    local event = {
         id = nextEventId(),
-        time = S.time,
-        target = S.selectedActor or S.clockActor,
+        time = clamp(time or S.time, 0, projectDuration()),
+        target = actor(target) and target or S.selectedActor or S.clockActor,
         action = 'transform',
         x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1,
         transition = 'instant',
         clipKey = '',
-    })
+    }
+    table.insert(S.events, event)
     S.selectedEvent = #S.events
     sortEvents()
     S.modified = true
-    showEventHighlight(S.events[S.selectedEvent])
+    seekAll(event.time, false)
+    showEventHighlight(event)
+end
+
+local function addEvent()
+    addEventAtTime(S.time, S.selectedActor or S.clockActor)
+end
+
+local function addEventContextMenu(event, index, pending)
+    if not tImGui.BeginPopupContextItem('iae_event_context_' .. tostring(index)) then return end
+    local target = event.action ~= 'notify' and event.target or S.selectedActor or S.clockActor
+    if event.action == 'transform' and event.transition == 'smooth' then
+        local start, finish = transitionRange(event, projectDuration())
+        if tImGui.MenuItem(string.format(L('create_event_transition_start'), start)) then
+            pending.time = start
+            pending.target = target
+        end
+        if tImGui.MenuItem(string.format(L('create_event_transition_end'), finish)) then
+            pending.time = finish
+            pending.target = target
+        end
+    elseif tImGui.MenuItem(L('create_event_same_time')) then
+        pending.time = event.time or 0
+        pending.target = target
+    end
+    tImGui.EndPopup()
 end
 
 local function removeSelectedEvent()
@@ -1814,19 +2065,34 @@ local function updatePlayback(delta)
         end
     end
     resetOffsets()
+    for _, id in ipairs(S.actorOrder) do
+        local entry = actor(id)
+        local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
+        local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
+        if selected.kind ~= 'none' then
+            if selected.kind == 'frame' and reachedTimelineEnd then
+                -- Frame seeking pauses the animation. Apply the final frame first,
+                -- then restore the asset playback mode when the project allows the
+                -- clip to continue past the master timeline.
+                seekClip(entry, selected, localTime, false)
+                if S.continueClipsAfterTimeline and (selected.mode or 0) ~= 0 then
+                    entry.object:setTypeAnim(selected.mode)
+                end
+            elseif not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, selected, localTime, true)
+            end
+        end
+    end
+    -- Apply interaction transforms after clip sampling. Some renderable
+    -- animation operations update the selected frame/player state, so the
+    -- final object transform must be the last write in the playback pass.
     for _, event in ipairs(S.events) do
         if event.action == 'transform' then
             applyEvent(event, transformProgress(event, S.time))
         end
     end
     for _, id in ipairs(S.actorOrder) do
-        local entry = actor(id)
-        local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
-        local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' and (not reachedTimelineEnd or not S.continueClipsAfterTimeline) then
-            seekClip(entry, selected, localTime, true)
-        end
-        applyTransform(entry)
+        applyTransform(actor(id))
     end
     if reachedTimelineEnd then S.playing = false end
     if not S.playing and not S.continueClipsAfterTimeline then seekAll(S.time, false) end
@@ -1840,6 +2106,15 @@ local function actorPanel(id)
         local anchorChecked = tImGui.Checkbox(L('anchor') .. '##' .. id, wasAnchor)
         if anchorChecked and not wasAnchor then
             setAnchorActor(id)
+            S.modified = true
+        end
+        local selectable = tImGui.Checkbox(L('selectable') .. '##' .. id, entry.selectable ~= false)
+        if selectable ~= (entry.selectable ~= false) then
+            entry.selectable = selectable
+            if not selectable and S.selectedActor == id then
+                S.selectedActor = nil
+                hideGizmo()
+            end
             S.modified = true
         end
         local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
@@ -1863,11 +2138,11 @@ local function actorPanel(id)
             end
             local base = displayBase(entry)
             tImGui.SetNextItemWidth(105)
-            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
+            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
+            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
             tImGui.SetNextItemWidth(105)
-            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
+            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
         else
@@ -1936,31 +2211,31 @@ local function showActors()
             local base = displayBase(selected)
             tImGui.SetNextItemWidth(105)
             local changed, value = tImGui.InputFloat('POS X##iae_selected_pos_x', base.x)
-            if changed then local edited = editableBase(selected); edited.x = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.x = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Y##iae_selected_pos_y', base.y)
-            if changed then local edited = editableBase(selected); edited.y = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.y = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('POS Z##iae_selected_pos_z', base.z)
-            if changed then local edited = editableBase(selected); edited.z = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.z = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT X##iae_selected_rot_x', base.rx)
-            if changed then local edited = editableBase(selected); edited.rx = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.rx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Y##iae_selected_rot_y', base.ry)
-            if changed then local edited = editableBase(selected); edited.ry = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.ry = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat('ROT Z##iae_selected_rot_z', base.rz)
-            if changed then local edited = editableBase(selected); edited.rz = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.rz = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_x') .. '##iae_selected_scale_x', base.sx, 0.05)
-            if changed then local edited = editableBase(selected); edited.sx = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sx = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_y') .. '##iae_selected_scale_y', base.sy, 0.05)
-            if changed then local edited = editableBase(selected); edited.sy = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sy = value; applyTransform(selected); S.modified = true end
             tImGui.SetNextItemWidth(105)
             changed, value = tImGui.InputFloat(L('scale_z') .. '##iae_selected_scale_z', base.sz, 0.05)
-            if changed then local edited = editableBase(selected); edited.sz = value; applyTransform(selected); S.modified = true end
+            if changed then selected.rotationIntent = nil; local edited = editableBase(selected); edited.sz = value; applyTransform(selected); S.modified = true end
             tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
             if math.abs(S.time) > 1e-6 then tImGui.TextWrapped(L('preview_transform_note')) end
         else
@@ -2002,6 +2277,7 @@ local function showEvents()
         if tImGui.Button(L('add_event')) then addEvent() end
         tImGui.SameLine()
         if tImGui.Button(L('remove_event')) then removeSelectedEvent() end
+        local pendingEvent = {}
         for index, event in ipairs(S.events) do
             if tImGui.Selectable(eventLabel(event, index), index == S.selectedEvent) then
                 S.selectedEvent = index
@@ -2014,6 +2290,10 @@ local function showEvents()
                 seekAll(eventTime, false)
                 showEventHighlight(event)
             end
+            addEventContextMenu(event, index, pendingEvent)
+        end
+        if pendingEvent.time ~= nil then
+            addEventAtTime(pendingEvent.time, pendingEvent.target)
         end
         local event = S.events[S.selectedEvent]
         if event then
@@ -2025,22 +2305,25 @@ local function showEvents()
                 S.modified = true
                 validateEventIds()
             end
-            tImGui.SetNextItemWidth(105)
-            local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
-            if c then
-                if event.transition == 'smooth' then
-                    local start = select(1, transitionRange(event, projectDuration()))
-                    local _, maximum = transitionBounds(event, projectDuration())
-                    local finish = clamp(value, start, maximum)
-                    event.transitionStart = start
-                    event.transitionEnd = finish
-                    event.time = finish
-                else
-                    event.time = clamp(value, 0, projectDuration())
+            if event.transition == 'smooth' then
+                local _, finish = transitionRange(event, projectDuration())
+                tImGui.Text(string.format(L('transition_end_value'), finish))
+                tImGui.SameLine()
+                tImGui.HelpMarker(L('transition_end_help'))
+            else
+                tImGui.SetNextItemWidth(105)
+                local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
+                tImGui.SameLine()
+                tImGui.HelpMarker(L('event_time_help'))
+                if c then event.time = clamp(value, 0, projectDuration()) end
+                if c then
+                    sortEvents()
+                    S.modified = true
+                    seekAll(S.time, false)
                 end
-                sortEvents()
-                S.modified = true
-                seekAll(S.time, false)
+                if tImGui.Button(L('set_event_time_current'), {x = 210, y = 0}) then
+                    setEventTimeToTimeline(event)
+                end
             end
             if event.action ~= 'notify' then
                 local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
@@ -2135,6 +2418,8 @@ local function showEvents()
                     tImGui.SetNextItemWidth(210)
                     local rangeChanged, range = tImGui.SliderFloat2(
                         L('transition_interval'), {start, finish}, minimum, maximum)
+                    tImGui.SameLine()
+                    tImGui.HelpMarker(L('transition_interval_help'))
                     if rangeChanged then
                         start = clamp(range[1], minimum, maximum)
                         finish = clamp(range[2], start, maximum)
@@ -2145,6 +2430,13 @@ local function showEvents()
                         sortEvents()
                         S.modified = true
                         seekAll(S.time, false)
+                    end
+                    if tImGui.Button(L('set_transition_start'), {x = 105, y = 0}) then
+                        setTransitionEndpoint(event, 'start')
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(L('set_transition_end'), {x = 105, y = 0}) then
+                        setTransitionEndpoint(event, 'end')
                     end
                 end
                 local fields = {{'x', L('offset_x'), 0}, {'y', L('offset_y'), 0}, {'z', L('offset_z'), 0},
@@ -2219,6 +2511,11 @@ local function showMainMenu()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()
     end
+    if tImGui.BeginMenu(L('run')) then
+        if tImGui.MenuItem(L('run_preview'), 'F5') then runPreview() end
+        if tImGui.MenuItem(L('save_preview_as')) then savePreviewAs() end
+        tImGui.EndMenu()
+    end
     if tImGui.BeginMenu(L('options')) then
         if tImGui.MenuItem(L('english')) then
             tLang.setLanguage('en')
@@ -2260,6 +2557,10 @@ function onLoop(delta)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('F5') then
+        runPreview()
+        return
+    end
     if key == mbm.getKeyCode('ESC') then
         S.selectedActor = nil
         S.gizmo.drag = nil

@@ -808,6 +808,7 @@ Source: [plugins/interaction-animation-runtime/interaction-animation-runtime-lua
 |---|---|
 | `start` | [`onStartInteractionLua`](../plugins/interaction-animation-runtime/interaction-animation-runtime-lua.cpp) |
 
-The returned interaction instance exposes `update`, `restart`, `stop` and
-`isFinished` methods. These methods are installed directly on the instance
-table and are not separate module functions.
+The returned interaction instance exposes `restart`, `stop` and `isFinished`
+methods. The instance is updated automatically by the C++ plugin callback loop;
+there is no per-instance `update` method. These methods are installed directly
+on the instance table and are not separate module functions.

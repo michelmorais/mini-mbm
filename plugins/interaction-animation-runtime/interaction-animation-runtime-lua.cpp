@@ -20,6 +20,8 @@
 #include "interaction-animation-runtime-lua.h"
 
 #include <plugin-helper/plugin-helper.h>
+#include <core_mbm/animation.h>
+#include <core_mbm/plugin-callback.h>
 #include <core_mbm/util-interface.h>
 #include <render/mesh.h>
 
@@ -28,6 +30,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <list>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -37,6 +40,7 @@ namespace
 {
 
 constexpr const char *INSTANCE_METATABLE = "_mbmInteractionAnimationRuntime";
+constexpr const char *PLUGIN_METATABLE = "_mbmInteractionAnimationRuntimePlugin";
 constexpr float PI = 3.14159265358979323846f;
 constexpr float DEG_TO_RAD = PI / 180.0f;
 
@@ -119,6 +123,8 @@ struct ACTOR_INSTANCE
     int luaReference = LUA_NOREF;
     std::string activeClip;
 };
+
+class INTERACTION_RUNTIME_PLUGIN;
 
 MATRIX3 identityMatrix()
 {
@@ -277,7 +283,10 @@ TRANSFORM readTransform(const mbm::MESH *mesh)
 class INTERACTION_INSTANCE
 {
   public:
-    explicit INTERACTION_INSTANCE(lua_State *lua) : lua(lua) {}
+    explicit INTERACTION_INSTANCE(lua_State *lua, INTERACTION_RUNTIME_PLUGIN *runtime)
+        : lua(lua), runtime(runtime)
+    {
+    }
     ~INTERACTION_INSTANCE();
 
     void update(const double delta);
@@ -300,6 +309,9 @@ class INTERACTION_INSTANCE
     std::vector<bool> fired;
     std::vector<bool> notified;
 
+    INTERACTION_RUNTIME_PLUGIN *runtime = nullptr;
+    bool destroyedByRuntime = false;
+
     void initializeAxes();
     void playClip(ACTOR_INSTANCE &actor, const std::string &key);
     void stopClip(ACTOR_INSTANCE &actor, const std::string &key);
@@ -312,24 +324,9 @@ class INTERACTION_INSTANCE
     void finish();
     void callCallback(int reference, const EVENT *event, std::size_t eventIndex);
     void pushInstanceTable();
+    void shutdownForScene();
+    void releaseLuaReferences();
 };
-
-INTERACTION_INSTANCE::~INTERACTION_INSTANCE()
-{
-    for (ACTOR_INSTANCE &actor : actors)
-    {
-        if (actor.luaReference != LUA_NOREF)
-            luaL_unref(lua, LUA_REGISTRYINDEX, actor.luaReference);
-    }
-    if (weakInstanceReference != LUA_NOREF)
-        luaL_unref(lua, LUA_REGISTRYINDEX, weakInstanceReference);
-    if (onStartReference != LUA_NOREF)
-        luaL_unref(lua, LUA_REGISTRYINDEX, onStartReference);
-    if (onEventReference != LUA_NOREF)
-        luaL_unref(lua, LUA_REGISTRYINDEX, onEventReference);
-    if (onFinishReference != LUA_NOREF)
-        luaL_unref(lua, LUA_REGISTRYINDEX, onFinishReference);
-}
 
 void INTERACTION_INSTANCE::initializeAxes()
 {
@@ -346,9 +343,12 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->playSkeletalAnimation(name);
-    else if (kind == "articulated") actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
-    else return;
+    if (kind != "frame" && kind != "static" && kind != "skeletal" && kind != "articulated") return;
+    if (!actor.activeClip.empty() && actor.activeClip != key)
+        stopClip(actor, actor.activeClip);
+    if (kind == "frame" || kind == "static") actor.mesh->setAnimation(name);
+    else if (kind == "skeletal") actor.mesh->playSkeletalAnimation(name);
+    else actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
     actor.activeClip = key;
 }
 
@@ -358,7 +358,12 @@ void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &ke
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->stopSkeletalAnimation();
+    if (kind == "frame" || kind == "static")
+    {
+        if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
+            animation->setType(mbm::TYPE_ANIMATION_PAUSED);
+    }
+    else if (kind == "skeletal") actor.mesh->stopSkeletalAnimation();
     else if (kind == "articulated") actor.mesh->disableArticulatedAnimation(name);
 }
 
@@ -368,7 +373,12 @@ void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &k
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind == "skeletal") actor.mesh->pauseSkeletalAnimation();
+    if (kind == "frame" || kind == "static")
+    {
+        if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
+            animation->setType(mbm::TYPE_ANIMATION_PAUSED);
+    }
+    else if (kind == "skeletal") actor.mesh->pauseSkeletalAnimation();
     else if (kind == "articulated") actor.mesh->pauseArticulatedAnimation(name);
 }
 
@@ -573,6 +583,133 @@ void INTERACTION_INSTANCE::stop()
         setTransform(actor.mesh, actor.base);
     }
     finish();
+}
+
+class INTERACTION_RUNTIME_PLUGIN final : public PLUGIN
+{
+  public:
+    INTERACTION_RUNTIME_PLUGIN() noexcept = default;
+
+    ~INTERACTION_RUNTIME_PLUGIN() override
+    {
+        onDestroy();
+    }
+
+    void onSubscribe(int, int, void *, void *) override
+    {
+        active = true;
+    }
+
+    void onResizeWindow(int, int) override {}
+    void onTouchDown(int, float, float) override {}
+    void onTouchUp(int, float, float) override {}
+    void onTouchMove(int, float, float) override {}
+    void onTouchZoom(float) override {}
+    void onKeyDown(int) override {}
+    void onKeyUp(int) override {}
+    void onDoubleClick(float, float, int) override {}
+    void onKeyDownJoystick(int, int) override {}
+    void onKeyUpJoystick(int, int) override {}
+    void onMoveJoystick(int, float, float, float, float) override {}
+    void onInfoDeviceJoystick(int, int, const char *, const char *) override {}
+    void onPrepare() override {}
+
+    void onLoop(float delta) override
+    {
+        if (!active) return;
+        for (auto it = instances.begin(); it != instances.end();)
+        {
+            INTERACTION_INSTANCE *instance = *it;
+            ++it;
+            if (instance) instance->update(delta);
+        }
+    }
+
+    void onRender() override {}
+
+    void onDestroy() override
+    {
+        if (destroying) return;
+        destroying = true;
+        active = false;
+        for (INTERACTION_INSTANCE *instance : instances)
+        {
+            if (instance) instance->shutdownForScene();
+        }
+        instances.clear();
+        destroying = false;
+    }
+
+    bool isActive() const noexcept
+    {
+        return active;
+    }
+
+    void addInstance(INTERACTION_INSTANCE *instance)
+    {
+        if (!active || !instance) return;
+        instances.push_back(instance);
+    }
+
+    void removeInstance(INTERACTION_INSTANCE *instance) noexcept
+    {
+        if (destroying) return;
+        for (auto it = instances.begin(); it != instances.end(); ++it)
+        {
+            if (*it == instance)
+            {
+                instances.erase(it);
+                return;
+            }
+        }
+    }
+
+  private:
+    std::list<INTERACTION_INSTANCE *> instances;
+    bool active = false;
+    bool destroying = false;
+};
+
+INTERACTION_INSTANCE::~INTERACTION_INSTANCE()
+{
+    if (runtime) runtime->removeInstance(this);
+    releaseLuaReferences();
+}
+
+void INTERACTION_INSTANCE::releaseLuaReferences()
+{
+    if (lua)
+    {
+        for (ACTOR_INSTANCE &actor : actors)
+        {
+            if (actor.luaReference != LUA_NOREF)
+                luaL_unref(lua, LUA_REGISTRYINDEX, actor.luaReference);
+        }
+        if (weakInstanceReference != LUA_NOREF)
+            luaL_unref(lua, LUA_REGISTRYINDEX, weakInstanceReference);
+        if (onStartReference != LUA_NOREF)
+            luaL_unref(lua, LUA_REGISTRYINDEX, onStartReference);
+        if (onEventReference != LUA_NOREF)
+            luaL_unref(lua, LUA_REGISTRYINDEX, onEventReference);
+        if (onFinishReference != LUA_NOREF)
+            luaL_unref(lua, LUA_REGISTRYINDEX, onFinishReference);
+    }
+    for (ACTOR_INSTANCE &actor : actors) actor.luaReference = LUA_NOREF;
+    weakInstanceReference = LUA_NOREF;
+    onStartReference = LUA_NOREF;
+    onEventReference = LUA_NOREF;
+    onFinishReference = LUA_NOREF;
+}
+
+void INTERACTION_INSTANCE::shutdownForScene()
+{
+    if (destroyedByRuntime) return;
+    releaseLuaReferences();
+    lua = nullptr;
+    runtime = nullptr;
+    running = false;
+    finished = true;
+    destroyedByRuntime = true;
 }
 
 double numberField(lua_State *lua, const int table, const char *field, const double fallback)
@@ -799,6 +936,8 @@ INTERACTION_INSTANCE *getInstance(lua_State *lua)
                                            "InteractionAnimationInstance");
     auto **instance = static_cast<INTERACTION_INSTANCE **>(raw);
     if (!instance || !*instance) luaL_error(lua, "Invalid interaction animation instance");
+    if ((*instance)->destroyedByRuntime)
+        luaL_error(lua, "Interaction animation runtime is no longer active");
     return *instance;
 }
 
@@ -811,14 +950,6 @@ int onInstanceGc(lua_State *lua)
         *instance = nullptr;
     }
     return 0;
-}
-
-int onInstanceUpdate(lua_State *lua)
-{
-    INTERACTION_INSTANCE *instance = getInstance(lua);
-    instance->update(luaL_checknumber(lua, 2));
-    lua_pushboolean(lua, !instance->isFinished());
-    return 1;
 }
 
 int onInstanceRestart(lua_State *lua)
@@ -843,8 +974,18 @@ int onInstanceIsFinished(lua_State *lua)
     return 1;
 }
 
+INTERACTION_RUNTIME_PLUGIN *getRuntimePlugin(lua_State *lua)
+{
+    auto *plugin = static_cast<INTERACTION_RUNTIME_PLUGIN *>(
+        lua_touserdata(lua, lua_upvalueindex(1)));
+    if (!plugin || !plugin->isActive())
+        luaL_error(lua, "Interaction animation runtime is no longer active");
+    return plugin;
+}
+
 int onStartInteractionLua(lua_State *lua)
 {
+    INTERACTION_RUNTIME_PLUGIN *plugin = getRuntimePlugin(lua);
     const int config = lua_absindex(lua, 1);
     luaL_checktype(lua, config, LUA_TTABLE);
     lua_getfield(lua, config, "definition");
@@ -854,7 +995,7 @@ int onStartInteractionLua(lua_State *lua)
     lua_getfield(lua, config, "actors");
     const int bindingsTable = lua_absindex(lua, -1);
     luaL_checktype(lua, bindingsTable, LUA_TTABLE);
-    auto *instance = new INTERACTION_INSTANCE(lua);
+    auto *instance = new INTERACTION_INSTANCE(lua, plugin);
     instance->definition = std::move(definition);
     instance->actors.reserve(instance->definition.actors.size());
     for (const ACTOR_DEFINITION &actorDefinition : instance->definition.actors)
@@ -906,7 +1047,6 @@ int onStartInteractionLua(lua_State *lua)
     instance->notified.assign(instance->definition.events.size(), false);
 
     lua_newtable(lua);
-    lua_pushcfunction(lua, onInstanceUpdate); lua_setfield(lua, -2, "update");
     lua_pushcfunction(lua, onInstanceRestart); lua_setfield(lua, -2, "restart");
     lua_pushcfunction(lua, onInstanceStop); lua_setfield(lua, -2, "stop");
     lua_pushcfunction(lua, onInstanceIsFinished); lua_setfield(lua, -2, "isFinished");
@@ -929,6 +1069,7 @@ int onStartInteractionLua(lua_State *lua)
     lua_pushvalue(lua, instanceTable);
     lua_rawset(lua, -3);
     instance->weakInstanceReference = luaL_ref(lua, LUA_REGISTRYINDEX);
+    plugin->addInstance(instance);
     instance->resetInstance();
     instance->callCallback(instance->onStartReference, nullptr, 0);
     return 1;
@@ -944,17 +1085,49 @@ void ensureInstanceMetatable(lua_State *lua)
     lua_pop(lua, 1);
 }
 
-const luaL_Reg MODULE_FUNCTIONS[] = {
-    {"start", onStartInteractionLua},
-    {nullptr, nullptr},
-};
+int onPluginGc(lua_State *lua)
+{
+    lua_rawgeti(lua, 1, 1);
+    auto **plugin = static_cast<INTERACTION_RUNTIME_PLUGIN **>(lua_touserdata(lua, -1));
+    lua_pop(lua, 1);
+    if (plugin && *plugin)
+    {
+        delete *plugin;
+        *plugin = nullptr;
+    }
+    return 0;
+}
+
+void ensurePluginMetatable(lua_State *lua)
+{
+    if (luaL_newmetatable(lua, PLUGIN_METATABLE))
+    {
+        lua_pushcfunction(lua, onPluginGc);
+        lua_setfield(lua, -2, "__gc");
+    }
+    lua_pop(lua, 1);
+}
 
 }
 
 extern "C" INTERACTION_ANIMATION_RUNTIME_API int luaopen_interaction_animation_runtime(lua_State *lua)
 {
     ensureInstanceMetatable(lua);
-    luaL_newlib(lua, MODULE_FUNCTIONS);
+    ensurePluginMetatable(lua);
+    lua_newtable(lua);
+    const int module = lua_absindex(lua, -1);
+    auto **userdata = static_cast<INTERACTION_RUNTIME_PLUGIN **>(
+        lua_newuserdata(lua, sizeof(INTERACTION_RUNTIME_PLUGIN *)));
+    *userdata = new INTERACTION_RUNTIME_PLUGIN();
+    INTERACTION_RUNTIME_PLUGIN *plugin = *userdata;
+    mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);
+    lua_rawseti(lua, module, 1);
+    luaL_getmetatable(lua, PLUGIN_METATABLE);
+    lua_setmetatable(lua, module);
+    lua_pushlightuserdata(lua, plugin);
+    lua_pushcclosure(lua, onStartInteractionLua, 1);
+    lua_setfield(lua, module, "start");
+    mbm::plugin_doSubscribe(lua, module, "interaction_animation_runtime");
     return 1;
 }
 

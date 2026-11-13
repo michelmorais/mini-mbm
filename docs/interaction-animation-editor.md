@@ -27,6 +27,7 @@ A janela `Interaction actors` permite:
 - procurar e carregar uma mesh;
 - selecionar a animacao base;
 - marcar um unico ator como ancora;
+- definir se o ator pode ser selecionado por clique no viewport;
 - escolher o ator e a animacao do relogio mestre;
 - editar posicao, rotacao e escala da pose base;
 - alternar entre os modos `Move` e `Rotate`.
@@ -62,6 +63,20 @@ O menu `File` oferece:
   de uma gravacao bem-sucedida;
 - `Export require specification`: gera o modulo Lua executavel.
 
+O menu `Run` oferece `Run interaction preview` (atalho `F5`). Essa opcao
+gera um projeto e um script principal temporarios no diretorio temporario do
+sistema, carrega as meshes e as poses base, e inicia uma nova instancia da
+engine usando o plugin C++ `interaction_animation_runtime`. A interacao inicia
+automaticamente nessa instancia; `ESC` encerra a janela de preview. As
+alteracoes atuais do editor sao usadas mesmo que o projeto ainda nao tenha
+sido salvo.
+
+`Save preview as...` salva o mesmo material fora do diretorio temporario. O
+arquivo escolhido e o script principal de execucao; ao lado dele o editor
+grava um projeto companheiro com a extensao `.iae.lua`. O projeto companheiro
+pode ser aberto novamente no editor e o script principal pode ser usado como
+uma base de teste independente.
+
 O idioma selecionado no menu `Options` e salvo no projeto.
 
 ## Projeto `.iae.lua`
@@ -84,6 +99,7 @@ interactionProject = {
         actor1 = {
             path = "meshes/machine.msh",
             clipKey = "articulated:bite",
+            selectable = true,
             base = {
                 x = 0, y = 0, z = 0,
                 rx = 0, ry = 0, rz = 0,
@@ -155,6 +171,28 @@ transicao suave, use `transition = "smooth"`, `transitionStart` e
 usa uma curva suave e os valores de rotacao podem ultrapassar 360 graus,
 preservando multiplas voltas.
 
+Os limites de `transitionStart` e `transitionEnd` sao `0` e a duracao da
+timeline do projeto. A duracao ou o fim de um clip individual nao limita uma
+transicao de transformacao.
+
+Na interface, eventos instantaneos mostram `Tempo do evento`, que e o instante
+de disparo. Eventos suaves mostram `Fim da transicao`; o controle
+`Inicio / fim da transicao` edita os dois instantes da timeline mestre. Esse
+intervalo nao representa uma duracao independente.
+
+Abaixo do controle de intervalo, os botoes `Usar tempo atual no inicio` e
+`Usar tempo atual no fim` atribuem o tempo atual da timeline ao respectivo
+limite. Se os pontos forem definidos fora de ordem, o editor ajusta o outro
+limite para preservar `inicio <= fim`.
+
+Na lista de eventos, o botao direito abre um menu contextual para criar um
+novo evento no mesmo instante do evento selecionado. Para uma transformacao
+suave, o menu tambem oferece a criacao no instante inicial ou final da
+transicao.
+
+Para eventos sem transicao suave, o botao `Usar tempo atual da timeline`
+atribui o tempo atual ao campo `time` do evento e reorganiza a lista.
+
 ```lua
 {
     id = "move_actor2",
@@ -182,8 +220,14 @@ pose visual atual do ator.
 ### `play`
 
 Inicia ou troca a animacao de um ator no tempo indicado. `clipKey` usa o
-formato `skeletal:nome` ou `articulated:nome`, conforme o tipo de animacao
-descoberto no asset.
+formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
+animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
+estatica tradicional, formada por uma faixa de frames da mesh.
+
+Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
+crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
+calculado diretamente a partir do tempo mestre; no runtime, o modo original
+volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
 
 ### `notify`
 
@@ -239,9 +283,7 @@ local instance = runtime.start {
     }
 }
 
-function onLoop(delta)
-    instance:update(delta)
-end
+-- A engine atualiza a interacao automaticamente pelo ciclo de plugins.
 ```
 
 As chaves de `actors` podem usar o slot interno (`actor1`) ou seu alias com
@@ -256,9 +298,10 @@ Ao iniciar, o runtime:
 5. aplica os eventos do tempo zero;
 6. chama `onStart`.
 
-`instance:update(delta)` avanca a timeline, dispara eventos, aplica
-transformacoes e atualiza visibilidade. O retorno e `false` quando a interacao
-termina.
+Depois de `runtime.start(config)`, a instancia e registrada no ciclo de plugins
+da engine. A cada frame o runtime avanca a timeline, dispara eventos, aplica
+transformacoes e atualiza visibilidade automaticamente; o jogo nao precisa
+chamar um metodo de atualizacao manual.
 
 `instance:isFinished()` informa se a timeline terminou ou se `stop()` foi
 chamado. `instance:restart()` restaura as poses capturadas, rearma eventos,
