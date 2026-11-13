@@ -62,6 +62,14 @@ O menu `File` oferece:
   de uma gravacao bem-sucedida;
 - `Export require specification`: gera o modulo Lua executavel.
 
+O menu `Run` oferece `Run interaction preview` (atalho `F5`). Essa opcao
+gera um projeto e um script principal temporarios no diretorio temporario do
+sistema, carrega as meshes e as poses base, e inicia uma nova instancia da
+engine usando o plugin C++ `interaction_animation_runtime`. A interacao inicia
+automaticamente nessa instancia; `ESC` encerra a janela de preview. As
+alteracoes atuais do editor sao usadas mesmo que o projeto ainda nao tenha
+sido salvo.
+
 O idioma selecionado no menu `Options` e salvo no projeto.
 
 ## Projeto `.iae.lua`

@@ -1717,6 +1717,79 @@ local function exportSpec(path)
     end
 end
 
+local function runPreview()
+    if not validateProject(true) then return end
+    if #S.actorOrder == 0 then
+        setStatus(L('run_preview_no_actors'), true)
+        return
+    end
+
+    local projectPath = tUtil.getTemporaryFilePath('_iae_preview_project.lua')
+    local driverPath = tUtil.getTemporaryFilePath('_iae_preview_main.lua')
+    if not saveLua(projectPath, 'interactionProject', serializeProject(), true) then return end
+
+    local cameraX, cameraY, cameraZ = cameraPosition()
+    local focusX, focusY, focusZ = S.cameraOrbit.fx, S.cameraOrbit.fy, S.cameraOrbit.fz
+    local driver = string.format([[
+local project = dofile(%q)
+local reactionRuntime = require 'interaction_animation_runtime'
+local actors = {}
+local meshes = {}
+
+local function loadActor(id, definition)
+    local base = definition.base or {}
+    mbm.addPath(tostring(definition.path or ''):gsub('\\', '/'):match('^(.*)/[^/]*$') or '.')
+    local object = mesh:new('3d')
+    assert(object:load(definition.path), 'Could not load interaction mesh: ' .. tostring(definition.path))
+    object.alwaysRender = true
+    object:setPos(base.x or 0, base.y or 0, base.z or 0)
+    object:setAngle(math.rad(base.rx or 0), math.rad(base.ry or 0), math.rad(base.rz or 0))
+    object:setScale(base.sx or 1, base.sy or 1, base.sz or 1)
+    object.visible = base.visible ~= false
+    actors[id] = object
+    meshes[id] = object
+end
+
+function onInitScene()
+    mbm.setAmbientLight('3d', {r = 0.25, g = 0.25, b = 0.25, a = 1})
+    mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5},
+        {r = 1, g = 0.98, b = 0.9, a = 1})
+    local camera = mbm.getCamera('3d')
+    camera:setPos(%.17g, %.17g, %.17g)
+    camera:setFocus(%.17g, %.17g, %.17g)
+    for _, id in ipairs(project.actorOrder or {}) do
+        loadActor(id, project.actors[id])
+    end
+    reactionRuntime.start {
+        definition = project,
+        actors = actors,
+        callbacks = {
+            onStart = function() print('Interaction preview started') end,
+            onEvent = function(_, event) print('Interaction event: ' .. tostring(event.id)) end,
+            onFinish = function() print('Interaction preview finished') end,
+        },
+    }
+end
+
+function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') then mbm.quit() end
+end
+]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ)
+
+    local file, err = io.open(driverPath, 'w')
+    if not file then
+        setStatus(tostring(err), true)
+        return
+    end
+    file:write(driver)
+    file:close()
+
+    local width, height = mbm.getSizeScreen()
+    width, height = math.max(320, math.floor(width or 1280)), math.max(240, math.floor(height or 720))
+    tUtil.newInstance(width, height, width, height, driverPath)
+    setStatus(L('run_preview_started'))
+end
+
 local function eventLabel(event, index)
     if event.action == 'notify' then
         local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
@@ -1727,7 +1800,14 @@ local function eventLabel(event, index)
     local action = event.action == 'play' and L('play_animation') or
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
-    return string.format('%d: %.3fs%s %s %s', index, event.time or 0, identifier, target, action)
+    local timeLabel
+    if event.action == 'transform' and event.transition == 'smooth' then
+        local start, finish = transitionRange(event, projectDuration())
+        timeLabel = string.format('%.3fs -> %.3fs', start, finish)
+    else
+        timeLabel = string.format('%.3fs', event.time or 0)
+    end
+    return string.format('%d: %s%s %s %s', index, timeLabel, identifier, target, action)
 end
 
 local function captureTransformEvent()
@@ -2355,6 +2435,10 @@ local function showMainMenu()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()
     end
+    if tImGui.BeginMenu(L('run')) then
+        if tImGui.MenuItem(L('run_preview'), 'F5') then runPreview() end
+        tImGui.EndMenu()
+    end
     if tImGui.BeginMenu(L('options')) then
         if tImGui.MenuItem(L('english')) then
             tLang.setLanguage('en')
@@ -2396,6 +2480,10 @@ function onLoop(delta)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('F5') then
+        runPreview()
+        return
+    end
     if key == mbm.getKeyCode('ESC') then
         S.selectedActor = nil
         S.gizmo.drag = nil
