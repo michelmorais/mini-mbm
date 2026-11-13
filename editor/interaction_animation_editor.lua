@@ -397,6 +397,28 @@ local function raySphereDistance(sx, sy, center, radius)
     return distance >= 0 and distance or -b + math.sqrt(discriminant)
 end
 
+local function rayAABBDistance(sx, sy, center, width, height, depth)
+    local ox, oy, oz, dx, dy, dz = mbm.getPickRay(sx, sy)
+    local minimum = {center.x - width * 0.5, center.y - height * 0.5, center.z - depth * 0.5}
+    local maximum = {center.x + width * 0.5, center.y + height * 0.5, center.z + depth * 0.5}
+    local origin = {ox, oy, oz}
+    local direction = {dx, dy, dz}
+    local nearDistance, farDistance = 0, math.huge
+    for axis = 1, 3 do
+        if math.abs(direction[axis]) < 1e-8 then
+            if origin[axis] < minimum[axis] or origin[axis] > maximum[axis] then return nil end
+        else
+            local first = (minimum[axis] - origin[axis]) / direction[axis]
+            local second = (maximum[axis] - origin[axis]) / direction[axis]
+            if first > second then first, second = second, first end
+            nearDistance = math.max(nearDistance, first)
+            farDistance = math.min(farDistance, second)
+            if nearDistance > farDistance then return nil end
+        end
+    end
+    return farDistance >= 0 and nearDistance or nil
+end
+
 local function raySegmentDistance(sx, sy, a, b, radius)
     local ox, oy, oz, dx, dy, dz = mbm.getPickRay(sx, sy)
     local ax, ay, az = b.x - a.x, b.y - a.y, b.z - a.z
@@ -423,9 +445,9 @@ local function raySegmentDistance(sx, sy, a, b, radius)
     return math.sqrt(ex * ex + ey * ey + ez * ez)
 end
 
-local function actorPosition(entry)
+local function actorPosition(entry, refreshBounds)
     if entry.object then
-        local ok, x, y, z = pcall(function() return entry.object:getAABBCenter() end)
+        local ok, x, y, z = pcall(function() return entry.object:getAABBCenter(refreshBounds == true) end)
         if ok and x and y and z then return {x = x, y = y, z = z} end
     end
     return {
@@ -435,20 +457,32 @@ local function actorPosition(entry)
     }
 end
 
-local function actorMeshExtent(entry)
+local function actorMeshExtent(entry, refreshBounds)
     if not entry.object then return 40 / 0.45 end
-    local ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
-    if not ok then return 40 / 0.45 end
-    local extent = math.max(width or 0, height or 0, depth or 0)
+    -- getAABB(true) is the current world-space size and includes the actor's
+    -- scale and rotation. getSize(true) is only a geometry-size fallback.
+    local ok, width, height, depth = pcall(function()
+        return entry.object:getAABB(refreshBounds == true)
+    end)
+    local extent = ok and math.max(width or 0, height or 0, depth or 0) or 0
     if extent <= 0 then
-        local aabbOk, aabbWidth, aabbHeight, aabbDepth = pcall(function() return entry.object:getAABB(true) end)
-        if aabbOk then extent = math.max(aabbWidth or 0, aabbHeight or 0, aabbDepth or 0) end
+        ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
+        if ok then extent = math.max(width or 0, height or 0, depth or 0) end
     end
     return math.max(extent, 40 / 0.45)
 end
 
-local function actorPickRadius(entry)
-    return actorMeshExtent(entry) * 0.45
+local function actorPickRadius(entry, refreshBounds)
+    return actorMeshExtent(entry, refreshBounds) * 0.45
+end
+
+local function actorPickDistance(sx, sy, entry)
+    local center = actorPosition(entry, true)
+    local ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+    if ok and width and height and depth and width > 0 and height > 0 and depth > 0 then
+        return rayAABBDistance(sx, sy, center, width, height, depth)
+    end
+    return raySphereDistance(sx, sy, center, actorPickRadius(entry, true))
 end
 
 local function eventHighlightVertices()
@@ -666,7 +700,7 @@ local function pickActor(sx, sy)
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         if entry.object then
-            local distance = raySphereDistance(sx, sy, actorPosition(entry), actorPickRadius(entry))
+            local distance = actorPickDistance(sx, sy, entry)
             if distance and (not bestDistance or distance < bestDistance) then
                 bestId, bestDistance = id, distance
             end
@@ -727,6 +761,13 @@ end
 local function beginViewportInteraction(key, x, y)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
+        local picked = pickActor(x, y)
+        if picked and picked ~= S.selectedActor then
+            S.selectedActor = picked
+            S.gizmo.drag = nil
+            updateGizmo()
+            return
+        end
         local entry = S.selectedActor and actor(S.selectedActor) or nil
         local ring = S.selectedActor and pickRotationRing(x, y) or nil
         if ring and entry and S.gizmo.origin then
@@ -775,7 +816,6 @@ local function beginViewportInteraction(key, x, y)
                 return
             end
         end
-        local picked = pickActor(x, y)
         if picked then
             S.selectedActor = picked
             updateGizmo()
@@ -1002,7 +1042,15 @@ local function seekClip(entry, clip, time, playing)
         entry.runtimeKey = clip.key
         entry.runtimeClip = clip
     end
-    local targetTime = math.max(0, math.min(time or 0, clip.duration or 0))
+    local targetTime = math.max(0, time or 0)
+    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+        -- Looping static modes must wrap their sampled time. Clamping them to
+        -- the duration would keep the preview on one frame after the first
+        -- cycle, even though the asset metadata says the clip loops.
+        targetTime = targetTime % clip.duration
+    else
+        targetTime = math.min(targetTime, clip.duration or 0)
+    end
     if clip.kind == 'frame' then
         local frame = Animation.staticFrame(clip, targetTime)
         entry.object:setIndexFrame(frame)
@@ -1011,7 +1059,16 @@ local function seekClip(entry, clip, time, playing)
         if not playing then entry.object:pauseSkeletalAnimation() end
     else
         assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
-        if not playing then entry.object:pauseArticulatedAnimation(clip.name) end
+        if playing then
+            -- Selecting an event, changing a field, and loading a project all
+            -- rebuild the pose through seekAll(..., false). That intentionally
+            -- pauses the clip. When playback resumes, make the state explicit
+            -- instead of relying only on playArticulatedAnimation() from the
+            -- key-change branch above.
+            assert(entry.object:resumeArticulatedAnimation(clip.name))
+        else
+            entry.object:pauseArticulatedAnimation(clip.name)
+        end
     end
 end
 
@@ -1056,37 +1113,10 @@ local function maximumEventTime()
     return maximum
 end
 
-local function activeClipRange(id, sampleTime)
-    local entry = actor(id)
-    if not entry then return 0, 0 end
-    local clip = selectedClip(id)
-    local start = 0
-    local time = tonumber(sampleTime) or 0
-    for _, event in ipairs(S.events) do
-        local eventTime = tonumber(event.time) or 0
-        if eventTime > time then break end
-        if event.action == 'play' and event.target == id then
-            local eventClip = findClip(entry, event.clipKey)
-            if eventClip.kind ~= 'none' then
-                clip = eventClip
-                start = eventTime
-            end
-        end
-    end
-    return start, start + math.max(0, clip.duration or 0)
-end
-
 local function transitionBounds(event, maximumTime)
-    local lower = 0
-    local upper = maximumTime or projectDuration()
-    local sampleTime = tonumber(event.transitionStart) or tonumber(event.time) or S.time
-    local clipStart, clipEnd = activeClipRange(event.target, sampleTime)
-    if clipEnd > clipStart + 1e-6 and sampleTime <= clipEnd + 1e-6 then
-        lower = clipStart
-        upper = math.min(upper, clipEnd)
-    end
-    if upper < lower then upper = lower end
-    return lower, upper
+    -- Transform transitions belong to the project timeline. A clip may have
+    -- ended already, or may continue beyond it, without limiting this event.
+    return 0, maximumTime or projectDuration()
 end
 
 local function clamp(value, minimum, maximum)
@@ -1166,9 +1196,14 @@ local function applyEvent(event, progress)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then
-            entry.runtimeOverride = true
             entry.runtimeStartTime = event.time or 0
             seekClip(entry, clip, math.max(0, S.time - entry.runtimeStartTime), S.playing)
+            -- seekClip may switch from the actor's base clip and call
+            -- stopEntry(), which clears runtimeOverride. Restore the event
+            -- override after the switch so the next frame keeps this clip
+            -- instead of returning to the base animation.
+            entry.runtimeOverride = true
+            entry.runtimeStartTime = event.time or 0
         end
     elseif event.action == 'visibility' then
         entry.object.visible = event.visible ~= false
@@ -2049,22 +2084,22 @@ local function showEvents()
                 S.modified = true
                 validateEventIds()
             end
-            tImGui.SetNextItemWidth(105)
-            local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
-            if c then
-                if event.transition == 'smooth' then
-                    local start = select(1, transitionRange(event, projectDuration()))
-                    local _, maximum = transitionBounds(event, projectDuration())
-                    local finish = clamp(value, start, maximum)
-                    event.transitionStart = start
-                    event.transitionEnd = finish
-                    event.time = finish
-                else
-                    event.time = clamp(value, 0, projectDuration())
+            if event.transition == 'smooth' then
+                local _, finish = transitionRange(event, projectDuration())
+                tImGui.Text(string.format(L('transition_end_value'), finish))
+                tImGui.SameLine()
+                tImGui.HelpMarker(L('transition_end_help'))
+            else
+                tImGui.SetNextItemWidth(105)
+                local c, value = tImGui.InputFloat(L('event_time'), event.time or 0, 0.05)
+                tImGui.SameLine()
+                tImGui.HelpMarker(L('event_time_help'))
+                if c then event.time = clamp(value, 0, projectDuration()) end
+                if c then
+                    sortEvents()
+                    S.modified = true
+                    seekAll(S.time, false)
                 end
-                sortEvents()
-                S.modified = true
-                seekAll(S.time, false)
             end
             if event.action ~= 'notify' then
                 local targetIds, targetNames, targetIndex = activeActorIds(), {}, 1
@@ -2159,6 +2194,8 @@ local function showEvents()
                     tImGui.SetNextItemWidth(210)
                     local rangeChanged, range = tImGui.SliderFloat2(
                         L('transition_interval'), {start, finish}, minimum, maximum)
+                    tImGui.SameLine()
+                    tImGui.HelpMarker(L('transition_interval_help'))
                     if rangeChanged then
                         start = clamp(range[1], minimum, maximum)
                         finish = clamp(range[2], start, maximum)

@@ -155,6 +155,15 @@ transicao suave, use `transition = "smooth"`, `transitionStart` e
 usa uma curva suave e os valores de rotacao podem ultrapassar 360 graus,
 preservando multiplas voltas.
 
+Os limites de `transitionStart` e `transitionEnd` sao `0` e a duracao da
+timeline do projeto. A duracao ou o fim de um clip individual nao limita uma
+transicao de transformacao.
+
+Na interface, eventos instantaneos mostram `Tempo do evento`, que e o instante
+de disparo. Eventos suaves mostram `Fim da transicao`; o controle
+`Inicio / fim da transicao` edita os dois instantes da timeline mestre. Esse
+intervalo nao representa uma duracao independente.
+
 ```lua
 {
     id = "move_actor2",
