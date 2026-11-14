@@ -204,7 +204,8 @@ namespace mbm
 			lua_settop(lua,2);
 		}
 		onSetPhysicsFromTableLuaToLineMesh(lua,infoPhysics,pLineMesh);
-        if(infoPhysics->lsCube.size() || infoPhysics->lsSphere.size() || infoPhysics->lsTriangle.size() || infoPhysics->lsCubeComplex.size())
+        if(infoPhysics->lsCube.size() || infoPhysics->lsSphere.size() || infoPhysics->lsTriangle.size() ||
+           infoPhysics->lsCubeComplex.size() || infoPhysics->lsConvexPolyhedron.size())
             lua_pushboolean(lua,1);
         else
             lua_pushboolean(lua,0);

@@ -632,6 +632,7 @@ namespace mbm
         const unsigned int sTria = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsTriangle.size());
         const unsigned int sSphe = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsSphere.size());
         const unsigned int sComp = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsCubeComplex.size());
+        const unsigned int sPoly = static_cast<unsigned int>(meshDebug->mesh.getPhysicsInfo().lsConvexPolyhedron.size());
         int index_array = 1;
 
         if (sCube)
@@ -749,6 +750,31 @@ namespace mbm
                     lua_setfield(lua, -2, c);
                 }
                 lua_rawseti(lua,-2, index_array++);//array
+            }
+        }
+        if (sPoly)
+        {
+            for (unsigned int i = 0; i < sPoly; ++i)
+            {
+                lua_newtable(lua);
+                lua_pushstring(lua, "convex_polyhedron");
+                lua_setfield(lua, -2, "type");
+                const CONVEX_POLYHEDRON *polyhedron = meshDebug->mesh.getPhysicsInfo().lsConvexPolyhedron[i];
+                lua_newtable(lua);
+                for (size_t j = 0; j < polyhedron->points.size(); ++j)
+                {
+                    const VEC3 &point = polyhedron->points[j];
+                    lua_newtable(lua);
+                    lua_pushnumber(lua, point.x);
+                    lua_setfield(lua, -2, "x");
+                    lua_pushnumber(lua, point.y);
+                    lua_setfield(lua, -2, "y");
+                    lua_pushnumber(lua, point.z);
+                    lua_setfield(lua, -2, "z");
+                    lua_rawseti(lua, -2, static_cast<lua_Integer>(j + 1));
+                }
+                lua_setfield(lua, -2, "points");
+                lua_rawseti(lua, -2, index_array++);
             }
         }
         return 1;

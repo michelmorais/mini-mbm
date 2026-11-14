@@ -33,6 +33,22 @@
 
 namespace mbm
 {
+
+    static btCollisionShape *createConvexPolyhedronShape(const CONVEX_POLYHEDRON *polyhedron,
+                                                         const float scale)
+    {
+        if (polyhedron == nullptr || polyhedron->points.size() < 4)
+            return nullptr;
+        std::vector<float> points;
+        points.reserve(polyhedron->points.size() * 3);
+        for (const VEC3 &point : polyhedron->points)
+        {
+            points.push_back(point.x * scale);
+            points.push_back(point.y * scale);
+            points.push_back(point.z * scale);
+        }
+        return new btConvexHullShape(points.data(), static_cast<int>(polyhedron->points.size()), sizeof(float) * 3);
+    }
     
     INFO_CONSTRAINT_3D::INFO_CONSTRAINT_3D(SHAPE_INFO_3D*   info_a,SHAPE_INFO_3D*   info_b/*,b2Joint* _joint*/)
     {
@@ -761,6 +777,50 @@ namespace mbm
                     infoBullet->body->setFriction(friction);
                     this->dynamicsWorld->addRigidBody(infoBullet->body);
                     infoBullet->lsCollisionShapes.push_back(groundShape);
+                }
+            }
+            else if (infoPhysics->lsConvexPolyhedron.size())
+            {
+                if (infoPhysics->lsConvexPolyhedron.size() > 1)
+                {
+                    infoBullet->compound = new btCompoundShape();
+                    for (const CONVEX_POLYHEDRON *polyhedron : infoPhysics->lsConvexPolyhedron)
+                    {
+                        btCollisionShape *groundShape = createConvexPolyhedronShape(polyhedron, this->scale);
+                        if (groundShape == nullptr)
+                            continue;
+                        btTransform btTransform;
+                        btTransform.setIdentity();
+                        infoBullet->compound->addChildShape(btTransform, groundShape);
+                        infoBullet->lsCollisionShapes.push_back(groundShape);
+                    }
+                    if (infoBullet->compound->getNumChildShapes() > 0)
+                    {
+                        btVector3 localInertia(0, 0, 0);
+                        if (isStaticBody == false)
+                            infoBullet->compound->calculateLocalInertia(mass, localInertia);
+                        btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, infoBullet, infoBullet->compound, localInertia);
+                        infoBullet->getWorldTransform(rbInfo.m_startWorldTransform);
+                        infoBullet->body = new btRigidBody(rbInfo);
+                        infoBullet->body->setFriction(friction);
+                        this->dynamicsWorld->addRigidBody(infoBullet->body);
+                    }
+                }
+                else
+                {
+                    btCollisionShape *groundShape = createConvexPolyhedronShape(infoPhysics->lsConvexPolyhedron[0], this->scale);
+                    if (groundShape != nullptr)
+                    {
+                        btVector3 localInertia(0, 0, 0);
+                        if (isStaticBody == false)
+                            groundShape->calculateLocalInertia(mass, localInertia);
+                        btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, infoBullet, groundShape, localInertia);
+                        infoBullet->getWorldTransform(rbInfo.m_startWorldTransform);
+                        infoBullet->body = new btRigidBody(rbInfo);
+                        infoBullet->body->setFriction(friction);
+                        this->dynamicsWorld->addRigidBody(infoBullet->body);
+                        infoBullet->lsCollisionShapes.push_back(groundShape);
+                    }
                 }
             }
         }

@@ -39,6 +39,9 @@ namespace util
     bool readCubeComplexV8(util::MEM_CURSOR_V11 &fp, mbm::CONVEX_POLYHEDRON_8 &out);
     bool writeCubeComplexV8(FILE *fp, const mbm::CONVEX_POLYHEDRON_8 &in);
 
+    bool readConvexPolyhedronV8(util::MEM_CURSOR_V11 &fp, mbm::CONVEX_POLYHEDRON &out);
+    bool writeConvexPolyhedronV8(FILE *fp, const mbm::CONVEX_POLYHEDRON &in);
+
     bool readTriangleV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out);
     bool writeTriangleV8(FILE *fp, const mbm::TRIANGLE &in);
     bool readTriangleLegacyNoPosV8(util::MEM_CURSOR_V11 &fp, mbm::TRIANGLE &out);

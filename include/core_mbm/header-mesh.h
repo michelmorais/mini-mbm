@@ -126,6 +126,7 @@ namespace util
     #define MBM_DETAIL_TYPE_FONT 5
     #define MBM_DETAIL_TYPE_PARTICLE 6
     #define MBM_DETAIL_TYPE_TILE 7
+    #define MBM_DETAIL_TYPE_CONVEX_POLYHEDRON 8
 
     struct API_IMPL INFO_DRAW_MODE //added since version 5
     {

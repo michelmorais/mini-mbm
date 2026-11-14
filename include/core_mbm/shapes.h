@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include <string>
+#include <vector>
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(push)
@@ -174,6 +175,21 @@ namespace mbm
         CONVEX_POLYHEDRON_8(const float s)noexcept;
         CONVEX_POLYHEDRON_8(VEC3 &s)noexcept;
         CONVEX_POLYHEDRON_8(VEC3 &vmin, VEC3 &vmax)noexcept;
+        void getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept;
+        void getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept;
+    };
+
+    // Variable-vertex convex polyhedron used by 3D physics. The points are local to
+    // the renderizable and are consumed by Bullet as a convex hull.
+    struct API_IMPL CONVEX_POLYHEDRON
+    {
+      public:
+        std::vector<VEC3> points;
+
+        CONVEX_POLYHEDRON() noexcept = default;
+        explicit CONVEX_POLYHEDRON(const std::vector<VEC3> &points_) : points(points_)
+        {
+        }
         void getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept;
         void getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept;
     };

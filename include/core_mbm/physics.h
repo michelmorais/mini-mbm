@@ -53,6 +53,7 @@ namespace mbm
         std::vector<CUBE *>         lsCube;
         // Legacy member name retained for source and binary layout compatibility.
         std::vector<CONVEX_POLYHEDRON_8 *> lsCubeComplex;
+        std::vector<CONVEX_POLYHEDRON *>   lsConvexPolyhedron;
         std::vector<SPHERE *>       lsSphere;
         std::vector<TRIANGLE *>     lsTriangle;
         

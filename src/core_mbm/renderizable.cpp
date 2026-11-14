@@ -474,7 +474,7 @@ namespace mbm
         w *= 0.5f;
         h *= 0.5f;
         d *= 0.5f;
-        const VEC3 &position = this->getPosition();
+        const VEC3 position = this->getPosition() + this->getBoundingAABBCenterOffset();
         // dir is unit direction vector of ray
         const VEC3 dirfrac(dir.x != 0.0f ? 1.0f / dir.x : 0.0f, dir.y != 0.0f ? 1.0f / dir.y : 0.0f,
                             dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
@@ -501,7 +501,8 @@ namespace mbm
         this->getAABB(&w, &h);
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        if (device->isPointScreen2DOnRectangleWorld2d(point, halfDim, this->getPosition()))
+        const VEC3 position = this->getPosition() + this->getBoundingAABBCenterOffset();
+        if (device->isPointScreen2DOnRectangleWorld2d(point, halfDim, position))
             return true;
         return false;
     }
@@ -511,7 +512,8 @@ namespace mbm
         this->getAABB(&w, &h);
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
-        if (device->isPointScreen2DOnRectangleScreen2d(point, halfDim, this->getPosition()))
+        const VEC3 position = this->getPosition() + this->getBoundingAABBCenterOffset();
+        if (device->isPointScreen2DOnRectangleScreen2d(point, halfDim, position))
             return true;
         return false;
     }

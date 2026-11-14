@@ -57,6 +57,11 @@ namespace mbm
             delete cube;
         }
         lsCubeComplex.clear();
+        for (auto polyhedron : lsConvexPolyhedron)
+        {
+            delete polyhedron;
+        }
+        lsConvexPolyhedron.clear();
         for (auto triangle : lsTriangle)
         {
             delete triangle;
@@ -131,6 +136,14 @@ namespace mbm
             complex->getBounds(vmax, vmin);
             ret = true;
         }
+        for (const auto polyhedron : this->lsConvexPolyhedron)
+        {
+            if (!polyhedron->points.empty())
+            {
+                polyhedron->getBounds(vmax, vmin);
+                ret = true;
+            }
+        }
         for (const auto triangle : this->lsTriangle)
         {
             triangle->getBounds(vmax, vmin);
@@ -169,6 +182,14 @@ namespace mbm
             complex->getBounds(vmax, vmin);
             ret = true;
         }
+        for (const auto polyhedron : this->lsConvexPolyhedron)
+        {
+            if (!polyhedron->points.empty())
+            {
+                polyhedron->getBounds(vmax, vmin);
+                ret = true;
+            }
+        }
         for (const auto triangle : this->lsTriangle)
         {
             triangle->getBounds(vmax, vmin);
@@ -195,6 +216,12 @@ namespace mbm
             memcpy(to->p,from->p,sizeof(to->p));
             this->lsCubeComplex.emplace_back(to);
         }
+        for (const auto from : other->lsConvexPolyhedron)
+        {
+            mbm::CONVEX_POLYHEDRON *to = new mbm::CONVEX_POLYHEDRON();
+            to->points = from->points;
+            this->lsConvexPolyhedron.emplace_back(to);
+        }
         for( const auto from : other->lsSphere)
         {
             mbm::SPHERE* to = new mbm::SPHERE();
@@ -209,7 +236,8 @@ namespace mbm
             to->position = from->position;
             this->lsTriangle.emplace_back(to);
         }
-        return (this->lsCube.size() > 0 || this->lsTriangle.size() > 0 || this->lsSphere.size() > 0 || this->lsCubeComplex.size() > 0);
+        return (this->lsCube.size() > 0 || this->lsTriangle.size() > 0 || this->lsSphere.size() > 0 ||
+                this->lsCubeComplex.size() > 0 || this->lsConvexPolyhedron.size() > 0);
     }
 
 }

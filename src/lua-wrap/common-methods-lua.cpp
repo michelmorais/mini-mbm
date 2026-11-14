@@ -807,6 +807,28 @@ namespace mbm
 
                 lua_rawseti(lua, -2, index_main_table++);
             }
+
+            for (const CONVEX_POLYHEDRON *polyhedron : physics->lsConvexPolyhedron)
+            {
+                lua_newtable(lua);
+                lua_pushstring(lua, "convex_polyhedron");
+                lua_setfield(lua, -2, "type");
+                lua_newtable(lua);
+                for (size_t i = 0; i < polyhedron->points.size(); ++i)
+                {
+                    const VEC3 &point = polyhedron->points[i];
+                    lua_newtable(lua);
+                    lua_pushnumber(lua, point.x);
+                    lua_setfield(lua, -2, "x");
+                    lua_pushnumber(lua, point.y);
+                    lua_setfield(lua, -2, "y");
+                    lua_pushnumber(lua, point.z);
+                    lua_setfield(lua, -2, "z");
+                    lua_rawseti(lua, -2, static_cast<lua_Integer>(i + 1));
+                }
+                lua_setfield(lua, -2, "points");
+                lua_rawseti(lua, -2, index_main_table++);
+            }
             
         }
         return 1;

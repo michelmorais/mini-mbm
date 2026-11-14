@@ -795,6 +795,7 @@ namespace mbm
         API_IMPL void appendPhysicsCube(CUBE *cube) noexcept;
         API_IMPL void appendPhysicsSphere(SPHERE *sphere) noexcept;
         API_IMPL void appendPhysicsConvexPolyhedron8(CONVEX_POLYHEDRON_8 *polyhedron) noexcept;
+        API_IMPL void appendPhysicsConvexPolyhedron(CONVEX_POLYHEDRON *polyhedron) noexcept;
         // Legacy entry point retained for older plugins and applications.
         API_IMPL void appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept;
         API_IMPL void appendPhysicsTriangle(TRIANGLE *triangle) noexcept;

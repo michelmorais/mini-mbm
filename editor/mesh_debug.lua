@@ -3996,6 +3996,10 @@ function computePhysicsExtent(tPhysics)
                 local p = shape[key]
                 if p then acc(p.x, p.y, p.z) end
             end
+        elseif shape.type == 'convex_polyhedron' and shape.points then
+            for _, p in ipairs(shape.points) do
+                acc(p.x, p.y, p.z)
+            end
         end
     end
     if minX > maxX then return nil end
@@ -11095,6 +11099,20 @@ local function addPhysicsShapeWireframe(ln, shape, is3D)
                     {x=minX,y=minY}, {x=minX,y=maxY}, {x=maxX,y=maxY}, {x=maxX,y=minY},
                 })
             end
+        end
+    elseif shape.type == 'convex_polyhedron' and shape.points and #shape.points >= 2 then
+        if is3D then
+            for i = 1, #shape.points do
+                local a = shape.points[i]
+                local b = shape.points[(i % #shape.points) + 1]
+                ln:add({a.x, a.y, a.z or 0, b.x, b.y, b.z or 0})
+            end
+        else
+            local points = {}
+            for _, p in ipairs(shape.points) do
+                table.insert(points, {x=p.x, y=p.y})
+            end
+            addLoop2d(ln, points)
         end
     end
 end

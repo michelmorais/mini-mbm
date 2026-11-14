@@ -581,7 +581,21 @@ Collision queries do not change the object's position.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:getPhysics` | `()` | table | Physics collision shapes: array of `{type, x, y, z, width?, height?, depth?, ray?}`. Types: `"cube"`, `"sphere"`, `"triangle"`, `"convex_polyhedron_8"` (legacy input `"complex"` is also accepted). |
+| `obj:getPhysics` | `()` | table | Physics collision shapes. Types: `"cube"`, `"sphere"`, `"triangle"`, `"convex_polyhedron_8"`, and `"convex_polyhedron"`. The variable polyhedron uses `points={{x=...,y=...,z=...},...}`. Legacy input `"complex"` is also accepted for the fixed eight-point type. |
+
+```lua
+obj:setPhysics({
+    {type = "convex_polyhedron", points = {
+        {x = -1, y = -1, z = -1},
+        {x =  1, y = -1, z = -1},
+        {x =  0, y =  1, z = -1},
+        {x =  0, y =  0, z =  1},
+    }},
+})
+```
+
+`convex_polyhedron` is a 3D shape and requires 4 to 4096 points. Points are local to the
+renderizable; optional `x`, `y`, `z` or `center` fields can offset the complete point list.
 
 ### 6.6 Animation & Shaders
 

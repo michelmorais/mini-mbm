@@ -195,7 +195,7 @@ FRUSTUM::FRUSTUM() noexcept
             this->renderizable->getAABB(&w, &h, &d);
             const mbm::CUBE cube(w, h, d);
             const VEC3 scale(1,1,1);
-            const VEC3 &position = renderizable->getPosition();
+            const VEC3 position = renderizable->getPosition() + renderizable->getBoundingAABBCenterOffset();
             if (device->isCubeAtFrustum(position, scale, cube))
                 return true;
             return false;
@@ -203,7 +203,7 @@ FRUSTUM::FRUSTUM() noexcept
         else if (is2ds)
         {
             this->renderizable->getAABB(&w, &h);
-            const VEC3 &position = renderizable->getPosition();
+            const VEC3 position = renderizable->getPosition() + renderizable->getBoundingAABBCenterOffset();
             if (device->isRectangleScreen2dOnScreen2D_scaled(position.x, position.y, w, h))
                 return true;
             return false;
@@ -211,7 +211,7 @@ FRUSTUM::FRUSTUM() noexcept
         else
         {
             this->renderizable->getAABB(&w, &h);
-            const VEC3 &position = renderizable->getPosition();
+            const VEC3 position = renderizable->getPosition() + renderizable->getBoundingAABBCenterOffset();
             if (device->isRectangleWorld2dOnScreen2D_scaled(position.x, position.y, w, h))
                 return true;
             return false;

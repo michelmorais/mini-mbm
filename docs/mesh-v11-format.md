@@ -82,7 +82,7 @@ enum SECTION_TYPE : uint16_t
     SECTION_ARTICULATED_ANIMATION = 13, // optional rigid/articulated animation clips and tracks
     SECTION_NORMAL_MAP_TANGENTS = 14, // optional prepared tangent batches, one section per frame
     SECTION_NORMAL_MAP_MATERIALS = 15, // optional per-frame/subset convention and strength
-    SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / cube-complex / triangle bounding volumes
+    SECTION_DETAIL_PHYSICS     = 20,  // cube / sphere / convex polyhedra / triangle bounding volumes
     SECTION_DETAIL_FONT        = 21,
     SECTION_DETAIL_PARTICLE    = 22,
     SECTION_DETAIL_TILE        = 23,
@@ -336,6 +336,28 @@ proportional bounded coefficients for large strengths). Strength zero disables
 the detail. These settings do not affect the existing 2dw lighting equations.
 Storage and validated serialization live in `private/normal-map-asset.*`; both
 runtime loaders and the authoring loader use the same material payload parser.
+
+## 6a. `SECTION_DETAIL_PHYSICS` payload
+
+The section uses the legacy `DETAIL_MESH` header for each shape family. The outer header has
+`type == 'P'` and `totalBounding` equal to the total number of shapes. Each following header has
+`type` set to one of the detail constants below and `totalBounding` equal to the number of shapes
+of that family.
+
+The existing `MBM_DETAIL_TYPE_CONVEX_POLYHEDRON_8 == 3` record remains eight fixed `VEC3` points
+per shape. The new `MBM_DETAIL_TYPE_CONVEX_POLYHEDRON == 8` record is variable length:
+
+```cpp
+struct CONVEX_POLYHEDRON_V11
+{
+    uint32_t vertexCount;       // 4..4096
+    // followed by vertexCount * VEC3, each VEC3 written as x, y, z f32 little-endian
+};
+```
+
+The points are local to the renderizable. The runtime validates the count before allocating and
+Bullet constructs a convex hull from the points. The old fixed eight-point record remains readable
+and writable so existing `.msh` files are unchanged.
 
 ## 6b. `SECTION_ANIMATION` payload
 

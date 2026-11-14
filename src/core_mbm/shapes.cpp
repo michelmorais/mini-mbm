@@ -144,6 +144,42 @@ namespace mbm
         }
     }
 
+    void CONVEX_POLYHEDRON::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept
+    {
+        for (const auto &point : this->points)
+        {
+            if (point.x > vmax.x)
+                vmax.x = point.x;
+            if (point.y > vmax.y)
+                vmax.y = point.y;
+
+            if (point.x < vmin.x)
+                vmin.x = point.x;
+            if (point.y < vmin.y)
+                vmin.y = point.y;
+        }
+    }
+
+    void CONVEX_POLYHEDRON::getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept
+    {
+        for (const auto &point : this->points)
+        {
+            if (point.x > vmax.x)
+                vmax.x = point.x;
+            if (point.y > vmax.y)
+                vmax.y = point.y;
+            if (point.z > vmax.z)
+                vmax.z = point.z;
+
+            if (point.x < vmin.x)
+                vmin.x = point.x;
+            if (point.y < vmin.y)
+                vmin.y = point.y;
+            if (point.z < vmin.z)
+                vmin.z = point.z;
+        }
+    }
+
     TRIANGLE::TRIANGLE()
     = default;
     void TRIANGLE::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept

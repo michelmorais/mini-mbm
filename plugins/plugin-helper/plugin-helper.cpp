@@ -42,7 +42,8 @@ namespace mbm
                 "{[1]={type='ellipse', width=0,height=0}\n"
                 "{[1]={type='triangle',a={x=0,y=0,z=0},b={x=0,y=0,z=0},c={x=0,y=0,z=0}},[2]={...}} \n"
                 "{[1]={type='sphere',  center={x=0,y=0,z=0},ray=1},[2]={...}} \n"
-                "{[1]={type='convex_polyhedron_8', a={x=0,y=0,z=0},b={x=0,y=0,z=0},c={x=0,y=0,z=0},d={x=0,y=0,z=0},e={x=0,y=0,z=0},f={x=0,y=0,z=0},g={x=0,y=0,z=0},h={x=0,y=0,z=0}},[2]={...}} \n";
+                "{[1]={type='convex_polyhedron_8', a={x=0,y=0,z=0},b={x=0,y=0,z=0},c={x=0,y=0,z=0},d={x=0,y=0,z=0},e={x=0,y=0,z=0},f={x=0,y=0,z=0},g={x=0,y=0,z=0},h={x=0,y=0,z=0}},[2]={...}} \n"
+                "{[1]={type='convex_polyhedron', points={{x=0,y=0,z=0},{x=1,y=0,z=0},{x=0,y=1,z=0},{x=0,y=0,z=1}}},[2]={...}} \n";
 
     void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
     {
@@ -1024,6 +1025,13 @@ namespace mbm
                     infoPhysics->lsCubeComplex.push_back(polyhedron);
                 }
 
+                for (const auto pPolyhedron : pInfoPhysics->lsConvexPolyhedron)
+                {
+                    auto *polyhedron = new CONVEX_POLYHEDRON();
+                    polyhedron->points = pPolyhedron->points;
+                    infoPhysics->lsConvexPolyhedron.push_back(polyhedron);
+                }
+
                 for (auto pSphere : pInfoPhysics->lsSphere)
                 {
                     auto * sphere = new SPHERE();
@@ -1084,6 +1092,17 @@ namespace mbm
                         box[15-1]  = complex->h; // --h 8
                         box[16-1]  = complex->e; // --e 5
                         lineMesh->add(std::move(box));
+                    }
+
+                    for (const auto polyhedron : pInfoPhysics->lsConvexPolyhedron)
+                    {
+                        std::vector<VEC3> outline;
+                        outline.reserve(polyhedron->points.size() + 1);
+                        for (const auto &point : polyhedron->points)
+                            outline.push_back(point);
+                        if (!polyhedron->points.empty())
+                            outline.push_back(polyhedron->points.front());
+                        lineMesh->add(std::move(outline));
                     }
 
                     for (auto sphere : pInfoPhysics->lsSphere)
@@ -1781,6 +1800,63 @@ namespace mbm
                         }
                     }
                     lua_pop(lua,1);
+                }
+                else if (strcmp(myType, "convex_polyhedron") == 0)
+                {
+                    lua_getfield(lua, indexTable, "points");
+                    if (!lua_istable(lua, indexSubTable))
+                        return lua_error_debug(lua, "convex_polyhedron requires points={{x=...,y=...,z=...},...}");
+
+                    const size_t count = lua_rawlen(lua, indexSubTable);
+                    if (count < 4 || count > 4096)
+                        return lua_error_debug(lua, "convex_polyhedron requires 4 to 4096 vertices");
+
+                    float xPos = 0;
+                    float yPos = 0;
+                    float zPos = 0;
+                    getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &xPos);
+                    getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &yPos);
+                    getFieldPrimaryFromTable(lua, indexTable, "z", LUA_TNUMBER, &zPos);
+                    lua_getfield(lua, indexTable, "center");
+                    if (lua_istable(lua, indexSubTable + 1))
+                    {
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "x", LUA_TNUMBER, &xPos);
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "y", LUA_TNUMBER, &yPos);
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "z", LUA_TNUMBER, &zPos);
+                    }
+                    lua_pop(lua, 1);
+
+                    auto polyhedron = new CONVEX_POLYHEDRON();
+                    polyhedron->points.resize(count);
+                    for (size_t j = 0; j < count; ++j)
+                    {
+                        lua_rawgeti(lua, indexSubTable, static_cast<lua_Integer>(j + 1));
+                        if (!lua_istable(lua, indexSubTable + 1))
+                        {
+                            delete polyhedron;
+                            lua_pop(lua, 2);
+                            return lua_error_debug(lua, "convex_polyhedron point must be a table");
+                        }
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "x", LUA_TNUMBER, &polyhedron->points[j].x);
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "y", LUA_TNUMBER, &polyhedron->points[j].y);
+                        getFieldPrimaryFromTable(lua, indexSubTable + 1, "z", LUA_TNUMBER, &polyhedron->points[j].z);
+                        polyhedron->points[j].x += xPos;
+                        polyhedron->points[j].y += yPos;
+                        polyhedron->points[j].z += zPos;
+                        lua_pop(lua, 1);
+                    }
+                    lua_pop(lua, 1);
+                    infoPhysics->lsConvexPolyhedron.push_back(polyhedron);
+
+                    if (lineMesh)
+                    {
+                        std::vector<VEC3> outline;
+                        outline.reserve(count + 1);
+                        for (const auto &point : polyhedron->points)
+                            outline.push_back(point);
+                        outline.push_back(polyhedron->points.front());
+                        lineMesh->add(std::move(outline));
+                    }
                 }
                 else if(strcmp(myType,"convex_polyhedron_8") == 0 || strcmp(myType,"complex") == 0)
                 {
