@@ -239,6 +239,32 @@ function onRender(tShape, vertex, uv, index_read_only)
     return vertex,uv
 end
 
+function isPhysicsEditorVisible(tInfoPhysic)
+    return tInfoPhysic.bEditorVisible ~= false
+end
+
+function syncPhysicsEditorVisibility(tInfoPhysic)
+    local bVisible = isPhysicsEditorVisible(tInfoPhysic)
+    if tInfoPhysic.tLine then
+        tInfoPhysic.tLine.visible = bVisible
+    end
+    if tInfoPhysic.tShape then
+        tInfoPhysic.tShape.visible = bVisible and tInfoPhysic.bSelected == true
+    end
+    local tHandles = tInfoPhysic.tHandles
+    if tHandles then
+        local bShowHandles = bVisible and tInfoPhysic.bSelected == true
+        if tHandles.move then tHandles.move.visible = bShowHandles end
+        if tHandles.resize then tHandles.resize.visible = bShowHandles end
+        if tHandles.corners then
+            for _,handle in pairs(tHandles.corners) do handle.visible = bShowHandles end
+        end
+        if tHandles.resizeAxes then
+            for _,handle in pairs(tHandles.resizeAxes) do handle.visible = bShowHandles end
+        end
+    end
+end
+
 
 function setupPhysics2d(tInfoPhysic)
     local tShape = nil
@@ -701,6 +727,7 @@ function setupPhysics2d(tInfoPhysic)
     if tInfoPhysic.finishMoveFrame == nil then
         tInfoPhysic.finishMoveFrame = function(self,x,y) end
     end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 local BOX_LETTERS = {'a','b','c','d','e','f','g','h'}
@@ -1121,7 +1148,7 @@ function setupPhysics3d(tInfoPhysic)
                 tInfoPhysic.tHandles = {}
             end
             local tHandles = tInfoPhysic.tHandles
-            local bVisible = tInfoPhysic.bSelected == true
+            local bVisible = isPhysicsEditorVisible(tInfoPhysic) and tInfoPhysic.bSelected == true
 
             if tHandles.move == nil then
                 tHandles.move = makeHandleMarker(cx,cy,cz, handleSize, 1,1,0,1) -- yellow: move
@@ -1179,6 +1206,7 @@ function setupPhysics3d(tInfoPhysic)
     if tInfoPhysic.finishMoveFrame == nil then
         tInfoPhysic.finishMoveFrame = function(self,x,y) end
     end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 -- Dispatches to setupPhysics2d/setupPhysics3d based on the LIVE bIs3d, every call -- previously
@@ -1314,8 +1342,12 @@ function onLoadMesh()
                     if index == nil then --disable high light
                         tHighLightPoint.visible = false
                     else
-                        tHighLightPoint.visible = true
                         local tInfoPhysic = self[index]
+                        if not tInfoPhysic or not isPhysicsEditorVisible(tInfoPhysic) then
+                            tHighLightPoint.visible = false
+                            return
+                        end
+                        tHighLightPoint.visible = true
                         if bIs3d then
                             if tInfoPhysic.type_info == 'cube' or tInfoPhysic.type_info == 'sphere' then
                                 tHighLightPoint:setPos(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z)
@@ -1375,7 +1407,7 @@ function onLoadMesh()
                 tInfoPhysics.indexIsOver = function(self,x,y) -- 0 to none
                     for i=1, #self do
                         local tInfoPhysic = self[i]
-                        if tInfoPhysic.selectable and tInfoPhysic:isOver(x,y) then
+                        if tInfoPhysic.selectable and isPhysicsEditorVisible(tInfoPhysic) and tInfoPhysic:isOver(x,y) then
                             return i
                         end
                     end
@@ -1391,14 +1423,16 @@ function onLoadMesh()
                 tInfoPhysics.setHighLight = function(self,index) -- 0 to none
                     
                     for j=1, #self do
-                        local tShape = self[j].tShape
-                        tShape.visible = j == index
+                        local tPhysic = self[j]
+                        local tShape = tPhysic.tShape
+                        tShape.visible = isPhysicsEditorVisible(tPhysic) and j == index
                         tShape:setColor(1,0,1,0.1)
                     end
 
                     if self.iIndexSelected ~= 0 then
-                        local tShape = self[self.iIndexSelected].tShape
-                        tShape.visible = true
+                        local tPhysic = self[self.iIndexSelected]
+                        local tShape = tPhysic.tShape
+                        tShape.visible = isPhysicsEditorVisible(tPhysic)
                         tShape:setColor(0,1,0,0.1)
                     end
                 end
@@ -1413,7 +1447,7 @@ function onLoadMesh()
                     if self.iIndexSelected ~= 0 then
                         local tSelectedPoints = self[self.iIndexSelected].tPoints
                         for j=1, #self do
-                            if self[j].bSelected then
+                            if self[j].bSelected and isPhysicsEditorVisible(self[j]) then
                                 local tPoints      = self[j].tPoints
                                 local iTotalPoints = (#tPoints / 2) - 1 --the last one is to close the geometry
                                 for i=1, iTotalPoints do
@@ -1438,17 +1472,18 @@ function onLoadMesh()
                 tInfoPhysics.setSelected = function(self,index) -- 0 to none
                     for j=1, #self do
                         local tShape = self[j].tShape
-                        tShape.visible    = j == index
+                        tShape.visible    = isPhysicsEditorVisible(self[j]) and j == index
                         self[j].bSelected = j == index
                         local tHandles = self[j].tHandles
                         if tHandles then
-                            if tHandles.move then tHandles.move.visible = j == index end
-                            if tHandles.resize then tHandles.resize.visible = j == index end
+                            local bShowHandles = isPhysicsEditorVisible(self[j]) and j == index
+                            if tHandles.move then tHandles.move.visible = bShowHandles end
+                            if tHandles.resize then tHandles.resize.visible = bShowHandles end
                             if tHandles.corners then
-                                for _,h in pairs(tHandles.corners) do h.visible = j == index end
+                                for _,h in pairs(tHandles.corners) do h.visible = bShowHandles end
                             end
                             if tHandles.resizeAxes then
-                                for _,h in pairs(tHandles.resizeAxes) do h.visible = j == index end
+                                for _,h in pairs(tHandles.resizeAxes) do h.visible = bShowHandles end
                             end
                         end
                     end
@@ -2095,6 +2130,15 @@ function showEditPhysics()
                 end
                 if tImGui.TreeNodeEx(typeLabel .. string.format('[%d]',i),flag_node,id_node) then
                     tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable)
+                    local bPreviousVisible = isPhysicsEditorVisible(tPhysic)
+                    local bEditorVisible = tImGui.Checkbox(tLang.L("visible") .. '##EVisible' .. tostring(i), bPreviousVisible)
+                    tPhysic.bEditorVisible = bEditorVisible
+                    if bEditorVisible ~= bPreviousVisible then
+                        syncPhysicsEditorVisibility(tPhysic)
+                        if not bEditorVisible and tInfoPhysics.iIndexSelected == i then
+                            tHighLightPoint.visible = false
+                        end
+                    end
 
                     if tPhysic.type_info == 'rectangle' then
                         local label    = tLang.L("axis_x") .. string.format('##rectangle_%d_x', i)
