@@ -849,16 +849,9 @@ VEC3D pointField(lua_State *lua, const int table, const char *field,
     return result;
 }
 
-TRANSFORM transformField(lua_State *lua, const int table, const char *field,
+TRANSFORM transformTable(lua_State *lua, const int transformTable,
                          const TRANSFORM &fallback)
 {
-    lua_getfield(lua, table, field);
-    if (lua_isnil(lua, -1))
-    {
-        lua_pop(lua, 1);
-        return fallback;
-    }
-    const int transformTable = lua_absindex(lua, -1);
     luaL_checktype(lua, transformTable, LUA_TTABLE);
     TRANSFORM result = fallback;
     result.position = {
@@ -877,6 +870,20 @@ TRANSFORM transformField(lua_State *lua, const int table, const char *field,
         numberField(lua, transformTable, "sz", fallback.scale.z),
     };
     result.visible = booleanField(lua, transformTable, "visible", fallback.visible);
+    return result;
+}
+
+TRANSFORM transformField(lua_State *lua, const int table, const char *field,
+                         const TRANSFORM &fallback)
+{
+    lua_getfield(lua, table, field);
+    if (lua_isnil(lua, -1))
+    {
+        lua_pop(lua, 1);
+        return fallback;
+    }
+    const int poseTable = lua_absindex(lua, -1);
+    TRANSFORM result = transformTable(lua, poseTable, fallback);
     lua_pop(lua, 1);
     return result;
 }
@@ -1106,6 +1113,31 @@ std::string alternateActorId(const std::string &id)
     return id;
 }
 
+bool getPlaceholderPose(lua_State *lua, const int bindingsTable,
+                        const std::string &name, const std::string &fixedName,
+                        TRANSFORM &pose)
+{
+    const char *names[2] = {name.c_str(), fixedName.c_str()};
+    for (const char *candidate : names)
+    {
+        lua_getfield(lua, bindingsTable, candidate);
+        if (lua_isnil(lua, -1))
+        {
+            lua_pop(lua, 1);
+            continue;
+        }
+        const int poseTable = lua_absindex(lua, -1);
+        luaL_checktype(lua, poseTable, LUA_TTABLE);
+        const std::string kind = stringField(lua, poseTable, "kind", "placeholder");
+        if (kind != "placeholder")
+            luaL_error(lua, "Placeholder actor '%s' has an invalid binding kind", name.c_str());
+        pose = transformTable(lua, poseTable, pose);
+        lua_pop(lua, 1);
+        return true;
+    }
+    return false;
+}
+
 void pushTransform(lua_State *lua, const TRANSFORM &transform)
 {
     lua_newtable(lua);
@@ -1212,8 +1244,15 @@ int onStartInteractionLua(lua_State *lua)
     {
         if (actorDefinition.kind == "placeholder")
         {
-            ACTOR_INSTANCE actor{actorDefinition, nullptr, actorDefinition.base,
-                                 actorDefinition.base, LUA_NOREF, {}};
+            const std::string fixedName = actorDefinition.id.substr(0, 5) == "actor" &&
+                actorDefinition.id.size() > 5
+                ? "actor_" + actorDefinition.id.substr(5) : actorDefinition.id;
+            TRANSFORM base = actorDefinition.base;
+            const bool found = getPlaceholderPose(
+                lua, bindingsTable, actorDefinition.name, fixedName, base);
+            if (!found && actorDefinition.name != actorDefinition.id)
+                getPlaceholderPose(lua, bindingsTable, actorDefinition.id, fixedName, base);
+            ACTOR_INSTANCE actor{actorDefinition, nullptr, base, base, LUA_NOREF, {}};
             instance->actors.push_back(std::move(actor));
             instance->actorIndex[actorDefinition.id] = instance->actors.size() - 1;
             continue;

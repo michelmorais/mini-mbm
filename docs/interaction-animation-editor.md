@@ -373,6 +373,31 @@ underscore (`actor_1`). O mesmo vale para os demais slots. Somente atores
 partir da definicao. Se a interacao tiver apenas placeholders, o campo `actors`
 pode ser omitido.
 
+Para fornecer a posicao real inicial de um placeholder, a propria chave do
+ator pode receber uma tabela de transformacao absoluta:
+
+```lua
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = {
+            kind = "placeholder",
+            x = 1, y = 2, z = 1,
+            rx = 0, ry = 0, rz = 0,
+            sx = 1, sy = 1, sz = 1,
+            visible = true
+        },
+        actor2 = characterObject
+    }
+}
+```
+
+Essa tabela e somente uma pose inicial para o placeholder. Se ela for omitida,
+o runtime usa `base` salvo no projeto. O campo `id` nao e necessario, pois a
+chave (`actor1`) ja identifica o ator; `kind` tambem e opcional porque o tipo
+vem da definicao. Isso nao altera `anchorActor`: se `anchorActor` for
+`actor1`, ele continua sendo o sistema de eixos da interacao.
+
 Ao iniciar, o runtime:
 
 1. valida os callbacks;
