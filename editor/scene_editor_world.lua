@@ -2132,6 +2132,7 @@ function beginSceneObjectDrag(x,y)
         local point = pointObject.points[pointIndex]
         local nx,ny,nz = markerMath.planeNormal(pointObject.plane)
         tMarkerEdit.selected = pointObject
+        tMarkerEdit.openObject = pointObject
         tMarkerEdit.hoverKey = nil
         tMarkerEdit.drag = {
             kind = 'point', object = pointObject, pointIndex = pointIndex,
@@ -2157,6 +2158,7 @@ function beginSceneObjectDrag(x,y)
     end
     if not axisName then selected = pickSceneObject(x,y) end
     tMarkerEdit.selected = selected
+    tMarkerEdit.openObject = selected
     tMarkerEdit.hoverKey = nil
     if not selected then return false end
     local origin = {x=selected.x,y=selected.y,z=selected.z}
@@ -2227,6 +2229,7 @@ function addSceneObjectMarker(objectType, plane, polygonSides, polygonBase)
     markerMath.ensureObjectGeometry(tObj)
     table.insert(tSceneObjects, tObj)
     tMarkerEdit.selected = tObj
+    tMarkerEdit.openObject = tObj
     tMarkerEdit.dirty = true
     updateSceneObjectShapes()
 end
@@ -2779,14 +2782,31 @@ function drawMapTab(item_width)
         pushUndoSnapshot()
     end
     for i, tObj in ipairs(tSceneObjects) do
-        local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree', L('object'), i, tObj.type))
+        local isSelected = tMarkerEdit.selected == tObj
+        if tMarkerEdit.openObject == tObj then
+            tImGui.SetNextItemOpen(true, tImGui.Flags('ImGuiCond_Always'))
+            tMarkerEdit.openObject = nil
+        end
+        local treeFlags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
+        local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree_%d', L('object'), i, tObj.type, i), treeFlags)
+        if tImGui.IsItemClicked() then
+            tMarkerEdit.selected = tObj
+            tMarkerEdit.openObject = nil
+        end
         if isOpen then
             tImGui.Text(L('scene3d_object_plane') .. ': ' .. sceneObjectPlaneLabel(tObj.plane))
             drawObjectMarkerFields(tObj, i)
             if tImGui.Button(L('delete') .. '##marker_del' .. i) then
                 if tSceneObjectShapes[i] and tSceneObjectShapes[i].handle then tSceneObjectShapes[i].handle:destroy() end
-                for _, handle in pairs(tMarkerEdit.pointHandles[i] or {}) do handle:destroy() end
-                table.remove(tMarkerEdit.pointHandles, i)
+                -- pointHandles is keyed by scene-object index but is intentionally sparse (only
+                -- the selected line/triangle/polygon normally has entries). table.remove would
+                -- therefore reject valid deletes when the array length is smaller than `i`.
+                -- Clear the pooled handles wholesale; the selected object's handles are cheap to
+                -- recreate on the next frame and this also avoids stale indices after the delete.
+                for _, handles in pairs(tMarkerEdit.pointHandles) do
+                    for _, handle in pairs(handles) do handle:destroy() end
+                end
+                tMarkerEdit.pointHandles = {}
                 if tMarkerEdit.selected == tObj then tMarkerEdit.selected = nil end
                 if tMarkerEdit.capture == tObj then tMarkerEdit.capture = nil end
                 tMarkerEdit.dirty = true
