@@ -4367,6 +4367,10 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     -- Save-only -- Export must keep producing a clean, game-facing file with no editor concepts in
     -- it, per the earlier, separate "no editor information" requirement for Export Game Scene.
     if not bIsExport then
+        -- Language is editor authoring state, not runtime scene data. Keep it in the editable
+        -- project so reopening the project restores the same UI language, while game exports
+        -- remain independent of the editor's localization choice.
+        writeSavedTable('tScene3d.sLanguage', tLang.getLanguage())
         writeSavedTable('tScene3d.bShowSceneObjectMarkers', bShowSceneObjectMarkers)
         writeSavedTable('tScene3d.tMapOptions', tMapOptions)
         writeSavedTable('tScene3d.tLayers', tLayers)
@@ -4427,6 +4431,9 @@ function applyLoadedScene3d(tLoaded)
     if type(tLoaded) ~= 'table' or (tLoaded.world or '3d') ~= world then
         tUtil.showMessageWarn(L('scene_world_mismatch'))
         return false
+    end
+    if tLoaded.sLanguage == 'en' or tLoaded.sLanguage == 'pt_br' then
+        tLang.setLanguage(tLoaded.sLanguage)
     end
     tOptionsEditor.fSceneCamScale = tLoaded.fCamScale or 1
     tMeshOffsets  = tLoaded.tMeshOffsets or {}
