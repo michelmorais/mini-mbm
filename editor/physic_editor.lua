@@ -257,10 +257,26 @@ function syncPhysicsEditorVisibility(tInfoPhysic)
         if tHandles.move then tHandles.move.visible = bShowHandles end
         if tHandles.resize then tHandles.resize.visible = bShowHandles end
         if tHandles.corners then
-            for _,handle in pairs(tHandles.corners) do handle.visible = bShowHandles end
+            for pointKey,handle in pairs(tHandles.corners) do
+                handle.visible = bShowHandles
+                if tInfoPhysic.selectedPoint == pointKey then
+                    handle:setColor(1,0,1,1)
+                else
+                    handle:setColor(0,1,1,1)
+                end
+            end
         end
         if tHandles.resizeAxes then
             for _,handle in pairs(tHandles.resizeAxes) do handle.visible = bShowHandles end
+        end
+        if tHandles.pointAxes then
+            for pointKey,axes in pairs(tHandles.pointAxes) do
+                local bShowPointAxes = bShowHandles
+                    and (tInfoPhysic.selectedPoint == nil or tInfoPhysic.selectedPoint == pointKey)
+                for _,axisHandle in pairs(axes) do
+                    if axisHandle.line then axisHandle.line.visible = bShowPointAxes end
+                end
+            end
         end
     end
 end
@@ -898,6 +914,40 @@ function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
     return true, tca - thc
 end
 
+-- Returns the closest signed parameter on an axis for the pick ray. This is used by the
+-- per-point XYZ gizmos so dragging follows only the selected world axis, even when the camera
+-- is orbiting around the object.
+function rayAxisParameter(sx,sy,origin,axis)
+    local ok,ox,oy,oz,dx,dy,dz = pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local wx,wy,wz = ox-origin.x,oy-origin.y,oz-origin.z
+    local rayAxisDot = dx*axis.x + dy*axis.y + dz*axis.z
+    local denominator = 1 - rayAxisDot*rayAxisDot
+    if math.abs(denominator) < 0.05 then return nil end
+    return ((axis.x*wx + axis.y*wy + axis.z*wz) - rayAxisDot*(dx*wx + dy*wy + dz*wz)) / denominator
+end
+
+function raySegmentDistance(ox,oy,oz,dx,dy,dz,a,b,radius)
+    local sx,sy,sz = b.x-a.x,b.y-a.y,b.z-a.z
+    local lengthSquared = sx*sx + sy*sy + sz*sz
+    if lengthSquared < 1e-12 then return nil end
+    local wx,wy,wz = ox-a.x,oy-a.y,oz-a.z
+    local raySegmentDot = dx*sx + dy*sy + dz*sz
+    local rayStartDot = dx*wx + dy*wy + dz*wz
+    local segmentStartDot = sx*wx + sy*wy + sz*wz
+    local denominator = lengthSquared - raySegmentDot*raySegmentDot
+    local segmentParameter = math.abs(denominator) < 1e-12 and -segmentStartDot/lengthSquared
+        or (segmentStartDot-raySegmentDot*rayStartDot)/denominator
+    segmentParameter = math.max(0,math.min(1,segmentParameter))
+    local px,py,pz = a.x+sx*segmentParameter,a.y+sy*segmentParameter,a.z+sz*segmentParameter
+    local rayParameter = (px-ox)*dx + (py-oy)*dy + (pz-oz)*dz
+    if rayParameter < 0 then return nil end
+    local qx,qy,qz = ox+dx*rayParameter,oy+dy*rayParameter,oz+dz*rayParameter
+    local ex,ey,ez = px-qx,py-qy,pz-qz
+    if ex*ex + ey*ey + ez*ez > radius*radius then return nil end
+    return rayParameter
+end
+
 -- Intersects the pick ray through (sx,sy) with a fixed plane (billboard-drag technique: the plane
 -- is computed once at drag-start, facing the camera, so the dragged point tracks the cursor
 -- regardless of camera orbit during the drag). planePt/planeNormal are {x,y,z} tables. Same
@@ -912,9 +962,9 @@ function rayPlaneHit(sx, sy, planePt, planeNormal)
     return ox + dx * t, oy + dy * t, oz + dz * t
 end
 
--- Hit-tests a single 3D physics shape's move/resize handles (req #10) against the pick ray
--- through screen point (sx,sy); returns the nearest hit's kind ('move'|'corner'|'resize'), the
--- corner letter (only for 'corner'), and the handle's own world position, or nil on a miss.
+-- Hit-tests a single 3D physics shape's move/resize/point-axis handles (req #10) against the
+-- pick ray through screen point (sx,sy); returns the nearest hit's kind, its identifier, and
+-- the handle's own world position, or nil on a miss.
 -- Same nearest-hit-wins technique as the removed mesh_debug.lua bone gizmo's hitTestBone.
 function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
     local tHandles = tInfoPhysic and tInfoPhysic.tHandles
@@ -945,11 +995,38 @@ function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
             test('resizeAxis', axis, h)
         end
     end
+    if tHandles.pointAxes then
+        for pointKey,axes in pairs(tHandles.pointAxes) do
+            if tInfoPhysic.selectedPoint == nil or tInfoPhysic.selectedPoint == pointKey then
+                for axisName,axisHandle in pairs(axes) do
+                    if axisHandle.line and axisHandle.line.visible and axisHandle.origin and axisHandle.target then
+                        local dist = raySegmentDistance(ox,oy,oz,dx,dy,dz,
+                            axisHandle.origin,axisHandle.target,radius * 0.75)
+                        if dist and dist < bestDist then
+                            bestKind = 'pointAxis'
+                            bestLetter = {point=pointKey,axis=axisName}
+                            bestDist = dist
+                            bestX,bestY,bestZ = axisHandle.target.x,axisHandle.target.y,axisHandle.target.z
+                        end
+                    end
+                end
+            end
+        end
+    end
 
     if bestKind then
         return bestKind, bestLetter, bestX, bestY, bestZ
     end
     return nil
+end
+
+function togglePhysicsPointSelection(tInfoPhysic, pointKey)
+    if tInfoPhysic.selectedPoint == pointKey then
+        tInfoPhysic.selectedPoint = nil
+    else
+        tInfoPhysic.selectedPoint = pointKey
+    end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 -- Flat XYZ point list for one great circle of a sphere, lying in the given plane ('xy'/'xz'/'yz').
@@ -984,6 +1061,13 @@ function setupPhysics3d(tInfoPhysic)
                 end
                 if self.tHandles.resizeAxes then
                     for _,h in pairs(self.tHandles.resizeAxes) do h:destroy() end
+                end
+                if self.tHandles.pointAxes then
+                    for _,axes in pairs(self.tHandles.pointAxes) do
+                        for _,axisHandle in pairs(axes) do
+                            if axisHandle.line then axisHandle.line:destroy() end
+                        end
+                    end
                 end
             end
         end
@@ -1069,7 +1153,8 @@ function setupPhysics3d(tInfoPhysic)
         tInfoPhysic.aabbMin = {x=cx-hw, y=cy-hh, z=cz-hd}
         tInfoPhysic.aabbMax = {x=cx+hw, y=cy+hh, z=cz+hd}
 
-        tInfoPhysic.tShape:setColor(0,1,0,0.15)
+        local shapeAlpha = tInfoPhysic.type == 'convex_polyhedron' and 0.05 or 0.15
+        tInfoPhysic.tShape:setColor(0,1,0,shapeAlpha)
         tInfoPhysic.tShape.visible = false
 
         if tInfoPhysic.tLine == nil or not tInfoPhysic.tLineIs3d then
@@ -1172,6 +1257,60 @@ function setupPhysics3d(tInfoPhysic)
                         tHandles.corners[key]:setPos(p.x,p.y,p.z)
                     end
                     tHandles.corners[key].visible = bVisible
+                end
+
+                -- Each point also gets three small axis handles. The colored shaft/arrow is
+                -- intentionally separate from the cyan point marker: clicking X/Y/Z constrains
+                -- only that point to the selected world axis.
+                if tHandles.pointAxes == nil then
+                    tHandles.pointAxes = {}
+                end
+                local axisDefinitions = {
+                    x = {x=1,y=0,z=0,r=1,g=0,b=0},
+                    y = {x=0,y=1,z=0,r=0,g=1,b=0},
+                    z = {x=0,y=0,z=1,r=0,g=0,b=1},
+                }
+                local axisLength = math.max(handleSize * 2.5, 0.02)
+                for pointIndex = 1, pointCount do
+                    local key = pointList and pointIndex or BOX_LETTERS[pointIndex]
+                    local p = pointList and pointList[pointIndex] or tInfoPhysic[key]
+                    local pointAxes = tHandles.pointAxes[key]
+                    if pointAxes == nil then
+                        pointAxes = {}
+                        tHandles.pointAxes[key] = pointAxes
+                    end
+                    for axisName,axis in pairs(axisDefinitions) do
+                        local target = {
+                            x = p.x + axis.x * axisLength,
+                            y = p.y + axis.y * axisLength,
+                            z = (p.z or 0) + axis.z * axisLength,
+                        }
+                        local arrowBase = {
+                            x = target.x - axis.x * axisLength * 0.12,
+                            y = target.y - axis.y * axisLength * 0.12,
+                            z = target.z - axis.z * axisLength * 0.12,
+                        }
+                        local linePoints = {
+                            p.x,p.y,p.z or 0,target.x,target.y,target.z,
+                            target.x,target.y,target.z,arrowBase.x,arrowBase.y,arrowBase.z,
+                        }
+                        local axisHandle = pointAxes[axisName]
+                        if axisHandle == nil then
+                            local axisLine = line:new('3d')
+                            axisLine:add(linePoints)
+                            axisLine:setColor(axis.r,axis.g,axis.b)
+                            axisLine.alwaysOnTop = true
+                            axisHandle = {
+                                line = axisLine,
+                            }
+                            pointAxes[axisName] = axisHandle
+                        else
+                            axisHandle.line:set(linePoints,1)
+                        end
+                        axisHandle.origin = {x=p.x,y=p.y,z=p.z or 0}
+                        axisHandle.target = target
+                        axisHandle.line.visible = bVisible
+                    end
                 end
             elseif tInfoPhysic.type == 'sphere' then
                 local rx = tInfoPhysic.x + tInfoPhysic.ray
@@ -1426,14 +1565,16 @@ function onLoadMesh()
                         local tPhysic = self[j]
                         local tShape = tPhysic.tShape
                         tShape.visible = isPhysicsEditorVisible(tPhysic) and j == index
-                        tShape:setColor(1,0,1,0.1)
+                        local shapeAlpha = tPhysic.type == 'convex_polyhedron' and 0.035 or 0.1
+                        tShape:setColor(1,0,1,shapeAlpha)
                     end
 
                     if self.iIndexSelected ~= 0 then
                         local tPhysic = self[self.iIndexSelected]
                         local tShape = tPhysic.tShape
                         tShape.visible = isPhysicsEditorVisible(tPhysic)
-                        tShape:setColor(0,1,0,0.1)
+                        local shapeAlpha = tPhysic.type == 'convex_polyhedron' and 0.05 or 0.1
+                        tShape:setColor(0,1,0,shapeAlpha)
                     end
                 end
 
@@ -1470,6 +1611,11 @@ function onLoadMesh()
                 end
                 
                 tInfoPhysics.setSelected = function(self,index) -- 0 to none
+                    if self.iIndexSelected ~= index then
+                        for j=1, #self do
+                            self[j].selectedPoint = nil
+                        end
+                    end
                     for j=1, #self do
                         local tShape = self[j].tShape
                         tShape.visible    = isPhysicsEditorVisible(self[j]) and j == index
@@ -1485,7 +1631,17 @@ function onLoadMesh()
                             if tHandles.resizeAxes then
                                 for _,h in pairs(tHandles.resizeAxes) do h.visible = bShowHandles end
                             end
+                            if tHandles.pointAxes then
+                                for pointKey,axes in pairs(tHandles.pointAxes) do
+                                    local bShowPointAxes = bShowHandles
+                                        and (self[j].selectedPoint == nil or self[j].selectedPoint == pointKey)
+                                    for _,axisHandle in pairs(axes) do
+                                        if axisHandle.line then axisHandle.line.visible = bShowPointAxes end
+                                    end
+                                end
+                            end
                         end
+                        syncPhysicsEditorVisibility(self[j])
                     end
 
                     self.iIndexSelected = 0
@@ -2082,7 +2238,7 @@ function showEditPhysics()
         if tImGui.Button(tLang.L("enable_select_all"), tSizeBtn) then
             for i=1, #tInfoPhysics do
                 local tPhysic       = tInfoPhysics[i]
-                tPhysic.selectable = true
+                tPhysic.selectable = isPhysicsEditorVisible(tPhysic)
             end
         end
 
@@ -2129,10 +2285,15 @@ function showEditPhysics()
                     typeLabel = tLang.L('convex_polyhedron')
                 end
                 if tImGui.TreeNodeEx(typeLabel .. string.format('[%d]',i),flag_node,id_node) then
-                    tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable)
                     local bPreviousVisible = isPhysicsEditorVisible(tPhysic)
                     local bEditorVisible = tImGui.Checkbox(tLang.L("visible") .. '##EVisible' .. tostring(i), bPreviousVisible)
                     tPhysic.bEditorVisible = bEditorVisible
+                    if not bEditorVisible then
+                        tPhysic.selectable = false
+                    end
+                    tImGui.BeginDisabled(not bEditorVisible)
+                    tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable == true)
+                    tImGui.EndDisabled()
                     if bEditorVisible ~= bPreviousVisible then
                         syncPhysicsEditorVisibility(tPhysic)
                         if not bEditorVisible and tInfoPhysics.iIndexSelected == i then
@@ -2485,19 +2646,41 @@ function onTouchDown(key,x,y)
             local tSelected = tInfoPhysics[tInfoPhysics.iIndexSelected]
             local kind, letter, hx, hy, hz = hitTestPhysicsHandles3d(tSelected, x, y)
             if kind then
-                local okRay, ox, oy, oz = pcall(mbm.getPickRay, x, y)
-                local nx, ny, nz = hx, hy, hz
-                if okRay then
-                    nx, ny, nz = hx - ox, hy - oy, hz - oz
-                    local len = math.sqrt(nx*nx + ny*ny + nz*nz)
-                    if len > 0.0001 then nx, ny, nz = nx/len, ny/len, nz/len end
+                if kind == 'corner' and keyControlPressed then
+                    togglePhysicsPointSelection(tSelected,letter)
+                    bEnableMoveWorld = false
+                    return
+                elseif kind == 'pointAxis' then
+                    local axis = letter.axis == 'x' and {x=1,y=0,z=0}
+                        or letter.axis == 'y' and {x=0,y=1,z=0}
+                        or {x=0,y=0,z=1}
+                    local point = tSelected.type == 'convex_polyhedron'
+                        and tSelected.points[letter.point] or tSelected[letter.point]
+                    local origin = {x=point.x,y=point.y,z=point.z or 0}
+                    local startParameter = rayAxisParameter(x,y,origin,axis)
+                    if startParameter then
+                        tSelected.dragAxisOrigin = origin
+                        tSelected.dragAxis = axis
+                        tSelected.dragAxisStartParameter = startParameter
+                    else
+                        kind = nil
+                    end
                 end
-                tSelected.draggingHandle  = kind
-                tSelected.draggingCorner  = letter
-                tSelected.dragPlaneNormal = {x=nx, y=ny, z=nz}
-                tSelected.dragPlanePoint  = {x=hx, y=hy, z=hz}
-                bEnableMoveWorld = false
-                return -- don't also run the ordinary selection logic below for this click
+                if kind then
+                    local okRay, ox, oy, oz = pcall(mbm.getPickRay, x, y)
+                    local nx, ny, nz = hx, hy, hz
+                    if okRay then
+                        nx, ny, nz = hx - ox, hy - oy, hz - oz
+                        local len = math.sqrt(nx*nx + ny*ny + nz*nz)
+                        if len > 0.0001 then nx, ny, nz = nx/len, ny/len, nz/len end
+                    end
+                    tSelected.draggingHandle  = kind
+                    tSelected.draggingCorner  = letter
+                    tSelected.dragPlaneNormal = {x=nx, y=ny, z=nz}
+                    tSelected.dragPlanePoint  = {x=hx, y=hy, z=hz}
+                    bEnableMoveWorld = false
+                    return -- don't also run the ordinary selection logic below for this click
+                end
             end
         end
 
@@ -2557,6 +2740,22 @@ function onTouchMove(key,x,y)
             and tInfoPhysics[tInfoPhysics.iIndexSelected] or nil
 
         if tSelected and tSelected.draggingHandle and not IsAnyWindowHovered then
+            if tSelected.draggingHandle == 'pointAxis' then
+                local parameter = rayAxisParameter(x,y,tSelected.dragAxisOrigin,tSelected.dragAxis)
+                if parameter then
+                    local distance = parameter - tSelected.dragAxisStartParameter
+                    local letter = tSelected.draggingCorner
+                    local point = tSelected.type == 'convex_polyhedron'
+                        and tSelected.points[letter.point] or tSelected[letter.point]
+                    point.x = tSelected.dragAxisOrigin.x + tSelected.dragAxis.x * distance
+                    point.y = tSelected.dragAxisOrigin.y + tSelected.dragAxis.y * distance
+                    point.z = tSelected.dragAxisOrigin.z + tSelected.dragAxis.z * distance
+                    setupPhysics3d(tSelected)
+                end
+                lastMouse3d.x = x
+                lastMouse3d.y = y
+                return
+            end
             local wx, wy, wz = rayPlaneHit(x, y, tSelected.dragPlanePoint, tSelected.dragPlaneNormal)
             if wx then
                 if tSelected.draggingHandle == 'move' then
@@ -2675,6 +2874,9 @@ function onTouchUp(key,x,y)
             tSelected.draggingCorner  = nil
             tSelected.dragPlaneNormal = nil
             tSelected.dragPlanePoint  = nil
+            tSelected.dragAxisOrigin  = nil
+            tSelected.dragAxis        = nil
+            tSelected.dragAxisStartParameter = nil
         end
         tInfoPhysics:finishMovingFrame(x,y)
         tInfoPhysics:unSelectCircles()
