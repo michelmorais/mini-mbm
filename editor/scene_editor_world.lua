@@ -2133,6 +2133,7 @@ function beginSceneObjectDrag(x,y)
         local nx,ny,nz = markerMath.planeNormal(pointObject.plane)
         tMarkerEdit.selected = pointObject
         tMarkerEdit.openObject = pointObject
+        tMarkerEdit.closeOtherObjects = true
         tMarkerEdit.hoverKey = nil
         tMarkerEdit.drag = {
             kind = 'point', object = pointObject, pointIndex = pointIndex,
@@ -2159,6 +2160,7 @@ function beginSceneObjectDrag(x,y)
     if not axisName then selected = pickSceneObject(x,y) end
     tMarkerEdit.selected = selected
     tMarkerEdit.openObject = selected
+    tMarkerEdit.closeOtherObjects = selected ~= nil
     tMarkerEdit.hoverKey = nil
     if not selected then return false end
     local origin = {x=selected.x,y=selected.y,z=selected.z}
@@ -2230,6 +2232,7 @@ function addSceneObjectMarker(objectType, plane, polygonSides, polygonBase)
     table.insert(tSceneObjects, tObj)
     tMarkerEdit.selected = tObj
     tMarkerEdit.openObject = tObj
+    tMarkerEdit.closeOtherObjects = true
     tMarkerEdit.dirty = true
     updateSceneObjectShapes()
 end
@@ -2783,15 +2786,20 @@ function drawMapTab(item_width)
     end
     for i, tObj in ipairs(tSceneObjects) do
         local isSelected = tMarkerEdit.selected == tObj
-        if tMarkerEdit.openObject == tObj then
+        if tMarkerEdit.closeOtherObjects then
+            tImGui.SetNextItemOpen(tMarkerEdit.openObject == tObj,
+                tImGui.Flags('ImGuiCond_Always'))
+        elseif tMarkerEdit.openObject == tObj then
             tImGui.SetNextItemOpen(true, tImGui.Flags('ImGuiCond_Always'))
-            tMarkerEdit.openObject = nil
         end
         local treeFlags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
         local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree_%d', L('object'), i, tObj.type, i), treeFlags)
         if tImGui.IsItemClicked() then
             tMarkerEdit.selected = tObj
+            -- A direct click in the list selects the object but does not fight the user's
+            -- manual expand/collapse choice. Exclusive opening is reserved for viewport picks.
             tMarkerEdit.openObject = nil
+            tMarkerEdit.closeOtherObjects = false
         end
         if isOpen then
             tImGui.Text(L('scene3d_object_plane') .. ': ' .. sceneObjectPlaneLabel(tObj.plane))
@@ -2819,6 +2827,8 @@ function drawMapTab(item_width)
             tImGui.TreePop()
         end
     end
+    tMarkerEdit.openObject = nil
+    tMarkerEdit.closeOtherObjects = false
 end
 
 function tComboMapTypeIndexOf(sType)
