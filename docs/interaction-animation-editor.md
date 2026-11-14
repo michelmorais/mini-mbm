@@ -349,6 +349,7 @@ local instance = runtime.start {
         onStart = function(instance)
             -- A instancia ja esta inicializada neste ponto.
             -- Preparacao opcional da interacao.
+            -- instance:rebaseToAnchor()
         end,
         onEvent = function(instance, event, index)
             -- Reacao opcional a um evento, usando event.id.
@@ -395,8 +396,74 @@ local instance = runtime.start {
 Essa tabela e somente uma pose inicial para o placeholder. Se ela for omitida,
 o runtime usa `base` salvo no projeto. O campo `id` nao e necessario, pois a
 chave (`actor1`) ja identifica o ator; `kind` tambem e opcional porque o tipo
-vem da definicao. Isso nao altera `anchorActor`: se `anchorActor` for
+vem da definicao. Os campos `rx`, `ry` e `rz` dessa tabela usam radianos, como
+os metodos de transformacao do engine. Isso nao altera `anchorActor`: se `anchorActor` for
 `actor1`, ele continua sendo o sistema de eixos da interacao.
+
+### Responsabilidades do jogo e do plugin
+
+O editor define a pose de autoria: a posicao, a rotacao e a escala dos atores
+no tempo zero, alem do ator que funciona como ancora. Essa pose e uma
+referencia para desenhar a interacao; ela nao e uma ordem para o runtime
+reposicionar automaticamente os objetos do jogo.
+
+O jogo e responsavel por:
+
+- carregar ou criar as meshes antes de chamar `runtime.start`;
+- posicionar, rotacionar e escalar essas meshes na cena real;
+- fornecer a pose inicial de cada placeholder quando ela nao for a pose salva
+  no projeto;
+- criar e destruir meshes dinamicas e, quando necessario, sincroniza-las no
+  callback `onUpdate` usando `getActorPose`.
+
+O plugin e responsavel por:
+
+- capturar a pose atual das meshes no momento de `runtime.start`;
+- manter placeholders como atores virtuais, sem renderiza-los;
+- executar a timeline, os clips, os eventos e as transformacoes;
+- expor a pose final de qualquer ator por `getActorPose`.
+
+Por padrao, `runtime.start` preserva as poses em que o jogo entregou as meshes.
+O plugin nao presume uma relacao de parenting nem transforma outro ator em
+ancora. Quando a interacao precisa preservar a disposicao de autoria, mas
+adaptar todos os atores a uma ancora que esta em outra pose na cena real, o
+jogo pode solicitar isso explicitamente:
+
+```lua
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = {
+            kind = "placeholder",
+            x = 100, y = 50, z = 20
+        },
+        actor2 = characterObject
+    },
+    callbacks = {
+        onStart = function(instance)
+            instance:rebaseToAnchor()
+            -- Crie clones dinamicos depois desta chamada, se necessario.
+        end
+    }
+}
+```
+
+`rebaseToAnchor()` mantem `anchorActor` como a mesma ancora e reposiciona os
+demais atores usando a diferenca entre a pose da ancora no editor e a pose
+capturada no runtime. Por padrao, aplica posicao e rotacao; a escala nao e
+alterada. As opcoes podem limitar a operacao:
+
+```lua
+instance:rebaseToAnchor({position = true, rotation = false})
+```
+
+O metodo e opcional. Sem essa chamada, a responsabilidade de posicionar as
+meshes continua sendo exclusivamente do jogo. Como a operacao compara a pose
+de autoria com a pose real, o modulo exportado preserva os campos `base` dos
+atores; os angulos desses campos continuam em graus, como no editor. As poses
+fornecidas em `config.actors` e retornadas por `getActorPose` usam radianos,
+como `mesh:getAngle`. Modulos antigos exportados sem os campos `base` devem ser
+exportados novamente para usar o rebasing com fidelidade.
 
 Ao iniciar, o runtime:
 
@@ -414,7 +481,7 @@ transformacoes e atualiza visibilidade automaticamente; o jogo nao precisa
 chamar um metodo de atualizacao manual.
 
 `instance:getActorPose(id)` retorna a pose final atual do ator, incluindo
-posicao, rotacao em graus, escala e visibilidade. Ele pode ser usado para
+posicao, rotacao em radianos, escala e visibilidade. Ele pode ser usado para
 atualizar meshes criadas dinamicamente a partir de um placeholder.
 Para slots numericos, `actor2` e `actor_2` sao aliases aceitos tambem por esse
 metodo.

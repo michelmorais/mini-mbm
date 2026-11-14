@@ -124,6 +124,7 @@ struct ACTOR_INSTANCE
     ACTOR_DEFINITION definition;
     mbm::MESH *mesh = nullptr;
     TRANSFORM base;
+    TRANSFORM initialBase;
     TRANSFORM current;
     int luaReference = LUA_NOREF;
     std::string activeClip;
@@ -154,6 +155,29 @@ MATRIX3 multiply(const MATRIX3 &a, const MATRIX3 &b)
         }
     }
     return result;
+}
+
+MATRIX3 transpose(const MATRIX3 &matrix)
+{
+    MATRIX3 result;
+    for (int row = 0; row < 3; ++row)
+    {
+        for (int column = 0; column < 3; ++column)
+            result.value[row][column] = matrix.value[column][row];
+    }
+    return result;
+}
+
+VEC3D transformVector(const MATRIX3 &matrix, const VEC3D &vector)
+{
+    return {
+        matrix.value[0][0] * vector.x + matrix.value[1][0] * vector.y +
+            matrix.value[2][0] * vector.z,
+        matrix.value[0][1] * vector.x + matrix.value[1][1] * vector.y +
+            matrix.value[2][1] * vector.z,
+        matrix.value[0][2] * vector.x + matrix.value[1][2] * vector.y +
+            matrix.value[2][2] * vector.z,
+    };
 }
 
 MATRIX3 axisRotation(const VEC3D &axis, const double angle)
@@ -299,6 +323,13 @@ TRANSFORM readTransform(const mbm::MESH *mesh)
             mesh->isRenderEnabled()};
 }
 
+void convertAngleToRadians(TRANSFORM &transform)
+{
+    transform.angle.x *= DEG_TO_RAD;
+    transform.angle.y *= DEG_TO_RAD;
+    transform.angle.z *= DEG_TO_RAD;
+}
+
 class INTERACTION_INSTANCE
 {
   public:
@@ -338,6 +369,7 @@ class INTERACTION_INSTANCE
     void pauseClip(ACTOR_INSTANCE &actor, const std::string &key);
     void applyTransforms();
     void applyVisibility();
+    void rebaseToAnchor(bool applyPosition, bool applyRotation);
     void applyPlayEvents(double previousTime, double currentTime, bool includeInitial);
     void notifyEvents(double previousTime, double currentTime, bool includeInitial);
     void resetInstance();
@@ -474,6 +506,61 @@ void INTERACTION_INSTANCE::applyVisibility()
     }
 }
 
+void INTERACTION_INSTANCE::rebaseToAnchor(const bool applyPosition,
+                                          const bool applyRotation)
+{
+    const auto anchorFound = actorIndex.find(definition.anchorActor);
+    if (anchorFound == actorIndex.end()) return;
+    const std::size_t anchorIndex = anchorFound->second;
+    const ACTOR_INSTANCE &anchor = actors[anchorIndex];
+    const TRANSFORM &authoredAnchor = anchor.definition.base;
+    const TRANSFORM &runtimeAnchor = anchor.initialBase;
+    const VEC3D authoredAngle{
+        authoredAnchor.angle.x * DEG_TO_RAD,
+        authoredAnchor.angle.y * DEG_TO_RAD,
+        authoredAnchor.angle.z * DEG_TO_RAD,
+    };
+    const MATRIX3 authoredRotation = eulerRotation(authoredAngle);
+    const MATRIX3 runtimeRotation = eulerRotation(runtimeAnchor.angle);
+    const MATRIX3 rebaseRotation = applyRotation
+        ? multiply(transpose(authoredRotation), runtimeRotation)
+        : identityMatrix();
+
+    for (std::size_t index = 0; index < actors.size(); ++index)
+    {
+        ACTOR_INSTANCE &actor = actors[index];
+        actor.base = actor.initialBase;
+        if (index == anchorIndex) continue;
+        if (applyPosition)
+        {
+            VEC3D relative{
+                actor.definition.base.position.x - authoredAnchor.position.x,
+                actor.definition.base.position.y - authoredAnchor.position.y,
+                actor.definition.base.position.z - authoredAnchor.position.z,
+            };
+            if (applyRotation) relative = transformVector(rebaseRotation, relative);
+            actor.base.position = {
+                runtimeAnchor.position.x + relative.x,
+                runtimeAnchor.position.y + relative.y,
+                runtimeAnchor.position.z + relative.z,
+            };
+        }
+        if (applyRotation)
+        {
+            const VEC3D authoredActorAngle{
+                actor.definition.base.angle.x * DEG_TO_RAD,
+                actor.definition.base.angle.y * DEG_TO_RAD,
+                actor.definition.base.angle.z * DEG_TO_RAD,
+            };
+            actor.base.angle = rotationToEuler(
+                multiply(eulerRotation(authoredActorAngle), rebaseRotation));
+        }
+        actor.current = actor.base;
+    }
+    applyTransforms();
+    applyVisibility();
+}
+
 void INTERACTION_INSTANCE::applyPlayEvents(const double previousTime, const double currentTime,
                                            const bool includeInitial)
 {
@@ -589,6 +676,7 @@ void INTERACTION_INSTANCE::resetInstance()
     {
         stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
         actor.activeClip.clear();
+        actor.base = actor.initialBase;
         actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
     }
@@ -651,6 +739,7 @@ void INTERACTION_INSTANCE::stop()
     {
         stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
         actor.activeClip.clear();
+        actor.base = actor.initialBase;
         actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
     }
@@ -1210,6 +1299,23 @@ int onInstanceGetActorPoseLua(lua_State *lua)
     return 1;
 }
 
+int onInstanceRebaseToAnchorLua(lua_State *lua)
+{
+    INTERACTION_INSTANCE *instance = getInstance(lua);
+    bool applyPosition = true;
+    bool applyRotation = true;
+    if (!lua_isnoneornil(lua, 2))
+    {
+        const int options = lua_absindex(lua, 2);
+        luaL_checktype(lua, options, LUA_TTABLE);
+        applyPosition = booleanField(lua, options, "position", true);
+        applyRotation = booleanField(lua, options, "rotation", true);
+    }
+    instance->rebaseToAnchor(applyPosition, applyRotation);
+    lua_pushvalue(lua, 1);
+    return 1;
+}
+
 INTERACTION_RUNTIME_PLUGIN *getRuntimePlugin(lua_State *lua)
 {
     auto *plugin = static_cast<INTERACTION_RUNTIME_PLUGIN *>(
@@ -1248,11 +1354,12 @@ int onStartInteractionLua(lua_State *lua)
                 actorDefinition.id.size() > 5
                 ? "actor_" + actorDefinition.id.substr(5) : actorDefinition.id;
             TRANSFORM base = actorDefinition.base;
+            convertAngleToRadians(base);
             const bool found = getPlaceholderPose(
                 lua, bindingsTable, actorDefinition.name, fixedName, base);
             if (!found && actorDefinition.name != actorDefinition.id)
                 getPlaceholderPose(lua, bindingsTable, actorDefinition.id, fixedName, base);
-            ACTOR_INSTANCE actor{actorDefinition, nullptr, base, base, LUA_NOREF, {}};
+            ACTOR_INSTANCE actor{actorDefinition, nullptr, base, base, base, LUA_NOREF, {}};
             instance->actors.push_back(std::move(actor));
             instance->actorIndex[actorDefinition.id] = instance->actors.size() - 1;
             continue;
@@ -1276,7 +1383,7 @@ int onStartInteractionLua(lua_State *lua)
             return luaL_error(lua, "Missing interaction actor binding: %s", missingActor.c_str());
         }
         TRANSFORM base = readTransform(mesh);
-        instance->actors.push_back({actorDefinition, mesh, base, base, objectReference, {}});
+        instance->actors.push_back({actorDefinition, mesh, base, base, base, objectReference, {}});
         instance->actorIndex[actorDefinition.id] = instance->actors.size() - 1;
     }
     lua_pop(lua, 1);
@@ -1316,6 +1423,7 @@ int onStartInteractionLua(lua_State *lua)
     lua_pushcfunction(lua, onInstanceStop); lua_setfield(lua, -2, "stop");
     lua_pushcfunction(lua, onInstanceIsFinished); lua_setfield(lua, -2, "isFinished");
     lua_pushcfunction(lua, onInstanceGetActorPoseLua); lua_setfield(lua, -2, "getActorPose");
+    lua_pushcfunction(lua, onInstanceRebaseToAnchorLua); lua_setfield(lua, -2, "rebaseToAnchor");
     const int instanceTable = lua_absindex(lua, -1);
     auto **userdata = static_cast<INTERACTION_INSTANCE **>(
         lua_newuserdata(lua, sizeof(INTERACTION_INSTANCE *)));

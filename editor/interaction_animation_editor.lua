@@ -2178,7 +2178,6 @@ local function serializeRuntimeDefinition()
     for _, actorDefinition in pairs(definition.actors) do
         actorDefinition.path = nil
         actorDefinition.previewSize = nil
-        if actorDefinition.kind ~= 'placeholder' then actorDefinition.base = nil end
     end
     return definition
 end
@@ -2246,6 +2245,7 @@ function onInitScene()
             onStart = function(instance)
                 print('Interaction preview started')
                 -- The instance is ready here. Read initial poses with getActorPose().
+                -- Optional: instance:rebaseToAnchor()
             end,
             onEvent = function(_, event) print('Interaction event: ' .. tostring(event.id)) end,
             onFinish = function() print('Interaction preview finished') end,
@@ -2256,12 +2256,12 @@ function onInitScene()
                     local pose = instance:getActorPose(id)
                     -- Example for a dynamically created object:
                     -- dynamicObjects[id]:setPos(pose.x, pose.y, pose.z)
-                    -- dynamicObjects[id]:setAngle(math.rad(pose.rx), math.rad(pose.ry), math.rad(pose.rz))
+                    -- dynamicObjects[id]:setAngle(pose.rx, pose.ry, pose.rz)
                     -- dynamicObjects[id]:setScale(pose.sx, pose.sy, pose.sz)
                     -- dynamicObjects[id].visible = pose.visible
                 end
                 -- Example pose selected when this preview was generated: %q
-                -- local pose = instance:getActorPose(%q)
+                -- local pose = instance:getActorPose(%q) -- angles are radians
             end,
         },
     }
