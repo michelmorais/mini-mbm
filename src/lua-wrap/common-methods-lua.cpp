@@ -782,22 +782,22 @@ namespace mbm
 
             for(uint32_t i =0; i < physics->lsCubeComplex.size(); ++i)
             {
-                const CUBE_COMPLEX * cube_complex = physics->lsCubeComplex[i];
+                const CONVEX_POLYHEDRON_8 * polyhedron = physics->lsCubeComplex[i];
                 lua_newtable(lua);
-                lua_pushstring(lua,"complex");
+                lua_pushstring(lua,"convex_polyhedron_8");
                 lua_setfield(lua,-2,"type");
 
                 for(int j=0; j< 8; ++j)
                 {
                     lua_newtable(lua);
                     
-                    lua_pushnumber(lua,cube_complex->p[j].x);
+                    lua_pushnumber(lua,polyhedron->p[j].x);
                     lua_setfield(lua,-2,"x");
 
-                    lua_pushnumber(lua,cube_complex->p[j].y);
+                    lua_pushnumber(lua,polyhedron->p[j].y);
                     lua_setfield(lua,-2,"y");
 
-                    lua_pushnumber(lua,cube_complex->p[j].z);
+                    lua_pushnumber(lua,polyhedron->p[j].z);
                     lua_setfield(lua,-2,"z");
 
                     const char l = 'a' + static_cast<char>(j);

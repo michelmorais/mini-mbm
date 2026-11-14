@@ -21,17 +21,13 @@
 #define PHYSICS_CLASS_H
 
 #include "core-exports.h"
-#include "primitives.h"
+#include "shapes.h"
 #include <vector>
 
 namespace mbm
 {
 
     class RENDERIZABLE;
-    struct CUBE;
-    struct CUBE_COMPLEX;
-    struct SPHERE;
-    struct TRIANGLE;
     struct INFO_BOUND_FONT;
     struct USER_DATA_PHYSICS_2D;
     struct USER_DATA_PHYSICS_3D;
@@ -55,7 +51,8 @@ namespace mbm
     struct INFO_PHYSICS
     {
         std::vector<CUBE *>         lsCube;
-        std::vector<CUBE_COMPLEX *> lsCubeComplex;
+        // Legacy member name retained for source and binary layout compatibility.
+        std::vector<CONVEX_POLYHEDRON_8 *> lsCubeComplex;
         std::vector<SPHERE *>       lsSphere;
         std::vector<TRIANGLE *>     lsTriangle;
         
@@ -70,7 +67,7 @@ namespace mbm
         // fixed now that this derives from the same true min/max getBoundsMinMax computes.
         API_IMPL bool getBounds(float *w, float *h) const ;
         API_IMPL bool getBounds(float *w, float *h, float *d) const ;
-        // True accumulated min/max across every shape kind present (cube, sphere, cube-complex,
+        // True accumulated min/max across every shape kind present (cube, sphere, convex polyhedron,
         // triangle), properly unioned. Unlike getBounds() above, this also exposes the min/max
         // themselves, not just their difference -- letting a caller derive the AABB's true CENTER,
         // not just its size (see RENDERIZABLE::getBoundingAABBCenterOffset(), MBM_VERSION 6.9.0).

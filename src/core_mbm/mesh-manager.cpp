@@ -276,11 +276,11 @@ namespace
                     i += detail.totalBounding;
                 }
                 break;
-                case MBM_DETAIL_TYPE_CUBE_COMPLEX:
+                case MBM_DETAIL_TYPE_CONVEX_POLYHEDRON_8:
                 {
                     for(int j=0; j< detail.totalBounding; j++)
                     {
-                        auto complex = new mbm::CUBE_COMPLEX();
+                        auto complex = new mbm::CONVEX_POLYHEDRON_8();
                         infoPhysics.lsCubeComplex.push_back(complex);
                         if (!util::readCubeComplexV8(fp, *complex))
                             return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
@@ -6056,7 +6056,7 @@ namespace mbm
                 !validProduct(sphere->absCenter[1]) || !validProduct(sphere->absCenter[2]))
                 return fail("scaled sphere bounds would not be finite");
         }
-        for (const CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+        for (const CONVEX_POLYHEDRON_8 *cube : impl->infoPhysics.lsCubeComplex)
             for (const _VEC3_POINT &point : cube->p)
                 if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
                     return fail("scaled complex-cube bounds would not be finite");
@@ -6087,7 +6087,7 @@ namespace mbm
             sphere->ray *= scale;
             sphere->absCenter[0] *= scale; sphere->absCenter[1] *= scale; sphere->absCenter[2] *= scale;
         }
-        for (CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+        for (CONVEX_POLYHEDRON_8 *cube : impl->infoPhysics.lsCubeComplex)
             for (_VEC3_POINT &point : cube->p)
             {
                 point.x *= scale; point.y *= scale; point.z *= scale;
@@ -10496,10 +10496,15 @@ namespace mbm
             this->impl->infoPhysics.lsSphere.push_back(sphere);
     }
 
+    void MESH_MBM::appendPhysicsConvexPolyhedron8(CONVEX_POLYHEDRON_8 *polyhedron) noexcept
+    {
+        if (polyhedron)
+            this->impl->infoPhysics.lsCubeComplex.push_back(polyhedron);
+    }
+
     void MESH_MBM::appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept
     {
-        if (cubeComplex)
-            this->impl->infoPhysics.lsCubeComplex.push_back(cubeComplex);
+        this->appendPhysicsConvexPolyhedron8(cubeComplex);
     }
 
     void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
@@ -14238,7 +14243,7 @@ namespace mbm
         }
         for (auto pComplex : meshPhysics.lsCubeComplex)
         {
-            auto complex = new CUBE_COMPLEX();
+            auto complex = new CONVEX_POLYHEDRON_8();
             for (int k = 0; k < 8; k++)
                 complex->p[k] = pComplex->p[k];
             this->impl->infoPhysics.lsCubeComplex.push_back(complex);

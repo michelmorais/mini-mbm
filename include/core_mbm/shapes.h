@@ -139,7 +139,10 @@ namespace mbm
         SPHERE()noexcept;
     };
 
-    struct API_IMPL CUBE_COMPLEX // bounding cube type physics number 3 (individual cube points)
+    // Eight-point convex polyhedron used by the physics section. The legacy
+    // CUBE_COMPLEX alias below is kept for source compatibility with older
+    // plugins and applications.
+    struct API_IMPL CONVEX_POLYHEDRON_8 // physics detail type 3 (individual points)
     {
       public:
         /*
@@ -167,13 +170,15 @@ namespace mbm
                 _VEC3_POINT p[8];
             };
         };
-        CUBE_COMPLEX()noexcept;
-        CUBE_COMPLEX(const float s)noexcept;
-        CUBE_COMPLEX(VEC3 &s)noexcept;
-        CUBE_COMPLEX(VEC3 &vmin, VEC3 &vmax)noexcept;
+        CONVEX_POLYHEDRON_8()noexcept;
+        CONVEX_POLYHEDRON_8(const float s)noexcept;
+        CONVEX_POLYHEDRON_8(VEC3 &s)noexcept;
+        CONVEX_POLYHEDRON_8(VEC3 &vmin, VEC3 &vmax)noexcept;
         void getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept;
         void getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept;
     };
+
+    using CUBE_COMPLEX = CONVEX_POLYHEDRON_8;
 
     struct API_IMPL TRIANGLE
     {

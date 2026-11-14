@@ -609,8 +609,8 @@ function setupPhysics2d(tInfoPhysic)
         end
 
         tLine:set(tPoints,1)
-    elseif tInfoPhysic.type == 'complex' then
-        tInfoPhysic.type_info = 'complex'
+    elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+        tInfoPhysic.type_info = 'convex_polyhedron_8'
         -- box2d (2D) only ever reads the front quad a,b,c,d; keep e..h mirrored to it
         -- so the data stays well-formed if this same physic is later used on a 3D mesh.
         local tPoints = {   tInfoPhysic.a.x * scale, tInfoPhysic.a.y * scale,
@@ -703,7 +703,7 @@ end
 
 local BOX_LETTERS = {'a','b','c','d','e','f','g','h'}
 
--- 8 corners of an axis-aligned box, using the engine's own CUBE_COMPLEX convention
+-- 8 points using the engine's CONVEX_POLYHEDRON_8 convention
 -- (front face a,b,c,d @ +halfDepth, back face e,f,g,h @ -halfDepth), see include/core_mbm/shapes.h
 function boxCorners(hw,hh,hd)
     return {
@@ -725,6 +725,23 @@ function boxTriangleFaces(corners)
     }
 end
 
+-- Returns the twelve edges of the a..h convention as independent line segments.
+-- The points are the actual stored points, not an AABB generated from them.
+function convexPolyhedronEdgePoints(points)
+    local edges = {
+        {1,2},{2,3},{3,4},{4,1}, -- front
+        {5,6},{6,7},{7,8},{8,5}, -- back
+        {1,5},{2,6},{3,7},{4,8}, -- depth
+    }
+    local result = {}
+    for _,edge in ipairs(edges) do
+        local p1, p2 = points[edge[1]], points[edge[2]]
+        table.insert(result,p1.x); table.insert(result,p1.y); table.insert(result,p1.z)
+        table.insert(result,p2.x); table.insert(result,p2.y); table.insert(result,p2.z)
+    end
+    return result
+end
+
 -- Builds an invisible 3D box shape (used only as the translucent highlight fill /
 -- source geometry for the wireframe; mouse hit-testing is a real ray-cast, see below,
 -- since RENDERIZABLE:collide(x,y) approximates ray distance from an object's own Z,
@@ -744,6 +761,24 @@ function makeBoxShape3d(cx,cy,cz,w,h,d,name)
     local tShape = shape:new('3d',cx,cy,cz)
     tShape:create(verts, nil, name)
     return tShape, hw,hh,hd
+end
+
+-- Builds the preview from the stored eight points. The a..h face convention is preserved,
+-- while the vertices themselves are allowed to describe a skewed or otherwise deformed
+-- convex hexahedron. Bullet still computes its collision hull from the same raw points.
+function makeConvexPolyhedronShape3d(points,cx,cy,cz,name)
+    local faces = boxTriangleFaces(points)
+    local verts = {}
+    for _,tri in ipairs(faces) do
+        for _,p in ipairs(tri) do
+            table.insert(verts,p.x - cx)
+            table.insert(verts,p.y - cy)
+            table.insert(verts,p.z - cz)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, name)
+    return tShape
 end
 
 local handleMarkerCount = 0
@@ -909,6 +944,7 @@ function setupPhysics3d(tInfoPhysic)
     end
 
     local cx,cy,cz,w,h,d
+    local tPolyhedronPoints = nil
 
     if tInfoPhysic.type == 'cube' then
         tInfoPhysic.type_info = 'cube'
@@ -927,11 +963,13 @@ function setupPhysics3d(tInfoPhysic)
         local minZ = math.min(a.z or 0,b.z or 0,c.z or 0); local maxZ = math.max(a.z or 0,b.z or 0,c.z or 0)
         cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
         w,h,d = maxX-minX, maxY-minY, maxZ-minZ
-    elseif tInfoPhysic.type == 'complex' then
-        tInfoPhysic.type_info = 'complex'
+    elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+        tInfoPhysic.type_info = 'convex_polyhedron_8'
+        tPolyhedronPoints = {}
         local minX,maxX,minY,maxY,minZ,maxZ =  math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
-        for _,l in ipairs(BOX_LETTERS) do
+        for pointIndex,l in ipairs(BOX_LETTERS) do
             local p = tInfoPhysic[l]
+            tPolyhedronPoints[pointIndex] = {x=p.x,y=p.y,z=p.z}
             minX = math.min(minX,p.x); maxX = math.max(maxX,p.x)
             minY = math.min(minY,p.y); maxY = math.max(maxY,p.y)
             minZ = math.min(minZ,p.z); maxZ = math.max(maxZ,p.z)
@@ -941,8 +979,14 @@ function setupPhysics3d(tInfoPhysic)
     end
 
     if cx then
-        local hw,hh,hd
-        tInfoPhysic.tShape, hw,hh,hd = makeBoxShape3d(cx,cy,cz, w,h,d, sUniqueName)
+        local hw = math.max(w,0.01) * 0.5
+        local hh = math.max(h,0.01) * 0.5
+        local hd = math.max(d,0.01) * 0.5
+        if tPolyhedronPoints then
+            tInfoPhysic.tShape = makeConvexPolyhedronShape3d(tPolyhedronPoints,cx,cy,cz,sUniqueName)
+        else
+            tInfoPhysic.tShape = makeBoxShape3d(cx,cy,cz,w,h,d,sUniqueName)
+        end
         tInfoPhysic.aabbMin = {x=cx-hw, y=cy-hh, z=cz-hd}
         tInfoPhysic.aabbMax = {x=cx+hw, y=cy+hh, z=cz+hd}
 
@@ -961,8 +1005,16 @@ function setupPhysics3d(tInfoPhysic)
             tInfoPhysic.tLine = line:new('3d')
             tInfoPhysic.tLineIs3d = true
             tInfoPhysic.lineCircleIdx = nil
+            tInfoPhysic.linePolyhedronIdx = nil
         end
-        if tInfoPhysic.type == 'sphere' then
+        if tPolyhedronPoints then
+            local points = convexPolyhedronEdgePoints(tPolyhedronPoints)
+            if tInfoPhysic.linePolyhedronIdx == nil then
+                tInfoPhysic.linePolyhedronIdx = tInfoPhysic.tLine:add(points)
+            else
+                tInfoPhysic.tLine:set(points,tInfoPhysic.linePolyhedronIdx)
+            end
+        elseif tInfoPhysic.type == 'sphere' then
             -- A box wireframe (drawBounding, used for every other type) reads as "this is a
             -- cube" for a shape whose actual physics is a sphere -- draw a 3-great-circle globe
             -- instead (direct user feedback: "it should have the wireframe as globe or sphere").
@@ -981,7 +1033,7 @@ function setupPhysics3d(tInfoPhysic)
                 tInfoPhysic.tLine:set(ptsXZ, tInfoPhysic.lineCircleIdx[2])
                 tInfoPhysic.tLine:set(ptsYZ, tInfoPhysic.lineCircleIdx[3])
             end
-        else
+        elseif not tPolyhedronPoints then
             tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
         end
         tInfoPhysic.tLine:setColor(0,1,0)
@@ -997,7 +1049,7 @@ function setupPhysics3d(tInfoPhysic)
         -- must stay a rigid, axis-aligned box, so dragging one handle resizes only that dimension
         -- (width/height/depth independently), symmetric about the unmoved center -- same
         -- distance-from-center convention as Sphere's own resize handle, just one axis at a time.
-        if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
+        if tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
             -- No fixed-world-unit floor here -- a hard minimum (previously 5) made handles look
             -- larger than the object itself once maxExtent dropped below ~62 units (direct user
             -- feedback: "for a small object... the pivots... is bigger than the object itself").
@@ -1019,7 +1071,7 @@ function setupPhysics3d(tInfoPhysic)
             end
             tHandles.move.visible = bVisible
 
-            if tInfoPhysic.type == 'complex' then
+            if tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
                 if tHandles.corners == nil then
                     tHandles.corners = {}
                 end
@@ -1167,15 +1219,15 @@ function onLoadMesh()
             tInfoPhysics = tMesh:getPhysics()
             camera2d:setPos(-150,0)
 
-            -- Auto-detect a promoted sprite on load: type='complex' is an unambiguous signal (2D
+            -- Auto-detect a promoted sprite on load: the eight-point convex type is an unambiguous signal (2D
             -- never creates it any other way), unlike type='sphere' which is identical whether it
             -- came from "Circle" or the promoted "Sphere" button -- a sphere-only promotion can't
             -- be told apart from an ordinary 2D circle from saved data alone (shapes.h's CUBE/
-            -- SPHERE/CUBE_COMPLEX have no spare field to persist that distinction to disk). Known,
+            -- SPHERE/CONVEX_POLYHEDRON_8 have no spare field to persist that distinction to disk). Known,
             -- accepted gap -- the Camera 2D/3D toggle below is the manual fallback for that case.
             if bSpriteBackedObject and not bIs3d then
                 for i=1, #tInfoPhysics do
-                    if tInfoPhysics[i].type == 'complex' then
+                    if tInfoPhysics[i].type == 'convex_polyhedron_8' or tInfoPhysics[i].type == 'complex' then
                         bIs3d = true
                         bSpriteEverWent3d = true
                         break
@@ -1215,7 +1267,7 @@ function onLoadMesh()
                                 elseif value == 3 then
                                     tHighLightPoint:setPos(tInfoPhysic.c.x,tInfoPhysic.c.y,tInfoPhysic.c.z or 0)
                                 end
-                            elseif tInfoPhysic.type_info == 'complex' then
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron_8' then
                                 local l = BOX_LETTERS[value or 0]
                                 if l then
                                     local p = tInfoPhysic[l]
@@ -1237,7 +1289,7 @@ function onLoadMesh()
                                 elseif value == 3 then
                                     tHighLightPoint:setPos(tInfoPhysic.c.x * scale,tInfoPhysic.c.y * scale)
                                 end
-                            elseif tInfoPhysic.type_info == 'complex' then
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron_8' then
                                 local l = BOX_LETTERS[value or 0]
                                 if l then
                                     local p = tInfoPhysic[l]
@@ -1771,7 +1823,7 @@ function showEditPhysics()
             -- Three real Bullet3D-supported shapes (completeBody's else-if chain: lsCube first,
             -- lsSphere, then lsCubeComplex -- confirmed all three actually build a body). "Cube"
             -- (simple axis-aligned box, width/height/depth, type='cube' -- shapes.h's CUBE struct)
-            -- is distinct from "Complex (Cube)" (free 8-corner hull, CUBE_COMPLEX struct) -- moving
+            -- is distinct from the 8-point convex polyhedron (free 8-point hull) -- moving
             -- one corner of the latter makes it no longer a cube; "Cube" always stays a rigid box.
             indexPrimitive       = tImGui.RadioButton(tLang.L("cube"), indexPrimitive, 1)
             indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
@@ -1959,7 +2011,11 @@ function showEditPhysics()
                 local id_node       = '##physics_' .. tostring(i) .. '_' .. tPhysic.type
                 local flag_node     = 0
                 
-                if tImGui.TreeNodeEx(tPhysic.type_info .. string.format('[%d]',i),flag_node,id_node) then
+                local typeLabel = tPhysic.type_info
+                if typeLabel == 'convex_polyhedron_8' then
+                    typeLabel = tLang.L('complex_cube')
+                end
+                if tImGui.TreeNodeEx(typeLabel .. string.format('[%d]',i),flag_node,id_node) then
                     tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable)
 
                     if tPhysic.type_info == 'rectangle' then
@@ -2154,7 +2210,7 @@ function showEditPhysics()
                         if tImGui.IsItemHovered(0) then
                             tInfoPhysics:highLightPoint(i,3)
                         end
-                    elseif tPhysic.type == 'complex' then
+                    elseif tPhysic.type == 'convex_polyhedron_8' or tPhysic.type == 'complex' then
                         for pi,l in ipairs(BOX_LETTERS) do
                             local p = tPhysic[l]
                             local label    = string.upper(l) .. tLang.L("axis_x") .. string.format('##complex_%d_%s_x', i, l)
@@ -2343,7 +2399,7 @@ function onTouchMove(key,x,y)
                     local dxm = wx - tSelected.dragPlanePoint.x
                     local dym = wy - tSelected.dragPlanePoint.y
                     local dzm = wz - tSelected.dragPlanePoint.z
-                    if tSelected.type == 'complex' then
+                    if tSelected.type == 'convex_polyhedron_8' or tSelected.type == 'complex' then
                         for _,l in ipairs(BOX_LETTERS) do
                             local p = tSelected[l]
                             p.x, p.y, p.z = p.x + dxm, p.y + dym, p.z + dzm
@@ -2572,7 +2628,7 @@ function createPhysicsPrimitive(indexPrimitive)
         tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
     elseif indexPrimitive == 6 then --complex (single 8-point box)
         local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
-        tInfoPhysicsInner.type = 'complex'
+        tInfoPhysicsInner.type = 'convex_polyhedron_8'
         tInfoPhysicsInner.promoted3d = true
         for i,l in ipairs(BOX_LETTERS) do
             tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}

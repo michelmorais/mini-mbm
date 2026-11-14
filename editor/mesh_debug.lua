@@ -3991,7 +3991,7 @@ function computePhysicsExtent(tPhysics)
                 local p = shape[key]
                 if p then acc(p.x, p.y, p.z) end
             end
-        elseif shape.type == 'complex' then
+        elseif shape.type == 'convex_polyhedron_8' or shape.type == 'complex' then
             for _, key in ipairs({'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}) do
                 local p = shape[key]
                 if p then acc(p.x, p.y, p.z) end
@@ -8803,7 +8803,7 @@ function showMeshOptions(tEntry, index)
                 {'cube',     tLang.L('physics_shape_cube')},
                 {'sphere',   tLang.L('physics_shape_sphere')},
                 {'triangle', tLang.L('triangle')},
-                {'complex',  tLang.L('physics_shape_complex')},
+                {'convex_polyhedron_8',  tLang.L('physics_shape_complex')},
             }
             for _, pair in ipairs(tShapeLabels) do
                 if counts[pair[1]] then
@@ -10972,7 +10972,7 @@ end
 
 local BOX_LETTERS_PHYS = {'a','b','c','d','e','f','g','h'}
 
--- 8 corners of an axis-aligned box, same CUBE_COMPLEX convention as physic_editor.lua
+-- 8 points using the same CONVEX_POLYHEDRON_8 convention as physic_editor.lua
 -- (front face a,b,c,d @ +halfDepth, back face e,f,g,h @ -halfDepth), see include/core_mbm/shapes.h
 local function boxCornersPhys(hw,hh,hd)
     return {
@@ -11077,7 +11077,7 @@ local function addPhysicsShapeWireframe(ln, shape, is3D)
         else
             addLoop2d(ln, {a, b, c})
         end
-    elseif shape.type == 'complex' then
+    elseif shape.type == 'convex_polyhedron_8' or shape.type == 'complex' then
         local corners = {}
         for _, key in ipairs(BOX_LETTERS_PHYS) do
             if shape[key] then table.insert(corners, shape[key]) end
@@ -11202,7 +11202,7 @@ local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle
     elseif kind == 6 then --complex (single 8-point box)
         local useDepth = (depth and depth > 0) and depth or width
         local corners  = boxCornersPhys(width * 0.5, height * 0.5, useDepth * 0.5)
-        local tComplex = {type='complex', x=0,y=0,z=0}
+        local tComplex = {type='convex_polyhedron_8', x=0,y=0,z=0}
         for i,l in ipairs(BOX_LETTERS_PHYS) do
             tComplex[l] = {x = cx + corners[i].x, y = cy + corners[i].y, z = cz + corners[i].z}
         end

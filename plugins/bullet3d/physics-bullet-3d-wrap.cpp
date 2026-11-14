@@ -715,13 +715,13 @@ namespace mbm
                     const unsigned int sCube = infoPhysics->lsCubeComplex.size();
                     for (unsigned int i = 0; i< sCube; ++i)
                     {
-                        CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
+                        CONVEX_POLYHEDRON_8* polyhedron = infoPhysics->lsCubeComplex[i];
                         float p[8 * 3];
                         for(unsigned int j=0,k = 0; j< 8; j++, k+= 3)
                         {
-                            p[k]   = cube->p[j].x * this->scale;
-                            p[k+1] = cube->p[j].y * this->scale;
-                            p[k+2] = cube->p[j].z * this->scale;
+                            p[k]   = polyhedron->p[j].x * this->scale;
+                            p[k+1] = polyhedron->p[j].y * this->scale;
+                            p[k+2] = polyhedron->p[j].z * this->scale;
                         }
                         auto  btHull = new btConvexHullShape(p, 8, sizeof(_VEC3_POINT));
                         btCollisionShape* groundShape = btHull;
@@ -742,14 +742,14 @@ namespace mbm
                 }
                 else
                 {
-                    CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[0];
+                    CONVEX_POLYHEDRON_8* polyhedron = infoPhysics->lsCubeComplex[0];
                     btVector3 localInertia(0, 0, 0);
                     float p[8 * 3];
                     for(unsigned int j=0,k = 0; j< 8; j++, k+= 3)
                     {
-                        p[k]   = cube->p[j].x * this->scale;
-                        p[k+1] = cube->p[j].y * this->scale;
-                        p[k+2] = cube->p[j].z * this->scale;
+                        p[k]   = polyhedron->p[j].x * this->scale;
+                        p[k+1] = polyhedron->p[j].y * this->scale;
+                        p[k+2] = polyhedron->p[j].z * this->scale;
                     }
                     auto  btHull = new btConvexHullShape(p, 8, sizeof(_VEC3_POINT));
                     btCollisionShape* groundShape = btHull;

@@ -581,7 +581,7 @@ Collision queries do not change the object's position.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:getPhysics` | `()` | table | Physics collision shapes: array of `{type, x, y, z, width?, height?, depth?, ray?}`. Types: `"cube"`, `"sphere"`, `"triangle"`, `"complex"`. |
+| `obj:getPhysics` | `()` | table | Physics collision shapes: array of `{type, x, y, z, width?, height?, depth?, ray?}`. Types: `"cube"`, `"sphere"`, `"triangle"`, `"convex_polyhedron_8"` (legacy input `"complex"` is also accepted). |
 
 ### 6.6 Animation & Shaders
 
