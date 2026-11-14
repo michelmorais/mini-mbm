@@ -30,6 +30,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tConvexPreview =    require "convex_polyhedron_preview"
 require "box2d"
 
 
@@ -743,18 +744,8 @@ function convexPolyhedronEdgePoints(points)
     return result
 end
 
--- Variable polyhedra do not persist a face topology, so the editor uses the supplied point order
--- for its wire preview. Bullet still computes the actual convex hull from the complete point list.
 function convexPolyhedronVariableEdgePoints(points)
-    local result = {}
-    if #points < 2 then return result end
-    for i = 1, #points do
-        local p1 = points[i]
-        local p2 = points[(i % #points) + 1]
-        table.insert(result,p1.x); table.insert(result,p1.y); table.insert(result,p1.z or 0)
-        table.insert(result,p2.x); table.insert(result,p2.y); table.insert(result,p2.z or 0)
-    end
-    return result
+    return tConvexPreview.edgePoints(points)
 end
 
 -- Builds an invisible 3D box shape (used only as the translucent highlight fill /
@@ -789,6 +780,33 @@ function makeConvexPolyhedronShape3d(points,cx,cy,cz,name)
             table.insert(verts,p.x - cx)
             table.insert(verts,p.y - cy)
             table.insert(verts,p.z - cz)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, name)
+    return tShape
+end
+
+-- Builds the translucent preview from the actual variable-point convex hull. The old preview
+-- used the point cloud's AABB as a fill, which made a skewed polyhedron look like a dark cube.
+function makeVariableConvexPolyhedronShape3d(points,cx,cy,cz,name,hull)
+    hull = hull or tConvexPreview.hull(points)
+    if #hull.faces == 0 then
+        local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+        for _, p in ipairs(points) do
+            minX = math.min(minX,p.x or 0); maxX = math.max(maxX,p.x or 0)
+            minY = math.min(minY,p.y or 0); maxY = math.max(maxY,p.y or 0)
+            minZ = math.min(minZ,p.z or 0); maxZ = math.max(maxZ,p.z or 0)
+        end
+        return makeBoxShape3d(cx,cy,cz,maxX-minX,maxY-minY,maxZ-minZ)
+    end
+    local verts = {}
+    for _, face in ipairs(hull.faces) do
+        for _, pointIndex in ipairs(face) do
+            local p = points[pointIndex]
+            table.insert(verts,p.x - cx)
+            table.insert(verts,p.y - cy)
+            table.insert(verts,(p.z or 0) - cz)
         end
     end
     local tShape = shape:new('3d',cx,cy,cz)
@@ -1012,8 +1030,10 @@ function setupPhysics3d(tInfoPhysic)
         local hw = math.max(w,0.01) * 0.5
         local hh = math.max(h,0.01) * 0.5
         local hd = math.max(d,0.01) * 0.5
+        local variableHull = tInfoPhysic.type == 'convex_polyhedron'
+            and tConvexPreview.hull(tPolyhedronPoints) or nil
         if tInfoPhysic.type == 'convex_polyhedron' then
-            tInfoPhysic.tShape = makeBoxShape3d(cx,cy,cz,w,h,d,sUniqueName)
+            tInfoPhysic.tShape = makeVariableConvexPolyhedronShape3d(tPolyhedronPoints,cx,cy,cz,sUniqueName,variableHull)
         elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
             tInfoPhysic.tShape = makeConvexPolyhedronShape3d(tPolyhedronPoints,cx,cy,cz,sUniqueName)
         else
@@ -1040,7 +1060,7 @@ function setupPhysics3d(tInfoPhysic)
             tInfoPhysic.linePolyhedronIdx = nil
         end
         if tInfoPhysic.type == 'convex_polyhedron' then
-            local points = convexPolyhedronVariableEdgePoints(tPolyhedronPoints)
+            local points = tConvexPreview.edgePoints(tPolyhedronPoints,variableHull)
             if tInfoPhysic.linePolyhedronIdx == nil then
                 tInfoPhysic.linePolyhedronIdx = tInfoPhysic.tLine:add(points)
             else
@@ -2333,6 +2353,16 @@ function showEditPhysics()
                                 tInfoPhysics:highLightPoint(i,pointIndex)
                             end
                         end
+                        local pointCount = #(tPhysic.points or {})
+                        if pointCount < 100 then
+                            if tImGui.Button(tLang.L("add_point") .. string.format('##polyhedron_add_%d', i), {x=0,y=0}) then
+                                if addConvexPolyhedronPoint(tPhysic) then
+                                    updatePhysics(tPhysic)
+                                end
+                            end
+                        end
+                        tImGui.SameLine()
+                        tImGui.TextDisabled(string.format('%d/100', pointCount))
                     end
                     if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then
                         table.remove(tInfoPhysics,i)
@@ -2643,6 +2673,39 @@ function addPhysics(tInfoPhysicsInner)
     tInfoPhysicsInner.selectable = true
     table.insert(tInfoPhysics,tInfoPhysicsInner)
     updatePhysics(tInfoPhysicsInner)
+end
+
+function addConvexPolyhedronPoint(tPhysic)
+    local points = tPhysic.points or {}
+    tPhysic.points = points
+    if #points >= 100 then
+        return false
+    end
+
+    local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+    for _, p in ipairs(points) do
+        local x, y, z = p.x or 0, p.y or 0, p.z or 0
+        minX,maxX = math.min(minX,x), math.max(maxX,x)
+        minY,maxY = math.min(minY,y), math.max(maxY,y)
+        minZ,maxZ = math.min(minZ,z), math.max(maxZ,z)
+    end
+    if minX == math.huge then
+        minX,maxX,minY,maxY,minZ,maxZ = -50,50,-50,50,-50,50
+    end
+
+    local centerX,centerY,centerZ = (minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5
+    local radiusX = math.max((maxX - minX) * 0.5, 1)
+    local radiusY = math.max((maxY - minY) * 0.5, 1)
+    local radiusZ = math.max((maxZ - minZ) * 0.5, 1)
+    local index = #points + 1
+    local angle = index * 2.399963229728653
+    local depthAngle = angle * 0.73
+    points[index] = {
+        x = centerX + math.cos(angle) * radiusX * 1.25,
+        y = centerY + math.sin(angle) * radiusY * 1.25,
+        z = centerZ + math.sin(depthAngle) * radiusZ * 1.25,
+    }
+    return true
 end
 
 -- Builds and adds a new physics shape for the given primitive-picker index. Extracted out of the

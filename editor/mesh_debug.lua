@@ -38,6 +38,7 @@ tXformGizmo   =     require "mesh_debug_transform_gizmo"
 tMeshExport   =     require "mesh_debug_export_helper"
 tMeshNormals  =     require "mesh_debug_normals"
 tMeshNormals.preview = require "mesh_debug_normal_preview"
+tConvexPreview = require "convex_polyhedron_preview"
 local Simplification = require "mesh_debug_simplification"
 local CaptureVolume = require "mesh_debug_capture_volume"
 tImageMeshWorktree = require "image_mesh_worktree"
@@ -11102,11 +11103,8 @@ local function addPhysicsShapeWireframe(ln, shape, is3D)
         end
     elseif shape.type == 'convex_polyhedron' and shape.points and #shape.points >= 2 then
         if is3D then
-            for i = 1, #shape.points do
-                local a = shape.points[i]
-                local b = shape.points[(i % #shape.points) + 1]
-                ln:add({a.x, a.y, a.z or 0, b.x, b.y, b.z or 0})
-            end
+            local points = tConvexPreview.edgePoints(shape.points)
+            if #points > 0 then ln:add(points) end
         else
             local points = {}
             for _, p in ipairs(shape.points) do
