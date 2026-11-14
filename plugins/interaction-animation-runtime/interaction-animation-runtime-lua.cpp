@@ -102,7 +102,9 @@ struct ACTOR_DEFINITION
 {
     std::string id;
     std::string name;
+    std::string kind = "mesh";
     std::string clipKey;
+    TRANSFORM base;
 };
 
 struct DEFINITION
@@ -122,6 +124,8 @@ struct ACTOR_INSTANCE
     ACTOR_DEFINITION definition;
     mbm::MESH *mesh = nullptr;
     TRANSFORM base;
+    TRANSFORM initialBase;
+    TRANSFORM current;
     int luaReference = LUA_NOREF;
     std::string activeClip;
 };
@@ -151,6 +155,29 @@ MATRIX3 multiply(const MATRIX3 &a, const MATRIX3 &b)
         }
     }
     return result;
+}
+
+MATRIX3 transpose(const MATRIX3 &matrix)
+{
+    MATRIX3 result;
+    for (int row = 0; row < 3; ++row)
+    {
+        for (int column = 0; column < 3; ++column)
+            result.value[row][column] = matrix.value[column][row];
+    }
+    return result;
+}
+
+VEC3D transformVector(const MATRIX3 &matrix, const VEC3D &vector)
+{
+    return {
+        matrix.value[0][0] * vector.x + matrix.value[1][0] * vector.y +
+            matrix.value[2][0] * vector.z,
+        matrix.value[0][1] * vector.x + matrix.value[1][1] * vector.y +
+            matrix.value[2][1] * vector.z,
+        matrix.value[0][2] * vector.x + matrix.value[1][2] * vector.y +
+            matrix.value[2][2] * vector.z,
+    };
 }
 
 MATRIX3 axisRotation(const VEC3D &axis, const double angle)
@@ -230,7 +257,7 @@ double clamp(const double value, const double minimum, const double maximum)
 
 double transitionParameter(const EVENT &event, const double time)
 {
-    if (event.transition == "instant") return 1.0;
+    if (event.transition == "instant") return time >= event.time ? 1.0 : 0.0;
     if (time < event.transitionStart) return 0.0;
     if (event.transitionEnd <= event.transitionStart)
         return time >= event.transitionEnd ? 1.0 : 0.0;
@@ -272,6 +299,7 @@ const char *actionName(const ACTION action)
 
 void setTransform(mbm::MESH *mesh, const TRANSFORM &transform)
 {
+    if (!mesh) return;
     mesh->setPosition({static_cast<float>(transform.position.x),
                        static_cast<float>(transform.position.y),
                        static_cast<float>(transform.position.z)});
@@ -295,6 +323,13 @@ TRANSFORM readTransform(const mbm::MESH *mesh)
             mesh->isRenderEnabled()};
 }
 
+void convertAngleToRadians(TRANSFORM &transform)
+{
+    transform.angle.x *= DEG_TO_RAD;
+    transform.angle.y *= DEG_TO_RAD;
+    transform.angle.z *= DEG_TO_RAD;
+}
+
 class INTERACTION_INSTANCE
 {
   public:
@@ -314,6 +349,7 @@ class INTERACTION_INSTANCE
     int onStartReference = LUA_NOREF;
     int onEventReference = LUA_NOREF;
     int onFinishReference = LUA_NOREF;
+    int onUpdateReference = LUA_NOREF;
     DEFINITION definition;
     std::vector<ACTOR_INSTANCE> actors;
     std::unordered_map<std::string, std::size_t> actorIndex;
@@ -333,11 +369,13 @@ class INTERACTION_INSTANCE
     void pauseClip(ACTOR_INSTANCE &actor, const std::string &key);
     void applyTransforms();
     void applyVisibility();
+    void rebaseToAnchor(bool applyPosition, bool applyRotation);
     void applyPlayEvents(double previousTime, double currentTime, bool includeInitial);
     void notifyEvents(double previousTime, double currentTime, bool includeInitial);
     void resetInstance();
     void finish();
     void callCallback(int reference, const EVENT *event, std::size_t eventIndex);
+    void callUpdateCallback(double delta);
     void pushInstanceTable();
     void shutdownForScene();
     void releaseLuaReferences();
@@ -354,6 +392,7 @@ void INTERACTION_INSTANCE::initializeAxes()
 
 void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &key)
 {
+    if (!actor.mesh) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -369,6 +408,7 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
 
 void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &key)
 {
+    if (!actor.mesh) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -384,6 +424,7 @@ void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &ke
 
 void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &key)
 {
+    if (!actor.mesh) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -440,19 +481,84 @@ void INTERACTION_INSTANCE::applyTransforms()
         {
             result.angle = rotationToEuler(multiply(eulerRotation(actor.base.angle), rotations[index]));
         }
-        setTransform(actor.mesh, result);
+        actor.current = result;
+        setTransform(actor.mesh, actor.current);
     }
 }
 
 void INTERACTION_INSTANCE::applyVisibility()
 {
-    for (ACTOR_INSTANCE &actor : actors) actor.mesh->setEnableRender(actor.base.visible);
+    for (ACTOR_INSTANCE &actor : actors)
+    {
+        actor.current.visible = actor.base.visible;
+        if (actor.mesh) actor.mesh->setEnableRender(actor.current.visible);
+    }
     for (const EVENT &event : definition.events)
     {
         if (event.action != ACTION::VISIBILITY || event.time > time) continue;
         const auto found = actorIndex.find(event.target);
-        if (found != actorIndex.end()) actors[found->second].mesh->setEnableRender(event.visible);
+        if (found != actorIndex.end())
+        {
+            ACTOR_INSTANCE &actor = actors[found->second];
+            actor.current.visible = event.visible;
+            if (actor.mesh) actor.mesh->setEnableRender(actor.current.visible);
+        }
     }
+}
+
+void INTERACTION_INSTANCE::rebaseToAnchor(const bool applyPosition,
+                                          const bool applyRotation)
+{
+    const auto anchorFound = actorIndex.find(definition.anchorActor);
+    if (anchorFound == actorIndex.end()) return;
+    const std::size_t anchorIndex = anchorFound->second;
+    const ACTOR_INSTANCE &anchor = actors[anchorIndex];
+    const TRANSFORM &authoredAnchor = anchor.definition.base;
+    const TRANSFORM &runtimeAnchor = anchor.initialBase;
+    const VEC3D authoredAngle{
+        authoredAnchor.angle.x * DEG_TO_RAD,
+        authoredAnchor.angle.y * DEG_TO_RAD,
+        authoredAnchor.angle.z * DEG_TO_RAD,
+    };
+    const MATRIX3 authoredRotation = eulerRotation(authoredAngle);
+    const MATRIX3 runtimeRotation = eulerRotation(runtimeAnchor.angle);
+    const MATRIX3 rebaseRotation = applyRotation
+        ? multiply(transpose(authoredRotation), runtimeRotation)
+        : identityMatrix();
+
+    for (std::size_t index = 0; index < actors.size(); ++index)
+    {
+        ACTOR_INSTANCE &actor = actors[index];
+        actor.base = actor.initialBase;
+        if (index == anchorIndex) continue;
+        if (applyPosition)
+        {
+            VEC3D relative{
+                actor.definition.base.position.x - authoredAnchor.position.x,
+                actor.definition.base.position.y - authoredAnchor.position.y,
+                actor.definition.base.position.z - authoredAnchor.position.z,
+            };
+            if (applyRotation) relative = transformVector(rebaseRotation, relative);
+            actor.base.position = {
+                runtimeAnchor.position.x + relative.x,
+                runtimeAnchor.position.y + relative.y,
+                runtimeAnchor.position.z + relative.z,
+            };
+        }
+        if (applyRotation)
+        {
+            const VEC3D authoredActorAngle{
+                actor.definition.base.angle.x * DEG_TO_RAD,
+                actor.definition.base.angle.y * DEG_TO_RAD,
+                actor.definition.base.angle.z * DEG_TO_RAD,
+            };
+            actor.base.angle = rotationToEuler(
+                multiply(eulerRotation(authoredActorAngle), rebaseRotation));
+        }
+        actor.current = actor.base;
+    }
+    applyTransforms();
+    applyVisibility();
 }
 
 void INTERACTION_INSTANCE::applyPlayEvents(const double previousTime, const double currentTime,
@@ -525,6 +631,21 @@ void INTERACTION_INSTANCE::callCallback(const int reference, const EVENT *event,
     }
 }
 
+void INTERACTION_INSTANCE::callUpdateCallback(const double delta)
+{
+    if (onUpdateReference == LUA_NOREF) return;
+    lua_rawgeti(lua, LUA_REGISTRYINDEX, onUpdateReference);
+    pushInstanceTable();
+    lua_pushnumber(lua, delta);
+    if (lua_pcall(lua, 2, 0, 0) != LUA_OK)
+    {
+        mbm::lua_print_line(lua, TYPE_LOG_ERROR,
+                            "interaction_animation_runtime onUpdate callback failed: %s",
+                            lua_tostring(lua, -1));
+        lua_pop(lua, 1);
+    }
+}
+
 void INTERACTION_INSTANCE::pushInstanceTable()
 {
     lua_rawgeti(lua, LUA_REGISTRYINDEX, weakInstanceReference);
@@ -555,6 +676,8 @@ void INTERACTION_INSTANCE::resetInstance()
     {
         stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
         actor.activeClip.clear();
+        actor.base = actor.initialBase;
+        actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
     }
     time = 0.0;
@@ -592,6 +715,7 @@ void INTERACTION_INSTANCE::update(const double delta)
     notifyEvents(previousTime, time, false);
     applyTransforms();
     applyVisibility();
+    callUpdateCallback(amount);
     if (time >= definition.duration)
     {
         if (!definition.continueClipsAfterTimeline)
@@ -615,6 +739,8 @@ void INTERACTION_INSTANCE::stop()
     {
         stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
         actor.activeClip.clear();
+        actor.base = actor.initialBase;
+        actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
     }
     finish();
@@ -728,12 +854,15 @@ void INTERACTION_INSTANCE::releaseLuaReferences()
             luaL_unref(lua, LUA_REGISTRYINDEX, onEventReference);
         if (onFinishReference != LUA_NOREF)
             luaL_unref(lua, LUA_REGISTRYINDEX, onFinishReference);
+        if (onUpdateReference != LUA_NOREF)
+            luaL_unref(lua, LUA_REGISTRYINDEX, onUpdateReference);
     }
     for (ACTOR_INSTANCE &actor : actors) actor.luaReference = LUA_NOREF;
     weakInstanceReference = LUA_NOREF;
     onStartReference = LUA_NOREF;
     onEventReference = LUA_NOREF;
     onFinishReference = LUA_NOREF;
+    onUpdateReference = LUA_NOREF;
 }
 
 void INTERACTION_INSTANCE::shutdownForScene()
@@ -805,6 +934,45 @@ VEC3D pointField(lua_State *lua, const int table, const char *field,
         numberField(lua, pointTable, "y", fallback.y),
         numberField(lua, pointTable, "z", fallback.z),
     };
+    lua_pop(lua, 1);
+    return result;
+}
+
+TRANSFORM transformTable(lua_State *lua, const int transformTable,
+                         const TRANSFORM &fallback)
+{
+    luaL_checktype(lua, transformTable, LUA_TTABLE);
+    TRANSFORM result = fallback;
+    result.position = {
+        numberField(lua, transformTable, "x", fallback.position.x),
+        numberField(lua, transformTable, "y", fallback.position.y),
+        numberField(lua, transformTable, "z", fallback.position.z),
+    };
+    result.angle = {
+        numberField(lua, transformTable, "rx", fallback.angle.x),
+        numberField(lua, transformTable, "ry", fallback.angle.y),
+        numberField(lua, transformTable, "rz", fallback.angle.z),
+    };
+    result.scale = {
+        numberField(lua, transformTable, "sx", fallback.scale.x),
+        numberField(lua, transformTable, "sy", fallback.scale.y),
+        numberField(lua, transformTable, "sz", fallback.scale.z),
+    };
+    result.visible = booleanField(lua, transformTable, "visible", fallback.visible);
+    return result;
+}
+
+TRANSFORM transformField(lua_State *lua, const int table, const char *field,
+                         const TRANSFORM &fallback)
+{
+    lua_getfield(lua, table, field);
+    if (lua_isnil(lua, -1))
+    {
+        lua_pop(lua, 1);
+        return fallback;
+    }
+    const int poseTable = lua_absindex(lua, -1);
+    TRANSFORM result = transformTable(lua, poseTable, fallback);
     lua_pop(lua, 1);
     return result;
 }
@@ -906,7 +1074,14 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
             ACTOR_DEFINITION actor;
             actor.id = id;
             actor.name = stringField(lua, actorTable, "name", id.c_str());
+            actor.kind = stringField(lua, actorTable, "kind", "mesh");
             actor.clipKey = stringField(lua, actorTable, "clipKey");
+            actor.base = transformField(lua, actorTable, "base", actor.base);
+            if (actor.kind != "mesh" && actor.kind != "placeholder")
+                luaL_error(lua, "Interaction actor '%s' has an invalid kind", actor.id.c_str());
+            if (actor.kind == "placeholder" && !actor.clipKey.empty())
+                luaL_error(lua, "Interaction placeholder '%s' cannot have an animation clip",
+                           actor.id.c_str());
             definition.actorIndex.emplace(actor.id, definition.actors.size());
             definition.actors.push_back(std::move(actor));
             lua_pop(lua, 1);
@@ -923,7 +1098,14 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
             ACTOR_DEFINITION actor;
             actor.id = id;
             actor.name = stringField(lua, -1, "name", id.c_str());
+            actor.kind = stringField(lua, -1, "kind", "mesh");
             actor.clipKey = stringField(lua, -1, "clipKey");
+            actor.base = transformField(lua, -1, "base", actor.base);
+            if (actor.kind != "mesh" && actor.kind != "placeholder")
+                luaL_error(lua, "Interaction actor '%s' has an invalid kind", actor.id.c_str());
+            if (actor.kind == "placeholder" && !actor.clipKey.empty())
+                luaL_error(lua, "Interaction placeholder '%s' cannot have an animation clip",
+                           actor.id.c_str());
             definition.actorIndex.emplace(actor.id, definition.actors.size());
             definition.actors.push_back(std::move(actor));
             lua_pop(lua, 1);
@@ -973,8 +1155,12 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
         if (event.action == ACTION::TRANSFORM || event.action == ACTION::PLAY ||
             event.action == ACTION::VISIBILITY)
         {
-            if (findActor(definition, event.target) == std::numeric_limits<std::size_t>::max())
+            const std::size_t targetIndex = findActor(definition, event.target);
+            if (targetIndex == std::numeric_limits<std::size_t>::max())
                 luaL_error(lua, "Interaction event '%s' references an invalid actor", event.id.c_str());
+            if (event.action == ACTION::PLAY &&
+                definition.actors[targetIndex].kind == "placeholder")
+                luaL_error(lua, "Interaction event '%s' targets a placeholder", event.id.c_str());
         }
         if (event.action == ACTION::PLAY && event.clipKey.empty())
             luaL_error(lua, "Interaction event '%s' has no animation clip", event.id.c_str());
@@ -1005,6 +1191,55 @@ bool getBinding(lua_State *lua, const int bindingsTable, const std::string &name
         return true;
     }
     return false;
+}
+
+std::string alternateActorId(const std::string &id)
+{
+    if (id.size() > 6 && id.compare(0, 6, "actor_") == 0)
+        return "actor" + id.substr(6);
+    if (id.size() > 5 && id.compare(0, 5, "actor") == 0)
+        return "actor_" + id.substr(5);
+    return id;
+}
+
+bool getPlaceholderPose(lua_State *lua, const int bindingsTable,
+                        const std::string &name, const std::string &fixedName,
+                        TRANSFORM &pose)
+{
+    const char *names[2] = {name.c_str(), fixedName.c_str()};
+    for (const char *candidate : names)
+    {
+        lua_getfield(lua, bindingsTable, candidate);
+        if (lua_isnil(lua, -1))
+        {
+            lua_pop(lua, 1);
+            continue;
+        }
+        const int poseTable = lua_absindex(lua, -1);
+        luaL_checktype(lua, poseTable, LUA_TTABLE);
+        const std::string kind = stringField(lua, poseTable, "kind", "placeholder");
+        if (kind != "placeholder")
+            luaL_error(lua, "Placeholder actor '%s' has an invalid binding kind", name.c_str());
+        pose = transformTable(lua, poseTable, pose);
+        lua_pop(lua, 1);
+        return true;
+    }
+    return false;
+}
+
+void pushTransform(lua_State *lua, const TRANSFORM &transform)
+{
+    lua_newtable(lua);
+    lua_pushnumber(lua, transform.position.x); lua_setfield(lua, -2, "x");
+    lua_pushnumber(lua, transform.position.y); lua_setfield(lua, -2, "y");
+    lua_pushnumber(lua, transform.position.z); lua_setfield(lua, -2, "z");
+    lua_pushnumber(lua, transform.angle.x); lua_setfield(lua, -2, "rx");
+    lua_pushnumber(lua, transform.angle.y); lua_setfield(lua, -2, "ry");
+    lua_pushnumber(lua, transform.angle.z); lua_setfield(lua, -2, "rz");
+    lua_pushnumber(lua, transform.scale.x); lua_setfield(lua, -2, "sx");
+    lua_pushnumber(lua, transform.scale.y); lua_setfield(lua, -2, "sy");
+    lua_pushnumber(lua, transform.scale.z); lua_setfield(lua, -2, "sz");
+    lua_pushboolean(lua, transform.visible); lua_setfield(lua, -2, "visible");
 }
 
 INTERACTION_INSTANCE *getInstance(lua_State *lua)
@@ -1051,6 +1286,36 @@ int onInstanceIsFinished(lua_State *lua)
     return 1;
 }
 
+int onInstanceGetActorPoseLua(lua_State *lua)
+{
+    INTERACTION_INSTANCE *instance = getInstance(lua);
+    const char *id = luaL_checkstring(lua, 2);
+    auto found = instance->actorIndex.find(id);
+    if (found == instance->actorIndex.end())
+        found = instance->actorIndex.find(alternateActorId(id));
+    if (found == instance->actorIndex.end())
+        return luaL_error(lua, "Unknown interaction actor: %s", id);
+    pushTransform(lua, instance->actors[found->second].current);
+    return 1;
+}
+
+int onInstanceRebaseToAnchorLua(lua_State *lua)
+{
+    INTERACTION_INSTANCE *instance = getInstance(lua);
+    bool applyPosition = true;
+    bool applyRotation = true;
+    if (!lua_isnoneornil(lua, 2))
+    {
+        const int options = lua_absindex(lua, 2);
+        luaL_checktype(lua, options, LUA_TTABLE);
+        applyPosition = booleanField(lua, options, "position", true);
+        applyRotation = booleanField(lua, options, "rotation", true);
+    }
+    instance->rebaseToAnchor(applyPosition, applyRotation);
+    lua_pushvalue(lua, 1);
+    return 1;
+}
+
 INTERACTION_RUNTIME_PLUGIN *getRuntimePlugin(lua_State *lua)
 {
     auto *plugin = static_cast<INTERACTION_RUNTIME_PLUGIN *>(
@@ -1070,13 +1335,35 @@ int onStartInteractionLua(lua_State *lua)
     DEFINITION definition = parseDefinition(lua, definitionTable);
     lua_pop(lua, 1);
     lua_getfield(lua, config, "actors");
-    const int bindingsTable = lua_absindex(lua, -1);
-    luaL_checktype(lua, bindingsTable, LUA_TTABLE);
+    int bindingsTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, bindingsTable))
+    {
+        lua_pop(lua, 1);
+        lua_newtable(lua);
+        bindingsTable = lua_absindex(lua, -1);
+    }
+    else luaL_checktype(lua, bindingsTable, LUA_TTABLE);
     auto *instance = new INTERACTION_INSTANCE(lua, plugin);
     instance->definition = std::move(definition);
     instance->actors.reserve(instance->definition.actors.size());
     for (const ACTOR_DEFINITION &actorDefinition : instance->definition.actors)
     {
+        if (actorDefinition.kind == "placeholder")
+        {
+            const std::string fixedName = actorDefinition.id.substr(0, 5) == "actor" &&
+                actorDefinition.id.size() > 5
+                ? "actor_" + actorDefinition.id.substr(5) : actorDefinition.id;
+            TRANSFORM base = actorDefinition.base;
+            convertAngleToRadians(base);
+            const bool found = getPlaceholderPose(
+                lua, bindingsTable, actorDefinition.name, fixedName, base);
+            if (!found && actorDefinition.name != actorDefinition.id)
+                getPlaceholderPose(lua, bindingsTable, actorDefinition.id, fixedName, base);
+            ACTOR_INSTANCE actor{actorDefinition, nullptr, base, base, base, LUA_NOREF, {}};
+            instance->actors.push_back(std::move(actor));
+            instance->actorIndex[actorDefinition.id] = instance->actors.size() - 1;
+            continue;
+        }
         const std::string fixedName = actorDefinition.id.substr(0, 5) == "actor" &&
             actorDefinition.id.size() > 5
             ? "actor_" + actorDefinition.id.substr(5) : actorDefinition.id;
@@ -1095,7 +1382,8 @@ int onStartInteractionLua(lua_State *lua)
             lua_pop(lua, 1);
             return luaL_error(lua, "Missing interaction actor binding: %s", missingActor.c_str());
         }
-        instance->actors.push_back({actorDefinition, mesh, readTransform(mesh), objectReference, {}});
+        TRANSFORM base = readTransform(mesh);
+        instance->actors.push_back({actorDefinition, mesh, base, base, base, objectReference, {}});
         instance->actorIndex[actorDefinition.id] = instance->actors.size() - 1;
     }
     lua_pop(lua, 1);
@@ -1117,6 +1405,13 @@ int onStartInteractionLua(lua_State *lua)
             }
             else lua_pop(lua, 1);
         }
+        lua_getfield(lua, callbacks, "onUpdate");
+        if (!lua_isnil(lua, -1))
+        {
+            luaL_checktype(lua, -1, LUA_TFUNCTION);
+            instance->onUpdateReference = luaL_ref(lua, LUA_REGISTRYINDEX);
+        }
+        else lua_pop(lua, 1);
     }
     lua_pop(lua, 1);
     instance->initializeAxes();
@@ -1127,6 +1422,8 @@ int onStartInteractionLua(lua_State *lua)
     lua_pushcfunction(lua, onInstanceRestart); lua_setfield(lua, -2, "restart");
     lua_pushcfunction(lua, onInstanceStop); lua_setfield(lua, -2, "stop");
     lua_pushcfunction(lua, onInstanceIsFinished); lua_setfield(lua, -2, "isFinished");
+    lua_pushcfunction(lua, onInstanceGetActorPoseLua); lua_setfield(lua, -2, "getActorPose");
+    lua_pushcfunction(lua, onInstanceRebaseToAnchorLua); lua_setfield(lua, -2, "rebaseToAnchor");
     const int instanceTable = lua_absindex(lua, -1);
     auto **userdata = static_cast<INTERACTION_INSTANCE **>(
         lua_newuserdata(lua, sizeof(INTERACTION_INSTANCE *)));

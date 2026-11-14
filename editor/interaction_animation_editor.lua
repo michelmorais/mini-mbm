@@ -34,12 +34,15 @@ local actorSlots = {}
 local function newActorState(baseX)
     return {
         active = false,
+        kind = 'mesh',
         path = '',
         base = {x = baseX or 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, visible = true},
+        previewSize = 40,
         selectable = true,
         previewBase = nil,
         bundle = nil,
         object = nil,
+        previewObject = nil,
         clipKey = '',
         runtimeKey = nil,
         runtimeClip = nil,
@@ -265,6 +268,14 @@ local function actorName(id, entry)
     return string.format(L('actor_default'), actorSlotIndex(id) or 1)
 end
 
+local function isPlaceholder(entry)
+    return entry and entry.kind == 'placeholder'
+end
+
+local function actorVisual(entry)
+    return entry and (entry.object or entry.previewObject) or nil
+end
+
 local function rebuildActorOrder()
     S.actorOrder = {}
     for _, id in ipairs(actorSlots) do
@@ -314,6 +325,7 @@ local function addActor()
     end
     table.insert(actorSlots, id)
     S.actors[id] = newActorState(index == 1 and 180 or 0)
+    S.actors[id].id = id
     S.actors[id].active = true
     rebuildActorOrder()
     S.baseReference = nil
@@ -322,6 +334,33 @@ local function addActor()
     S.selectedActor = id
     S.modified = true
     return id
+end
+
+local function destroyActorPreview(entry)
+    if entry and entry.previewObject then
+        entry.previewObject:destroy()
+        entry.previewObject = nil
+    end
+end
+
+local function setActorKind(id, kind)
+    local entry = actor(id)
+    if not entry or (kind ~= 'mesh' and kind ~= 'placeholder') then return end
+    if entry.kind == kind then return end
+    if entry.object then entry.object:destroy(); entry.object = nil end
+    destroyActorPreview(entry)
+    entry.bundle = nil
+    entry.runtimeKey = nil
+    entry.runtimeClip = nil
+    entry.runtimeOverride = false
+    entry.runtimeStartTime = 0
+    entry.kind = kind
+    if kind == 'placeholder' then
+        entry.path = ''
+        entry.clipKey = ''
+    end
+    S.baseReference = nil
+    S.modified = true
 end
 
 local applyTransform
@@ -568,7 +607,7 @@ local function actorPosition(entry, refreshBounds)
 end
 
 local function actorMeshExtent(entry, refreshBounds)
-    if not entry.object then return 40 / 0.45 end
+    if not entry.object then return math.max(3, tonumber(entry.previewSize) or 40) end
     -- getAABB(true) is the current world-space size and includes the actor's
     -- scale and rotation. getSize(true) is only a geometry-size fallback.
     local ok, width, height, depth = pcall(function()
@@ -602,7 +641,10 @@ end
 
 local function actorPickDistance(sx, sy, entry)
     local center = actorPosition(entry, true)
-    local ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+    local ok, width, height, depth = false, nil, nil, nil
+    if entry.object then
+        ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+    end
     if ok and width and height and depth and width > 0 and height > 0 and depth > 0 then
         return rayAABBDistance(sx, sy, center, width, height, depth)
     end
@@ -630,6 +672,24 @@ local function eventHighlightVertices()
         end
     end
     return vertices
+end
+
+local function ensurePlaceholderVisual(id, entry)
+    if not isPlaceholder(entry) then return nil end
+    if entry.previewObject then return entry.previewObject end
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(eventHighlightVertices(), nil,
+        'interaction_animation_placeholder_' .. tostring(id)) then
+        object:destroy()
+        return nil
+    end
+    object:setColor(0.15, 0.75, 1.0, 0.22)
+    object.alwaysOnTop = true
+    object.alwaysOnTopPriority = 3
+    object.alwaysRender = true
+    object.visible = true
+    entry.previewObject = object
+    return object
 end
 
 local function hideBezierOverlay()
@@ -839,7 +899,7 @@ end
 local function showEventHighlight(event)
     local id = event and event.action ~= 'notify' and event.target or nil
     local entry = id and actor(id) or nil
-    if not entry or not entry.object or not ensureEventHighlight() then
+    if not entry or not actorVisual(entry) or not ensureEventHighlight() then
         hideEventHighlight()
         return
     end
@@ -852,13 +912,19 @@ local function updateEventHighlight(delta)
     if not highlight.actor then return end
     highlight.remaining = highlight.remaining - math.max(delta or 0, 0)
     local entry = actor(highlight.actor)
-    if highlight.remaining <= 0 or not entry or not entry.object then
+    if highlight.remaining <= 0 or not entry or not actorVisual(entry) then
         hideEventHighlight()
         return
     end
-    local ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
-    if not ok or not width or not height or not depth then
-        ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
+    local ok, width, height, depth = false, nil, nil, nil
+    if entry.object then
+        ok, width, height, depth = pcall(function() return entry.object:getAABB(true) end)
+        if not ok or not width or not height or not depth then
+            ok, width, height, depth = pcall(function() return entry.object:getSize(true) end)
+        end
+    else
+        width, height, depth = actorMeshExtent(entry), actorMeshExtent(entry), actorMeshExtent(entry)
+        ok = true
     end
     if not ok then
         hideEventHighlight()
@@ -910,7 +976,7 @@ local function updateGizmo()
     local isBezierTarget = bezierEntry and bezierPoint and overlay.selectedPoint >= 0 and
         overlay.selectedPoint <= 3
     local entry = isBezierTarget and bezierEntry or (S.selectedActor and actor(S.selectedActor) or nil)
-    if not entry or not entry.object then
+    if not entry or not actorVisual(entry) then
         hideGizmo()
         return
     end
@@ -1003,7 +1069,7 @@ local function pickActor(sx, sy)
     local bestId, bestDistance
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        if entry.object and entry.selectable ~= false then
+        if actorVisual(entry) and entry.selectable ~= false then
             local distance = actorPickDistance(sx, sy, entry)
             if distance and (not bestDistance or distance < bestDistance) then
                 bestId, bestDistance = id, distance
@@ -1366,26 +1432,29 @@ local function findClip(entry, key)
 end
 
 applyTransform = function(entry)
-    if not entry.object then return end
+    local object = entry.object or ensurePlaceholderVisual(entry and entry.id, entry)
+    if not object then return end
     local base, offset = displayBase(entry), entry.offset
-    entry.object:setPos(base.x + offset.x, base.y + offset.y, base.z + offset.z)
+    object:setPos(base.x + offset.x, base.y + offset.y, base.z + offset.z)
     local offsetRotation = entry.offsetRotation or identityRotation()
     if isIdentityRotation(offsetRotation) then
-        entry.object:setAngle(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
+        object:setAngle(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
     else
         local baseRotation = eulerRotation(math.rad(base.rx), math.rad(base.ry), math.rad(base.rz))
         local rotation = multiplyRotation(baseRotation, offsetRotation)
         local rx, ry, rz = matrixToEulerDegrees(rotation)
-        entry.object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
+        object:setAngle(math.rad(rx), math.rad(ry), math.rad(rz))
     end
     local scale = entry.offsetScale or {x = 1, y = 1, z = 1}
-    entry.object:setScale(base.sx * scale.x, base.sy * scale.y, base.sz * scale.z)
+    local visualScale = isPlaceholder(entry) and (tonumber(entry.previewSize) or 40) or 1
+    object:setScale(base.sx * scale.x * visualScale, base.sy * scale.y * visualScale,
+        base.sz * scale.z * visualScale)
+    object.visible = base.visible ~= false
     refreshBaseReferenceAtZero()
 end
 
 local function stopEntry(entry)
-    if not entry.object then return end
-    if entry.bundle then
+    if entry.object and entry.bundle then
         Animation.stop(entry.bundle)
     end
     entry.runtimeKey = nil
@@ -1604,7 +1673,8 @@ local function applyEvent(event, progress)
             entry.runtimeStartTime = event.time or 0
         end
     elseif event.action == 'visibility' then
-        entry.object.visible = event.visible ~= false
+        local object = actorVisual(entry)
+        if object then object.visible = event.visible ~= false end
     end
 end
 
@@ -1631,7 +1701,8 @@ seekAll = function(time, keepPlaying)
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         stopEntry(entry)
-        if entry.object then entry.object.visible = displayBase(entry).visible ~= false end
+        local object = actorVisual(entry)
+        if object then object.visible = displayBase(entry).visible ~= false end
         local clip = findClip(entry, entry.clipKey)
         seekClip(entry, clip, S.time, keepPlaying == true)
         applyTransform(entry)
@@ -1703,7 +1774,7 @@ end
 local function loadActor(id, path)
     if not path or path == '' then return false end
     local entry = actor(id)
-    if not entry then return false end
+    if not entry or isPlaceholder(entry) then return false end
     local ok, bundle = dpCall(function()
         mbm.addPath(directoryOf(path))
         return Animation.load(path, 'auto')
@@ -1712,6 +1783,7 @@ local function loadActor(id, path)
     if entry.object then entry.object:destroy() end
     entry.bundle = bundle
     entry.object = bundle.object
+    entry.id = id
     entry.path = path
     entry.runtimeKey = nil
     entry.runtimeClip = nil
@@ -1741,7 +1813,7 @@ local function resetPlayback()
 end
 
 local function playPlayback()
-    if clockClip().kind == 'none' then
+    if clockClip().kind == 'none' and not S.timelineDurationExplicit then
         setStatus(L('clock_missing'), true)
         return
     end
@@ -1763,7 +1835,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 9,
+        version = 10,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1779,9 +1851,11 @@ local function serializeProject()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         project.actors[id] = {
+            kind = entry.kind or 'mesh',
             path = entry.path,
             base = cloneTable(entry.base),
             clipKey = entry.clipKey,
+            previewSize = entry.previewSize,
             selectable = entry.selectable ~= false,
         }
     end
@@ -1792,6 +1866,7 @@ local function clearActorSlots()
     for _, id in ipairs(actorSlots) do
         local entry = S.actors[id]
         if entry.object then entry.object:destroy() end
+        destroyActorPreview(entry)
     end
     actorSlots = {}
     S.actors = {}
@@ -1822,13 +1897,17 @@ local function applyProject(project)
         local index = tonumber(id:match('^actor(%d+)$')) or (#actorSlots + 1)
         table.insert(actorSlots, id)
         local entry = newActorState(index == 1 and 180 or 0)
+        entry.id = id
         entry.active = true
+        entry.kind = saved.kind == 'placeholder' and 'placeholder' or 'mesh'
+        entry.previewSize = math.max(3, tonumber(saved.previewSize) or entry.previewSize)
         entry.base = cloneTable(saved.base or entry.base)
         entry.base.visible = entry.base.visible ~= false
         entry.selectable = saved.selectable ~= false
         entry.clipKey = saved.clipKey or ''
         S.actors[id] = entry
-        if saved.path and saved.path ~= '' then loadActor(id, saved.path) end
+        if entry.kind == 'mesh' and saved.path and saved.path ~= '' then loadActor(id, saved.path) end
+        if entry.kind == 'placeholder' then ensurePlaceholderVisual(id, entry) end
         loaded[id] = true
     end
     for _, id in ipairs(savedOrder) do
@@ -1941,14 +2020,18 @@ local function validateProject(forExport)
         end
         seenActors[id] = true
         actorCount = actorCount + 1
-        if forExport and (not entry.path or entry.path == '') then
+        if forExport and not isPlaceholder(entry) and (not entry.path or entry.path == '') then
             return fail('validation_actor_mesh', actorName(id, entry))
         end
         for _, field in ipairs({'x', 'y', 'z', 'rx', 'ry', 'rz', 'sx', 'sy', 'sz'}) do
             if not checkNumber(entry.base[field], 'validation_actor_transform',
                 actorName(id, entry) .. '.' .. field) then return false end
         end
-        if forExport and entry.clipKey ~= '' and findClip(entry, entry.clipKey).kind == 'none' then
+        if isPlaceholder(entry) and entry.clipKey ~= '' then
+            return fail('validation_placeholder_clip', actorName(id, entry))
+        end
+        if forExport and not isPlaceholder(entry) and entry.clipKey ~= '' and
+            findClip(entry, entry.clipKey).kind == 'none' then
             return fail('validation_actor_clip', actorName(id, entry), entry.clipKey)
         end
     end
@@ -1962,7 +2045,7 @@ local function validateProject(forExport)
     if actorCount > 0 then
         if not actor(S.anchorActor) then return fail('validation_anchor') end
         if not actor(S.clockActor) then return fail('validation_clock_actor') end
-        if forExport and clockClip().kind == 'none' then
+        if forExport and clockClip().kind == 'none' and not S.timelineDurationExplicit then
             return fail('validation_clock_animation')
         end
     end
@@ -1982,6 +2065,9 @@ local function validateProject(forExport)
             return fail('validation_event_target', label)
         end
         if event.action == 'play' then
+            if isPlaceholder(actor(event.target)) then
+                return fail('validation_placeholder_play', label)
+            end
             if type(event.clipKey) ~= 'string' or event.clipKey == '' then
                 return fail('validation_event_clip', label)
             end
@@ -2091,7 +2177,7 @@ local function serializeRuntimeDefinition()
     definition.time = nil
     for _, actorDefinition in pairs(definition.actors) do
         actorDefinition.path = nil
-        actorDefinition.base = nil
+        actorDefinition.previewSize = nil
     end
     return definition
 end
@@ -2122,12 +2208,14 @@ end
 local function previewDriverSource(projectPath)
     local cameraX, cameraY, cameraZ = cameraPosition()
     local focusX, focusY, focusZ = S.cameraOrbit.fx, S.cameraOrbit.fy, S.cameraOrbit.fz
+    local poseExampleActor = S.actorOrder[1] or ''
     return string.format([[
 local project = dofile(%q)
 local reactionRuntime = require 'interaction_animation_runtime'
 local actors = {}
 
 local function loadActor(id, definition)
+    if definition.kind == 'placeholder' then return end
     local base = definition.base or {}
     mbm.addPath(tostring(definition.path or ''):gsub('\\', '/'):match('^(.*)/[^/]*$') or '.')
     local object = mesh:new('3d')
@@ -2154,9 +2242,27 @@ function onInitScene()
         definition = project,
         actors = actors,
         callbacks = {
-            onStart = function() print('Interaction preview started') end,
+            onStart = function(instance)
+                print('Interaction preview started')
+                -- The instance is ready here. Read initial poses with getActorPose().
+                -- Optional: instance:rebaseToAnchor()
+            end,
             onEvent = function(_, event) print('Interaction event: ' .. tostring(event.id)) end,
             onFinish = function() print('Interaction preview finished') end,
+            onUpdate = function(instance, delta)
+                -- Read the final pose after the runtime applies this frame.
+                -- Numeric slots accept both "actor2" and "actor_2".
+                for _, id in ipairs(project.actorOrder or {}) do
+                    local pose = instance:getActorPose(id)
+                    -- Example for a dynamically created object:
+                    -- dynamicObjects[id]:setPos(pose.x, pose.y, pose.z)
+                    -- dynamicObjects[id]:setAngle(pose.rx, pose.ry, pose.rz)
+                    -- dynamicObjects[id]:setScale(pose.sx, pose.sy, pose.sz)
+                    -- dynamicObjects[id].visible = pose.visible
+                end
+                -- Example pose selected when this preview was generated: %q
+                -- local pose = instance:getActorPose(%q) -- angles are radians
+            end,
         },
     }
 end
@@ -2164,7 +2270,8 @@ end
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') then mbm.quit() end
 end
-]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ)
+]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ,
+        poseExampleActor, poseExampleActor)
 end
 
 local function writePreviewFiles(projectPath, driverPath)
@@ -2438,7 +2545,8 @@ local function updatePlayback(delta)
     if not S.playing then return end
     local clip = clockClip()
     local clockEntry = actor(S.clockActor)
-    if not clockEntry or clip.kind == 'none' or not clockEntry.object then
+    if (not clockEntry and not S.timelineDurationExplicit) or
+        (clip.kind == 'none' and not S.timelineDurationExplicit) then
         S.playing = false
         return
     end
@@ -2494,6 +2602,16 @@ local function actorPanel(id)
     local entry = actor(id)
     if not entry then return end
     if tImGui.TreeNode(actorName(id, entry) .. '##' .. id) then
+        local typeIndex = isPlaceholder(entry) and 2 or 1
+        tImGui.SetNextItemWidth(230)
+        local typeChanged, nextType = tImGui.Combo(L('actor_type') .. '##' .. id, typeIndex,
+            {L('mesh_actor'), L('placeholder_actor')})
+        if typeChanged then
+            setActorKind(id, nextType == 2 and 'placeholder' or 'mesh')
+            if isPlaceholder(entry) then ensurePlaceholderVisual(id, entry) end
+            refreshDefaultTimelineDuration()
+            seekAll(S.time, false)
+        end
         local wasAnchor = S.anchorActor == id
         local anchorChecked = tImGui.Checkbox(L('anchor') .. '##' .. id, wasAnchor)
         if anchorChecked and not wasAnchor then
@@ -2509,9 +2627,21 @@ local function actorPanel(id)
             end
             S.modified = true
         end
-        local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
-        tImGui.Text(string.format(L('mesh_file'), meshName))
-        if tImGui.Button(L('browse') .. '##' .. id) then openActorFile(id) end
+        if isPlaceholder(entry) then
+            tImGui.Text(L('placeholder_note'))
+            tImGui.SetNextItemWidth(105)
+            local sizeChanged, size = tImGui.InputFloat(L('placeholder_size') .. '##' .. id,
+                entry.previewSize, 1)
+            if sizeChanged then
+                entry.previewSize = math.max(3, size)
+                applyTransform(entry)
+                S.modified = true
+            end
+        else
+            local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
+            tImGui.Text(string.format(L('mesh_file'), meshName))
+            if tImGui.Button(L('browse') .. '##' .. id) then openActorFile(id) end
+        end
         if entry.bundle then
             local clips = clipList(entry)
             local names, current = {}, 1
@@ -2528,17 +2658,24 @@ local function actorPanel(id)
                 S.modified = true
                 seekAll(S.time, false)
             end
-            local base = displayBase(entry)
-            tImGui.SetNextItemWidth(105)
-            local c1, n1 = tImGui.InputFloat('X##base' .. id, base.x); if c1 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.x = n1; applyTransform(entry); S.modified = true end
-            tImGui.SetNextItemWidth(105)
-            local c2, n2 = tImGui.InputFloat('Y##base' .. id, base.y); if c2 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.y = n2; applyTransform(entry); S.modified = true end
-            tImGui.SetNextItemWidth(105)
-            local c3, n3 = tImGui.InputFloat('Z##base' .. id, base.z); if c3 then entry.rotationIntent = nil; local edited = editableBase(entry); edited.z = n3; applyTransform(entry); S.modified = true end
             local clip = findClip(entry, entry.clipKey)
             tImGui.Text(string.format(L('duration'), clip.duration or 0))
-        else
-            tImGui.Text(L('not_loaded'))
+        end
+        local base = displayBase(entry)
+        for _, field in ipairs({
+            {'x', 'X'}, {'y', 'Y'}, {'z', 'Z'},
+            {'rx', 'ROT X'}, {'ry', 'ROT Y'}, {'rz', 'ROT Z'},
+        }) do
+            tImGui.SetNextItemWidth(105)
+            local changed, value = tImGui.InputFloat(field[2] .. '##base_' .. field[1] .. id,
+                base[field[1]])
+            if changed then
+                entry.rotationIntent = nil
+                local edited = editableBase(entry)
+                edited[field[1]] = value
+                applyTransform(entry)
+                S.modified = true
+            end
         end
         tImGui.TreePop()
     end
@@ -3062,5 +3199,6 @@ function onFinalizeScene()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
         if entry.object then entry.object:destroy(); entry.object = nil end
+        destroyActorPreview(entry)
     end
 end

@@ -1,7 +1,7 @@
 # Interaction Animation Editor
 
-Este documento descreve o editor de interacoes entre meshes e o modulo Lua
-exportado por ele.
+Este documento descreve o editor de interacoes entre meshes, placeholders e o
+modulo Lua exportado por ele.
 
 O editor pode ser iniciado diretamente com:
 
@@ -17,13 +17,14 @@ for gerado pelo CMake.
 ## Funcionalidade do editor
 
 O editor inicia sem atores carregados. O botao `Add actor` cria slots estaveis
-como `actor1`, `actor2`, `actor3` e assim por diante. Cada slot pode receber
-uma mesh e uma animacao. O editor nao atribui nomes personalizados aos atores;
+como `actor1`, `actor2`, `actor3` e assim por diante. Cada slot pode ser uma
+mesh ou um placeholder. O editor nao atribui nomes personalizados aos atores;
 o slot e a identidade usada pelos eventos e pelo runtime.
 
 A janela `Interaction actors` permite:
 
 - adicionar atores;
+- escolher entre atores mesh e placeholders;
 - procurar e carregar uma mesh;
 - selecionar a animacao base;
 - marcar um unico ator como ancora;
@@ -33,7 +34,9 @@ A janela `Interaction actors` permite:
 - alternar entre os modos `Move` e `Rotate`.
 
 A mesh e mostrada pelo nome do arquivo, enquanto o caminho completo e salvo no
-projeto. A escolha da mesh pelo botao `Browse` ja carrega o recurso.
+projeto. A escolha da mesh pelo botao `Browse` ja carrega o recurso. Um
+placeholder nao possui arquivo nem clip e aparece no viewport como um cubo
+translucido selecionavel; esse cubo existe somente no editor.
 
 O viewport 3D possui:
 
@@ -67,9 +70,14 @@ O menu `Run` oferece `Run interaction preview` (atalho `F5`). Essa opcao
 gera um projeto e um script principal temporarios no diretorio temporario do
 sistema, carrega as meshes e as poses base, e inicia uma nova instancia da
 engine usando o plugin C++ `interaction_animation_runtime`. A interacao inicia
-automaticamente nessa instancia; `ESC` encerra a janela de preview. As
-alteracoes atuais do editor sao usadas mesmo que o projeto ainda nao tenha
-sido salvo.
+automaticamente nessa instancia; `ESC` encerra a janela de preview. Meshes sao
+carregadas nessa instancia, enquanto placeholders continuam apenas como estado
+virtual do runtime. As alteracoes atuais do editor sao usadas mesmo que o
+projeto ainda nao tenha sido salvo.
+
+O script de preview gerado inclui um callback `onUpdate` comentado como exemplo
+de leitura das poses. Ele percorre `actorOrder` e mostra como aplicar a pose
+final a objetos criados dinamicamente.
 
 `Save preview as...` salva o mesmo material fora do diretorio temporario. O
 arquivo escolhido e o script principal de execucao; ao lado dele o editor
@@ -86,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 9,
+    version = 10,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -97,6 +105,7 @@ interactionProject = {
 
     actors = {
         actor1 = {
+            kind = "mesh",
             path = "meshes/machine.msh",
             clipKey = "articulated:bite",
             selectable = true,
@@ -106,6 +115,16 @@ interactionProject = {
                 sx = 1, sy = 1, sz = 1,
                 visible = true
             }
+        },
+        hand_reference = {
+            kind = "placeholder",
+            base = {
+                x = 0, y = 100, z = 0,
+                rx = 0, ry = 0, rz = 0,
+                sx = 1, sy = 1, sz = 1,
+                visible = true
+            },
+            previewSize = 40
         },
         actor2 = {
             path = "meshes/character.msh",
@@ -131,6 +150,14 @@ interactionProject = {
 }
 ```
 
+`kind` pode ser `"mesh"` ou `"placeholder"`. Se o campo estiver ausente, o
+runtime interpreta o ator como `"mesh"` para manter compatibilidade com
+projetos antigos. `path` e `clipKey` sao usados por atores mesh. Placeholders
+mantem apenas transformacoes e nao sao renderizados no runtime.
+
+`previewSize` e usado somente pelo editor para dimensionar o cubo visual do
+placeholder; ele nao participa da interacao runtime.
+
 `baseReference` tambem pode ser gravado pelo editor para manter a referencia
 das poses no tempo zero. O projeto nao salva objetos de runtime; ele salva
 caminhos, clips, transformacoes e eventos.
@@ -142,8 +169,9 @@ Os slots dos atores sao dinamicos e devem aparecer em `actorOrder`. O campo
 deslocamentos e rotacoes relativos sao interpretados nesse espaco.
 
 `clockActor` e `clockKey` identificam o clip usado como relogio principal no
-editor. A timeline do projeto e o limite global da interacao; o fim de um clip
-individual nao reduz a duracao da timeline.
+editor. Quando a duracao da timeline e definida explicitamente, o projeto pode
+usar apenas placeholders ou um ator mesh sem clip; nesse caso a timeline usa a
+duracao explicita. O fim de um clip individual nao reduz a duracao da timeline.
 
 No tempo `0`, a posicao, rotacao, escala, visibilidade e animacao selecionadas
 formam a pose base. No runtime, as transformacoes reais dos objetos sao
@@ -315,16 +343,24 @@ local instance = runtime.start {
     actors = {
         actor1 = machineObject,
         actor2 = characterObject,
+        -- hand_reference is a placeholder and is intentionally omitted.
     },
     callbacks = {
         onStart = function(instance)
+            -- A instancia ja esta inicializada neste ponto.
             -- Preparacao opcional da interacao.
+            -- instance:rebaseToAnchor()
         end,
         onEvent = function(instance, event, index)
             -- Reacao opcional a um evento, usando event.id.
         end,
         onFinish = function(instance)
             -- Finalizacao opcional controlada pelo jogo.
+        end,
+        onUpdate = function(instance, delta)
+            -- Sincroniza meshes criadas fora da lista actors.
+            local pose = instance:getActorPose("hand_reference")
+            -- applyPose(dynamicObject, pose)
         end
     }
 }
@@ -333,13 +369,108 @@ local instance = runtime.start {
 ```
 
 As chaves de `actors` podem usar o slot interno (`actor1`) ou seu alias com
-underscore (`actor_1`). O mesmo vale para os demais slots.
+underscore (`actor_1`). O mesmo vale para os demais slots. Somente atores
+`mesh` precisam aparecer nessa tabela; placeholders sao criados virtualmente a
+partir da definicao. Se a interacao tiver apenas placeholders, o campo `actors`
+pode ser omitido.
+
+Para fornecer a posicao real inicial de um placeholder, a propria chave do
+ator pode receber uma tabela de transformacao absoluta:
+
+```lua
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = {
+            kind = "placeholder",
+            x = 1, y = 2, z = 1,
+            rx = 0, ry = 0, rz = 0,
+            sx = 1, sy = 1, sz = 1,
+            visible = true
+        },
+        actor2 = characterObject
+    }
+}
+```
+
+Essa tabela e somente uma pose inicial para o placeholder. Se ela for omitida,
+o runtime usa `base` salvo no projeto. O campo `id` nao e necessario, pois a
+chave (`actor1`) ja identifica o ator; `kind` tambem e opcional porque o tipo
+vem da definicao. Os campos `rx`, `ry` e `rz` dessa tabela usam radianos, como
+os metodos de transformacao do engine. Isso nao altera `anchorActor`: se `anchorActor` for
+`actor1`, ele continua sendo o sistema de eixos da interacao.
+
+### Responsabilidades do jogo e do plugin
+
+O editor define a pose de autoria: a posicao, a rotacao e a escala dos atores
+no tempo zero, alem do ator que funciona como ancora. Essa pose e uma
+referencia para desenhar a interacao; ela nao e uma ordem para o runtime
+reposicionar automaticamente os objetos do jogo.
+
+O jogo e responsavel por:
+
+- carregar ou criar as meshes antes de chamar `runtime.start`;
+- posicionar, rotacionar e escalar essas meshes na cena real;
+- fornecer a pose inicial de cada placeholder quando ela nao for a pose salva
+  no projeto;
+- criar e destruir meshes dinamicas e, quando necessario, sincroniza-las no
+  callback `onUpdate` usando `getActorPose`.
+
+O plugin e responsavel por:
+
+- capturar a pose atual das meshes no momento de `runtime.start`;
+- manter placeholders como atores virtuais, sem renderiza-los;
+- executar a timeline, os clips, os eventos e as transformacoes;
+- expor a pose final de qualquer ator por `getActorPose`.
+
+Por padrao, `runtime.start` preserva as poses em que o jogo entregou as meshes.
+O plugin nao presume uma relacao de parenting nem transforma outro ator em
+ancora. Quando a interacao precisa preservar a disposicao de autoria, mas
+adaptar todos os atores a uma ancora que esta em outra pose na cena real, o
+jogo pode solicitar isso explicitamente:
+
+```lua
+local instance = runtime.start {
+    definition = definition,
+    actors = {
+        actor1 = {
+            kind = "placeholder",
+            x = 100, y = 50, z = 20
+        },
+        actor2 = characterObject
+    },
+    callbacks = {
+        onStart = function(instance)
+            instance:rebaseToAnchor()
+            -- Crie clones dinamicos depois desta chamada, se necessario.
+        end
+    }
+}
+```
+
+`rebaseToAnchor()` mantem `anchorActor` como a mesma ancora e reposiciona os
+demais atores usando a diferenca entre a pose da ancora no editor e a pose
+capturada no runtime. Por padrao, aplica posicao e rotacao; a escala nao e
+alterada. As opcoes podem limitar a operacao:
+
+```lua
+instance:rebaseToAnchor({position = true, rotation = false})
+```
+
+O metodo e opcional. Sem essa chamada, a responsabilidade de posicionar as
+meshes continua sendo exclusivamente do jogo. Como a operacao compara a pose
+de autoria com a pose real, o modulo exportado preserva os campos `base` dos
+atores; os angulos desses campos continuam em graus, como no editor. As poses
+fornecidas em `config.actors` e retornadas por `getActorPose` usam radianos,
+como `mesh:getAngle`. Modulos antigos exportados sem os campos `base` devem ser
+exportados novamente para usar o rebasing com fidelidade.
 
 Ao iniciar, o runtime:
 
 1. valida os callbacks;
-2. exige um binding para cada ator definido;
-3. captura posicao, rotacao, escala e visibilidade atuais;
+2. exige um binding para cada ator mesh e cria o estado virtual dos placeholders;
+3. captura posicao, rotacao, escala e visibilidade dos atores mesh e usa `base`
+   para os placeholders;
 4. inicia os clips base, usando `clockKey` para o ator do relogio;
 5. aplica os eventos do tempo zero;
 6. chama `onStart`.
@@ -348,6 +479,17 @@ Depois de `runtime.start(config)`, a instancia e registrada no ciclo de plugins
 da engine. A cada frame o runtime avanca a timeline, dispara eventos, aplica
 transformacoes e atualiza visibilidade automaticamente; o jogo nao precisa
 chamar um metodo de atualizacao manual.
+
+`instance:getActorPose(id)` retorna a pose final atual do ator, incluindo
+posicao, rotacao em radianos, escala e visibilidade. Ele pode ser usado para
+atualizar meshes criadas dinamicamente a partir de um placeholder.
+Para slots numericos, `actor2` e `actor_2` sao aliases aceitos tambem por esse
+metodo.
+
+`onUpdate(instance, delta)` e opcional e ocorre depois que o runtime aplica os
+eventos e transformacoes do frame. Ele e chamado somente quando foi fornecido
+na configuracao. O jogo continua dono das meshes criadas pelo callback e deve
+libera-las em `onFinish` quando apropriado.
 
 `instance:isFinished()` informa se a timeline terminou ou se `stop()` foi
 chamado. `instance:restart()` restaura as poses capturadas, rearma eventos,
@@ -378,10 +520,15 @@ Ao salvar, o editor valida:
 Ao exportar, tambem valida:
 
 - a existencia de pelo menos um ator;
-- o caminho de mesh de cada ator;
-- clips base validos quando selecionados;
+- o caminho de mesh de cada ator mesh;
+- que placeholders nao possuam clips;
+- clips base validos quando selecionados em atores mesh;
 - um ator de relogio valido;
-- uma animacao valida para o relogio;
+- uma animacao valida para o relogio, exceto quando a duracao da timeline foi
+  definida explicitamente;
 - clips validos nos eventos `play`.
+
+Eventos `transform` e `visibility` podem atingir placeholders. Eventos `play`
+em placeholders sao invalidos.
 
 Erros impedem a operacao e sao exibidos pelo aviso padrao do editor.
