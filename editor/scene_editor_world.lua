@@ -42,7 +42,7 @@ local function dpCall(fn, ...)
 end
 
 local meshPanel = require 'scene_mesh_panel'
-local markerMath = require 'scene_object_tools'
+local markerMath = require('scene_object_tools')(world)
 local assetPaths = require 'editor_asset_paths'
 local placedTransformAxes = {rotation = is2d and {'X', 'Y'} or {'X', 'Z'}, scale = {'x', 'y', 'z'}}
 
@@ -114,8 +114,16 @@ tPlacedMeshes = {}
 -- ---- Map-tab "Object Option" markers (editor-only path/spawn-point data) ----
 tSceneObjects            = {}
 tSceneObjectShapes       = {}
-tMarkerEdit = {dirty = true, axes = {}}
-tComboObjectType3d       = is2d and {'point', 'rectangle', 'circle', 'triangle', 'line'} or {'point', 'rectangle', 'circle', 'triangle', 'line', 'cube'}
+tMarkerEdit = {dirty = true, axes = {}, pointHandles = {}}
+tComboObjectType3d       = is2d and {'point', 'rectangle', 'circle', 'triangle', 'line', 'polygon'} or {'point', 'rectangle', 'circle', 'triangle', 'line', 'polygon', 'cube'}
+tComboObjectType3dCodes   = tComboObjectType3d
+tComboObjectPlane3d       = is2d and {'X + Y'} or {'X + Y', 'X + Z', 'Y + Z'}
+tComboObjectPlane3dCodes   = is2d and {'xy'} or {'xy', 'xz', 'yz'}
+sNewSceneObjectType       = 'point'
+sNewSceneObjectPlane      = is2d and 'xy' or 'xy'
+iNewPolygonSides         = 6
+sNewPolygonBase          = 'circle'
+bEditSceneObjectPoints    = true
 bSceneObjectsAlwaysOnTop = true -- editor-wide display preference
 bShowSceneObjectMarkers  = true -- manual show/hide toggle, ANDed with the "Main Scene tab only" rule
 
@@ -1947,12 +1955,81 @@ end
 function clearSceneObjectVisuals()
     for _, entry in ipairs(tSceneObjectShapes) do entry.handle:destroy() end
     for _, axis in pairs(tMarkerEdit.axes) do axis:destroy() end
+    for _, handles in pairs(tMarkerEdit.pointHandles or {}) do
+        for _, handle in pairs(handles) do handle:destroy() end
+    end
     tSceneObjectShapes = {}
-    tMarkerEdit = {dirty = true, axes = {}}
+    tMarkerEdit = {dirty = true, axes = {}, pointHandles = {}}
 end
 
 function sceneObjectsEditable()
     return sActiveTab == 'map' and bShowSceneObjectMarkers and not tLoadProgress.bLoading
+end
+
+function sceneObjectPlaneIndex(plane)
+    for i, code in ipairs(tComboObjectPlane3dCodes) do
+        if code == plane then return i end
+    end
+    return 1
+end
+
+function sceneObjectPlaneLabel(plane)
+    return tComboObjectPlane3d[sceneObjectPlaneIndex(plane)] or tComboObjectPlane3d[1]
+end
+
+function sceneObjectPointHandleSize(object)
+    local size = markerMath.pointRadius(tMapOptions) * 1.5
+    local points = object and object.points or {}
+    local nearest = math.huge
+    for i = 1, #points do
+        for j = i + 1, #points do
+            local dx = points[i].x - points[j].x
+            local dy = points[i].y - points[j].y
+            local dz = points[i].z - points[j].z
+            nearest = math.min(nearest, math.sqrt(dx * dx + dy * dy + dz * dz))
+        end
+    end
+    if nearest < math.huge then
+        -- Keep neighboring vertex cubes from overlapping. This is especially important for
+        -- high-sided polygons and for large grid cells, where pointRadius alone can become huge.
+        size = math.min(size, nearest * 0.45)
+    end
+    if is2d then
+        -- In 2D the handles are screen-facing squares. Do not let a large world grid make
+        -- their hit area swallow the polygon interior.
+        size = math.min(size, 8)
+    end
+    return math.max(1, size)
+end
+
+function pickSceneObjectPoint(x, y)
+    if not sceneObjectsEditable() or not bEditSceneObjectPoints then return nil end
+    local object = tMarkerEdit.selected
+    if not object or (object.type ~= 'triangle' and object.type ~= 'line' and object.type ~= 'polygon') then return nil end
+    local points = object.points or {}
+    local objectIndex
+    for index, candidate in ipairs(tSceneObjects) do
+        if candidate == object then objectIndex = index; break end
+    end
+    local ox,oy,oz,dx,dy,dz = view.pickRay(x,y)
+    local radius = sceneObjectPointHandleSize(object) * 0.6
+    if is2d then radius = math.min(radius, 3) end
+    local best, bestDistance
+    for index, point in ipairs(points) do
+        local distance
+        if is2d then
+            local handle = objectIndex and tMarkerEdit.pointHandles[objectIndex] and
+                tMarkerEdit.pointHandles[objectIndex][index]
+            if handle and handle.visible and view.hit(handle, x, y) then distance = 0 end
+        else
+            distance = markerMath.raySphereDistance(ox,oy,oz,dx,dy,dz,
+                point.x,point.y,point.z,radius)
+        end
+        if distance and (not bestDistance or distance < bestDistance) then
+            best, bestDistance = index, distance
+        end
+    end
+    if best then return object, best end
 end
 
 function pickSceneObject(x, y)
@@ -1978,12 +2055,24 @@ function pickSceneObject(x, y)
         elseif object.type == 'triangle' and object.points and #object.points >= 3 then
             distance = markerMath.rayTriangleDistance(ox,oy,oz,dx,dy,dz,
                 object.points[1],object.points[2],object.points[3])
+        elseif object.type == 'polygon' then
+            distance = markerMath.rayPolygonDistance(ox,oy,oz,dx,dy,dz,object.points)
         elseif object.type == 'cube' then
             distance = markerMath.rayBoxDistance(ox,oy,oz,dx,dy,dz,object)
-        elseif object.type == 'rectangle' and math.abs(dz) > 1e-6 then
-            local t = (object.z-oz)/dz
-            if t >= 0 and math.abs(ox+dx*t-object.x) <= (object.width or 100)*0.5 and
-                math.abs(oy+dy*t-object.y) <= (object.height or 100)*0.5 then distance = t end
+        elseif object.type == 'rectangle' then
+            local nx,ny,nz = markerMath.planeNormal(object.plane)
+            local denominator = nx*dx + ny*dy + nz*dz
+            if math.abs(denominator) > 1e-6 then
+                local planePoint = nx*object.x + ny*object.y + nz*object.z
+                local t = (planePoint - (nx*ox + ny*oy + nz*oz)) / denominator
+                if t >= 0 then
+                    local hx,hy,hz = ox+dx*t, oy+dy*t, oz+dz*t
+                    local u,v = markerMath.planeCoordinates(hx,hy,hz,object.plane)
+                    local centerU,centerV = markerMath.planeCoordinates(object.x,object.y,object.z,object.plane)
+                    if math.abs(u-centerU) <= (object.width or 100)*0.5 and
+                        math.abs(v-centerV) <= (object.height or 100)*0.5 then distance = t end
+                end
+            end
         end
         if distance and distance < bestDistance then best,bestDistance = object,distance end
     end
@@ -2038,6 +2127,18 @@ end
 
 function beginSceneObjectDrag(x,y)
     if not sceneObjectsEditable() or tMarkerEdit.capture then return false end
+    local pointObject, pointIndex = pickSceneObjectPoint(x, y)
+    if pointObject then
+        local point = pointObject.points[pointIndex]
+        local nx,ny,nz = markerMath.planeNormal(pointObject.plane)
+        tMarkerEdit.selected = pointObject
+        tMarkerEdit.hoverKey = nil
+        tMarkerEdit.drag = {
+            kind = 'point', object = pointObject, pointIndex = pointIndex,
+            origin = {x=point.x,y=point.y,z=point.z}, normal = {x=nx,y=ny,z=nz},
+        }
+        return true
+    end
     local selected = tMarkerEdit.selected
     local axisName, parameter
     if selected then
@@ -2068,6 +2169,17 @@ end
 
 function moveSceneObjectDrag(x,y)
     local drag = tMarkerEdit.drag
+    if drag.kind == 'point' then
+        local px,py,pz = markerMath.planeHit(x,y,drag.origin,drag.normal,view.pickRay)
+        if not px then return end
+        local point = drag.object.points[drag.pointIndex]
+        if point.x ~= px or point.y ~= py or point.z ~= pz then
+            point.x,point.y,point.z = px,py,pz
+            drag.moved = true
+            tMarkerEdit.dirty = true
+        end
+        return
+    end
     local origin = drag.origin
     local nx,ny,nz
     if drag.axis then
@@ -2089,7 +2201,8 @@ end
 function appendSceneLinePoint(x,y)
     local object = tMarkerEdit.capture
     if not sceneObjectsEditable() or not object or object.type ~= 'line' then return false end
-    local px,py,pz = markerMath.planeHit(x,y,object,is2d and markerMath.axes.z or markerMath.axes.y,view.pickRay)
+    local nx,ny,nz = markerMath.planeNormal(object.plane)
+    local px,py,pz = markerMath.planeHit(x,y,object,{x=nx,y=ny,z=nz},view.pickRay)
     if px then
         object.points = object.points or {}
         if #object.points == 0 then object.x,object.y,object.z = px,py,pz end
@@ -2100,8 +2213,18 @@ function appendSceneLinePoint(x,y)
     return true
 end
 
-function addSceneObjectMarker()
-    local tObj = { type = 'point', name = 'no_name', x = 0, y = 0, z = 0 }
+function addSceneObjectMarker(objectType, plane, polygonSides, polygonBase)
+    local tObj = {
+        type = objectType or sNewSceneObjectType,
+        plane = markerMath.normalizePlane(plane or sNewSceneObjectPlane),
+        name = 'no_name', x = 0, y = 0, z = 0,
+    }
+    if tObj.type == 'polygon' then
+        tObj.sides = markerMath.clampPolygonSides(polygonSides or iNewPolygonSides)
+        tObj.polygonBase = markerMath.normalizePolygonBase(polygonBase or sNewPolygonBase)
+        tObj.radius = 50
+    end
+    markerMath.ensureObjectGeometry(tObj)
     table.insert(tSceneObjects, tObj)
     tMarkerEdit.selected = tObj
     tMarkerEdit.dirty = true
@@ -2141,14 +2264,18 @@ local function unitSphereVerts(latSegments, lonSegments)
     return verts
 end
 
--- Unit (1x1) double-sided flat quad, centered on the origin in the local XY plane (z=0) -- the
+-- Unit (1x1) double-sided flat quad, centered on the origin in the requested authoring plane --
 -- named 'rectangle' shape primitive is single-sided (backface-culled), which is exactly why a
 -- rectangle marker was only visible from one side; building it here from raw vertices lets a
 -- second copy of the same two triangles be added with reversed winding, so one or the other is
 -- always front-facing regardless of which side the camera is on.
-local function unitQuadVerts()
+local function unitQuadVerts(plane)
     local h = 0.5
-    local a, b, c, d = {x = -h, y = -h, z = 0}, {x =  h, y = -h, z = 0}, {x =  h, y =  h, z = 0}, {x = -h, y =  h, z = 0}
+    local ax,ay,az = markerMath.planePoint(0,0,0,plane,-h,-h)
+    local bx,by,bz = markerMath.planePoint(0,0,0,plane, h,-h)
+    local cx,cy,cz = markerMath.planePoint(0,0,0,plane, h, h)
+    local dx,dy,dz = markerMath.planePoint(0,0,0,plane,-h, h)
+    local a, b, c, d = {x=ax,y=ay,z=az}, {x=bx,y=by,z=bz}, {x=cx,y=cy,z=cz}, {x=dx,y=dy,z=dz}
     local front = {{a, b, c}, {a, c, d}}
     local back  = {{a, c, b}, {a, d, c}}
     local verts = {}
@@ -2171,6 +2298,21 @@ local function triangleVertsFromPoints(p1, p2, p3)
     local verts = {}
     for _, p in ipairs(front) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
     for _, p in ipairs(back) do table.insert(verts, p.x); table.insert(verts, p.y); table.insert(verts, p.z) end
+    return verts
+end
+
+local function polygonVertsFromPoints(points)
+    local verts = {}
+    if not points or #points < 3 then return verts end
+    local function appendTriangle(a, b, c)
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = a.x, a.y, a.z
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = b.x, b.y, b.z
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = c.x, c.y, c.z
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = a.x, a.y, a.z
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = c.x, c.y, c.z
+        verts[#verts+1], verts[#verts+2], verts[#verts+3] = b.x, b.y, b.z
+    end
+    for i = 2, #points - 1 do appendTriangle(points[1], points[i], points[i+1]) end
     return verts
 end
 
@@ -2208,15 +2350,27 @@ function updateSceneObjectShapes()
     for i, tObj in ipairs(tSceneObjects) do
         markerMath.ensureObjectGeometry(tObj)
         local entry = tSceneObjectShapes[i]
-        if not entry or entry.sType ~= tObj.type then
+        if not entry or entry.sType ~= tObj.type or
+            (tObj.type == 'rectangle' and entry.sPlane ~= tObj.plane) then
             if entry and entry.handle then entry.handle:destroy() end
             local handle
             if tObj.type == 'point' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
-                handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                if is2d then
+                    -- The 2D raw-vertex adapter is intentionally conservative. Use the
+                    -- engine's named circle primitive here, just like the 2D circle marker,
+                    -- so a point remains visible instead of leaving only its editor gizmo.
+                    handle:create('circle', 1, 1, 16, false, 'editor_marker_point_unit')
+                else
+                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                end
             elseif tObj.type == 'circle' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
-                handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                if is2d then
+                    handle:create('circle', 1, 1, 32, false, 'editor_marker_circle_unit')
+                else
+                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                end
             elseif tObj.type == 'cube' then
                 local verts = {}
                 for _, triangle in ipairs(highlightBoxTriangleFaces(highlightBoxCorners())) do
@@ -2228,7 +2382,7 @@ function updateSceneObjectShapes()
                 handle:create(verts, nil, 'editor_marker_cube_unit')
             elseif tObj.type == 'rectangle' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
-                handle:create(unitQuadVerts(), nil, 'editor_marker_quad_unit')
+                handle:create(unitQuadVerts(tObj.plane), nil, 'editor_marker_quad_unit_' .. tObj.plane)
             elseif tObj.type == 'triangle' then
                 -- Real geometry (from tObj.points) is filled in by the change check below,
                 -- which always runs immediately after this (entry.sig starts nil, never equal to
@@ -2240,6 +2394,9 @@ function updateSceneObjectShapes()
                 -- cached geometry, silently ignoring whatever new vertex data was just passed in.
                 handle = view.newShape( 0, 0, 0)
                 handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil, 'editor_marker_triangle_init_' .. i)
+            elseif tObj.type == 'polygon' then
+                handle = view.newShape( 0, 0, 0)
+                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil, 'editor_marker_polygon_init_' .. i)
             else -- 'line'
                 -- Built at the world origin, not tObj.x/y/z -- tObj.points already store absolute
                 -- world coordinates (captured from the marker's own x/y/z fields when "add point"
@@ -2251,7 +2408,7 @@ function updateSceneObjectShapes()
                 handle:add(lineFlatPoints(tObj))
             end
             handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
-            entry = { handle = handle, sType = tObj.type, sig = nil }
+            entry = { handle = handle, sType = tObj.type, sPlane = tObj.plane, sig = nil }
             tSceneObjectShapes[i] = entry
         end
         if tObj.type == 'point' then
@@ -2267,7 +2424,14 @@ function updateSceneObjectShapes()
             entry.handle:setScale(tObj.width or 100, tObj.height or 100, tObj.depth or 100)
         elseif tObj.type == 'rectangle' then
             entry.handle:setPos(tObj.x, tObj.y, tObj.z)
-            entry.handle:setScale(tObj.width or 100, tObj.height or 100, 1)
+            local width, height = tObj.width or 100, tObj.height or 100
+            if tObj.plane == 'xz' then
+                entry.handle:setScale(width, 1, height)
+            elseif tObj.plane == 'yz' then
+                entry.handle:setScale(1, width, height)
+            else
+                entry.handle:setScale(width, height, 1)
+            end
         elseif tObj.type == 'triangle' then
             local p1 = (tObj.points and tObj.points[1]) or {x = tObj.x, y = tObj.y, z = tObj.z}
             local p2 = (tObj.points and tObj.points[2]) or {x = tObj.x, y = tObj.y, z = tObj.z}
@@ -2283,6 +2447,21 @@ function updateSceneObjectShapes()
                 entry.handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
                 entry.sig = sig
             end
+        elseif tObj.type == 'polygon' then
+            local points = tObj.points or {}
+            local sigParts = {}
+            for _, point in ipairs(points) do
+                sigParts[#sigParts + 1] = string.format('%.2f,%.2f,%.2f', point.x, point.y, point.z)
+            end
+            local sig = table.concat(sigParts, '|')
+            if entry.sig ~= sig then
+                entry.handle:destroy()
+                entry.handle = view.newShape( 0, 0, 0)
+                entry.handle:create(polygonVertsFromPoints(points), nil,
+                    'editor_marker_polygon_' .. markerMath.nextGeometryId())
+                entry.handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
+                entry.sig = sig
+            end
         else -- 'line'
             entry.handle:set(lineFlatPoints(tObj), 1)
         end
@@ -2290,6 +2469,45 @@ function updateSceneObjectShapes()
         entry.handle.visible = (sActiveTab == 'map') and bShowSceneObjectMarkers
     end
     for _, axis in pairs(tMarkerEdit.axes) do axis.alwaysOnTop = bSceneObjectsAlwaysOnTop end
+end
+
+-- Point handles are editor-only cubes. They are pooled by object/point index and only exist for
+-- the selected line/triangle, so an idle scene does not allocate or rebuild geometry every frame.
+function updateSceneObjectPointHandles()
+    local handlesByObject = tMarkerEdit.pointHandles
+    local selected = sceneObjectsEditable() and bEditSceneObjectPoints and tMarkerEdit.selected
+    local active = {}
+    if selected and (selected.type == 'triangle' or selected.type == 'line' or selected.type == 'polygon') then
+        for objectIndex, object in ipairs(tSceneObjects) do
+            if object == selected then
+                markerMath.ensureObjectGeometry(object)
+                local handles = handlesByObject[objectIndex]
+                if not handles then handles = {}; handlesByObject[objectIndex] = handles end
+                for pointIndex, point in ipairs(object.points or {}) do
+                    local handle = handles[pointIndex]
+                    if not handle then
+                        handle = makeHighlightBoxShape()
+                        handles[pointIndex] = handle
+                    end
+                    local size = sceneObjectPointHandleSize(object)
+                    handle:setPos(point.x, point.y, point.z)
+                    handle:setScale(size, size, size)
+                    handle:setColor(1, 0.85, 0.1, 0.9)
+                    handle.alwaysOnTop = bSceneObjectsAlwaysOnTop
+                    handle.visible = true
+                    active[objectIndex] = active[objectIndex] or {}
+                    active[objectIndex][pointIndex] = true
+                end
+            end
+        end
+    end
+    for objectIndex, handles in pairs(handlesByObject) do
+        for pointIndex, handle in pairs(handles) do
+            if not active[objectIndex] or not active[objectIndex][pointIndex] then
+                handle.visible = false
+            end
+        end
+    end
 end
 
 -- markerIndex must be part of every widget ID here -- ImGui identifies widgets by ID string, and
@@ -2336,7 +2554,11 @@ function drawObjectMarkerFields(tObj, markerIndex)
     elseif tObj.type == 'circle' then
         local cr, r = tImGui.DragFloat(L('ray') .. '##marker_ray' .. markerIndex, tObj.ray or 50, 1, 0, 0, '%.2f')
         if cr then tMarkerEdit.dirty = true; tObj.ray = math.max(1, r) end
-    elseif tObj.type == 'triangle' then
+    elseif tObj.type == 'triangle' or tObj.type == 'polygon' then
+        if tObj.type == 'polygon' then
+            tImGui.Text(L('polygon_sides') .. ': ' .. tostring(tObj.sides))
+            tImGui.Text(L('polygon_base') .. ': ' .. L(tObj.polygonBase == 'square' and 'polygon_base_square' or 'polygon_base_circle'))
+        end
         for i, p in ipairs(tObj.points) do
             tImGui.Text(L('object') .. ' ' .. i)
             local pc1, px = tImGui.DragFloat(L('axis_x') .. '##tri_x' .. markerIndex .. '_' .. i, p.x, 1, 0, 0, '%.2f')
@@ -2519,22 +2741,52 @@ function drawMapTab(item_width)
         bSceneObjectsAlwaysOnTop = alwaysOnTop
         tMarkerEdit.dirty = true
     end
+    local editPoints = tImGui.Checkbox(L('scene3d_edit_object_points'), bEditSceneObjectPoints)
+    if editPoints ~= bEditSceneObjectPoints then
+        bEditSceneObjectPoints = editPoints
+        tMarkerEdit.drag, tMarkerEdit.capture = nil, nil
+    end
+    tImGui.Text(L('scene3d_new_object_type'))
+    local retType, currentType = tImGui.Combo('##new_scene_object_type',
+        tComboObjectTypeIndexOf(sNewSceneObjectType), tComboObjectType3d)
+    if retType then sNewSceneObjectType = tComboObjectType3dCodes[currentType] end
+    if sNewSceneObjectType == 'polygon' then
+        local changedSides, sides = tImGui.InputInt(L('polygon_sides') .. '##new_polygon_sides', iNewPolygonSides, 1, 5)
+        if changedSides then iNewPolygonSides = markerMath.clampPolygonSides(sides) end
+        tImGui.Text(L('polygon_base'))
+        local baseIndex = sNewPolygonBase == 'square' and 2 or 1
+        local nextBase = tImGui.RadioButton(L('polygon_base_circle') .. '##new_polygon_base_circle', baseIndex, 1)
+        if nextBase ~= baseIndex then baseIndex = nextBase; sNewPolygonBase = 'circle' end
+        tImGui.SameLine()
+        nextBase = tImGui.RadioButton(L('polygon_base_square') .. '##new_polygon_base_square', baseIndex, 2)
+        if nextBase ~= baseIndex then sNewPolygonBase = 'square' end
+    end
+    if not is2d then
+        tImGui.Text(L('scene3d_new_object_plane'))
+        local planeIndex = sceneObjectPlaneIndex(sNewSceneObjectPlane)
+        for i, label in ipairs(tComboObjectPlane3d) do
+            if i > 1 then tImGui.SameLine() end
+            local nextIndex = tImGui.RadioButton(label .. '##new_scene_object_plane_' .. i,
+                planeIndex, i)
+            if nextIndex ~= planeIndex then
+                planeIndex = nextIndex
+                sNewSceneObjectPlane = tComboObjectPlane3dCodes[planeIndex]
+            end
+        end
+    end
     if tImGui.Button(L('add_object'), tUtil.getResponsiveItemSize(item_width - 40)) then
-        addSceneObjectMarker()
+        addSceneObjectMarker(sNewSceneObjectType, sNewSceneObjectPlane, iNewPolygonSides, sNewPolygonBase)
         pushUndoSnapshot()
     end
     for i, tObj in ipairs(tSceneObjects) do
-        local isOpen = tImGui.TreeNodeEx(string.format('%s-%d##marker_tree', L('object'), i))
+        local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree', L('object'), i, tObj.type))
         if isOpen then
-            local ret2, cur2 = tImGui.Combo('##marker_type' .. i, tComboObjectTypeIndexOf(tObj.type), tComboObjectType3d)
-            if ret2 then
-                tObj.type = tComboObjectType3d[cur2]
-                tMarkerEdit.dirty = true
-                tMarkerEdit.capture = nil
-            end
+            tImGui.Text(L('scene3d_object_plane') .. ': ' .. sceneObjectPlaneLabel(tObj.plane))
             drawObjectMarkerFields(tObj, i)
             if tImGui.Button(L('delete') .. '##marker_del' .. i) then
                 if tSceneObjectShapes[i] and tSceneObjectShapes[i].handle then tSceneObjectShapes[i].handle:destroy() end
+                for _, handle in pairs(tMarkerEdit.pointHandles[i] or {}) do handle:destroy() end
+                table.remove(tMarkerEdit.pointHandles, i)
                 if tMarkerEdit.selected == tObj then tMarkerEdit.selected = nil end
                 if tMarkerEdit.capture == tObj then tMarkerEdit.capture = nil end
                 tMarkerEdit.dirty = true
@@ -4527,6 +4779,7 @@ function onLoop(delta)
     applyCam3d(cam3d)
 
     updateSceneObjectShapes()
+    updateSceneObjectPointHandles()
     updateSceneObjectInteraction()
 
     -- Shown in all three tabs (Map, Mesh View, Map edition) -- `cam3d` already aliases whichever

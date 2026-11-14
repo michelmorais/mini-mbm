@@ -4787,9 +4787,17 @@ M.en = {
     add_object = "Add Object",
     show_scene_objects = "Show objects in scene",
     scene3d_objects_always_on_top = "Objects always on top",
+    scene3d_edit_object_points = "Move object points",
+    scene3d_new_object_type = "New object type",
+    scene3d_new_object_plane = "New object plane",
+    scene3d_object_plane = "Plane",
+    polygon_sides = "Polygon sides",
+    polygon_base = "Polygon base",
+    polygon_base_circle = "Circle",
+    polygon_base_square = "Square",
     scene3d_object_depth = "Depth",
     scene3d_receive_light = "Receive lighting",
-    scene3d_click_line_points = "Add points by clicking (line Y plane)",
+    scene3d_click_line_points = "Add points by clicking on object plane",
     -- Common editor messages (reused across editors)
     command_executed = "Command executed.. ",
     failed_to_add_mesh = "Failed to add mesh!",
@@ -10104,9 +10112,17 @@ M.pt_br = {
     add_object = "Adicionar objeto",
     show_scene_objects = "Mostrar objetos na cena",
     scene3d_objects_always_on_top = "Objetos sempre visiveis (alwaysOnTop)",
+    scene3d_edit_object_points = "Mover pontos do objeto",
+    scene3d_new_object_type = "Tipo do novo objeto",
+    scene3d_new_object_plane = "Plano do novo objeto",
+    scene3d_object_plane = "Plano",
+    polygon_sides = "Lados do polígono",
+    polygon_base = "Base do polígono",
+    polygon_base_circle = "Círculo",
+    polygon_base_square = "Quadrado",
     scene3d_object_depth = "Profundidade",
     scene3d_receive_light = "Receber luz",
-    scene3d_click_line_points = "Adicionar pontos clicando (plano Y da linha)",
+    scene3d_click_line_points = "Adicionar pontos clicando no plano do objeto",
     -- Common editor messages (reused across editors)
     command_executed = "Comando executado.. ",
     failed_to_add_mesh = "Falha ao adicionar mesh!",
@@ -10844,6 +10860,10 @@ function M.renderLanguageSubmenu()
         if pressed_pt then requestedLanguage = "pt_br" end
         tImGui.EndMenu()
         M.pendingLanguage = requestedLanguage
+        -- The submenu may close immediately after a selection. Apply the queued value now,
+        -- after EndMenu, so the first click takes effect even when the user does not reopen the
+        -- Options menu on the next frame.
+        M.applyPendingLanguage()
     end
 end
 

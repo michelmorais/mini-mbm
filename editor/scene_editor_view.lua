@@ -59,6 +59,12 @@ return function(world)
         if is2d then
             local create = object.create
             object.create = function(self,points,uv,name,...)
+                -- Named shape primitives (for example the 2D circle marker) already carry
+                -- their own dimensionality. Do not send their string type through the raw XYZ
+                -- adapter below, which expects a numeric vertex table.
+                if type(points) == 'string' then
+                    return create(self,points,uv,name,...)
+                end
                 local vertices = xy(points)
                 if name:find('sphere_unit',1,true) then
                     vertices = {}

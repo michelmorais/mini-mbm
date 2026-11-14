@@ -22,7 +22,82 @@
 
 ]]--
 
+return function(world)
 local M = {}
+local is2d = world == '2dw'
+local planeInfo = {
+    xy = {normal = {x=0,y=0,z=1}},
+    xz = {normal = {x=0,y=1,z=0}},
+    yz = {normal = {x=1,y=0,z=0}},
+}
+
+local function normalizedPlane(plane)
+    return planeInfo[plane] and plane or 'xy'
+end
+
+function M.normalizePlane(plane)
+    if is2d then return 'xy' end
+    return normalizedPlane(plane)
+end
+
+function M.defaultPlaneForType(objectType)
+    if is2d then return 'xy' end
+    -- Keep the old editor defaults for files created before plane selection existed.
+    if objectType == 'triangle' or objectType == 'line' then return 'xz' end
+    return 'xy'
+end
+
+function M.planeNormal(plane)
+    local info = planeInfo[M.normalizePlane(plane)]
+    return info.normal.x, info.normal.y, info.normal.z
+end
+
+function M.planeCoordinates(x, y, z, plane)
+    plane = M.normalizePlane(plane)
+    if plane == 'xz' then return x, z end
+    if plane == 'yz' then return y, z end
+    return x, y
+end
+
+function M.planePoint(centerX, centerY, centerZ, plane, u, v)
+    plane = M.normalizePlane(plane)
+    if plane == 'xz' then return centerX + u, centerY, centerZ + v end
+    if plane == 'yz' then return centerX, centerY + u, centerZ + v end
+    return centerX + u, centerY + v, centerZ
+end
+
+function M.clampPolygonSides(sides)
+    sides = math.floor(tonumber(sides) or 6)
+    return math.max(3, math.min(100, sides))
+end
+
+function M.normalizePolygonBase(base)
+    return base == 'square' and 'square' or 'circle'
+end
+
+-- Generates an authoring polygon on the selected plane. Circle mode places vertices on a
+-- circumcircle; square mode projects the same angular samples onto a square boundary, so the
+-- four-sided case is an axis-aligned square and higher side counts remain square-derived.
+function M.makePolygonPoints(centerX, centerY, centerZ, plane, sides, base, radius)
+    sides = M.clampPolygonSides(sides)
+    base = M.normalizePolygonBase(base)
+    radius = math.max(0.001, tonumber(radius) or 50)
+    local points = {}
+    local phase = base == 'square' and math.pi * 0.25 or math.pi * 0.5
+    for i = 0, sides - 1 do
+        local angle = phase + (math.pi * 2 * i) / sides
+        local scale = 1
+        if base == 'square' then
+            scale = 1 / math.max(math.abs(math.cos(angle)), math.abs(math.sin(angle)))
+        end
+        local u = math.cos(angle) * radius * scale
+        local v = math.sin(angle) * radius * scale
+        local x, y, z = M.planePoint(centerX, centerY, centerZ, plane, u, v)
+        points[#points + 1] = {x=x, y=y, z=z}
+    end
+    return points
+end
+
 local function raySphereDistance(ox,oy,oz,dx,dy,dz,cx,cy,cz,radius)
     local lx,ly,lz=cx-ox,cy-oy,cz-oz
     local projected=lx*dx+ly*dy+lz*dz
@@ -110,6 +185,16 @@ function M.rayTriangleDistance(ox,oy,oz,dx,dy,dz,a,b,c)
     if distance >= 0 then return distance end
 end
 
+function M.rayPolygonDistance(ox,oy,oz,dx,dy,dz,points)
+    if not points or #points < 3 then return nil end
+    local best
+    for i = 2, #points - 1 do
+        local distance = M.rayTriangleDistance(ox,oy,oz,dx,dy,dz,points[1],points[i],points[i+1])
+        if distance and (not best or distance < best) then best = distance end
+    end
+    return best
+end
+
 -- Slab intersection, including parallel rays and a camera inside the box.
 local function boxSlab(origin, direction, center, size, near, far)
     local low, high = center-size*0.5, center+size*0.5
@@ -137,6 +222,7 @@ end
 -- when a property panel was never opened or its displayed default was never edited.
 function M.ensureObjectGeometry(object)
     object.x,object.y,object.z = object.x or 0,object.y or 0,object.z or 0
+    object.plane = M.normalizePlane(object.plane or M.defaultPlaneForType(object.type))
     if object.type == 'rectangle' or object.type == 'cube' then
         object.width = object.width or 100
         object.height = object.height or 100
@@ -145,11 +231,20 @@ function M.ensureObjectGeometry(object)
         object.ray = object.ray or 50
     elseif object.type == 'triangle' then
         if not object.points or #object.points ~= 3 then
+            local x1, y1, z1 = M.planePoint(object.x, object.y, object.z, object.plane, -50, -50)
+            local x2, y2, z2 = M.planePoint(object.x, object.y, object.z, object.plane,  50, -50)
+            local x3, y3, z3 = M.planePoint(object.x, object.y, object.z, object.plane,   0,  50)
             object.points = {
-                {x=object.x-50,y=object.y,z=object.z-50},
-                {x=object.x+50,y=object.y,z=object.z-50},
-                {x=object.x,y=object.y,z=object.z+50},
+                {x=x1,y=y1,z=z1}, {x=x2,y=y2,z=z2}, {x=x3,y=y3,z=z3},
             }
+        end
+    elseif object.type == 'polygon' then
+        object.sides = M.clampPolygonSides(object.sides)
+        object.polygonBase = M.normalizePolygonBase(object.polygonBase)
+        object.radius = math.max(0.001, tonumber(object.radius) or 50)
+        if not object.points or #object.points ~= object.sides then
+            object.points = M.makePolygonPoints(object.x, object.y, object.z, object.plane,
+                object.sides, object.polygonBase, object.radius)
         end
     elseif object.type == 'line' then
         object.points = object.points or {}
@@ -159,7 +254,7 @@ end
 function M.translate(object, x, y, z)
     local dx,dy,dz = x-object.x,y-object.y,z-object.z
     if dx == 0 and dy == 0 and dz == 0 then return false end
-    if (object.type == 'line' or object.type == 'triangle') and object.points then
+    if (object.type == 'line' or object.type == 'triangle' or object.type == 'polygon') and object.points then
         for _,p in ipairs(object.points) do p.x,p.y,p.z = p.x+dx,p.y+dy,p.z+dz end
     end
     object.x,object.y,object.z = x,y,z
@@ -167,3 +262,4 @@ function M.translate(object, x, y, z)
 end
 
 return M
+end
