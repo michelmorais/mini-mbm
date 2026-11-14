@@ -75,6 +75,10 @@ carregadas nessa instancia, enquanto placeholders continuam apenas como estado
 virtual do runtime. As alteracoes atuais do editor sao usadas mesmo que o
 projeto ainda nao tenha sido salvo.
 
+O script de preview gerado inclui um callback `onUpdate` comentado como exemplo
+de leitura das poses. Ele percorre `actorOrder` e mostra como aplicar a pose
+final a objetos criados dinamicamente.
+
 `Save preview as...` salva o mesmo material fora do diretorio temporario. O
 arquivo escolhido e o script principal de execucao; ao lado dele o editor
 grava um projeto companheiro com a extensao `.iae.lua`. O projeto companheiro
@@ -343,6 +347,7 @@ local instance = runtime.start {
     },
     callbacks = {
         onStart = function(instance)
+            -- A instancia ja esta inicializada neste ponto.
             -- Preparacao opcional da interacao.
         end,
         onEvent = function(instance, event, index)
@@ -386,6 +391,8 @@ chamar um metodo de atualizacao manual.
 `instance:getActorPose(id)` retorna a pose final atual do ator, incluindo
 posicao, rotacao em graus, escala e visibilidade. Ele pode ser usado para
 atualizar meshes criadas dinamicamente a partir de um placeholder.
+Para slots numericos, `actor2` e `actor_2` sao aliases aceitos tambem por esse
+metodo.
 
 `onUpdate(instance, delta)` e opcional e ocorre depois que o runtime aplica os
 eventos e transformacoes do frame. Ele e chamado somente quando foi fornecido

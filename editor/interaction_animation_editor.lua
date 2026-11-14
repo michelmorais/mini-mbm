@@ -2209,6 +2209,7 @@ end
 local function previewDriverSource(projectPath)
     local cameraX, cameraY, cameraZ = cameraPosition()
     local focusX, focusY, focusZ = S.cameraOrbit.fx, S.cameraOrbit.fy, S.cameraOrbit.fz
+    local poseExampleActor = S.actorOrder[1] or ''
     return string.format([[
 local project = dofile(%q)
 local reactionRuntime = require 'interaction_animation_runtime'
@@ -2242,9 +2243,26 @@ function onInitScene()
         definition = project,
         actors = actors,
         callbacks = {
-            onStart = function() print('Interaction preview started') end,
+            onStart = function(instance)
+                print('Interaction preview started')
+                -- The instance is ready here. Read initial poses with getActorPose().
+            end,
             onEvent = function(_, event) print('Interaction event: ' .. tostring(event.id)) end,
             onFinish = function() print('Interaction preview finished') end,
+            onUpdate = function(instance, delta)
+                -- Read the final pose after the runtime applies this frame.
+                -- Numeric slots accept both "actor2" and "actor_2".
+                for _, id in ipairs(project.actorOrder or {}) do
+                    local pose = instance:getActorPose(id)
+                    -- Example for a dynamically created object:
+                    -- dynamicObjects[id]:setPos(pose.x, pose.y, pose.z)
+                    -- dynamicObjects[id]:setAngle(math.rad(pose.rx), math.rad(pose.ry), math.rad(pose.rz))
+                    -- dynamicObjects[id]:setScale(pose.sx, pose.sy, pose.sz)
+                    -- dynamicObjects[id].visible = pose.visible
+                end
+                -- Example pose selected when this preview was generated: %q
+                -- local pose = instance:getActorPose(%q)
+            end,
         },
     }
 end
@@ -2252,7 +2270,8 @@ end
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') then mbm.quit() end
 end
-]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ)
+]], projectPath, cameraX, cameraY, cameraZ, focusX, focusY, focusZ,
+        poseExampleActor, poseExampleActor)
 end
 
 local function writePreviewFiles(projectPath, driverPath)

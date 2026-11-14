@@ -1097,6 +1097,15 @@ bool getBinding(lua_State *lua, const int bindingsTable, const std::string &name
     return false;
 }
 
+std::string alternateActorId(const std::string &id)
+{
+    if (id.size() > 6 && id.compare(0, 6, "actor_") == 0)
+        return "actor" + id.substr(6);
+    if (id.size() > 5 && id.compare(0, 5, "actor") == 0)
+        return "actor_" + id.substr(5);
+    return id;
+}
+
 void pushTransform(lua_State *lua, const TRANSFORM &transform)
 {
     lua_newtable(lua);
@@ -1160,7 +1169,9 @@ int onInstanceGetActorPoseLua(lua_State *lua)
 {
     INTERACTION_INSTANCE *instance = getInstance(lua);
     const char *id = luaL_checkstring(lua, 2);
-    const auto found = instance->actorIndex.find(id);
+    auto found = instance->actorIndex.find(id);
+    if (found == instance->actorIndex.end())
+        found = instance->actorIndex.find(alternateActorId(id));
     if (found == instance->actorIndex.end())
         return luaL_error(lua, "Unknown interaction actor: %s", id);
     pushTransform(lua, instance->actors[found->second].current);
