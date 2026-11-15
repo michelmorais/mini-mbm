@@ -3205,7 +3205,15 @@ function drawLayerTab(item_width)
             end
         end
         tImGui.SameLine()
-        local isOpen = tImGui.TreeNodeEx(layer.name .. '##layer_tree' .. i)
+        -- The active layer is the only expanded layer. Clicking its header selects it and the
+        -- next frame keeps it open while collapsing all other layers.
+        tImGui.SetNextItemOpen(i == iSelectedLayer, tImGui.Flags('ImGuiCond_Always'))
+        local layerFlags = i == iSelectedLayer and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
+        local isOpen = tImGui.TreeNodeEx(layer.name .. '##layer_tree' .. i, layerFlags)
+        if tImGui.IsItemClicked() and iSelectedLayer ~= i then
+            iSelectedLayer = i
+            rebuildGridVisual()
+        end
         if i == iSelectedLayer then
             tImGui.SameLine()
             tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
@@ -3213,11 +3221,6 @@ function drawLayerTab(item_width)
             tImGui.PopStyleColor(1)
         end
         if isOpen then
-            if tImGui.Button(L('select') .. '##select_layer' .. i) then
-                iSelectedLayer = i
-                rebuildGridVisual()
-            end
-
             if not is2d then
             local wall = tImGui.Checkbox(L('layer_wall_xy') .. '##layer_wall' .. i, layer.bWall == true)
             if wall ~= (layer.bWall == true) then setLayerWall(i, wall) end
