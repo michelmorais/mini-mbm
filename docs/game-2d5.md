@@ -40,6 +40,7 @@ effect rather than gameplay movement.
 - Decide whether Z is a layer, a parallax depth or a camera depth, and use that
   convention consistently.
 - Use `lua-api.md` for the runtime API and `light.md` for the lighting model.
+- For synchronized actions between meshes, use `interaction-animation-runtime.md`.
 
 This profile is a documentation selection only. It does not change the engine
 or restrict the APIs available to the game.

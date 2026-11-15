@@ -15,3 +15,5 @@ realtime-skeletal-animation.md
 skeletal-animation-editor.md
 image-mesh-editor.md
 mesh-simplification.md
+interaction-animation-runtime.md
+interaction-animation-editor.md

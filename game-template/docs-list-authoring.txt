@@ -7,3 +7,5 @@ skeletal-animation-editor.md
 image-mesh-editor.md
 mesh-simplification.md
 bones-armatures-and-fbx.md
+interaction-animation-runtime.md
+interaction-animation-editor.md

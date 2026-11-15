@@ -11,7 +11,8 @@ for example, `docs/game-2d5.md` explains 3D rendering with X/Y gameplay and Box2
 while `docs/light.md` and `docs/normal-mapping.md` cover 3D materials. These files
 describe the engine checkout used when creating the project; use a matching engine
 build. When opening `game-template/` directly, the canonical docs are in `../docs/`
-instead.
+instead. Projects that use synchronized mesh interactions can consult
+`docs/interaction-animation-runtime.md` when that profile document is present.
 
 `CLAUDE.md` links to `AGENTS.md`. Keep this file and the Copilot instructions synchronized
 when changing game-specific guidance. Engine binaries and plugins remain external.

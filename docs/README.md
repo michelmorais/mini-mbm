@@ -14,6 +14,7 @@ guides.
 | Mesh v11 binary format | [Mesh v11 format](mesh-v11-format.md) |
 | Lighting behavior and limits | [Lighting](light.md) |
 | Runtime skeletal animation | [Realtime skeletal animation](realtime-skeletal-animation.md) |
+| Interactive mesh animation | [Interaction animation runtime](interaction-animation-runtime.md) |
 
 ## Editor and asset workflows
 
