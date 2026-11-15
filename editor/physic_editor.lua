@@ -281,6 +281,17 @@ function syncPhysicsEditorVisibility(tInfoPhysic)
     end
 end
 
+function physicsInputFloat(label,value,bHighlight,step,stepFast,format,flags)
+    if bHighlight then
+        tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=1,b=0,a=1})
+    end
+    local result,newValue = tImGui.InputFloat(label,value,step,stepFast,format,flags)
+    if bHighlight then
+        tImGui.PopStyleColor(1)
+    end
+    return result,newValue
+end
+
 
 function setupPhysics2d(tInfoPhysic)
     local tShape = nil
@@ -808,7 +819,8 @@ function makeBoxShape3d(cx,cy,cz,w,h,d,name)
         end
     end
     local tShape = shape:new('3d',cx,cy,cz)
-    tShape:create(verts, nil, name)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
     return tShape, hw,hh,hd
 end
 
@@ -826,7 +838,8 @@ function makeConvexPolyhedronShape3d(points,cx,cy,cz,name)
         end
     end
     local tShape = shape:new('3d',cx,cy,cz)
-    tShape:create(verts, nil, name)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
     return tShape
 end
 
@@ -853,7 +866,8 @@ function makeVariableConvexPolyhedronShape3d(points,cx,cy,cz,name,hull)
         end
     end
     local tShape = shape:new('3d',cx,cy,cz)
-    tShape:create(verts, nil, name)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
     return tShape
 end
 
@@ -2497,7 +2511,7 @@ function showEditPhysics()
                         for pi,l in ipairs(BOX_LETTERS) do
                             local p = tPhysic[l]
                             local label    = string.upper(l) .. tLang.L("axis_x") .. string.format('##complex_%d_%s_x', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.x, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.x, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.x = fValue
                                 updatePhysics(tPhysic)
@@ -2507,7 +2521,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.upper(l) .. tLang.L("axis_y") .. string.format('##complex_%d_%s_y', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.y, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.y, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.y = fValue
                                 updatePhysics(tPhysic)
@@ -2517,7 +2531,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.upper(l) .. tLang.L("axis_z") .. string.format('##complex_%d_%s_z', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.z, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.z, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.z = fValue
                                 updatePhysics(tPhysic)
@@ -2529,7 +2543,7 @@ function showEditPhysics()
                     elseif tPhysic.type == 'convex_polyhedron' then
                         for pointIndex,p in ipairs(tPhysic.points or {}) do
                             local label    = string.format('#%dX##polyhedron_%d_%d_x', pointIndex, i, pointIndex)
-                            local result, fValue = tImGui.InputFloat(label, p.x, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.x, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
                             if result then
                                 p.x = fValue
                                 updatePhysics(tPhysic)
@@ -2539,7 +2553,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.format('#%dY##polyhedron_%d_%d_y', pointIndex, i, pointIndex)
-                            local result, fValue = tImGui.InputFloat(label, p.y, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.y, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
                             if result then
                                 p.y = fValue
                                 updatePhysics(tPhysic)
@@ -2549,7 +2563,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.format('#%dZ##polyhedron_%d_%d_z', pointIndex, i, pointIndex)
-                            local result, fValue = tImGui.InputFloat(label, p.z or 0, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.z or 0, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
                             if result then
                                 p.z = fValue
                                 updatePhysics(tPhysic)
