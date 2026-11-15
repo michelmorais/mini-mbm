@@ -2120,6 +2120,7 @@ end
 function pickSceneObjectPoint(x, y)
     if not sceneObjectsEditable() or not bEditSceneObjectPoints then return nil end
     local object = tMarkerEdit.selected
+    if object and object.locked then return nil end
     if not object or (object.type ~= 'triangle' and object.type ~= 'line' and object.type ~= 'polygon') then return nil end
     local points = object.points or {}
     local objectIndex
@@ -2196,10 +2197,11 @@ end
 
 function updateSceneObjectInteraction()
     local selected = sceneObjectsEditable() and tMarkerEdit.selected
+    local movableSelected = selected and not selected.locked and selected or nil
     local length = markerMath.pointRadius(tMapOptions) * 9
     for name, axis in pairs(markerMath.axes) do
         local handle = tMarkerEdit.axes[name]
-        if selected and (not is2d or name ~= 'z') then
+        if movableSelected and (not is2d or name ~= 'z') then
             if not handle then
                 handle = view.newLine()
                 handle:add({0,0,0,axis.x,axis.y,axis.z})
@@ -2213,9 +2215,9 @@ function updateSceneObjectInteraction()
             end
             if tMarkerEdit.axisLength ~= length then handle:setScale(length,length,length) end
         end
-        if handle then handle.visible = selected ~= nil and selected ~= false and (not is2d or name ~= 'z') end
+        if handle then handle.visible = movableSelected ~= nil and (not is2d or name ~= 'z') end
     end
-    tMarkerEdit.axisLength = selected and length or nil
+    tMarkerEdit.axisLength = movableSelected and length or nil
     -- Re-pick only when the view, pointer, or geometry changes, including numeric UI edits.
     local editable, captured = sceneObjectsEditable(), tImGui.GetWantCaptureMouse()
     local key = tMarkerEdit.hoverKey
@@ -2258,7 +2260,7 @@ function beginSceneObjectDrag(x,y)
     end
     local selected = tMarkerEdit.selected
     local axisName, parameter
-    if selected then
+    if selected and not selected.locked then
         local ox,oy,oz,dx,dy,dz = view.pickRay(x,y)
         local length = markerMath.pointRadius(tMapOptions) * 9
         local best = math.huge
@@ -2278,6 +2280,12 @@ function beginSceneObjectDrag(x,y)
     tMarkerEdit.closeOtherObjects = selected ~= nil
     tMarkerEdit.hoverKey = nil
     if not selected then return false end
+    if selected.locked then
+        -- Keep the object selectable, but consume this press without creating a transform drag.
+        -- A subsequent mouse move can still orbit/pan the viewport normally.
+        tMarkerEdit.drag = nil
+        return true
+    end
     local origin = {x=selected.x,y=selected.y,z=selected.z}
     local normal = is2d and {x=0,y=0,z=1} or camera3d:getNormal('F')
     local px,py,pz = markerMath.planeHit(x,y,origin,normal,view.pickRay)
@@ -2288,6 +2296,7 @@ end
 
 function moveSceneObjectDrag(x,y)
     local drag = tMarkerEdit.drag
+    if drag.object.locked then return end
     if drag.kind == 'point' then
         local px,py,pz = markerMath.planeHit(x,y,drag.origin,drag.normal,view.pickRay)
         if not px then return end
@@ -2320,6 +2329,7 @@ end
 function appendSceneLinePoint(x,y)
     local object = tMarkerEdit.capture
     if not sceneObjectsEditable() or not object or object.type ~= 'line' then return false end
+    if object.locked then return true end
     local nx,ny,nz = markerMath.planeNormal(object.plane)
     local px,py,pz = markerMath.planeHit(x,y,object,{x=nx,y=ny,z=nz},view.pickRay)
     if px then
@@ -2336,7 +2346,7 @@ function addSceneObjectMarker(objectType, plane, polygonSides, polygonBase)
     local tObj = {
         type = objectType or sNewSceneObjectType,
         plane = markerMath.normalizePlane(plane or sNewSceneObjectPlane),
-        name = 'no_name', x = 0, y = 0, z = 0,
+        name = 'no_name', x = 0, y = 0, z = 0, locked = false,
     }
     if tObj.type == 'polygon' then
         tObj.sides = markerMath.clampPolygonSides(polygonSides or iNewPolygonSides)
@@ -2597,6 +2607,7 @@ end
 function updateSceneObjectPointHandles()
     local handlesByObject = tMarkerEdit.pointHandles
     local selected = sceneObjectsEditable() and bEditSceneObjectPoints and tMarkerEdit.selected
+    if selected and selected.locked then selected = nil end
     local active = {}
     if selected and (selected.type == 'triangle' or selected.type == 'line' or selected.type == 'polygon') then
         for objectIndex, object in ipairs(tSceneObjects) do
@@ -2638,6 +2649,17 @@ end
 -- marker's row (using the exact same '##marker_name' ID) rendered afterward.
 function drawObjectMarkerFields(tObj, markerIndex)
     markerMath.ensureObjectGeometry(tObj)
+    local locked = tImGui.Checkbox(L('scene3d_object_locked') .. '##marker_locked' .. markerIndex,
+        tObj.locked == true)
+    if locked ~= (tObj.locked == true) then
+        tObj.locked = locked
+        if locked and tMarkerEdit.capture == tObj then tMarkerEdit.capture = nil end
+        tMarkerEdit.drag = nil
+        tMarkerEdit.hoverKey = nil
+        tMarkerEdit.dirty = true
+        pushUndoSnapshot()
+    end
+    tImGui.BeginDisabled(tObj.locked == true)
     -- tImGui.InputText(label, text, flags?) has no "max length" parameter at all -- its C++
     -- binding always auto-sizes the edit buffer from the current text's own length + 256 bytes of
     -- headroom. The "64" here was passed expecting some other framework's (label, text, maxLength)
@@ -2730,6 +2752,7 @@ function drawObjectMarkerFields(tObj, markerIndex)
             if pc1 or pc2 or pc3 then tMarkerEdit.dirty = true; p.x, p.y, p.z = px, py, pz end
         end
     end
+    tImGui.EndDisabled()
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -4536,7 +4559,20 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
     writeSavedTable('tScene3d.tLightConfig', tLightConfig)
     writeSavedTable('tScene3d.tMeshOffsets', offsets)
     for _, object in ipairs(tSceneObjects) do markerMath.ensureObjectGeometry(object) end
-    writeSavedTable('tScene3d.tSceneObjects', tSceneObjects)
+    local sceneObjectsToWrite = tSceneObjects
+    if bIsExport then
+        -- `locked` is editor-only protection against accidental authoring edits. Keep it in the
+        -- editable project, but never leak it into the game-facing scene object data.
+        sceneObjectsToWrite = {}
+        for i, object in ipairs(tSceneObjects) do
+            local copy = {}
+            for key, value in pairs(object) do
+                if key ~= 'locked' then copy[key] = value end
+            end
+            sceneObjectsToWrite[i] = copy
+        end
+    end
+    writeSavedTable('tScene3d.tSceneObjects', sceneObjectsToWrite)
 
     -- Full editor-authoring state (map/grid settings, layers, per-mesh cell/attachment info) is
     -- Save-only -- Export must keep producing a clean, game-facing file with no editor concepts in
