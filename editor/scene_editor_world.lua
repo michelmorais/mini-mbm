@@ -3192,24 +3192,12 @@ function drawLayerTab(item_width)
     end
 
     for i, layer in ipairs(tLayers) do
-        -- Visibility toggle lives on the header row (not buried inside the expanded node) so a
-        -- layer can be hidden/shown without expanding it first, matching a typical layer-panel
-        -- eye-toggle convention.
-        local visHdr = tImGui.Checkbox('##layer_visible_hdr' .. i, layer.visible)
-        if visHdr ~= layer.visible then
-            layer.visible = visHdr
-            for _, tPlaced in ipairs(tPlacedMeshes) do
-                if tPlaced.layerIndex == i then
-                    applyPlacedMeshVisibility(tPlaced)
-                end
-            end
-        end
-        tImGui.SameLine()
         -- The active layer is the only expanded layer. Clicking its header selects it and the
         -- next frame keeps it open while collapsing all other layers.
         tImGui.SetNextItemOpen(i == iSelectedLayer, tImGui.Flags('ImGuiCond_Always'))
         local layerFlags = i == iSelectedLayer and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
-        local isOpen = tImGui.TreeNodeEx(layer.name .. '##layer_tree' .. i, layerFlags)
+        local layerTitle = layer.name
+        local isOpen = tImGui.TreeNodeEx(layerTitle .. '##layer_tree' .. i, layerFlags)
         if tImGui.IsItemClicked() and iSelectedLayer ~= i then
             iSelectedLayer = i
             rebuildGridVisual()
@@ -3219,8 +3207,28 @@ function drawLayerTab(item_width)
             tImGui.PushStyleColor('ImGuiCol_Text', {r = 0, g = 1, b = 0, a = 1})
             tImGui.Text(L('active'))
             tImGui.PopStyleColor(1)
+            if layer.visible ~= true then
+                tImGui.SameLine()
+                tImGui.Text(L('layer_hidden'))
+            end
+        elseif layer.visible ~= true then
+            tImGui.SameLine()
+            tImGui.Text(L('layer_hidden'))
         end
         if isOpen then
+            -- Keep the hide flag beside the other layer properties, immediately before the
+            -- 3D-only wall-plane flag. The saved `visible` field remains the compatibility
+            -- format used by older scenes.
+            local hideLayer = tImGui.Checkbox(L('hide_layer') .. '##layer_hidden' .. i, layer.visible ~= true)
+            if hideLayer ~= (layer.visible ~= true) then
+                layer.visible = not hideLayer
+                for _, tPlaced in ipairs(tPlacedMeshes) do
+                    if tPlaced.layerIndex == i then
+                        applyPlacedMeshVisibility(tPlaced)
+                    end
+                end
+            end
+
             if not is2d then
             local wall = tImGui.Checkbox(L('layer_wall_xy') .. '##layer_wall' .. i, layer.bWall == true)
             if wall ~= (layer.bWall == true) then setLayerWall(i, wall) end
@@ -4679,7 +4687,7 @@ function applyLoadedScene3d(tLoaded)
     if tLoaded.tLayers and #tLoaded.tLayers > 0 then
         for _, l in ipairs(tLoaded.tLayers) do
             table.insert(tLayers, {
-                name = l.name, visible = l.visible, fY = l.fY,
+                name = l.name, visible = l.visible ~= false, fY = l.fY,
                 offset = {x = l.offset.x, z = l.offset.z},
                 bWall = is2d or l.bWall == true,
                 bHalfOffsetX = l.bHalfOffsetX or false, bHalfOffsetZ = l.bHalfOffsetZ or false,
