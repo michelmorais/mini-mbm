@@ -3384,11 +3384,6 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
         tImGui.PopStyleColor(1)
     end
 
-    local cNickName, nickName = tImGui.InputText(L('mesh_nickname') .. '##placed_nickname' .. i,
-        tPlaced.nick_name or '')
-    local bNickNameFinished = tImGui.IsItemDeactivatedAfterEdit()
-    if cNickName then tPlaced.nick_name = nickName end
-
     if bFullControls then
         local sel = tImGui.Checkbox(L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
         if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel; if is2d then view.invalidate() end end
@@ -3426,8 +3421,6 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     if bRotYDragFinished then
         pushUndoSnapshot()
     end
-    if bNickNameFinished then pushUndoSnapshot() end
-
     tImGui.EndGroup() -- Y controls beside the thumbnail.
     tImGui.EndGroup() -- Advance below the taller of thumbnail and controls.
     local cursorStart = tImGui.GetCursorStartPos()
@@ -3441,6 +3434,14 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
         labelWidth = math.max(labelWidth, tImGui.CalcTextSize(L('scale_' .. axis)).x)
     end
     tUtil.pushResponsiveItemWidth(30, labelWidth + 16)
+
+    -- Keep the nickname in the transform column, with the same responsive width as Rotation X,
+    -- instead of letting it stretch with the full row/window width.
+    local cNickName, nickName = tImGui.InputText(L('mesh_nickname') .. '##placed_nickname' .. i,
+        tPlaced.nick_name or '')
+    local bNickNameFinished = tImGui.IsItemDeactivatedAfterEdit()
+    if cNickName then tPlaced.nick_name = nickName end
+    if bNickNameFinished then pushUndoSnapshot() end
 
     -- Per-instance controls: mesh-set offsets remain a separate shared adjustment.
     -- Only changed widgets synchronize transforms; one undo entry per completed edit.
