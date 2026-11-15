@@ -2235,8 +2235,10 @@ function updateSceneObjectInteraction()
     for i, object in ipairs(tSceneObjects) do
         local entry = tSceneObjectShapes[i]
         if entry then
-            if object == hovered then entry.handle:setColor(1,0.8,0.1,0.4)
-            elseif object == selected then entry.handle:setColor(0.2,1,0.5,0.35)
+            if object == selected then
+                entry.handle:setColor(tSceneMarkerSelectedColor.r, tSceneMarkerSelectedColor.g,
+                    tSceneMarkerSelectedColor.b, tSceneMarkerSelectedColor.a)
+            elseif object == hovered then entry.handle:setColor(1,0.8,0.1,0.4)
             else entry.handle:setColor(tSceneMarkerColor.r,tSceneMarkerColor.g,tSceneMarkerColor.b,tSceneMarkerColor.a) end
         end
     end
@@ -2361,6 +2363,8 @@ end
 
 -- Translucent magenta keeps marker volumes readable without covering scene details.
 tSceneMarkerColor = {r = 1, g = 0, b = 1, a = 0.25}
+-- Orange makes the selected object distinct from the magenta default and yellow hover color.
+tSceneMarkerSelectedColor = {r = 1, g = 0.45, b = 0.05, a = 0.55}
 
 -- Unit-radius UV-sphere, low tessellation (this is an editor marker, not a shipped asset).
 -- Scaled per-instance via :setScale(r,r,r) from tObj.ray. No named 'sphere' primitive exists in
@@ -2482,22 +2486,26 @@ function updateSceneObjectShapes()
             (tObj.type == 'rectangle' and entry.sPlane ~= tObj.plane) then
             if entry and entry.handle then entry.handle:destroy() end
             local handle
+            -- Shape meshes are cached by nickname and setColor() changes the texture on
+            -- that cached mesh. Every marker therefore needs its own nickname, otherwise
+            -- selecting one marker can recolor every marker using the same primitive.
+            local shapeId = entry and entry.shapeId or markerMath.nextGeometryId()
             if tObj.type == 'point' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
                 if is2d then
                     -- The 2D raw-vertex adapter is intentionally conservative. Use the
                     -- engine's named circle primitive here, just like the 2D circle marker,
                     -- so a point remains visible instead of leaving only its editor gizmo.
-                    handle:create('circle', 1, 1, 16, false, 'editor_marker_point_unit')
+                    handle:create('circle', 1, 1, 16, false, 'editor_marker_point_unit_' .. shapeId)
                 else
-                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit_' .. shapeId)
                 end
             elseif tObj.type == 'circle' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
                 if is2d then
-                    handle:create('circle', 1, 1, 32, false, 'editor_marker_circle_unit')
+                    handle:create('circle', 1, 1, 32, false, 'editor_marker_circle_unit_' .. shapeId)
                 else
-                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit')
+                    handle:create(unitSphereVerts(), nil, 'editor_marker_sphere_unit_' .. shapeId)
                 end
             elseif tObj.type == 'cube' then
                 local verts = {}
@@ -2507,10 +2515,11 @@ function updateSceneObjectShapes()
                     end
                 end
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
-                handle:create(verts, nil, 'editor_marker_cube_unit')
+                handle:create(verts, nil, 'editor_marker_cube_unit_' .. shapeId)
             elseif tObj.type == 'rectangle' then
                 handle = view.newShape( tObj.x, tObj.y, tObj.z)
-                handle:create(unitQuadVerts(tObj.plane), nil, 'editor_marker_quad_unit_' .. tObj.plane)
+                handle:create(unitQuadVerts(tObj.plane), nil,
+                    'editor_marker_quad_unit_' .. tObj.plane .. '_' .. shapeId)
             elseif tObj.type == 'triangle' then
                 -- Real geometry (from tObj.points) is filled in by the change check below,
                 -- which always runs immediately after this (entry.sig starts nil, never equal to
@@ -2521,10 +2530,12 @@ function updateSceneObjectShapes()
                 -- :create() call anywhere using an already-seen name gets back that FIRST call's
                 -- cached geometry, silently ignoring whatever new vertex data was just passed in.
                 handle = view.newShape( 0, 0, 0)
-                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil, 'editor_marker_triangle_init_' .. i)
+                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil,
+                    'editor_marker_triangle_init_' .. shapeId)
             elseif tObj.type == 'polygon' then
                 handle = view.newShape( 0, 0, 0)
-                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil, 'editor_marker_polygon_init_' .. i)
+                handle:create({0, 0, 0, 0.01, 0, 0, 0, 0.01, 0}, nil,
+                    'editor_marker_polygon_init_' .. shapeId)
             else -- 'line'
                 -- Built at the world origin, not tObj.x/y/z -- tObj.points already store absolute
                 -- world coordinates (captured from the marker's own x/y/z fields when "add point"
@@ -2536,7 +2547,7 @@ function updateSceneObjectShapes()
                 handle:add(lineFlatPoints(tObj))
             end
             handle:setColor(tSceneMarkerColor.r, tSceneMarkerColor.g, tSceneMarkerColor.b, tSceneMarkerColor.a)
-            entry = { handle = handle, sType = tObj.type, sPlane = tObj.plane, sig = nil }
+            entry = {handle = handle, sType = tObj.type, sPlane = tObj.plane, sig = nil, shapeId = shapeId}
             tSceneObjectShapes[i] = entry
         end
         if tObj.type == 'point' then
@@ -2712,6 +2723,7 @@ function drawObjectMarkerFields(tObj, markerIndex)
         if capture then
             tMarkerEdit.capture = tObj
             tMarkerEdit.selected = tObj
+            tMarkerEdit.hoverKey = nil
         elseif tMarkerEdit.capture == tObj then
             tMarkerEdit.capture = nil
         end
@@ -2925,14 +2937,19 @@ function drawMapTab(item_width)
     end
     for i, tObj in ipairs(tSceneObjects) do
         local isSelected = tMarkerEdit.selected == tObj
+        local objectName = tObj.name
+        if type(objectName) ~= 'string' or objectName:match('^%s*$') or objectName == 'no_name' then
+            objectName = L('object') .. '-' .. i
+        end
         -- The object list is an accordion: every node receives an explicit open state
         -- every frame, so opening one object always closes the previously open object.
         tImGui.SetNextItemOpen(tMarkerEdit.openObject == tObj,
             tImGui.Flags('ImGuiCond_Always'))
         local treeFlags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
-        local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree_%d', L('object'), i, tObj.type, i), treeFlags)
+        local isOpen = tImGui.TreeNodeEx(string.format('%s (%s)##marker_tree_%d', objectName, tObj.type, i), treeFlags)
         if tImGui.IsItemClicked() then
             tMarkerEdit.selected = tObj
+            tMarkerEdit.hoverKey = nil
         end
         if tImGui.IsItemToggledOpen() then
             -- TreeNodeEx toggles on mouse release, while IsItemClicked() can be reported on
