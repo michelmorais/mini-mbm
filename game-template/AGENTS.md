@@ -317,7 +317,9 @@ obj:isLoaded()              -- → bool
 obj:collide(other)          -- → bool (AABB vs AABB)
 obj:collide(x, y)           -- → bool (AABB vs screen point)
 obj:isOver(x, y)            -- → bool (point inside bounding rect)
-obj:getPhysics()            -- → table of {type,x,y,z,width,height,...}
+obj:getPhysics()            -- → table of physics shapes
+-- 3D variable convex hull: {type="convex_polyhedron", points={{x=...,y=...,z=...},...}}
+-- It accepts 4..4096 local points and is consumed by the Bullet3D backend.
 ```
 
 ### Animation & Shaders
