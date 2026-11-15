@@ -2946,7 +2946,9 @@ function drawMapTab(item_width)
         tImGui.SetNextItemOpen(tMarkerEdit.openObject == tObj,
             tImGui.Flags('ImGuiCond_Always'))
         local treeFlags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
-        local isOpen = tImGui.TreeNodeEx(string.format('%s (%s)##marker_tree_%d', objectName, tObj.type, i), treeFlags)
+        -- Keep the visible name dynamic while using a stable TreeNode ID. With `##`, changing
+        -- the name also changes the parent ID stack and makes the child InputText lose focus.
+        local isOpen = tImGui.TreeNodeEx(string.format('%s (%s)###marker_tree_%d', objectName, tObj.type, i), treeFlags)
         if tImGui.IsItemClicked() then
             tMarkerEdit.selected = tObj
             tMarkerEdit.hoverKey = nil
