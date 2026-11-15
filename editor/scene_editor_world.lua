@@ -115,6 +115,7 @@ tPlacedMeshes = {}
 tSceneObjects            = {}
 tSceneObjectShapes       = {}
 tMarkerEdit = {dirty = true, axes = {}, pointHandles = {}}
+tMeshTransformGizmo = {axes = {}, selected = nil, axisLength = nil, drag = nil}
 tComboObjectType3d       = is2d and {'point', 'rectangle', 'circle', 'triangle', 'line', 'polygon'} or {'point', 'rectangle', 'circle', 'triangle', 'line', 'polygon', 'cube'}
 tComboObjectType3dCodes   = tComboObjectType3d
 tComboObjectPlane3d       = is2d and {'X + Y'} or {'X + Y', 'X + Z', 'Y + Z'}
@@ -1342,6 +1343,93 @@ function updateSelectionHighlights()
     end
 end
 
+function getSingleSelectedMeshOnActiveLayer()
+    if is2d or sActiveTab ~= 'layer' or iSelectedLayer == 0 then return nil end
+    local selected
+    for _, tPlaced in ipairs(tPlacedMeshes) do
+        if tPlaced.isSelected and tPlaced.layerIndex == iSelectedLayer and tPlaced.tObj and tPlaced.tObj.visible then
+            if selected then return nil end
+            selected = tPlaced
+        end
+    end
+    return selected
+end
+
+-- Translation gizmo for the one selected mesh. Lines are created once and only their transform
+-- changes while the selected object or camera-space gizmo size changes, so an idle editor does not
+-- rebuild line geometry every frame.
+function updateMeshTransformGizmo()
+    local selected = getSingleSelectedMeshOnActiveLayer()
+    local centerX, centerY, centerZ, length
+    if selected then
+        centerX, centerY, centerZ = selected.tObj:getAABBCenter()
+        length = math.max(10, markerMath.pointRadius(tMapOptions) * 9)
+    end
+    for name, axis in pairs(markerMath.axes) do
+        local handle = tMeshTransformGizmo.axes[name]
+        if selected then
+            if not handle then
+                handle = view.newLine()
+                handle:add({0, 0, 0, axis.x, axis.y, axis.z})
+                handle:setColor(table.unpack(axis.color))
+                handle.alwaysOnTop = true
+                tMeshTransformGizmo.axes[name] = handle
+            end
+            if tMeshTransformGizmo.selected ~= selected or
+                handle.x ~= centerX or handle.y ~= centerY or handle.z ~= centerZ then
+                handle:setPos(centerX, centerY, centerZ)
+            end
+            if tMeshTransformGizmo.axisLength ~= length then handle:setScale(length, length, length) end
+            handle.visible = true
+        elseif handle then
+            handle.visible = false
+        end
+    end
+    tMeshTransformGizmo.selected = selected
+    tMeshTransformGizmo.axisLength = length
+end
+
+function beginMeshTransformDrag(x, y)
+    if is2d or sActiveTab ~= 'layer' then return false end
+    local selected = getSingleSelectedMeshOnActiveLayer()
+    if not selected then return false end
+    local centerX, centerY, centerZ = selected.tObj:getAABBCenter()
+    local length = math.max(10, markerMath.pointRadius(tMapOptions) * 9)
+    local ox, oy, oz, dx, dy, dz = view.pickRay(x, y)
+    local axisName, parameter, best = nil, nil, math.huge
+    for name, axis in pairs(markerMath.axes) do
+        local start = {x = centerX + axis.x * length * 0.35,
+            y = centerY + axis.y * length * 0.35, z = centerZ + axis.z * length * 0.35}
+        local finish = {x = centerX + axis.x * length,
+            y = centerY + axis.y * length, z = centerZ + axis.z * length}
+        local hit = markerMath.raySegmentDistance(ox, oy, oz, dx, dy, dz, start, finish, length * 0.07)
+        local value = markerMath.axisParameter(x, y,
+            {x = centerX, y = centerY, z = centerZ}, axis, view.pickRay)
+        if hit and value and hit < best then axisName, parameter, best = name, value, hit end
+    end
+    if not axisName then return false end
+    local px, py, pz = resolvePlacedMeshWorldPos(selected)
+    tMeshTransformGizmo.drag = {
+        placed = selected, origin = {x = centerX, y = centerY, z = centerZ},
+        startPosition = {x = px, y = py, z = pz}, axis = markerMath.axes[axisName],
+        parameter = parameter, moved = false,
+    }
+    return true
+end
+
+function moveMeshTransformDrag(x, y)
+    local drag = tMeshTransformGizmo.drag
+    if not drag then return end
+    local value = markerMath.axisParameter(x, y, drag.origin, drag.axis, view.pickRay)
+    if not value then return end
+    local delta = value - drag.parameter
+    local p = drag.startPosition
+    setPlacedMeshWorldPosition(drag.placed, p.x + drag.axis.x * delta,
+        p.y + drag.axis.y * delta, p.z + drag.axis.z * delta)
+    syncPlacedMeshTransform(drag.placed)
+    drag.moved = math.abs(delta) > 1e-6
+end
+
 ------------------------------------------------------------------------------------------------------------------
 -- Multi-select (Layer tab): click-to-select, Shift+drag rectangle-select, rotate/delete tools
 ------------------------------------------------------------------------------------------------------------------
@@ -1579,8 +1667,31 @@ function resolvePlacedMeshWorldPos(tPlaced)
         return tPlaced.freeX, y, z
     else
         local x, y, z = gridCellToWorld(tPlaced.cellX, tPlaced.cellZ, layer)
+        local offset = tPlaced.positionOffset
+        if not is2d and offset then
+            x, y, z = x + (offset.x or 0), y + (offset.y or 0), z + (offset.z or 0)
+        end
         return x, y, z
     end
+end
+
+-- Stores the requested world position in the representation used by the active map mode.
+-- Grid modes keep the cell as the stable placement anchor and store the residual as a
+-- per-instance offset; Free mode stores the complete absolute position and is detached from the
+-- layer so editing any axis cannot be silently overridden by the layer plane.
+function setPlacedMeshWorldPosition(tPlaced, x, y, z)
+    if tMapOptions.sMapType == 'Free' then
+        tPlaced.freeX, tPlaced.freeY, tPlaced.freeZ = x, y, z
+        if not is2d then tPlaced.bAttachedToLayer = false end
+        return
+    end
+    if is2d then return end
+    local layer = tLayers[tPlaced.layerIndex]
+    if not layer then return end
+    local cx, cz = worldToGridCell(x, y, z, layer)
+    local baseX, baseY, baseZ = gridCellToWorld(cx, cz, layer)
+    tPlaced.cellX, tPlaced.cellZ = cx, cz
+    tPlaced.positionOffset = {x = x - baseX, y = y - baseY, z = z - baseZ}
 end
 
 -- Copy/Paste (Layer tab's Total Selected tool window, showMeshTools). nil until the first Copy --
@@ -1663,6 +1774,7 @@ function pasteCopiedMeshes()
             tNew.animationName = tCopy.animationName
             tNew.articulatedAnimationNames = copyStringList(tCopy.articulatedAnimationNames)
             tNew.scale = {x = tCopy.sx, y = tCopy.sy, z = tCopy.sz}
+            if not is2d then setPlacedMeshWorldPosition(tNew, wx, wy, wz) end
             syncPlacedMeshTransform(tNew)
             applyPlacedMeshAnimations(tNew)
             table.insert(tNewlyPasted, tNew)
@@ -1783,6 +1895,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
         cellX = cellX or 0, cellZ = cellZ or 0,
         freeX = freeX or 0, freeZ = freeZ or 0,
         bAttachedToLayer = true, freeY = freeY or 0,
+        positionOffset = {x = 0, y = 0, z = 0},
         rotationX = 0, rotationY = 0, rotationZ = 0, scale = {x = 1, y = 1, z = 1},
         animationName = '', articulatedAnimationNames = {},
         isSelected = false, tObj = nil,
@@ -2648,6 +2761,10 @@ function applyPlacedMeshWorldPositions(tSnapshots)
             tPlaced.freeX, tPlaced.freeY, tPlaced.freeZ = snap.x, snap.y, snap.z
             if layer then
                 tPlaced.cellX, tPlaced.cellZ = worldToGridCell(snap.x, snap.y, snap.z, layer)
+                if not is2d and tMapOptions.sMapType ~= 'Free' then
+                    local baseX, baseY, baseZ = gridCellToWorld(tPlaced.cellX, tPlaced.cellZ, layer)
+                    tPlaced.positionOffset = {x = snap.x - baseX, y = snap.y - baseY, z = snap.z - baseZ}
+                end
             end
         end
     end
@@ -3341,6 +3458,39 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
         if finished then pushUndoSnapshot() end
     end
 
+    if not is2d then
+        local px, py, pz = resolvePlacedMeshWorldPos(tPlaced)
+        local positionLabel = tMapOptions.sMapType == 'Free' and 'placed_position' or 'placed_position_offset'
+        tImGui.Text(L(positionLabel))
+        if tMapOptions.sMapType == 'Free' then
+            local cX, x = tImGui.DragFloat(L('axis_x') .. '##placed_pos_x' .. i, px, 1, 0, 0, '%.2f')
+            local fX = tImGui.IsItemDeactivatedAfterEdit()
+            local cY, y = tImGui.DragFloat(L('axis_y') .. '##placed_pos_y' .. i, py, 1, 0, 0, '%.2f')
+            local fY = tImGui.IsItemDeactivatedAfterEdit()
+            local cZ, z = tImGui.DragFloat(L('axis_z') .. '##placed_pos_z' .. i, pz, 1, 0, 0, '%.2f')
+            local fZ = tImGui.IsItemDeactivatedAfterEdit()
+            if cX or cY or cZ then
+                setPlacedMeshWorldPosition(tPlaced, cX and x or px, cY and y or py, cZ and z or pz)
+                syncPlacedMeshTransform(tPlaced)
+            end
+            if fX or fY or fZ then pushUndoSnapshot() end
+        else
+            local offset = tPlaced.positionOffset or {x = 0, y = 0, z = 0}
+            tPlaced.positionOffset = offset
+            local cX, x = tImGui.DragFloat(L('axis_x') .. '##placed_offset_x' .. i, offset.x, 1, 0, 0, '%.2f')
+            local fX = tImGui.IsItemDeactivatedAfterEdit()
+            local cY, y = tImGui.DragFloat(L('axis_y') .. '##placed_offset_y' .. i, offset.y, 1, 0, 0, '%.2f')
+            local fY = tImGui.IsItemDeactivatedAfterEdit()
+            local cZ, z = tImGui.DragFloat(L('axis_z') .. '##placed_offset_z' .. i, offset.z, 1, 0, 0, '%.2f')
+            local fZ = tImGui.IsItemDeactivatedAfterEdit()
+            if cX then offset.x = x end
+            if cY then offset.y = y end
+            if cZ then offset.z = z end
+            if cX or cY or cZ then syncPlacedMeshTransform(tPlaced) end
+            if fX or fY or fZ then pushUndoSnapshot() end
+        end
+    end
+
     tImGui.PopItemWidth()
 
     local bDeleted = false
@@ -3350,17 +3500,9 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
             if attach ~= tPlaced.bAttachedToLayer then
                 tPlaced.bAttachedToLayer = attach
                 syncPlacedMeshTransform(tPlaced)
+                pushUndoSnapshot()
             end
-            if not tPlaced.bAttachedToLayer then
-                local layer = tLayers[tPlaced.layerIndex]
-                local axis = layer and layer.bWall and 'freeZ' or 'freeY'
-                local label = layer and layer.bWall and 'axis_z' or 'axis_y'
-                local cFY, fy = tImGui.InputFloat(L(label) .. '##placed_free_normal' .. i, tPlaced[axis], 1, 10, '%.2f')
-                if cFY then
-                    tPlaced[axis] = fy
-                    syncPlacedMeshTransform(tPlaced)
-                end
-            end
+            -- Free-mode X/Y/Z are edited above as the absolute world position.
         end
 
         if tImGui.Button(L('delete') .. '##placed_del' .. i) then
@@ -3535,7 +3677,9 @@ end
 function setActiveTab(sTab)
     if sActiveTab == sTab then return end
     if tMarkerEdit.drag and tMarkerEdit.drag.moved then pushUndoSnapshot() end
+    if tMeshTransformGizmo.drag and tMeshTransformGizmo.drag.moved then pushUndoSnapshot() end
     tMarkerEdit.drag, tMarkerEdit.capture = nil, nil
+    tMeshTransformGizmo.drag = nil
     sActiveTab = sTab
     cam3d = tCamByTab[sTab]
     -- The Mesh View preview object is a real renderizable placed at the world origin -- without
@@ -4206,6 +4350,9 @@ function captureScene3dSnapshot()
             rotationZ = tPlaced.rotationZ or 0,
             animationName = tPlaced.animationName or '',
             articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
+            offsetX = tPlaced.positionOffset and tPlaced.positionOffset.x or 0,
+            offsetY = tPlaced.positionOffset and tPlaced.positionOffset.y or 0,
+            offsetZ = tPlaced.positionOffset and tPlaced.positionOffset.z or 0,
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
         }
     end
@@ -4238,6 +4385,7 @@ function restoreScene3dSnapshot(snapshot)
         tPlaced.rotationY        = tInfo.rotationY
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
+        tPlaced.positionOffset = {x = tInfo.offsetX or 0, y = tInfo.offsetY or 0, z = tInfo.offsetZ or 0}
         tPlaced.scale            = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
         syncPlacedMeshTransform(tPlaced)
         applyPlacedMeshAnimations(tPlaced)
@@ -4403,12 +4551,15 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         else
             fp:write(string.format(
                 '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,'
-                .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,bAttachedToLayer=%s,'
+                .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,offsetX=%g,offsetY=%g,offsetZ=%g,bAttachedToLayer=%s,'
                 .. 'animationName=%q,articulatedAnimationNames=%s},\n',
                 i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
                 tPlaced.rotationX or 0, tPlaced.rotationZ or 0, tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
                 tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
+                tPlaced.positionOffset and tPlaced.positionOffset.x or 0,
+                tPlaced.positionOffset and tPlaced.positionOffset.y or 0,
+                tPlaced.positionOffset and tPlaced.positionOffset.z or 0,
                 tostring(tPlaced.bAttachedToLayer == true),
                 tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         end
@@ -4519,6 +4670,7 @@ function applyLoadedScene3d(tLoaded)
         tPlaced.rotationY = tInfo.rotationY
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
+        tPlaced.positionOffset = {x = tInfo.offsetX or 0, y = tInfo.offsetY or 0, z = tInfo.offsetZ or 0}
         tPlaced.scale = {x = tInfo.sx, y = tInfo.sy, z = tInfo.sz}
         -- Belt-and-suspenders on top of the per-folder registerMeshesFromFolder scan above (which
         -- covers the common case): register this exact placed file directly too, so it still shows
@@ -4893,6 +5045,7 @@ function onLoop(delta)
     -- Runs every frame regardless of mouse-capture state -- blinking on already-selected meshes
     -- must keep animating even while the cursor is over the UI, not just while hovering the scene.
     updateSelectionHighlights()
+    updateMeshTransformGizmo()
     updateDirectionalLightGizmo()
     updatePointLightMarkers()
 
@@ -4962,6 +5115,7 @@ function onTouchDown(key, x, y)
     if key == 0 then
         fMouseDownX, fMouseDownY = x, y
         bCameraDraggedThisPress  = false
+        if beginMeshTransformDrag(x, y) then return end
         if beginSceneObjectDrag(x, y) then return end
         -- Shift+drag starts a selection rectangle instead of orbiting -- Shift is the explicit
         -- signal that this press means "select", so the camera must not move underneath it.
@@ -4976,6 +5130,11 @@ function onTouchDown(key, x, y)
 end
 
 function onTouchMove(key, x, y)
+    if tMeshTransformGizmo.drag then
+        moveMeshTransformDrag(x, y)
+        mouseLastX, mouseLastY = x, y
+        return
+    end
     if is2d and not tMarkerEdit.drag and not bRectSelecting and not tImGui.GetWantCaptureMouse() then
         if isClickedMouseleft and tMarkerEdit.capture and sceneObjectsEditable() then
             mouseLastX, mouseLastY = x, y
@@ -5039,6 +5198,12 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
+    if key == 0 and tMeshTransformGizmo.drag then
+        if tMeshTransformGizmo.drag.moved then pushUndoSnapshot() end
+        tMeshTransformGizmo.drag = nil
+        isClickedMouseleft = false
+        return
+    end
     if key == 0 and tMarkerEdit.drag then
         if tMarkerEdit.drag.moved then pushUndoSnapshot() end
         tMarkerEdit.drag = nil
