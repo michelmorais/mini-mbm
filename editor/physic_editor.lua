@@ -30,6 +30,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tConvexPreview =    require "convex_polyhedron_preview"
 require "box2d"
 
 
@@ -96,7 +97,8 @@ function onInitScene()
      tPhysicsOptions      = {
         iIndexPrimitiveType = 1,
         iPrimitivesRectangle  = 2,
-        iPrimitivesCircle  = 5
+        iPrimitivesCircle  = 5,
+        iConvexPolyhedronPoints = 8
         }
 end
 
@@ -235,6 +237,59 @@ function onRender(tShape, vertex, uv, index_read_only)
     end
     vertex = tShape.vertex
     return vertex,uv
+end
+
+function isPhysicsEditorVisible(tInfoPhysic)
+    return tInfoPhysic.bEditorVisible ~= false
+end
+
+function syncPhysicsEditorVisibility(tInfoPhysic)
+    local bVisible = isPhysicsEditorVisible(tInfoPhysic)
+    if tInfoPhysic.tLine then
+        tInfoPhysic.tLine.visible = bVisible
+    end
+    if tInfoPhysic.tShape then
+        tInfoPhysic.tShape.visible = bVisible and tInfoPhysic.bSelected == true
+    end
+    local tHandles = tInfoPhysic.tHandles
+    if tHandles then
+        local bShowHandles = bVisible and tInfoPhysic.bSelected == true
+        if tHandles.move then tHandles.move.visible = bShowHandles end
+        if tHandles.resize then tHandles.resize.visible = bShowHandles end
+        if tHandles.corners then
+            for pointKey,handle in pairs(tHandles.corners) do
+                handle.visible = bShowHandles
+                if tInfoPhysic.selectedPoint == pointKey then
+                    handle:setColor(1,0,1,1)
+                else
+                    handle:setColor(0,1,1,1)
+                end
+            end
+        end
+        if tHandles.resizeAxes then
+            for _,handle in pairs(tHandles.resizeAxes) do handle.visible = bShowHandles end
+        end
+        if tHandles.pointAxes then
+            for pointKey,axes in pairs(tHandles.pointAxes) do
+                local bShowPointAxes = bShowHandles
+                    and (tInfoPhysic.selectedPoint == nil or tInfoPhysic.selectedPoint == pointKey)
+                for _,axisHandle in pairs(axes) do
+                    if axisHandle.line then axisHandle.line.visible = bShowPointAxes end
+                end
+            end
+        end
+    end
+end
+
+function physicsInputFloat(label,value,bHighlight,step,stepFast,format,flags)
+    if bHighlight then
+        tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=1,b=0,a=1})
+    end
+    local result,newValue = tImGui.InputFloat(label,value,step,stepFast,format,flags)
+    if bHighlight then
+        tImGui.PopStyleColor(1)
+    end
+    return result,newValue
 end
 
 
@@ -609,8 +664,8 @@ function setupPhysics2d(tInfoPhysic)
         end
 
         tLine:set(tPoints,1)
-    elseif tInfoPhysic.type == 'complex' then
-        tInfoPhysic.type_info = 'complex'
+    elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+        tInfoPhysic.type_info = 'convex_polyhedron_8'
         -- box2d (2D) only ever reads the front quad a,b,c,d; keep e..h mirrored to it
         -- so the data stays well-formed if this same physic is later used on a 3D mesh.
         local tPoints = {   tInfoPhysic.a.x * scale, tInfoPhysic.a.y * scale,
@@ -699,11 +754,12 @@ function setupPhysics2d(tInfoPhysic)
     if tInfoPhysic.finishMoveFrame == nil then
         tInfoPhysic.finishMoveFrame = function(self,x,y) end
     end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 local BOX_LETTERS = {'a','b','c','d','e','f','g','h'}
 
--- 8 corners of an axis-aligned box, using the engine's own CUBE_COMPLEX convention
+-- 8 points using the engine's CONVEX_POLYHEDRON_8 convention
 -- (front face a,b,c,d @ +halfDepth, back face e,f,g,h @ -halfDepth), see include/core_mbm/shapes.h
 function boxCorners(hw,hh,hd)
     return {
@@ -725,6 +781,27 @@ function boxTriangleFaces(corners)
     }
 end
 
+-- Returns the twelve edges of the a..h convention as independent line segments.
+-- The points are the actual stored points, not an AABB generated from them.
+function convexPolyhedronEdgePoints(points)
+    local edges = {
+        {1,2},{2,3},{3,4},{4,1}, -- front
+        {5,6},{6,7},{7,8},{8,5}, -- back
+        {1,5},{2,6},{3,7},{4,8}, -- depth
+    }
+    local result = {}
+    for _,edge in ipairs(edges) do
+        local p1, p2 = points[edge[1]], points[edge[2]]
+        table.insert(result,p1.x); table.insert(result,p1.y); table.insert(result,p1.z)
+        table.insert(result,p2.x); table.insert(result,p2.y); table.insert(result,p2.z)
+    end
+    return result
+end
+
+function convexPolyhedronVariableEdgePoints(points)
+    return tConvexPreview.edgePoints(points)
+end
+
 -- Builds an invisible 3D box shape (used only as the translucent highlight fill /
 -- source geometry for the wireframe; mouse hit-testing is a real ray-cast, see below,
 -- since RENDERIZABLE:collide(x,y) approximates ray distance from an object's own Z,
@@ -742,8 +819,56 @@ function makeBoxShape3d(cx,cy,cz,w,h,d,name)
         end
     end
     local tShape = shape:new('3d',cx,cy,cz)
-    tShape:create(verts, nil, name)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
     return tShape, hw,hh,hd
+end
+
+-- Builds the preview from the stored eight points. The a..h face convention is preserved,
+-- while the vertices themselves are allowed to describe a skewed or otherwise deformed
+-- convex hexahedron. Bullet still computes its collision hull from the same raw points.
+function makeConvexPolyhedronShape3d(points,cx,cy,cz,name)
+    local faces = boxTriangleFaces(points)
+    local verts = {}
+    for _,tri in ipairs(faces) do
+        for _,p in ipairs(tri) do
+            table.insert(verts,p.x - cx)
+            table.insert(verts,p.y - cy)
+            table.insert(verts,p.z - cz)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
+    return tShape
+end
+
+-- Builds the translucent preview from the actual variable-point convex hull. The old preview
+-- used the point cloud's AABB as a fill, which made a skewed polyhedron look like a dark cube.
+function makeVariableConvexPolyhedronShape3d(points,cx,cy,cz,name,hull)
+    hull = hull or tConvexPreview.hull(points)
+    if #hull.faces == 0 then
+        local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+        for _, p in ipairs(points) do
+            minX = math.min(minX,p.x or 0); maxX = math.max(maxX,p.x or 0)
+            minY = math.min(minY,p.y or 0); maxY = math.max(maxY,p.y or 0)
+            minZ = math.min(minZ,p.z or 0); maxZ = math.max(maxZ,p.z or 0)
+        end
+        return makeBoxShape3d(cx,cy,cz,maxX-minX,maxY-minY,maxZ-minZ)
+    end
+    local verts = {}
+    for _, face in ipairs(hull.faces) do
+        for _, pointIndex in ipairs(face) do
+            local p = points[pointIndex]
+            table.insert(verts,p.x - cx)
+            table.insert(verts,p.y - cy)
+            table.insert(verts,(p.z or 0) - cz)
+        end
+    end
+    local tShape = shape:new('3d',cx,cy,cz)
+    tShape:create(verts, nil, name, nil, 'FRONT_AND_BACK')
+    tShape:setBlend('inv_src_alpha')
+    return tShape
 end
 
 local handleMarkerCount = 0
@@ -803,6 +928,40 @@ function raySphereHit(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius)
     return true, tca - thc
 end
 
+-- Returns the closest signed parameter on an axis for the pick ray. This is used by the
+-- per-point XYZ gizmos so dragging follows only the selected world axis, even when the camera
+-- is orbiting around the object.
+function rayAxisParameter(sx,sy,origin,axis)
+    local ok,ox,oy,oz,dx,dy,dz = pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local wx,wy,wz = ox-origin.x,oy-origin.y,oz-origin.z
+    local rayAxisDot = dx*axis.x + dy*axis.y + dz*axis.z
+    local denominator = 1 - rayAxisDot*rayAxisDot
+    if math.abs(denominator) < 0.05 then return nil end
+    return ((axis.x*wx + axis.y*wy + axis.z*wz) - rayAxisDot*(dx*wx + dy*wy + dz*wz)) / denominator
+end
+
+function raySegmentDistance(ox,oy,oz,dx,dy,dz,a,b,radius)
+    local sx,sy,sz = b.x-a.x,b.y-a.y,b.z-a.z
+    local lengthSquared = sx*sx + sy*sy + sz*sz
+    if lengthSquared < 1e-12 then return nil end
+    local wx,wy,wz = ox-a.x,oy-a.y,oz-a.z
+    local raySegmentDot = dx*sx + dy*sy + dz*sz
+    local rayStartDot = dx*wx + dy*wy + dz*wz
+    local segmentStartDot = sx*wx + sy*wy + sz*wz
+    local denominator = lengthSquared - raySegmentDot*raySegmentDot
+    local segmentParameter = math.abs(denominator) < 1e-12 and -segmentStartDot/lengthSquared
+        or (segmentStartDot-raySegmentDot*rayStartDot)/denominator
+    segmentParameter = math.max(0,math.min(1,segmentParameter))
+    local px,py,pz = a.x+sx*segmentParameter,a.y+sy*segmentParameter,a.z+sz*segmentParameter
+    local rayParameter = (px-ox)*dx + (py-oy)*dy + (pz-oz)*dz
+    if rayParameter < 0 then return nil end
+    local qx,qy,qz = ox+dx*rayParameter,oy+dy*rayParameter,oz+dz*rayParameter
+    local ex,ey,ez = px-qx,py-qy,pz-qz
+    if ex*ex + ey*ey + ez*ez > radius*radius then return nil end
+    return rayParameter
+end
+
 -- Intersects the pick ray through (sx,sy) with a fixed plane (billboard-drag technique: the plane
 -- is computed once at drag-start, facing the camera, so the dragged point tracks the cursor
 -- regardless of camera orbit during the drag). planePt/planeNormal are {x,y,z} tables. Same
@@ -817,9 +976,9 @@ function rayPlaneHit(sx, sy, planePt, planeNormal)
     return ox + dx * t, oy + dy * t, oz + dz * t
 end
 
--- Hit-tests a single 3D physics shape's move/resize handles (req #10) against the pick ray
--- through screen point (sx,sy); returns the nearest hit's kind ('move'|'corner'|'resize'), the
--- corner letter (only for 'corner'), and the handle's own world position, or nil on a miss.
+-- Hit-tests a single 3D physics shape's move/resize/point-axis handles (req #10) against the
+-- pick ray through screen point (sx,sy); returns the nearest hit's kind, its identifier, and
+-- the handle's own world position, or nil on a miss.
 -- Same nearest-hit-wins technique as the removed mesh_debug.lua bone gizmo's hitTestBone.
 function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
     local tHandles = tInfoPhysic and tInfoPhysic.tHandles
@@ -850,11 +1009,38 @@ function hitTestPhysicsHandles3d(tInfoPhysic, sx, sy)
             test('resizeAxis', axis, h)
         end
     end
+    if tHandles.pointAxes then
+        for pointKey,axes in pairs(tHandles.pointAxes) do
+            if tInfoPhysic.selectedPoint == nil or tInfoPhysic.selectedPoint == pointKey then
+                for axisName,axisHandle in pairs(axes) do
+                    if axisHandle.line and axisHandle.line.visible and axisHandle.origin and axisHandle.target then
+                        local dist = raySegmentDistance(ox,oy,oz,dx,dy,dz,
+                            axisHandle.origin,axisHandle.target,radius * 0.75)
+                        if dist and dist < bestDist then
+                            bestKind = 'pointAxis'
+                            bestLetter = {point=pointKey,axis=axisName}
+                            bestDist = dist
+                            bestX,bestY,bestZ = axisHandle.target.x,axisHandle.target.y,axisHandle.target.z
+                        end
+                    end
+                end
+            end
+        end
+    end
 
     if bestKind then
         return bestKind, bestLetter, bestX, bestY, bestZ
     end
     return nil
+end
+
+function togglePhysicsPointSelection(tInfoPhysic, pointKey)
+    if tInfoPhysic.selectedPoint == pointKey then
+        tInfoPhysic.selectedPoint = nil
+    else
+        tInfoPhysic.selectedPoint = pointKey
+    end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 -- Flat XYZ point list for one great circle of a sphere, lying in the given plane ('xy'/'xz'/'yz').
@@ -890,6 +1076,13 @@ function setupPhysics3d(tInfoPhysic)
                 if self.tHandles.resizeAxes then
                     for _,h in pairs(self.tHandles.resizeAxes) do h:destroy() end
                 end
+                if self.tHandles.pointAxes then
+                    for _,axes in pairs(self.tHandles.pointAxes) do
+                        for _,axisHandle in pairs(axes) do
+                            if axisHandle.line then axisHandle.line:destroy() end
+                        end
+                    end
+                end
             end
         end
     end
@@ -909,6 +1102,7 @@ function setupPhysics3d(tInfoPhysic)
     end
 
     local cx,cy,cz,w,h,d
+    local tPolyhedronPoints = nil
 
     if tInfoPhysic.type == 'cube' then
         tInfoPhysic.type_info = 'cube'
@@ -927,26 +1121,54 @@ function setupPhysics3d(tInfoPhysic)
         local minZ = math.min(a.z or 0,b.z or 0,c.z or 0); local maxZ = math.max(a.z or 0,b.z or 0,c.z or 0)
         cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
         w,h,d = maxX-minX, maxY-minY, maxZ-minZ
-    elseif tInfoPhysic.type == 'complex' then
-        tInfoPhysic.type_info = 'complex'
+    elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+        tInfoPhysic.type_info = 'convex_polyhedron_8'
+        tPolyhedronPoints = {}
         local minX,maxX,minY,maxY,minZ,maxZ =  math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
-        for _,l in ipairs(BOX_LETTERS) do
+        for pointIndex,l in ipairs(BOX_LETTERS) do
             local p = tInfoPhysic[l]
+            tPolyhedronPoints[pointIndex] = {x=p.x,y=p.y,z=p.z}
             minX = math.min(minX,p.x); maxX = math.max(maxX,p.x)
             minY = math.min(minY,p.y); maxY = math.max(maxY,p.y)
             minZ = math.min(minZ,p.z); maxZ = math.max(maxZ,p.z)
         end
         cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
         w,h,d = maxX-minX, maxY-minY, maxZ-minZ
+    elseif tInfoPhysic.type == 'convex_polyhedron' then
+        tInfoPhysic.type_info = 'convex_polyhedron'
+        tPolyhedronPoints = {}
+        local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+        for pointIndex,p in ipairs(tInfoPhysic.points or {}) do
+            local point = {x=p.x or 0,y=p.y or 0,z=p.z or 0}
+            tPolyhedronPoints[pointIndex] = point
+            minX = math.min(minX,point.x); maxX = math.max(maxX,point.x)
+            minY = math.min(minY,point.y); maxY = math.max(maxY,point.y)
+            minZ = math.min(minZ,point.z); maxZ = math.max(maxZ,point.z)
+        end
+        if #tPolyhedronPoints >= 4 then
+            cx,cy,cz = (minX+maxX)*0.5, (minY+maxY)*0.5, (minZ+maxZ)*0.5
+            w,h,d = maxX-minX, maxY-minY, maxZ-minZ
+        end
     end
 
     if cx then
-        local hw,hh,hd
-        tInfoPhysic.tShape, hw,hh,hd = makeBoxShape3d(cx,cy,cz, w,h,d, sUniqueName)
+        local hw = math.max(w,0.01) * 0.5
+        local hh = math.max(h,0.01) * 0.5
+        local hd = math.max(d,0.01) * 0.5
+        local variableHull = tInfoPhysic.type == 'convex_polyhedron'
+            and tConvexPreview.hull(tPolyhedronPoints) or nil
+        if tInfoPhysic.type == 'convex_polyhedron' then
+            tInfoPhysic.tShape = makeVariableConvexPolyhedronShape3d(tPolyhedronPoints,cx,cy,cz,sUniqueName,variableHull)
+        elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+            tInfoPhysic.tShape = makeConvexPolyhedronShape3d(tPolyhedronPoints,cx,cy,cz,sUniqueName)
+        else
+            tInfoPhysic.tShape = makeBoxShape3d(cx,cy,cz,w,h,d,sUniqueName)
+        end
         tInfoPhysic.aabbMin = {x=cx-hw, y=cy-hh, z=cz-hd}
         tInfoPhysic.aabbMax = {x=cx+hw, y=cy+hh, z=cz+hd}
 
-        tInfoPhysic.tShape:setColor(0,1,0,0.15)
+        local shapeAlpha = tInfoPhysic.type == 'convex_polyhedron' and 0.05 or 0.15
+        tInfoPhysic.tShape:setColor(0,1,0,shapeAlpha)
         tInfoPhysic.tShape.visible = false
 
         if tInfoPhysic.tLine == nil or not tInfoPhysic.tLineIs3d then
@@ -961,8 +1183,23 @@ function setupPhysics3d(tInfoPhysic)
             tInfoPhysic.tLine = line:new('3d')
             tInfoPhysic.tLineIs3d = true
             tInfoPhysic.lineCircleIdx = nil
+            tInfoPhysic.linePolyhedronIdx = nil
         end
-        if tInfoPhysic.type == 'sphere' then
+        if tInfoPhysic.type == 'convex_polyhedron' then
+            local points = tConvexPreview.edgePoints(tPolyhedronPoints,variableHull)
+            if tInfoPhysic.linePolyhedronIdx == nil then
+                tInfoPhysic.linePolyhedronIdx = tInfoPhysic.tLine:add(points)
+            else
+                tInfoPhysic.tLine:set(points,tInfoPhysic.linePolyhedronIdx)
+            end
+        elseif tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
+            local points = convexPolyhedronEdgePoints(tPolyhedronPoints)
+            if tInfoPhysic.linePolyhedronIdx == nil then
+                tInfoPhysic.linePolyhedronIdx = tInfoPhysic.tLine:add(points)
+            else
+                tInfoPhysic.tLine:set(points,tInfoPhysic.linePolyhedronIdx)
+            end
+        elseif tInfoPhysic.type == 'sphere' then
             -- A box wireframe (drawBounding, used for every other type) reads as "this is a
             -- cube" for a shape whose actual physics is a sphere -- draw a 3-great-circle globe
             -- instead (direct user feedback: "it should have the wireframe as globe or sphere").
@@ -981,7 +1218,7 @@ function setupPhysics3d(tInfoPhysic)
                 tInfoPhysic.tLine:set(ptsXZ, tInfoPhysic.lineCircleIdx[2])
                 tInfoPhysic.tLine:set(ptsYZ, tInfoPhysic.lineCircleIdx[3])
             end
-        else
+        elseif not tPolyhedronPoints then
             tInfoPhysic.tLine:drawBounding(tInfoPhysic.tShape,false)
         end
         tInfoPhysic.tLine:setColor(0,1,0)
@@ -997,7 +1234,7 @@ function setupPhysics3d(tInfoPhysic)
         -- must stay a rigid, axis-aligned box, so dragging one handle resizes only that dimension
         -- (width/height/depth independently), symmetric about the unmoved center -- same
         -- distance-from-center convention as Sphere's own resize handle, just one axis at a time.
-        if tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
+        if tInfoPhysic.type == 'convex_polyhedron' or tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' or tInfoPhysic.type == 'sphere' or tInfoPhysic.type == 'cube' then
             -- No fixed-world-unit floor here -- a hard minimum (previously 5) made handles look
             -- larger than the object itself once maxExtent dropped below ~62 units (direct user
             -- feedback: "for a small object... the pivots... is bigger than the object itself").
@@ -1010,7 +1247,7 @@ function setupPhysics3d(tInfoPhysic)
                 tInfoPhysic.tHandles = {}
             end
             local tHandles = tInfoPhysic.tHandles
-            local bVisible = tInfoPhysic.bSelected == true
+            local bVisible = isPhysicsEditorVisible(tInfoPhysic) and tInfoPhysic.bSelected == true
 
             if tHandles.move == nil then
                 tHandles.move = makeHandleMarker(cx,cy,cz, handleSize, 1,1,0,1) -- yellow: move
@@ -1019,18 +1256,75 @@ function setupPhysics3d(tInfoPhysic)
             end
             tHandles.move.visible = bVisible
 
-            if tInfoPhysic.type == 'complex' then
+            if tInfoPhysic.type == 'convex_polyhedron' or tInfoPhysic.type == 'convex_polyhedron_8' or tInfoPhysic.type == 'complex' then
                 if tHandles.corners == nil then
                     tHandles.corners = {}
                 end
-                for _,l in ipairs(BOX_LETTERS) do
-                    local p = tInfoPhysic[l]
-                    if tHandles.corners[l] == nil then
-                        tHandles.corners[l] = makeHandleMarker(p.x,p.y,p.z, handleSize, 0,1,1,1) -- cyan: resize
+                local pointList = tInfoPhysic.type == 'convex_polyhedron' and tPolyhedronPoints or nil
+                local pointCount = pointList and #pointList or #BOX_LETTERS
+                for pointIndex = 1, pointCount do
+                    local key = pointList and pointIndex or BOX_LETTERS[pointIndex]
+                    local p = pointList and pointList[pointIndex] or tInfoPhysic[key]
+                    if tHandles.corners[key] == nil then
+                        tHandles.corners[key] = makeHandleMarker(p.x,p.y,p.z, handleSize, 0,1,1,1) -- cyan: resize
                     else
-                        tHandles.corners[l]:setPos(p.x,p.y,p.z)
+                        tHandles.corners[key]:setPos(p.x,p.y,p.z)
                     end
-                    tHandles.corners[l].visible = bVisible
+                    tHandles.corners[key].visible = bVisible
+                end
+
+                -- Each point also gets three small axis handles. The colored shaft/arrow is
+                -- intentionally separate from the cyan point marker: clicking X/Y/Z constrains
+                -- only that point to the selected world axis.
+                if tHandles.pointAxes == nil then
+                    tHandles.pointAxes = {}
+                end
+                local axisDefinitions = {
+                    x = {x=1,y=0,z=0,r=1,g=0,b=0},
+                    y = {x=0,y=1,z=0,r=0,g=1,b=0},
+                    z = {x=0,y=0,z=1,r=0,g=0,b=1},
+                }
+                local axisLength = math.max(handleSize * 2.5, 0.02)
+                for pointIndex = 1, pointCount do
+                    local key = pointList and pointIndex or BOX_LETTERS[pointIndex]
+                    local p = pointList and pointList[pointIndex] or tInfoPhysic[key]
+                    local pointAxes = tHandles.pointAxes[key]
+                    if pointAxes == nil then
+                        pointAxes = {}
+                        tHandles.pointAxes[key] = pointAxes
+                    end
+                    for axisName,axis in pairs(axisDefinitions) do
+                        local target = {
+                            x = p.x + axis.x * axisLength,
+                            y = p.y + axis.y * axisLength,
+                            z = (p.z or 0) + axis.z * axisLength,
+                        }
+                        local arrowBase = {
+                            x = target.x - axis.x * axisLength * 0.12,
+                            y = target.y - axis.y * axisLength * 0.12,
+                            z = target.z - axis.z * axisLength * 0.12,
+                        }
+                        local linePoints = {
+                            p.x,p.y,p.z or 0,target.x,target.y,target.z,
+                            target.x,target.y,target.z,arrowBase.x,arrowBase.y,arrowBase.z,
+                        }
+                        local axisHandle = pointAxes[axisName]
+                        if axisHandle == nil then
+                            local axisLine = line:new('3d')
+                            axisLine:add(linePoints)
+                            axisLine:setColor(axis.r,axis.g,axis.b)
+                            axisLine.alwaysOnTop = true
+                            axisHandle = {
+                                line = axisLine,
+                            }
+                            pointAxes[axisName] = axisHandle
+                        else
+                            axisHandle.line:set(linePoints,1)
+                        end
+                        axisHandle.origin = {x=p.x,y=p.y,z=p.z or 0}
+                        axisHandle.target = target
+                        axisHandle.line.visible = bVisible
+                    end
                 end
             elseif tInfoPhysic.type == 'sphere' then
                 local rx = tInfoPhysic.x + tInfoPhysic.ray
@@ -1065,6 +1359,7 @@ function setupPhysics3d(tInfoPhysic)
     if tInfoPhysic.finishMoveFrame == nil then
         tInfoPhysic.finishMoveFrame = function(self,x,y) end
     end
+    syncPhysicsEditorVisibility(tInfoPhysic)
 end
 
 -- Dispatches to setupPhysics2d/setupPhysics3d based on the LIVE bIs3d, every call -- previously
@@ -1167,15 +1462,15 @@ function onLoadMesh()
             tInfoPhysics = tMesh:getPhysics()
             camera2d:setPos(-150,0)
 
-            -- Auto-detect a promoted sprite on load: type='complex' is an unambiguous signal (2D
+            -- Auto-detect a promoted sprite on load: the eight-point convex type is an unambiguous signal (2D
             -- never creates it any other way), unlike type='sphere' which is identical whether it
             -- came from "Circle" or the promoted "Sphere" button -- a sphere-only promotion can't
             -- be told apart from an ordinary 2D circle from saved data alone (shapes.h's CUBE/
-            -- SPHERE/CUBE_COMPLEX have no spare field to persist that distinction to disk). Known,
+            -- SPHERE/CONVEX_POLYHEDRON_8 have no spare field to persist that distinction to disk). Known,
             -- accepted gap -- the Camera 2D/3D toggle below is the manual fallback for that case.
             if bSpriteBackedObject and not bIs3d then
                 for i=1, #tInfoPhysics do
-                    if tInfoPhysics[i].type == 'complex' then
+                    if tInfoPhysics[i].type == 'convex_polyhedron_8' or tInfoPhysics[i].type == 'complex' or tInfoPhysics[i].type == 'convex_polyhedron' then
                         bIs3d = true
                         bSpriteEverWent3d = true
                         break
@@ -1200,8 +1495,12 @@ function onLoadMesh()
                     if index == nil then --disable high light
                         tHighLightPoint.visible = false
                     else
-                        tHighLightPoint.visible = true
                         local tInfoPhysic = self[index]
+                        if not tInfoPhysic or not isPhysicsEditorVisible(tInfoPhysic) then
+                            tHighLightPoint.visible = false
+                            return
+                        end
+                        tHighLightPoint.visible = true
                         if bIs3d then
                             if tInfoPhysic.type_info == 'cube' or tInfoPhysic.type_info == 'sphere' then
                                 tHighLightPoint:setPos(tInfoPhysic.x,tInfoPhysic.y,tInfoPhysic.z)
@@ -1215,11 +1514,16 @@ function onLoadMesh()
                                 elseif value == 3 then
                                     tHighLightPoint:setPos(tInfoPhysic.c.x,tInfoPhysic.c.y,tInfoPhysic.c.z or 0)
                                 end
-                            elseif tInfoPhysic.type_info == 'complex' then
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron_8' then
                                 local l = BOX_LETTERS[value or 0]
                                 if l then
                                     local p = tInfoPhysic[l]
                                     tHighLightPoint:setPos(p.x,p.y,p.z)
+                                end
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron' then
+                                local p = tInfoPhysic.points[value or 0]
+                                if p then
+                                    tHighLightPoint:setPos(p.x,p.y,p.z or 0)
                                 end
                             end
                         else
@@ -1237,10 +1541,15 @@ function onLoadMesh()
                                 elseif value == 3 then
                                     tHighLightPoint:setPos(tInfoPhysic.c.x * scale,tInfoPhysic.c.y * scale)
                                 end
-                            elseif tInfoPhysic.type_info == 'complex' then
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron_8' then
                                 local l = BOX_LETTERS[value or 0]
                                 if l then
                                     local p = tInfoPhysic[l]
+                                    tHighLightPoint:setPos(p.x * scale,p.y * scale)
+                                end
+                            elseif tInfoPhysic.type_info == 'convex_polyhedron' then
+                                local p = tInfoPhysic.points[value or 0]
+                                if p then
                                     tHighLightPoint:setPos(p.x * scale,p.y * scale)
                                 end
                             end
@@ -1251,7 +1560,7 @@ function onLoadMesh()
                 tInfoPhysics.indexIsOver = function(self,x,y) -- 0 to none
                     for i=1, #self do
                         local tInfoPhysic = self[i]
-                        if tInfoPhysic.selectable and tInfoPhysic:isOver(x,y) then
+                        if tInfoPhysic.selectable and isPhysicsEditorVisible(tInfoPhysic) and tInfoPhysic:isOver(x,y) then
                             return i
                         end
                     end
@@ -1267,15 +1576,19 @@ function onLoadMesh()
                 tInfoPhysics.setHighLight = function(self,index) -- 0 to none
                     
                     for j=1, #self do
-                        local tShape = self[j].tShape
-                        tShape.visible = j == index
-                        tShape:setColor(1,0,1,0.1)
+                        local tPhysic = self[j]
+                        local tShape = tPhysic.tShape
+                        tShape.visible = isPhysicsEditorVisible(tPhysic) and j == index
+                        local shapeAlpha = tPhysic.type == 'convex_polyhedron' and 0.035 or 0.1
+                        tShape:setColor(1,0,1,shapeAlpha)
                     end
 
                     if self.iIndexSelected ~= 0 then
-                        local tShape = self[self.iIndexSelected].tShape
-                        tShape.visible = true
-                        tShape:setColor(0,1,0,0.1)
+                        local tPhysic = self[self.iIndexSelected]
+                        local tShape = tPhysic.tShape
+                        tShape.visible = isPhysicsEditorVisible(tPhysic)
+                        local shapeAlpha = tPhysic.type == 'convex_polyhedron' and 0.05 or 0.1
+                        tShape:setColor(0,1,0,shapeAlpha)
                     end
                 end
 
@@ -1289,7 +1602,7 @@ function onLoadMesh()
                     if self.iIndexSelected ~= 0 then
                         local tSelectedPoints = self[self.iIndexSelected].tPoints
                         for j=1, #self do
-                            if self[j].bSelected then
+                            if self[j].bSelected and isPhysicsEditorVisible(self[j]) then
                                 local tPoints      = self[j].tPoints
                                 local iTotalPoints = (#tPoints / 2) - 1 --the last one is to close the geometry
                                 for i=1, iTotalPoints do
@@ -1312,21 +1625,37 @@ function onLoadMesh()
                 end
                 
                 tInfoPhysics.setSelected = function(self,index) -- 0 to none
+                    if self.iIndexSelected ~= index then
+                        for j=1, #self do
+                            self[j].selectedPoint = nil
+                        end
+                    end
                     for j=1, #self do
                         local tShape = self[j].tShape
-                        tShape.visible    = j == index
+                        tShape.visible    = isPhysicsEditorVisible(self[j]) and j == index
                         self[j].bSelected = j == index
                         local tHandles = self[j].tHandles
                         if tHandles then
-                            if tHandles.move then tHandles.move.visible = j == index end
-                            if tHandles.resize then tHandles.resize.visible = j == index end
+                            local bShowHandles = isPhysicsEditorVisible(self[j]) and j == index
+                            if tHandles.move then tHandles.move.visible = bShowHandles end
+                            if tHandles.resize then tHandles.resize.visible = bShowHandles end
                             if tHandles.corners then
-                                for _,h in pairs(tHandles.corners) do h.visible = j == index end
+                                for _,h in pairs(tHandles.corners) do h.visible = bShowHandles end
                             end
                             if tHandles.resizeAxes then
-                                for _,h in pairs(tHandles.resizeAxes) do h.visible = j == index end
+                                for _,h in pairs(tHandles.resizeAxes) do h.visible = bShowHandles end
+                            end
+                            if tHandles.pointAxes then
+                                for pointKey,axes in pairs(tHandles.pointAxes) do
+                                    local bShowPointAxes = bShowHandles
+                                        and (self[j].selectedPoint == nil or self[j].selectedPoint == pointKey)
+                                    for _,axisHandle in pairs(axes) do
+                                        if axisHandle.line then axisHandle.line.visible = bShowPointAxes end
+                                    end
+                                end
                             end
                         end
+                        syncPhysicsEditorVisibility(self[j])
                     end
 
                     self.iIndexSelected = 0
@@ -1648,14 +1977,7 @@ function showEditPhysics()
         return
     end
 
-    -- Primitive index 7 ("Complex (Cube)/Triangle") no longer has a radio button in either mode
-    -- (removed entirely, not just restricted) -- fall back to the single-shape Complex(6) it
-    -- decomposed from, so a stale stored value never leaves nothing selected.
-    if tPhysicsOptions.iIndexPrimitiveType == 7 then
-        tPhysicsOptions.iIndexPrimitiveType = 6
-    end
-
-    -- 3D objects only ever creatable-shape into Cube(1), Complex(6), or Sphere(3) -- the three
+    -- 3D objects only ever creatable-shape into Cube(1), Complex(6), Variable polyhedron(7), or Sphere(3) -- the four
     -- shapes completeBody's else-if chain actually builds a body for (Bullet3D has no usable
     -- 'triangle' shape, and box2d-only decomposed variants don't apply to a 3D body) -- if a
     -- previous 2D-only selection (rectangle_triangle/circle_triangle/triangle/etc.) is still
@@ -1663,7 +1985,8 @@ function showEditPhysics()
     -- selected. Default to Cube.
     if bIs3d and tPhysicsOptions.iIndexPrimitiveType ~= 1
              and tPhysicsOptions.iIndexPrimitiveType ~= 3
-             and tPhysicsOptions.iIndexPrimitiveType ~= 6 then
+             and tPhysicsOptions.iIndexPrimitiveType ~= 6
+             and tPhysicsOptions.iIndexPrimitiveType ~= 7 then
         tPhysicsOptions.iIndexPrimitiveType = 1
     end
 
@@ -1771,10 +2094,20 @@ function showEditPhysics()
             -- Three real Bullet3D-supported shapes (completeBody's else-if chain: lsCube first,
             -- lsSphere, then lsCubeComplex -- confirmed all three actually build a body). "Cube"
             -- (simple axis-aligned box, width/height/depth, type='cube' -- shapes.h's CUBE struct)
-            -- is distinct from "Complex (Cube)" (free 8-corner hull, CUBE_COMPLEX struct) -- moving
+            -- is distinct from the 8-point convex polyhedron (free 8-point hull) -- moving
             -- one corner of the latter makes it no longer a cube; "Cube" always stays a rigid box.
             indexPrimitive       = tImGui.RadioButton(tLang.L("cube"), indexPrimitive, 1)
             indexPrimitive       = tImGui.RadioButton(tLang.L("complex_cube"), indexPrimitive, 6)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("convex_polyhedron"), indexPrimitive, 7)
+            if indexPrimitive == 7 then
+                tImGui.SameLine()
+                tUtil.pushResponsiveItemWidth(70)
+                local result, iValue = tImGui.InputInt('##ConvexPolyhedronPoints', tPhysicsOptions.iConvexPolyhedronPoints, 1, 4, 0)
+                if result and iValue >= 4 and iValue <= 100 then
+                    tPhysicsOptions.iConvexPolyhedronPoints = iValue
+                end
+                tImGui.PopItemWidth()
+            end
             indexPrimitive       = tImGui.RadioButton(tLang.L("sphere"), indexPrimitive, 3)
         end
         local tSizeBtn       = {x=width - 20,y=0} -- size button
@@ -1822,9 +2155,9 @@ function showEditPhysics()
             local p2     = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
             local p3     = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
             tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
-        elseif indexPrimitive == 6 or (indexPrimitive == 1 and bIs3d) then
+        elseif indexPrimitive == 6 or indexPrimitive == 7 or (indexPrimitive == 1 and bIs3d) then
             -- simple isometric-cube icon: two offset squares joined by 4 diagonals -- shared by
-            -- Complex(Cube) and 3D's "Cube" alike, they're both "a box" at a glance
+            -- Complex(Cube), variable polyhedron and 3D's "Cube" alike, they're all 3D volumes
             local off  = 18
             local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
             local p_max = {x = winPos.x + 125,      y = winPos.y + 65 + off}
@@ -1853,7 +2186,7 @@ function showEditPhysics()
             -- to tell them apart later, so mixing native-2D and promoted-3D shapes on one object
             -- would make that data genuinely ambiguous -- gate it with a confirm instead of
             -- allowing it silently (direct user request).
-            local bWantsPromoted = (indexPrimitive == 6 or indexPrimitive == 8)
+            local bWantsPromoted = (indexPrimitive == 6 or indexPrimitive == 7 or indexPrimitive == 8)
             local bConflict = false
             if not bIs3d then
                 for i=1, #tInfoPhysics do
@@ -1881,7 +2214,7 @@ function showEditPhysics()
         end
 
         if tPhysicsOptions.bPromoteConfirmPending then
-            local bWantsPromoted = (tPhysicsOptions.iPendingPrimitive == 6 or tPhysicsOptions.iPendingPrimitive == 8)
+            local bWantsPromoted = (tPhysicsOptions.iPendingPrimitive == 6 or tPhysicsOptions.iPendingPrimitive == 7 or tPhysicsOptions.iPendingPrimitive == 8)
             tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 0.6, b = 0.2, a = 1})
             tImGui.TextWrapped(tLang.L(bWantsPromoted and "physics_promote_confirm" or "physics_demote_confirm"))
             tImGui.PopStyleColor()
@@ -1919,7 +2252,7 @@ function showEditPhysics()
         if tImGui.Button(tLang.L("enable_select_all"), tSizeBtn) then
             for i=1, #tInfoPhysics do
                 local tPhysic       = tInfoPhysics[i]
-                tPhysic.selectable = true
+                tPhysic.selectable = isPhysicsEditorVisible(tPhysic)
             end
         end
 
@@ -1959,8 +2292,28 @@ function showEditPhysics()
                 local id_node       = '##physics_' .. tostring(i) .. '_' .. tPhysic.type
                 local flag_node     = 0
                 
-                if tImGui.TreeNodeEx(tPhysic.type_info .. string.format('[%d]',i),flag_node,id_node) then
-                    tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable)
+                local typeLabel = tPhysic.type_info
+                if typeLabel == 'convex_polyhedron_8' then
+                    typeLabel = tLang.L('complex_cube')
+                elseif typeLabel == 'convex_polyhedron' then
+                    typeLabel = tLang.L('convex_polyhedron')
+                end
+                if tImGui.TreeNodeEx(typeLabel .. string.format('[%d]',i),flag_node,id_node) then
+                    local bPreviousVisible = isPhysicsEditorVisible(tPhysic)
+                    local bEditorVisible = tImGui.Checkbox(tLang.L("visible") .. '##EVisible' .. tostring(i), bPreviousVisible)
+                    tPhysic.bEditorVisible = bEditorVisible
+                    if not bEditorVisible then
+                        tPhysic.selectable = false
+                    end
+                    tImGui.BeginDisabled(not bEditorVisible)
+                    tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable == true)
+                    tImGui.EndDisabled()
+                    if bEditorVisible ~= bPreviousVisible then
+                        syncPhysicsEditorVisibility(tPhysic)
+                        if not bEditorVisible and tInfoPhysics.iIndexSelected == i then
+                            tHighLightPoint.visible = false
+                        end
+                    end
 
                     if tPhysic.type_info == 'rectangle' then
                         local label    = tLang.L("axis_x") .. string.format('##rectangle_%d_x', i)
@@ -2154,11 +2507,11 @@ function showEditPhysics()
                         if tImGui.IsItemHovered(0) then
                             tInfoPhysics:highLightPoint(i,3)
                         end
-                    elseif tPhysic.type == 'complex' then
+                    elseif tPhysic.type == 'convex_polyhedron_8' or tPhysic.type == 'complex' then
                         for pi,l in ipairs(BOX_LETTERS) do
                             local p = tPhysic[l]
                             local label    = string.upper(l) .. tLang.L("axis_x") .. string.format('##complex_%d_%s_x', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.x, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.x, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.x = fValue
                                 updatePhysics(tPhysic)
@@ -2168,7 +2521,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.upper(l) .. tLang.L("axis_y") .. string.format('##complex_%d_%s_y', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.y, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.y, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.y = fValue
                                 updatePhysics(tPhysic)
@@ -2178,7 +2531,7 @@ function showEditPhysics()
                             end
 
                             local label    = string.upper(l) .. tLang.L("axis_z") .. string.format('##complex_%d_%s_z', i, l)
-                            local result, fValue = tImGui.InputFloat(label, p.z, step, step_fast, format, flags)
+                            local result, fValue = physicsInputFloat(label, p.z, tPhysic.selectedPoint == l, step, step_fast, format, flags)
                             if result then
                                 p.z = fValue
                                 updatePhysics(tPhysic)
@@ -2187,6 +2540,48 @@ function showEditPhysics()
                                 tInfoPhysics:highLightPoint(i,pi)
                             end
                         end
+                    elseif tPhysic.type == 'convex_polyhedron' then
+                        for pointIndex,p in ipairs(tPhysic.points or {}) do
+                            local label    = string.format('#%dX##polyhedron_%d_%d_x', pointIndex, i, pointIndex)
+                            local result, fValue = physicsInputFloat(label, p.x, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
+                            if result then
+                                p.x = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pointIndex)
+                            end
+
+                            local label    = string.format('#%dY##polyhedron_%d_%d_y', pointIndex, i, pointIndex)
+                            local result, fValue = physicsInputFloat(label, p.y, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
+                            if result then
+                                p.y = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pointIndex)
+                            end
+
+                            local label    = string.format('#%dZ##polyhedron_%d_%d_z', pointIndex, i, pointIndex)
+                            local result, fValue = physicsInputFloat(label, p.z or 0, tPhysic.selectedPoint == pointIndex, step, step_fast, format, flags)
+                            if result then
+                                p.z = fValue
+                                updatePhysics(tPhysic)
+                            end
+                            if tImGui.IsItemHovered(0) then
+                                tInfoPhysics:highLightPoint(i,pointIndex)
+                            end
+                        end
+                        local pointCount = #(tPhysic.points or {})
+                        if pointCount < 100 then
+                            if tImGui.Button(tLang.L("add_point") .. string.format('##polyhedron_add_%d', i), {x=0,y=0}) then
+                                if addConvexPolyhedronPoint(tPhysic) then
+                                    updatePhysics(tPhysic)
+                                end
+                            end
+                        end
+                        tImGui.SameLine()
+                        tImGui.TextDisabled(string.format('%d/100', pointCount))
                     end
                     if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then
                         table.remove(tInfoPhysics,i)
@@ -2265,19 +2660,41 @@ function onTouchDown(key,x,y)
             local tSelected = tInfoPhysics[tInfoPhysics.iIndexSelected]
             local kind, letter, hx, hy, hz = hitTestPhysicsHandles3d(tSelected, x, y)
             if kind then
-                local okRay, ox, oy, oz = pcall(mbm.getPickRay, x, y)
-                local nx, ny, nz = hx, hy, hz
-                if okRay then
-                    nx, ny, nz = hx - ox, hy - oy, hz - oz
-                    local len = math.sqrt(nx*nx + ny*ny + nz*nz)
-                    if len > 0.0001 then nx, ny, nz = nx/len, ny/len, nz/len end
+                if kind == 'corner' and keyControlPressed then
+                    togglePhysicsPointSelection(tSelected,letter)
+                    bEnableMoveWorld = false
+                    return
+                elseif kind == 'pointAxis' then
+                    local axis = letter.axis == 'x' and {x=1,y=0,z=0}
+                        or letter.axis == 'y' and {x=0,y=1,z=0}
+                        or {x=0,y=0,z=1}
+                    local point = tSelected.type == 'convex_polyhedron'
+                        and tSelected.points[letter.point] or tSelected[letter.point]
+                    local origin = {x=point.x,y=point.y,z=point.z or 0}
+                    local startParameter = rayAxisParameter(x,y,origin,axis)
+                    if startParameter then
+                        tSelected.dragAxisOrigin = origin
+                        tSelected.dragAxis = axis
+                        tSelected.dragAxisStartParameter = startParameter
+                    else
+                        kind = nil
+                    end
                 end
-                tSelected.draggingHandle  = kind
-                tSelected.draggingCorner  = letter
-                tSelected.dragPlaneNormal = {x=nx, y=ny, z=nz}
-                tSelected.dragPlanePoint  = {x=hx, y=hy, z=hz}
-                bEnableMoveWorld = false
-                return -- don't also run the ordinary selection logic below for this click
+                if kind then
+                    local okRay, ox, oy, oz = pcall(mbm.getPickRay, x, y)
+                    local nx, ny, nz = hx, hy, hz
+                    if okRay then
+                        nx, ny, nz = hx - ox, hy - oy, hz - oz
+                        local len = math.sqrt(nx*nx + ny*ny + nz*nz)
+                        if len > 0.0001 then nx, ny, nz = nx/len, ny/len, nz/len end
+                    end
+                    tSelected.draggingHandle  = kind
+                    tSelected.draggingCorner  = letter
+                    tSelected.dragPlaneNormal = {x=nx, y=ny, z=nz}
+                    tSelected.dragPlanePoint  = {x=hx, y=hy, z=hz}
+                    bEnableMoveWorld = false
+                    return -- don't also run the ordinary selection logic below for this click
+                end
             end
         end
 
@@ -2337,16 +2754,36 @@ function onTouchMove(key,x,y)
             and tInfoPhysics[tInfoPhysics.iIndexSelected] or nil
 
         if tSelected and tSelected.draggingHandle and not IsAnyWindowHovered then
+            if tSelected.draggingHandle == 'pointAxis' then
+                local parameter = rayAxisParameter(x,y,tSelected.dragAxisOrigin,tSelected.dragAxis)
+                if parameter then
+                    local distance = parameter - tSelected.dragAxisStartParameter
+                    local letter = tSelected.draggingCorner
+                    local point = tSelected.type == 'convex_polyhedron'
+                        and tSelected.points[letter.point] or tSelected[letter.point]
+                    point.x = tSelected.dragAxisOrigin.x + tSelected.dragAxis.x * distance
+                    point.y = tSelected.dragAxisOrigin.y + tSelected.dragAxis.y * distance
+                    point.z = tSelected.dragAxisOrigin.z + tSelected.dragAxis.z * distance
+                    setupPhysics3d(tSelected)
+                end
+                lastMouse3d.x = x
+                lastMouse3d.y = y
+                return
+            end
             local wx, wy, wz = rayPlaneHit(x, y, tSelected.dragPlanePoint, tSelected.dragPlaneNormal)
             if wx then
                 if tSelected.draggingHandle == 'move' then
                     local dxm = wx - tSelected.dragPlanePoint.x
                     local dym = wy - tSelected.dragPlanePoint.y
                     local dzm = wz - tSelected.dragPlanePoint.z
-                    if tSelected.type == 'complex' then
+                    if tSelected.type == 'convex_polyhedron_8' or tSelected.type == 'complex' then
                         for _,l in ipairs(BOX_LETTERS) do
                             local p = tSelected[l]
                             p.x, p.y, p.z = p.x + dxm, p.y + dym, p.z + dzm
+                        end
+                    elseif tSelected.type == 'convex_polyhedron' then
+                        for _,p in ipairs(tSelected.points or {}) do
+                            p.x, p.y, p.z = p.x + dxm, p.y + dym, (p.z or 0) + dzm
                         end
                     elseif tSelected.type == 'sphere' or tSelected.type == 'cube' then
                         tSelected.x = tSelected.x + dxm
@@ -2360,6 +2797,9 @@ function onTouchMove(key,x,y)
                     tSelected.dragPlanePoint = {x=wx, y=wy, z=wz}
                 elseif tSelected.draggingHandle == 'corner' and tSelected.draggingCorner then
                     local p = tSelected[tSelected.draggingCorner]
+                    if tSelected.type == 'convex_polyhedron' then
+                        p = tSelected.points[tSelected.draggingCorner]
+                    end
                     p.x, p.y, p.z = wx, wy, wz
                 elseif tSelected.draggingHandle == 'resize' then
                     local dxr, dyr, dzr = wx - tSelected.x, wy - tSelected.y, wz - tSelected.z
@@ -2448,6 +2888,9 @@ function onTouchUp(key,x,y)
             tSelected.draggingCorner  = nil
             tSelected.dragPlaneNormal = nil
             tSelected.dragPlanePoint  = nil
+            tSelected.dragAxisOrigin  = nil
+            tSelected.dragAxis        = nil
+            tSelected.dragAxisStartParameter = nil
         end
         tInfoPhysics:finishMovingFrame(x,y)
         tInfoPhysics:unSelectCircles()
@@ -2490,6 +2933,39 @@ function addPhysics(tInfoPhysicsInner)
     tInfoPhysicsInner.selectable = true
     table.insert(tInfoPhysics,tInfoPhysicsInner)
     updatePhysics(tInfoPhysicsInner)
+end
+
+function addConvexPolyhedronPoint(tPhysic)
+    local points = tPhysic.points or {}
+    tPhysic.points = points
+    if #points >= 100 then
+        return false
+    end
+
+    local minX,maxX,minY,maxY,minZ,maxZ = math.huge,-math.huge,math.huge,-math.huge,math.huge,-math.huge
+    for _, p in ipairs(points) do
+        local x, y, z = p.x or 0, p.y or 0, p.z or 0
+        minX,maxX = math.min(minX,x), math.max(maxX,x)
+        minY,maxY = math.min(minY,y), math.max(maxY,y)
+        minZ,maxZ = math.min(minZ,z), math.max(maxZ,z)
+    end
+    if minX == math.huge then
+        minX,maxX,minY,maxY,minZ,maxZ = -50,50,-50,50,-50,50
+    end
+
+    local centerX,centerY,centerZ = (minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5
+    local radiusX = math.max((maxX - minX) * 0.5, 1)
+    local radiusY = math.max((maxY - minY) * 0.5, 1)
+    local radiusZ = math.max((maxZ - minZ) * 0.5, 1)
+    local index = #points + 1
+    local angle = index * 2.399963229728653
+    local depthAngle = angle * 0.73
+    points[index] = {
+        x = centerX + math.cos(angle) * radiusX * 1.25,
+        y = centerY + math.sin(angle) * radiusY * 1.25,
+        z = centerZ + math.sin(depthAngle) * radiusZ * 1.25,
+    }
+    return true
 end
 
 -- Builds and adds a new physics shape for the given primitive-picker index. Extracted out of the
@@ -2572,10 +3048,39 @@ function createPhysicsPrimitive(indexPrimitive)
         tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
     elseif indexPrimitive == 6 then --complex (single 8-point box)
         local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
-        tInfoPhysicsInner.type = 'complex'
+        tInfoPhysicsInner.type = 'convex_polyhedron_8'
         tInfoPhysicsInner.promoted3d = true
         for i,l in ipairs(BOX_LETTERS) do
             tInfoPhysicsInner[l] = {x=corners[i].x, y=corners[i].y, z=corners[i].z}
+        end
+    elseif indexPrimitive == 7 then --variable-vertex convex polyhedron
+        local corners = boxCorners(width * 0.5, height * 0.5, depth * 0.5)
+        tInfoPhysicsInner.type = 'convex_polyhedron'
+        tInfoPhysicsInner.promoted3d = true
+        tInfoPhysicsInner.points = {}
+        local pointCount = math.max(4, math.min(100, tPhysicsOptions.iConvexPolyhedronPoints or 8))
+        if pointCount == 4 then
+            tInfoPhysicsInner.points = {
+                {x=-width * 0.5, y=-height * 0.5, z=-depth * 0.5},
+                {x= width * 0.5, y=-height * 0.5, z=-depth * 0.5},
+                {x=0,            y= height * 0.5, z=-depth * 0.5},
+                {x=0,            y=0,             z= depth * 0.5},
+            }
+        else
+            for i = 1, math.min(pointCount, 8) do
+                local p = corners[i]
+                tInfoPhysicsInner.points[i] = {x=p.x, y=p.y, z=p.z}
+            end
+        end
+        for i = 9, pointCount do
+            local t = (i - 8) / (pointCount - 8)
+            local angle = t * math.pi * 2.0 * 3.0
+            local radius = 0.5 + 0.5 * t
+            tInfoPhysicsInner.points[i] = {
+                x = math.cos(angle) * width * 0.5 * radius,
+                y = math.sin(angle) * height * 0.5 * radius,
+                z = math.cos(angle * 0.7) * depth * 0.5 * radius,
+            }
         end
     end
     if tInfoPhysicsInner then

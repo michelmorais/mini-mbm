@@ -191,6 +191,7 @@ namespace mbm
         {
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
+            infoPhysics.lsConvexPolyhedron = std::move(other.infoPhysics.lsConvexPolyhedron);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
             infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
@@ -218,6 +219,7 @@ namespace mbm
             normalMapMaterials = std::move(other.normalMapMaterials);
             infoPhysics.lsCube        = std::move(other.infoPhysics.lsCube);
             infoPhysics.lsCubeComplex = std::move(other.infoPhysics.lsCubeComplex);
+            infoPhysics.lsConvexPolyhedron = std::move(other.infoPhysics.lsConvexPolyhedron);
             infoPhysics.lsSphere      = std::move(other.infoPhysics.lsSphere);
             infoPhysics.lsTriangle    = std::move(other.infoPhysics.lsTriangle);
             infoAnimation.lsHeaderAnim = std::move(other.infoAnimation.lsHeaderAnim);
@@ -276,14 +278,29 @@ namespace
                     i += detail.totalBounding;
                 }
                 break;
-                case MBM_DETAIL_TYPE_CUBE_COMPLEX:
+                case MBM_DETAIL_TYPE_CONVEX_POLYHEDRON_8:
                 {
                     for(int j=0; j< detail.totalBounding; j++)
                     {
-                        auto complex = new mbm::CUBE_COMPLEX();
+                        auto complex = new mbm::CONVEX_POLYHEDRON_8();
                         infoPhysics.lsCubeComplex.push_back(complex);
                         if (!util::readCubeComplexV8(fp, *complex))
                             return log_util::onFailed(nullptr,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    }
+                    i += detail.totalBounding;
+                }
+                break;
+                case MBM_DETAIL_TYPE_CONVEX_POLYHEDRON:
+                {
+                    for (int j = 0; j < detail.totalBounding; ++j)
+                    {
+                        auto polyhedron = new mbm::CONVEX_POLYHEDRON();
+                        if (!util::readConvexPolyhedronV8(fp, *polyhedron))
+                        {
+                            delete polyhedron;
+                            return log_util::onFailed(nullptr, __FILE__, __LINE__, "failed to read convex polyhedron [%s]", fileNamePath);
+                        }
+                        infoPhysics.lsConvexPolyhedron.push_back(polyhedron);
                     }
                     i += detail.totalBounding;
                 }
@@ -4271,6 +4288,7 @@ namespace mbm
         int totalBounding = static_cast<int>(this->impl->infoPhysics.lsCube.size())
                            + static_cast<int>(this->impl->infoPhysics.lsSphere.size())
                            + static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size())
+                           + static_cast<int>(this->impl->infoPhysics.lsConvexPolyhedron.size())
                            + static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
         if (totalBounding == 0)
             this->fillAtLeastOneBound();
@@ -4361,6 +4379,7 @@ namespace mbm
                 const int totalBoundingLocal = static_cast<int>(this->impl->infoPhysics.lsCube.size())
                                               + static_cast<int>(this->impl->infoPhysics.lsSphere.size())
                                               + static_cast<int>(this->impl->infoPhysics.lsCubeComplex.size())
+                                              + static_cast<int>(this->impl->infoPhysics.lsConvexPolyhedron.size())
                                               + static_cast<int>(this->impl->infoPhysics.lsTriangle.size());
                 util::DETAIL_MESH detailHeader;
                 detailHeader.totalBounding = totalBoundingLocal;
@@ -4399,6 +4418,17 @@ namespace mbm
                         return false;
                     for (auto *complex : this->impl->infoPhysics.lsCubeComplex)
                         if (!util::writeCubeComplexV8(fp, *complex))
+                            return false;
+                }
+                if (!this->impl->infoPhysics.lsConvexPolyhedron.empty())
+                {
+                    util::DETAIL_MESH detail;
+                    detail.totalBounding = static_cast<int>(this->impl->infoPhysics.lsConvexPolyhedron.size());
+                    detail.type = MBM_DETAIL_TYPE_CONVEX_POLYHEDRON;
+                    if (!util::writeDetailMeshV8(fp, detail))
+                        return false;
+                    for (auto *polyhedron : this->impl->infoPhysics.lsConvexPolyhedron)
+                        if (!util::writeConvexPolyhedronV8(fp, *polyhedron))
                             return false;
                 }
                 if (!this->impl->infoPhysics.lsTriangle.empty())
@@ -6056,10 +6086,14 @@ namespace mbm
                 !validProduct(sphere->absCenter[1]) || !validProduct(sphere->absCenter[2]))
                 return fail("scaled sphere bounds would not be finite");
         }
-        for (const CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+        for (const CONVEX_POLYHEDRON_8 *cube : impl->infoPhysics.lsCubeComplex)
             for (const _VEC3_POINT &point : cube->p)
                 if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
                     return fail("scaled complex-cube bounds would not be finite");
+        for (const CONVEX_POLYHEDRON *polyhedron : impl->infoPhysics.lsConvexPolyhedron)
+            for (const VEC3 &point : polyhedron->points)
+                if (!validProduct(point.x) || !validProduct(point.y) || !validProduct(point.z))
+                    return fail("scaled convex polyhedron bounds would not be finite");
         for (const TRIANGLE *triangle : impl->infoPhysics.lsTriangle)
         {
             for (const VEC3 &point : triangle->point)
@@ -6087,8 +6121,13 @@ namespace mbm
             sphere->ray *= scale;
             sphere->absCenter[0] *= scale; sphere->absCenter[1] *= scale; sphere->absCenter[2] *= scale;
         }
-        for (CUBE_COMPLEX *cube : impl->infoPhysics.lsCubeComplex)
+        for (CONVEX_POLYHEDRON_8 *cube : impl->infoPhysics.lsCubeComplex)
             for (_VEC3_POINT &point : cube->p)
+            {
+                point.x *= scale; point.y *= scale; point.z *= scale;
+            }
+        for (CONVEX_POLYHEDRON *polyhedron : impl->infoPhysics.lsConvexPolyhedron)
+            for (VEC3 &point : polyhedron->points)
             {
                 point.x *= scale; point.y *= scale; point.z *= scale;
             }
@@ -10496,10 +10535,21 @@ namespace mbm
             this->impl->infoPhysics.lsSphere.push_back(sphere);
     }
 
+    void MESH_MBM::appendPhysicsConvexPolyhedron8(CONVEX_POLYHEDRON_8 *polyhedron) noexcept
+    {
+        if (polyhedron)
+            this->impl->infoPhysics.lsCubeComplex.push_back(polyhedron);
+    }
+
+    void MESH_MBM::appendPhysicsConvexPolyhedron(CONVEX_POLYHEDRON *polyhedron) noexcept
+    {
+        if (polyhedron)
+            this->impl->infoPhysics.lsConvexPolyhedron.push_back(polyhedron);
+    }
+
     void MESH_MBM::appendPhysicsCubeComplex(CUBE_COMPLEX *cubeComplex) noexcept
     {
-        if (cubeComplex)
-            this->impl->infoPhysics.lsCubeComplex.push_back(cubeComplex);
+        this->appendPhysicsConvexPolyhedron8(cubeComplex);
     }
 
     void MESH_MBM::appendPhysicsTriangle(TRIANGLE *triangle) noexcept
@@ -13374,6 +13424,7 @@ namespace mbm
         impl->info_mode      = in.info_mode;
         impl->infoPhysics.lsCube        = std::move(in.infoPhysics.lsCube);
         impl->infoPhysics.lsCubeComplex = std::move(in.infoPhysics.lsCubeComplex);
+        impl->infoPhysics.lsConvexPolyhedron = std::move(in.infoPhysics.lsConvexPolyhedron);
         impl->infoPhysics.lsSphere      = std::move(in.infoPhysics.lsSphere);
         impl->infoPhysics.lsTriangle    = std::move(in.infoPhysics.lsTriangle);
         impl->infoAnimation.lsHeaderAnim = std::move(in.infoAnimation.lsHeaderAnim);
@@ -14238,10 +14289,16 @@ namespace mbm
         }
         for (auto pComplex : meshPhysics.lsCubeComplex)
         {
-            auto complex = new CUBE_COMPLEX();
+            auto complex = new CONVEX_POLYHEDRON_8();
             for (int k = 0; k < 8; k++)
                 complex->p[k] = pComplex->p[k];
             this->impl->infoPhysics.lsCubeComplex.push_back(complex);
+        }
+        for (auto pPolyhedron : meshPhysics.lsConvexPolyhedron)
+        {
+            auto polyhedron = new CONVEX_POLYHEDRON();
+            polyhedron->points = pPolyhedron->points;
+            this->impl->infoPhysics.lsConvexPolyhedron.push_back(polyhedron);
         }
         for (auto pTriangle : meshPhysics.lsTriangle)
         {

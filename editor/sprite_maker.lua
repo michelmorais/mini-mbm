@@ -4045,7 +4045,7 @@ function updatePhysics(tLinesPhysics,tPhysic)
         table.insert(tLines,tPhysic.a.y)
         tLinesPhysics:setPos(x,y)
         setupPhysics(tLinesPhysics,tLines,tPhysic)
-    elseif tPhysic.type == 'complex' then
+    elseif tPhysic.type == 'convex_polyhedron_8' or tPhysic.type == 'complex' then
         local x       = tPhysic.x
         local y       = tPhysic.y
         local tLines  = {}
@@ -4175,7 +4175,7 @@ function addPhysics(tShape)
                 tPhysic.x = 0
                 tPhysic.y = 0
                 newPhysicsLine(tLines,tPhysic)
-            elseif tInfoPhysics[i].type == 'complex' then
+            elseif tInfoPhysics[i].type == 'convex_polyhedron_8' or tInfoPhysics[i].type == 'complex' then
                 local tLines = {}
                 local tPhysic = tInfoPhysics[i]
                 
@@ -4311,7 +4311,7 @@ function showEditPhysics()
                     tInfoPhysicsInner.b = {x = 0, y = height * 0.25}
                     tInfoPhysicsInner.c = {x = width * 0.25, y = height * -0.25}
                 elseif indexPrimitive == 4 then --complex
-                    tInfoPhysicsInner.type = 'complex'
+                    tInfoPhysicsInner.type = 'convex_polyhedron_8'
                     tInfoPhysicsInner.a={x=-50,y=-50}
                     tInfoPhysicsInner.b={x=0,y=0}
                     tInfoPhysicsInner.c={x=40,y=-40}
@@ -4502,7 +4502,7 @@ function showEditPhysics()
                             if tImGui.IsItemHovered(0) then
                                 tLinesPhysics:setColor(1,0,1)
                             end
-                        elseif tPhysic.type == 'complex' then
+                        elseif tPhysic.type == 'convex_polyhedron_8' or tPhysic.type == 'complex' then
                             tImGui.Text(tLang.L("not_implemented"))
                         end
                         if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then

@@ -119,11 +119,14 @@ namespace util
     #define MBM_ERROR_DESCRIPTION_BUFFER_SIZE 255
     #define MBM_DETAIL_TYPE_CUBE 1
     #define MBM_DETAIL_TYPE_SPHERE 2
-    #define MBM_DETAIL_TYPE_CUBE_COMPLEX 3
+    #define MBM_DETAIL_TYPE_CONVEX_POLYHEDRON_8 3
+    /* Legacy name retained: the on-disk value must remain 3. */
+    #define MBM_DETAIL_TYPE_CUBE_COMPLEX MBM_DETAIL_TYPE_CONVEX_POLYHEDRON_8
     #define MBM_DETAIL_TYPE_TRIANGLE 4
     #define MBM_DETAIL_TYPE_FONT 5
     #define MBM_DETAIL_TYPE_PARTICLE 6
     #define MBM_DETAIL_TYPE_TILE 7
+    #define MBM_DETAIL_TYPE_CONVEX_POLYHEDRON 8
 
     struct API_IMPL INFO_DRAW_MODE //added since version 5
     {

@@ -897,16 +897,16 @@ namespace mbm
         }
         if(infoPhysics->lsCubeComplex.size())
         {
-            const std::vector<CUBE_COMPLEX*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
-            for(std::vector<CUBE_COMPLEX*>::size_type i = 0; i < sizeSubset; ++i)
+            const std::vector<CONVEX_POLYHEDRON_8*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
+            for(std::vector<CONVEX_POLYHEDRON_8*>::size_type i = 0; i < sizeSubset; ++i)
             {
-                const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
+                const CONVEX_POLYHEDRON_8* polyhedron = infoPhysics->lsCubeComplex[i];
                 b2PolygonShape  groundPolygn;
                 b2Vec2 vertices[4];
-                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controllerScale.x,cube->a.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controllerScale.x,cube->b.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controllerScale.x,cube->c.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controllerScale.x,cube->d.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[0].Set(polyhedron->a.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->a.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[1].Set(polyhedron->b.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->b.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[2].Set(polyhedron->c.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->c.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[3].Set(polyhedron->d.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->d.y * this->scalePercentage * reduceY * controllerScale.y);
                 groundPolygn.Set(vertices, 4);
                                 
                 b2BodyDef       groundBodyDef;
@@ -1038,16 +1038,16 @@ namespace mbm
         }
         if(infoPhysics->lsCubeComplex.size())
         {
-            const std::vector<CUBE_COMPLEX*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
-            for(std::vector<CUBE_COMPLEX*>::size_type i = 0; i < sizeSubset; ++i)
+            const std::vector<CONVEX_POLYHEDRON_8*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
+            for(std::vector<CONVEX_POLYHEDRON_8*>::size_type i = 0; i < sizeSubset; ++i)
             {
-                const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
+                const CONVEX_POLYHEDRON_8* polyhedron = infoPhysics->lsCubeComplex[i];
                 b2PolygonShape  groundPolygn;
                 b2Vec2 vertices[4];
-                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controllerScale.x,cube->a.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controllerScale.x,cube->b.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controllerScale.x,cube->c.y * this->scalePercentage * reduceY * controllerScale.y);
-                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controllerScale.x,cube->d.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[0].Set(polyhedron->a.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->a.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[1].Set(polyhedron->b.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->b.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[2].Set(polyhedron->c.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->c.y * this->scalePercentage * reduceY * controllerScale.y);
+                vertices[3].Set(polyhedron->d.x * this->scalePercentage * reduceX * controllerScale.x,polyhedron->d.y * this->scalePercentage * reduceY * controllerScale.y);
                 groundPolygn.Set(vertices, 4);
                                 
                 b2BodyDef       groundBodyDef;
@@ -1292,14 +1292,14 @@ namespace mbm
             info->pd.shapeCount = 0;
         }
 
-        for(const CUBE_COMPLEX * cube : infoPhysics->lsCubeComplex)
+        for(const CONVEX_POLYHEDRON_8 * polyhedron : infoPhysics->lsCubeComplex)
         {
             b2PolygonShape  groundPolygn;
             b2Vec2 vertices[4];
-            vertices[0].Set(cube->a.x * scalePercentage * scale.x,cube->a.y * scalePercentage * scale.y);
-            vertices[1].Set(cube->b.x * scalePercentage * scale.x,cube->b.y * scalePercentage * scale.y);
-            vertices[2].Set(cube->c.x * scalePercentage * scale.x,cube->c.y * scalePercentage * scale.y);
-            vertices[3].Set(cube->d.x * scalePercentage * scale.x,cube->d.y * scalePercentage * scale.y);
+            vertices[0].Set(polyhedron->a.x * scalePercentage * scale.x,polyhedron->a.y * scalePercentage * scale.y);
+            vertices[1].Set(polyhedron->b.x * scalePercentage * scale.x,polyhedron->b.y * scalePercentage * scale.y);
+            vertices[2].Set(polyhedron->c.x * scalePercentage * scale.x,polyhedron->c.y * scalePercentage * scale.y);
+            vertices[3].Set(polyhedron->d.x * scalePercentage * scale.x,polyhedron->d.y * scalePercentage * scale.y);
             groundPolygn.Set(vertices, 4);
             info->pd.shape = &groundPolygn;
             info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);

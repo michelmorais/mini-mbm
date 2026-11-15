@@ -57,6 +57,11 @@ namespace mbm
             delete cube;
         }
         lsCubeComplex.clear();
+        for (auto polyhedron : lsConvexPolyhedron)
+        {
+            delete polyhedron;
+        }
+        lsConvexPolyhedron.clear();
         for (auto triangle : lsTriangle)
         {
             delete triangle;
@@ -72,7 +77,7 @@ namespace mbm
     // halfDim on that axis), the formula returns exactly 2x the true dimension on that axis. Also
     // did not union across shape kinds when a mesh had more than one (each `if(sN)` block
     // overwrote the previous kind's *w/*h/*d rather than merging). Now derived from
-    // getBoundsMinMax(), the same true-min/max accumulation CUBE_COMPLEX/TRIANGLE already used
+    // getBoundsMinMax(), the same true-min/max accumulation CONVEX_POLYHEDRON_8/TRIANGLE already used
     // correctly, applied uniformly and merged across every kind present. See MBM_VERSION 6.9.0.
     bool INFO_PHYSICS::getBounds(float *w, float *h) const
     {
@@ -103,7 +108,7 @@ namespace mbm
     // above derives its size from this directly; this function additionally exposes the min/max
     // themselves, which is what lets a caller (RENDERIZABLE::updateAABB()) derive a true AABB
     // CENTER, not just a size -- see MBM_VERSION 6.9.0. CUBE/SPHERE derive min/max directly from
-    // absCenter+-halfDim/ray (their own stored data is already the true bound); CUBE_COMPLEX/
+        // absCenter+-halfDim/ray (their own stored data is already the true bound); CONVEX_POLYHEDRON_8/
     // TRIANGLE reuse their own already-correct getBounds(vmax,vmin).
     bool INFO_PHYSICS::getBoundsMinMax(VEC2 &vmin, VEC2 &vmax) const
     {
@@ -130,6 +135,14 @@ namespace mbm
         {
             complex->getBounds(vmax, vmin);
             ret = true;
+        }
+        for (const auto polyhedron : this->lsConvexPolyhedron)
+        {
+            if (!polyhedron->points.empty())
+            {
+                polyhedron->getBounds(vmax, vmin);
+                ret = true;
+            }
         }
         for (const auto triangle : this->lsTriangle)
         {
@@ -169,6 +182,14 @@ namespace mbm
             complex->getBounds(vmax, vmin);
             ret = true;
         }
+        for (const auto polyhedron : this->lsConvexPolyhedron)
+        {
+            if (!polyhedron->points.empty())
+            {
+                polyhedron->getBounds(vmax, vmin);
+                ret = true;
+            }
+        }
         for (const auto triangle : this->lsTriangle)
         {
             triangle->getBounds(vmax, vmin);
@@ -191,9 +212,15 @@ namespace mbm
         }
         for( const auto from : other->lsCubeComplex)
         {
-            mbm::CUBE_COMPLEX* to = new mbm::CUBE_COMPLEX();
+            mbm::CONVEX_POLYHEDRON_8* to = new mbm::CONVEX_POLYHEDRON_8();
             memcpy(to->p,from->p,sizeof(to->p));
             this->lsCubeComplex.emplace_back(to);
+        }
+        for (const auto from : other->lsConvexPolyhedron)
+        {
+            mbm::CONVEX_POLYHEDRON *to = new mbm::CONVEX_POLYHEDRON();
+            to->points = from->points;
+            this->lsConvexPolyhedron.emplace_back(to);
         }
         for( const auto from : other->lsSphere)
         {
@@ -209,7 +236,8 @@ namespace mbm
             to->position = from->position;
             this->lsTriangle.emplace_back(to);
         }
-        return (this->lsCube.size() > 0 || this->lsTriangle.size() > 0 || this->lsSphere.size() > 0 || this->lsCubeComplex.size() > 0);
+        return (this->lsCube.size() > 0 || this->lsTriangle.size() > 0 || this->lsSphere.size() > 0 ||
+                this->lsCubeComplex.size() > 0 || this->lsConvexPolyhedron.size() > 0);
     }
 
 }

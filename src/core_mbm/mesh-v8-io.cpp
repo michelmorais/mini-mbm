@@ -101,7 +101,7 @@ namespace util
                writeF32LE(fp, in.absCenter[2]);
     }
 
-    bool readCubeComplexV8(util::MEM_CURSOR_V11 &fp, mbm::CUBE_COMPLEX &out)
+    bool readCubeComplexV8(util::MEM_CURSOR_V11 &fp, mbm::CONVEX_POLYHEDRON_8 &out)
     {
         for (int i = 0; i < 8; ++i)
         {
@@ -115,7 +115,7 @@ namespace util
         return true;
     }
 
-    bool writeCubeComplexV8(FILE *fp, const mbm::CUBE_COMPLEX &in)
+    bool writeCubeComplexV8(FILE *fp, const mbm::CONVEX_POLYHEDRON_8 &in)
     {
         for (int i = 0; i < 8; ++i)
         {
@@ -125,6 +125,36 @@ namespace util
             {
                 return false;
             }
+        }
+        return true;
+    }
+
+    bool readConvexPolyhedronV8(util::MEM_CURSOR_V11 &fp, mbm::CONVEX_POLYHEDRON &out)
+    {
+        uint32_t count = 0;
+        if (!readU32LE(fp, count) || count < 4 || count > 4096)
+            return false;
+
+        out.points.clear();
+        out.points.resize(count);
+        for (auto &point : out.points)
+        {
+            if (!readVec3V8(fp, point))
+                return false;
+        }
+        return true;
+    }
+
+    bool writeConvexPolyhedronV8(FILE *fp, const mbm::CONVEX_POLYHEDRON &in)
+    {
+        if (in.points.size() < 4 || in.points.size() > 4096)
+            return false;
+        if (!writeU32LE(fp, static_cast<uint32_t>(in.points.size())))
+            return false;
+        for (const auto &point : in.points)
+        {
+            if (!writeVec3V8(fp, point))
+                return false;
         }
         return true;
     }

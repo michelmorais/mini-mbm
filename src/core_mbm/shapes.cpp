@@ -49,7 +49,7 @@ namespace mbm
         memset(absCenter, 0, sizeof(absCenter));
     }
 
-    CUBE_COMPLEX::CUBE_COMPLEX() noexcept
+    CONVEX_POLYHEDRON_8::CONVEX_POLYHEDRON_8() noexcept
     {
         this->a.set(-1, -1, 1.0f);
         this->b.set(-1, 1, 1.0f);
@@ -61,7 +61,7 @@ namespace mbm
         this->g.set(1, 1, -1.0f);
         this->h.set(1, -1, -1.0f);
     }
-    CUBE_COMPLEX::CUBE_COMPLEX(const float s) noexcept //:a(0,0,0),b(0,0,0),c(0,0,0),d(0,0,0),e(0,0,0),f(0,0,0),g(0,0,0),h(0,0,0)
+    CONVEX_POLYHEDRON_8::CONVEX_POLYHEDRON_8(const float s) noexcept //:a(0,0,0),b(0,0,0),c(0,0,0),d(0,0,0),e(0,0,0),f(0,0,0),g(0,0,0),h(0,0,0)
     {
         this->a.set(-1, -1, 1.0f);
         this->b.set(-1, 1, 1.0f);
@@ -79,7 +79,7 @@ namespace mbm
             i.z *= s;
         }
     }
-    CUBE_COMPLEX::CUBE_COMPLEX(VEC3 &s) noexcept
+    CONVEX_POLYHEDRON_8::CONVEX_POLYHEDRON_8(VEC3 &s) noexcept
     {
         this->a.set(-1, -1, 1.0f);
         this->b.set(-1, 1, 1.0f);
@@ -97,7 +97,7 @@ namespace mbm
             i.z *= s.z;
         }
     }
-    CUBE_COMPLEX::CUBE_COMPLEX(VEC3 &vmin, VEC3 &vmax) noexcept
+    CONVEX_POLYHEDRON_8::CONVEX_POLYHEDRON_8(VEC3 &vmin, VEC3 &vmax) noexcept
     {
         this->a.set(vmin);
         this->b.set(vmin.x, vmax.y, vmin.z);
@@ -109,7 +109,7 @@ namespace mbm
         this->g.set(vmax);
         this->h.set(vmax.x, vmin.y, vmax.z);
     }
-    void CUBE_COMPLEX::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept
+    void CONVEX_POLYHEDRON_8::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept
     {
         for (auto i : this->p)
         {
@@ -124,7 +124,7 @@ namespace mbm
                 vmin.y = i.y;
         }
     }
-    void CUBE_COMPLEX::getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept
+    void CONVEX_POLYHEDRON_8::getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept
     {
         for (auto i : this->p)
         {
@@ -141,6 +141,42 @@ namespace mbm
                 vmin.y = i.y;
             if (i.z < vmin.z)
                 vmin.z = i.z;
+        }
+    }
+
+    void CONVEX_POLYHEDRON::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept
+    {
+        for (const auto &point : this->points)
+        {
+            if (point.x > vmax.x)
+                vmax.x = point.x;
+            if (point.y > vmax.y)
+                vmax.y = point.y;
+
+            if (point.x < vmin.x)
+                vmin.x = point.x;
+            if (point.y < vmin.y)
+                vmin.y = point.y;
+        }
+    }
+
+    void CONVEX_POLYHEDRON::getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept
+    {
+        for (const auto &point : this->points)
+        {
+            if (point.x > vmax.x)
+                vmax.x = point.x;
+            if (point.y > vmax.y)
+                vmax.y = point.y;
+            if (point.z > vmax.z)
+                vmax.z = point.z;
+
+            if (point.x < vmin.x)
+                vmin.x = point.x;
+            if (point.y < vmin.y)
+                vmin.y = point.y;
+            if (point.z < vmin.z)
+                vmin.z = point.z;
         }
     }
 
