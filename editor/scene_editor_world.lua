@@ -2250,7 +2250,6 @@ function beginSceneObjectDrag(x,y)
         local nx,ny,nz = markerMath.planeNormal(pointObject.plane)
         tMarkerEdit.selected = pointObject
         tMarkerEdit.openObject = pointObject
-        tMarkerEdit.closeOtherObjects = true
         tMarkerEdit.hoverKey = nil
         tMarkerEdit.drag = {
             kind = 'point', object = pointObject, pointIndex = pointIndex,
@@ -2277,7 +2276,6 @@ function beginSceneObjectDrag(x,y)
     if not axisName then selected = pickSceneObject(x,y) end
     tMarkerEdit.selected = selected
     tMarkerEdit.openObject = selected
-    tMarkerEdit.closeOtherObjects = selected ~= nil
     tMarkerEdit.hoverKey = nil
     if not selected then return false end
     if selected.locked then
@@ -2357,7 +2355,6 @@ function addSceneObjectMarker(objectType, plane, polygonSides, polygonBase)
     table.insert(tSceneObjects, tObj)
     tMarkerEdit.selected = tObj
     tMarkerEdit.openObject = tObj
-    tMarkerEdit.closeOtherObjects = true
     tMarkerEdit.dirty = true
     updateSceneObjectShapes()
 end
@@ -2928,20 +2925,20 @@ function drawMapTab(item_width)
     end
     for i, tObj in ipairs(tSceneObjects) do
         local isSelected = tMarkerEdit.selected == tObj
-        if tMarkerEdit.closeOtherObjects then
-            tImGui.SetNextItemOpen(tMarkerEdit.openObject == tObj,
-                tImGui.Flags('ImGuiCond_Always'))
-        elseif tMarkerEdit.openObject == tObj then
-            tImGui.SetNextItemOpen(true, tImGui.Flags('ImGuiCond_Always'))
-        end
+        -- The object list is an accordion: every node receives an explicit open state
+        -- every frame, so opening one object always closes the previously open object.
+        tImGui.SetNextItemOpen(tMarkerEdit.openObject == tObj,
+            tImGui.Flags('ImGuiCond_Always'))
         local treeFlags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or 0
         local isOpen = tImGui.TreeNodeEx(string.format('%s-%d (%s)##marker_tree_%d', L('object'), i, tObj.type, i), treeFlags)
         if tImGui.IsItemClicked() then
             tMarkerEdit.selected = tObj
-            -- A direct click in the list selects the object but does not fight the user's
-            -- manual expand/collapse choice. Exclusive opening is reserved for viewport picks.
-            tMarkerEdit.openObject = nil
-            tMarkerEdit.closeOtherObjects = false
+        end
+        if tImGui.IsItemToggledOpen() then
+            -- TreeNodeEx toggles on mouse release, while IsItemClicked() can be reported on
+            -- mouse press. Capture the dedicated toggle event so the next frame does not
+            -- overwrite the newly opened node with nil.
+            tMarkerEdit.openObject = isOpen and tObj or nil
         end
         if isOpen then
             tImGui.Text(L('scene3d_object_plane') .. ': ' .. sceneObjectPlaneLabel(tObj.plane))
@@ -2959,6 +2956,7 @@ function drawMapTab(item_width)
                 tMarkerEdit.pointHandles = {}
                 if tMarkerEdit.selected == tObj then tMarkerEdit.selected = nil end
                 if tMarkerEdit.capture == tObj then tMarkerEdit.capture = nil end
+                if tMarkerEdit.openObject == tObj then tMarkerEdit.openObject = nil end
                 tMarkerEdit.dirty = true
                 table.remove(tSceneObjects, i)
                 table.remove(tSceneObjectShapes, i)
@@ -2969,8 +2967,6 @@ function drawMapTab(item_width)
             tImGui.TreePop()
         end
     end
-    tMarkerEdit.openObject = nil
-    tMarkerEdit.closeOtherObjects = false
 end
 
 function tComboMapTypeIndexOf(sType)
