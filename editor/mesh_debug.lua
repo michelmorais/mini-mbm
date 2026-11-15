@@ -3940,6 +3940,7 @@ computeMeshVertexBoundsFrame1 = function(meshD)
     end
     if total == 0 then return false end
     return {
+        minX = minX, maxX = maxX, minY = minY, maxY = maxY, minZ = minZ, maxZ = maxZ,
         cx = (minX + maxX) * 0.5, cy = (minY + maxY) * 0.5, cz = (minZ + maxZ) * 0.5,
         width = maxX - minX, height = maxY - minY, depth = maxZ - minZ,
     }
@@ -8845,6 +8846,7 @@ function showMeshOptions(tEntry, index)
         tEntry.tPhysicsResetUI = tEntry.tPhysicsResetUI or {primitiveType = 1, triCountRect = 2, triCountCircle = 5}
         local pw = tEntry.tPhysicsResetUI
         local idxSel = tImGui.RadioButton(tLang.L('rectangle') .. '##physReset' .. index, pw.primitiveType, 1)
+        idxSel       = tImGui.RadioButton(tLang.L('cube') .. '##physReset' .. index, idxSel, 7)
         idxSel       = tImGui.RadioButton(tLang.L('rectangle_triangle') .. '##physReset' .. index, idxSel, 2)
         if idxSel == 2 then
             tImGui.SameLine()
@@ -11162,7 +11164,7 @@ end
 -- computeMeshVertexBoundsFrame1() result. Mirrors the construction math in
 -- physic_editor.lua's "Add physic" button, driven by the mesh's own vertex bounds
 -- instead of tMesh:getSize()/an assumed (0,0,0) center.
--- kind: 1=rectangle 2=rectangle_triangle 3=circle 4=circle_triangle 5=triangle 6=complex_cube
+-- kind: 1=rectangle 2=rectangle_triangle 3=circle 4=circle_triangle 5=triangle 6=complex_cube 7=cube
 local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle)
     local cx,cy,cz = bounds.cx, bounds.cy, bounds.cz
     local width,height,depth = bounds.width, bounds.height, bounds.depth
@@ -11170,6 +11172,11 @@ local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle
 
     if kind == 1 then --rectangle -> cube
         table.insert(tList, {type='cube', x=cx,y=cy,z=cz, width=width, height=height})
+    elseif kind == 7 then --cube -> cube with the complete XYZ bounds
+        table.insert(tList, {
+            type='cube', x=cx, y=cy, z=cz,
+            width=width, height=height, depth=math.max(depth or 0, 0.01),
+        })
     elseif kind == 2 then --rectangle/triangle
         local half_width  = width / 2
         local half_height = height / 2
@@ -11189,7 +11196,11 @@ local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle
             table.insert(tList, tri2)
         end
     elseif kind == 3 then --circle -> sphere
-        table.insert(tList, {type='sphere', x=cx,y=cy,z=cz, ray = width * 0.5})
+        local halfWidth  = width * 0.5
+        local halfHeight = height * 0.5
+        local halfDepth  = (depth or 0) * 0.5
+        local ray = math.sqrt(halfWidth * halfWidth + halfHeight * halfHeight + halfDepth * halfDepth)
+        table.insert(tList, {type='sphere', x=cx,y=cy,z=cz, ray = ray})
     elseif kind == 4 then --circle/triangle
         local degree     = math.rad(360) / triCountCircle
         local ray_width  = width * 0.5
@@ -11211,12 +11222,12 @@ local function buildPhysicsFromBounds(kind, bounds, triCountRect, triCountCircle
     elseif kind == 5 then --triangle
         table.insert(tList, {
             type='triangle', x=0,y=0,z=0,
-            a = {x = cx + width * -0.25, y = cy + height * -0.25},
-            b = {x = cx,                 y = cy + height * 0.25},
-            c = {x = cx + width * 0.25,  y = cy + height * -0.25},
+            a = {x = bounds.minX, y = bounds.minY},
+            b = {x = cx,         y = bounds.maxY},
+            c = {x = bounds.maxX, y = bounds.minY},
         })
     elseif kind == 6 then --complex (single 8-point box)
-        local useDepth = (depth and depth > 0) and depth or width
+        local useDepth = math.max(depth or 0, 0.01)
         local corners  = boxCornersPhys(width * 0.5, height * 0.5, useDepth * 0.5)
         local tComplex = {type='convex_polyhedron_8', x=0,y=0,z=0}
         for i,l in ipairs(BOX_LETTERS_PHYS) do
@@ -11249,6 +11260,7 @@ local function applyAllResetPhysics(sType)
             return 'failed', tLang.L('an_error_occurred')
         end
         tEntry.modified = true
+        tEntry.bPhysicsVizDirty = true
         return 'success'
     end)
 end
@@ -11662,6 +11674,7 @@ function showApplyAllWindow()
             if tImGui.TreeNodeEx(tLang.L('physics_label') .. '##applyAllPhysics', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
                 local pw  = win.physics
                 local idx = tImGui.RadioButton(tLang.L('rectangle'), pw.primitiveType, 1)
+                idx       = tImGui.RadioButton(tLang.L('cube'), idx, 7)
                 idx       = tImGui.RadioButton(tLang.L('rectangle_triangle'), idx, 2)
                 if idx == 2 then
                     tImGui.SameLine()
@@ -11710,7 +11723,7 @@ function showApplyAllWindow()
                     local p2 = {x=25 + winPos.x + 75,y=0  + winPos.y + 15}
                     local p3 = {x=50 + winPos.x + 75,y=50 + winPos.y + 15}
                     tImGui.AddTriangle(p1, p2, p3, color, thickness + 5)
-                elseif idx == 6 then
+                elseif idx == 6 or idx == 7 then
                     local off   = 18
                     local p_min = {x = winPos.x + 75,       y = winPos.y + 15 + off}
                     local p_max = {x = winPos.x + 125,      y = winPos.y + 65 + off}

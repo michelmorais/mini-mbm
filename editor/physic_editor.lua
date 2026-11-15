@@ -2299,6 +2299,13 @@ function showEditPhysics()
                     typeLabel = tLang.L('convex_polyhedron')
                 end
                 if tImGui.TreeNodeEx(typeLabel .. string.format('[%d]',i),flag_node,id_node) then
+                    if tImGui.Button(tLang.L('center_physics') .. '##center_physics_' .. tostring(i), {x=0,y=0}) then
+                        if centerPhysicsOnMesh(tPhysic) then
+                            updatePhysics(tPhysic)
+                        else
+                            tUtil.showMessageWarn(tLang.L('physics_bounds_unavailable'))
+                        end
+                    end
                     local bPreviousVisible = isPhysicsEditorVisible(tPhysic)
                     local bEditorVisible = tImGui.Checkbox(tLang.L("visible") .. '##EVisible' .. tostring(i), bPreviousVisible)
                     tPhysic.bEditorVisible = bEditorVisible
@@ -2966,6 +2973,125 @@ function addConvexPolyhedronPoint(tPhysic)
         z = centerZ + math.sin(depthAngle) * radiusZ * 1.25,
     }
     return true
+end
+
+-- Returns the mesh's tight vertex AABB in the same local coordinate space used by physics data.
+-- Read the raw frame-1 vertices through meshDebug: the renderizable's getAABB() can be derived
+-- from the physics already assigned to the mesh and would therefore circularly reproduce the
+-- current collider instead of measuring the visual geometry.
+function getPhysicsMeshBounds()
+    if not tMesh or not sLastEditorFileName or sLastEditorFileName == '' then return nil end
+    local meshD = meshDebug:new()
+    if not meshD:load(sLastEditorFileName) then return nil end
+
+    local minX, maxX, minY, maxY, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge, math.huge, -math.huge
+    local totalVertices = 0
+    local totalSubsets = meshD:getTotalSubset(1) or 0
+    for subset = 1, totalSubsets do
+        local totalSubsetVertices = meshD:getTotalVertex(1, subset) or 0
+        for vertex = 1, totalSubsetVertices do
+            local point = meshD:getVertex(1, subset, vertex)
+            if point then
+                local x, y, z = point.x or 0, point.y or 0, point.z or 0
+                minX, maxX = math.min(minX, x), math.max(maxX, x)
+                minY, maxY = math.min(minY, y), math.max(maxY, y)
+                minZ, maxZ = math.min(minZ, z), math.max(maxZ, z)
+                totalVertices = totalVertices + 1
+            end
+        end
+    end
+    if totalVertices == 0 then return nil end
+
+    local width, height, depth = maxX - minX, maxY - minY, maxZ - minZ
+    local centerX, centerY, centerZ = (minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5
+    if not bIs3d then
+        minZ, maxZ, centerZ, depth = 0, 0, 0, 0
+    end
+    return {
+        minX = minX, maxX = maxX, minY = minY, maxY = maxY, minZ = minZ, maxZ = maxZ,
+        centerX = centerX, centerY = centerY, centerZ = centerZ,
+        width = width, height = height, depth = depth,
+    }
+end
+
+function remapPhysicsPointsToBounds(points, bounds)
+    if type(points) ~= 'table' or #points == 0 then return false end
+    local minX, maxX, minY, maxY, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge, math.huge, -math.huge
+    for _, point in ipairs(points) do
+        local x, y, z = point.x or 0, point.y or 0, point.z or 0
+        minX, maxX = math.min(minX, x), math.max(maxX, x)
+        minY, maxY = math.min(minY, y), math.max(maxY, y)
+        minZ, maxZ = math.min(minZ, z), math.max(maxZ, z)
+    end
+    if minX == math.huge then return false end
+
+    local function remap(value, sourceMin, sourceMax, targetMin, targetMax)
+        local sourceSize = sourceMax - sourceMin
+        if math.abs(sourceSize) < 1e-6 then return (targetMin + targetMax) * 0.5 end
+        return targetMin + (value - sourceMin) / sourceSize * (targetMax - targetMin)
+    end
+
+    for _, point in ipairs(points) do
+        point.x = remap(point.x or 0, minX, maxX, bounds.minX, bounds.maxX)
+        point.y = remap(point.y or 0, minY, maxY, bounds.minY, bounds.maxY)
+        point.z = remap(point.z or 0, minZ, maxZ, bounds.minZ, bounds.maxZ)
+    end
+    return true
+end
+
+function centerPhysicsOnMesh(tPhysic)
+    local bounds = getPhysicsMeshBounds()
+    if not bounds or not tPhysic then return false end
+
+    if tPhysic.type == 'cube' then
+        tPhysic.x, tPhysic.y, tPhysic.z = bounds.centerX, bounds.centerY, bounds.centerZ
+        tPhysic.width, tPhysic.height = bounds.width, bounds.height
+        if bIs3d then tPhysic.depth = bounds.depth end
+        return true
+    end
+
+    if tPhysic.type == 'sphere' then
+        tPhysic.x, tPhysic.y, tPhysic.z = bounds.centerX, bounds.centerY, bounds.centerZ
+        local halfWidth, halfHeight, halfDepth = bounds.width * 0.5, bounds.height * 0.5, bounds.depth * 0.5
+        tPhysic.ray = math.sqrt(halfWidth * halfWidth + halfHeight * halfHeight + halfDepth * halfDepth)
+        return true
+    end
+
+    if tPhysic.type == 'convex_polyhedron_8' or tPhysic.type == 'complex' then
+        if bIs3d then
+            local corners = boxCorners(bounds.width * 0.5, bounds.height * 0.5, bounds.depth * 0.5)
+            for index, letter in ipairs(BOX_LETTERS) do
+                local corner = corners[index]
+                tPhysic[letter] = {
+                    x = bounds.centerX + corner.x,
+                    y = bounds.centerY + corner.y,
+                    z = bounds.centerZ + corner.z,
+                }
+            end
+        else
+            local corners = {
+                {x=bounds.minX, y=bounds.minY}, {x=bounds.minX, y=bounds.maxY},
+                {x=bounds.maxX, y=bounds.maxY}, {x=bounds.maxX, y=bounds.minY},
+            }
+            for index, letter in ipairs({'a','b','c','d'}) do
+                tPhysic[letter] = {x=corners[index].x, y=corners[index].y}
+            end
+            for _, pair in ipairs({{'e','a'}, {'f','b'}, {'g','c'}, {'h','d'}}) do
+                tPhysic[pair[1]] = {x=tPhysic[pair[2]].x, y=tPhysic[pair[2]].y}
+            end
+        end
+        return true
+    end
+
+    if tPhysic.type == 'triangle' then
+        return remapPhysicsPointsToBounds({tPhysic.a, tPhysic.b, tPhysic.c}, bounds)
+    end
+
+    if tPhysic.type == 'convex_polyhedron' then
+        return remapPhysicsPointsToBounds(tPhysic.points, bounds)
+    end
+
+    return false
 end
 
 -- Builds and adds a new physics shape for the given primitive-picker index. Extracted out of the
