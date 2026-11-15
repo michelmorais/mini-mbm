@@ -5,24 +5,59 @@ rem | See LICENSE.md for the full license text.                                |
 rem +--------------------------------------------------------------------------+
 setlocal EnableExtensions DisableDelayedExpansion
 
-if "%~1"=="" goto usage_error
-if not "%~2"=="" goto usage_error
+set "ENGINE_DIR=%~dp0"
+set "PROFILE=2d"
+set "DEST="
+
+:parse_args
+if "%~1"=="" goto args_done
 if /i "%~1"=="--help" goto help
 if /i "%~1"=="-h" goto help
 if /i "%~1"=="/?" goto help
-
-set "ENGINE_DIR=%~dp0"
+if /i "%~1"=="--profile" (
+    if "%~2"=="" goto usage_error
+    set "PROFILE=%~2"
+    shift
+    shift
+    goto parse_args
+)
+set "ARG=%~1"
+if /i "%ARG:~0,10%"=="--profile=" (
+    set "PROFILE=%ARG:~10%"
+    if not defined PROFILE goto usage_error
+    shift
+    goto parse_args
+)
+if "%ARG:~0,1%"=="-" goto usage_error
+if defined DEST goto usage_error
 set "DEST=%~f1"
+shift
+goto parse_args
+
+:args_done
+if not defined DEST goto usage_error
+
+set "DOC_LIST=docs-list-%PROFILE%.txt"
+if /i "%PROFILE%"=="2d" set "DOC_LIST=docs-list.txt"
+if /i "%PROFILE%"=="2d5" goto profile_valid
+if /i "%PROFILE%"=="3d" goto profile_valid
+if /i "%PROFILE%"=="animation" goto profile_valid
+if /i "%PROFILE%"=="authoring" goto profile_valid
+if /i "%PROFILE%"=="all" goto profile_valid
+echo Error: unknown profile: "%PROFILE%" 1>&2
+goto usage_error
+
+:profile_valid
 
 rem Validate sources before creating the destination.
-for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\.github\copilot-instructions.md" "game-template\docs-list.txt" "LICENSE.md") do (
+for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
     if not exist "%ENGINE_DIR%%%~F" (
         echo Error: required source not found: "%ENGINE_DIR%%%~F" 1>&2
         exit /b 1
     )
 )
 
-for /f "usebackq delims=" %%F in ("%ENGINE_DIR%game-template\docs-list.txt") do (
+for /f "usebackq eol=# delims=" %%F in ("%ENGINE_DIR%game-template\%DOC_LIST%") do (
     if not exist "%ENGINE_DIR%docs\%%F" (
         echo Error: required document not found: "%%F" 1>&2
         exit /b 1
@@ -36,7 +71,7 @@ for %%F in (main.lua AGENTS.md CLAUDE.md .github\copilot-instructions.md docs\EN
         exit /b 1
     )
 )
-for /f "usebackq delims=" %%F in ("%ENGINE_DIR%game-template\docs-list.txt") do (
+for /f "usebackq eol=# delims=" %%F in ("%ENGINE_DIR%game-template\%DOC_LIST%") do (
     if exist "%DEST%\docs\%%F\" (
         echo Error: expected a file, found a directory: "%DEST%\docs\%%F" 1>&2
         exit /b 1
@@ -104,8 +139,8 @@ echo Note: CLAUDE.md uses a hard link. Replacing either file can break synchroni
 :link_ready
 popd
 
-rem Both launchers share the curated game-development documentation list.
-for /f "usebackq delims=" %%F in ("%ENGINE_DIR%game-template\docs-list.txt") do (
+rem Both launchers share the selected game-development documentation list.
+for /f "usebackq eol=# delims=" %%F in ("%ENGINE_DIR%game-template\%DOC_LIST%") do (
     copy /y "%ENGINE_DIR%docs\%%F" "%DEST%\docs\%%F" >nul
     if errorlevel 1 goto failed
 )
@@ -114,6 +149,7 @@ if errorlevel 1 goto failed
 
 echo Game template copied to: "%DEST%"
 echo Agent context: AGENTS.md, CLAUDE.md, .github\copilot-instructions.md
+echo Documentation profile: %PROFILE%
 echo Current engine documentation: "%DEST%\docs\lua-api.md"
 echo Run your game with your Lua-enabled engine build:
 echo   cd /d "%DEST%"
@@ -138,9 +174,10 @@ call :usage
 exit /b 0
 
 :usage
-echo Usage: %~nx0 ^<destination-folder^>
+echo Usage: %~nx0 [--profile ^<2d^|2d5^|3d^|animation^|authoring^|all^>] ^<destination-folder^>
 echo.
 echo Creates a standalone Lua game; asks before overwriting a nonempty folder.
-echo Includes agent instructions and a selection of current game-development docs.
+echo The default profile is 2d. Profiles control which engine docs are copied.
+echo Profiles: 2d, 2d5, 3d, animation, authoring, all.
 echo Engine binaries and plugins are provided externally.
 exit /b 0

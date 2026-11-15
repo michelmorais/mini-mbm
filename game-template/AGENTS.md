@@ -2,15 +2,16 @@
 
 ## Current engine reference
 
-`copy-game-template.sh` includes selected current game-development documentation in
-`docs/`. Consult `docs/lua-api.md` before implementing engine calls; it takes precedence
-over the quick reference below when they differ. It covers current APIs, including
-lighting, normal maps, asynchronous loading, articulated animation, and skeletal playback.
-For details, see `docs/light.md`, `docs/normal-mapping.md`,
-`docs/articulated-animation.md`, and
-`docs/realtime-skeletal-animation.md`. These files describe the engine checkout used
-when creating the project; use a matching engine build. When opening `game-template/`
-directly, the canonical docs are in `../docs/` instead.
+`copy-game-template.sh` includes a selected documentation profile in `docs/`.
+The default profile is `2d`; use `--profile 2d5`, `3d`, `animation`, `authoring`
+or `all` when creating the project if another set is more appropriate. Consult
+`docs/lua-api.md` before implementing engine calls; it takes precedence over the
+quick reference below when they differ. Additional documents are profile-specific:
+for example, `docs/game-2d5.md` explains 3D rendering with X/Y gameplay and Box2D,
+while `docs/light.md` and `docs/normal-mapping.md` cover 3D materials. These files
+describe the engine checkout used when creating the project; use a matching engine
+build. When opening `game-template/` directly, the canonical docs are in `../docs/`
+instead.
 
 `CLAUDE.md` links to `AGENTS.md`. Keep this file and the Copilot instructions synchronized
 when changing game-specific guidance. Engine binaries and plugins remain external.

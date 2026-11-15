@@ -1,0 +1,17 @@
+# Broader current game-development documentation set
+lua-api.md
+game-2d.md
+game-2d5.md
+game-3d.md
+light.md
+normal-mapping.md
+box2d.md
+normal-map-editor.md
+articulated-animation.md
+articulated-mesh-editor.md
+articulated-sprite-editor.md
+bones-armatures-and-fbx.md
+realtime-skeletal-animation.md
+skeletal-animation-editor.md
+image-mesh-editor.md
+mesh-simplification.md

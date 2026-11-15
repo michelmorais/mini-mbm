@@ -1,0 +1,5 @@
+# 3D rendering and gameplay
+lua-api.md
+game-3d.md
+light.md
+normal-mapping.md

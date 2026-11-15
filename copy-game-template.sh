@@ -2,10 +2,10 @@
 # copy-game-template.sh — Copy the mini-mbm Lua game template to a new folder.
 #
 # Usage:
-#   ./copy-game-template.sh <destination-folder>
+#   ./copy-game-template.sh [--profile <name>] <destination-folder>
 #
 # Example:
-#   ./copy-game-template.sh /home/michel/my-new-game
+#   ./copy-game-template.sh --profile 2d5 /home/michel/my-new-game
 
 set -euo pipefail
 
@@ -13,25 +13,79 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="${SCRIPT_DIR}/game-template"
 
 usage() {
-    echo "Usage: $0 <destination-folder>"
+    echo "Usage: $0 [--profile <2d|2d5|3d|animation|authoring|all>] <destination-folder>"
     echo ""
     echo "Creates a standalone Lua game; asks before overwriting a nonempty folder."
-    echo "Includes agent instructions and a selection of current game-development docs."
+    echo "The default profile is 2d. Profiles control which engine docs are copied."
+    echo "Profiles: 2d, 2d5, 3d, animation, authoring, all."
     echo "Engine binaries and plugins are provided externally."
 }
 
-if [[ $# -eq 1 && ( "$1" == "--help" || "$1" == "-h" ) ]]; then
-    usage
-    exit 0
-fi
-if [[ $# -ne 1 || -z "${1:-}" ]]; then
+PROFILE="2d"
+DEST=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --profile)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "Error: --profile requires a profile name." >&2
+                usage >&2
+                exit 1
+            fi
+            PROFILE="$2"
+            shift 2
+            ;;
+        --profile=*)
+            PROFILE="${1#--profile=}"
+            if [[ -z "$PROFILE" ]]; then
+                echo "Error: --profile requires a profile name." >&2
+                usage >&2
+                exit 1
+            fi
+            shift
+            ;;
+        --*)
+            echo "Error: unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+        *)
+            if [[ -n "$DEST" ]]; then
+                usage >&2
+                exit 1
+            fi
+            DEST="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$DEST" ]]; then
     usage >&2
     exit 1
 fi
 
+case "$PROFILE" in
+    2d)
+        DOC_LIST="docs-list.txt"
+        ;;
+    2d5|3d|animation|authoring|all)
+        DOC_LIST="docs-list-${PROFILE}.txt"
+        ;;
+    *)
+        echo "Error: unknown profile: $PROFILE" >&2
+        usage >&2
+        exit 1
+        ;;
+esac
+
 # Validate all sources before creating the destination.
 for source in game-template/main.lua game-template/AGENTS.md \
-              game-template/.github/copilot-instructions.md game-template/docs-list.txt LICENSE.md; do
+              game-template/.github/copilot-instructions.md \
+              "game-template/$DOC_LIST" LICENSE.md; do
     if [[ ! -f "${SCRIPT_DIR}/${source}" ]]; then
         echo "Error: required source not found: ${SCRIPT_DIR}/${source}" >&2
         exit 1
@@ -41,15 +95,14 @@ done
 docs=()
 while IFS= read -r doc || [[ -n "$doc" ]]; do
     doc="${doc%$'\r'}"
-    [[ -z "$doc" ]] && continue
+    [[ -z "$doc" || "${doc:0:1}" == "#" ]] && continue
     if [[ ! -f "$SCRIPT_DIR/docs/$doc" ]]; then
         echo "Error: required document not found: $doc" >&2
         exit 1
     fi
     docs+=("$doc")
-done < "$TEMPLATE_DIR/docs-list.txt"
+done < "$TEMPLATE_DIR/$DOC_LIST"
 
-DEST="$1"
 if [[ -e "$DEST" && ! -d "$DEST" ]]; then
     echo "Error: destination is not a directory: $DEST" >&2
     exit 1
@@ -97,6 +150,7 @@ cp -- "$SCRIPT_DIR/LICENSE.md" "$DEST/docs/ENGINE-LICENSE.md"
 
 echo "Game template copied to: $DEST"
 echo "Agent context: AGENTS.md, CLAUDE.md -> AGENTS.md, .github/copilot-instructions.md"
+echo "Documentation profile: $PROFILE"
 echo "Current engine documentation: $DEST/docs/lua-api.md"
 echo "Run your game with your Lua-enabled engine build:"
 printf '  cd %q && /path/to/mini-mbm --scene main.lua\n' "$DEST"
