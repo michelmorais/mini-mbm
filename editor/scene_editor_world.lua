@@ -1721,6 +1721,7 @@ function copySelectedMeshes()
             rotationX = tPlaced.rotationX or 0,
             rotationY = tPlaced.rotationY or 0,
             rotationZ = tPlaced.rotationZ or 0,
+            nick_name = tPlaced.nick_name or '',
             animationName = tPlaced.animationName or '',
             articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             sx = tPlaced.scale.x, sy = tPlaced.scale.y, sz = tPlaced.scale.z,
@@ -1771,6 +1772,7 @@ function pasteCopiedMeshes()
             tNew.rotationX = tCopy.rotationX or 0
             tNew.rotationZ = tCopy.rotationZ or 0
             tNew.rotationY = tCopy.rotationY
+            tNew.nick_name = tCopy.nick_name or ''
             tNew.animationName = tCopy.animationName
             tNew.articulatedAnimationNames = copyStringList(tCopy.articulatedAnimationNames)
             tNew.scale = {x = tCopy.sx, y = tCopy.sy, z = tCopy.sz}
@@ -1897,7 +1899,7 @@ function addPlacedMesh(fileName, sType, layerIndex, cellX, cellZ, freeX, freeZ, 
         bAttachedToLayer = true, freeY = freeY or 0,
         positionOffset = {x = 0, y = 0, z = 0},
         rotationX = 0, rotationY = 0, rotationZ = 0, scale = {x = 1, y = 1, z = 1},
-        animationName = '', articulatedAnimationNames = {},
+        animationName = '', articulatedAnimationNames = {}, nick_name = '',
         isSelected = false, tObj = nil,
     }
     table.insert(tPlacedMeshes, tPlaced)
@@ -3382,6 +3384,11 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
         tImGui.PopStyleColor(1)
     end
 
+    local cNickName, nickName = tImGui.InputText(L('mesh_nickname') .. '##placed_nickname' .. i,
+        tPlaced.nick_name or '')
+    local bNickNameFinished = tImGui.IsItemDeactivatedAfterEdit()
+    if cNickName then tPlaced.nick_name = nickName end
+
     if bFullControls then
         local sel = tImGui.Checkbox(L('selected') .. '##placed_sel' .. i, tPlaced.isSelected)
         if sel ~= tPlaced.isSelected then tPlaced.isSelected = sel; if is2d then view.invalidate() end end
@@ -3419,6 +3426,7 @@ function drawPlacedMeshRow(i, tPlaced, thumbSize, bFullControls)
     if bRotYDragFinished then
         pushUndoSnapshot()
     end
+    if bNickNameFinished then pushUndoSnapshot() end
 
     tImGui.EndGroup() -- Y controls beside the thumbnail.
     tImGui.EndGroup() -- Advance below the taller of thumbnail and controls.
@@ -4049,6 +4057,8 @@ function getHeader3d(fileName, bIsExport)
         local tMesh = tScene3d:get(1)               -- by load-order index
         local tMesh = tScene3d:getObject('rock.msh') -- by name
         local tAll  = tScene3d:getAll('tree.msh')
+        local tMesh = tScene3d:getByNickName('player') -- first instance with this nick_name
+        local tAll  = tScene3d:getAllByNickName('enemy') -- all instances; nicknames may repeat
 
     * To spawn a new instance at runtime:
 
@@ -4192,6 +4202,10 @@ tScene3d._addMesh = function(self, tInfo, onDone)
             table.insert(self.tMeshesLoaded, tObj)
             self.tMeshesLoadedDictionary[tInfo.fileName] = self.tMeshesLoadedDictionary[tInfo.fileName] or {}
             table.insert(self.tMeshesLoadedDictionary[tInfo.fileName], tObj)
+            if type(tInfo.nick_name) == 'string' and tInfo.nick_name ~= '' then
+                self.tMeshesLoadedByNickName[tInfo.nick_name] = self.tMeshesLoadedByNickName[tInfo.nick_name] or {}
+                table.insert(self.tMeshesLoadedByNickName[tInfo.nick_name], tObj)
+            end
         end
         self.iLoadedCount = self.iLoadedCount + 1
         if onDone then onDone(tObj) end
@@ -4231,6 +4245,7 @@ tScene3d.load = function(self, onProgress)
     self:updateCamera()
     self.tMeshesLoaded = {}
     self.tMeshesLoadedDictionary = {}
+    self.tMeshesLoadedByNickName = {}
     self.iLoadedCount = 0
     self.iTotalCount  = #self.tPlacedMeshInfo
     for i = 1, #self.tPlacedMeshInfo do
@@ -4246,17 +4261,26 @@ tScene3d.get = function(self, nameOrIndex)
     if type(nameOrIndex) == 'number' then
         return self.tMeshesLoaded[nameOrIndex]
     end
-    local list = self.tMeshesLoadedDictionary[nameOrIndex]
+    local list = self.tMeshesLoadedDictionary[nameOrIndex] or self.tMeshesLoadedByNickName[nameOrIndex]
     return list and list[1] or nil
 end
 
 tScene3d.getObject = function(self, name)
-    local list = self.tMeshesLoadedDictionary[name]
+    local list = self.tMeshesLoadedDictionary[name] or self.tMeshesLoadedByNickName[name]
     return list and list[1] or nil
 end
 
 tScene3d.getAll = function(self, name)
-    return self.tMeshesLoadedDictionary[name] or {}
+    return self.tMeshesLoadedDictionary[name] or self.tMeshesLoadedByNickName[name] or {}
+end
+
+tScene3d.getByNickName = function(self, nickName)
+    local list = self.tMeshesLoadedByNickName[nickName]
+    return list and list[1] or nil
+end
+
+tScene3d.getAllByNickName = function(self, nickName)
+    return self.tMeshesLoadedByNickName[nickName] or {}
 end
 
 tScene3d.getAmbientLight = function(self)
@@ -4348,6 +4372,7 @@ function captureScene3dSnapshot()
             rotationX = tPlaced.rotationX or 0,
             rotationY = tPlaced.rotationY or 0,
             rotationZ = tPlaced.rotationZ or 0,
+            nick_name = tPlaced.nick_name or '',
             animationName = tPlaced.animationName or '',
             articulatedAnimationNames = copyStringList(tPlaced.articulatedAnimationNames),
             offsetX = tPlaced.positionOffset and tPlaced.positionOffset.x or 0,
@@ -4383,6 +4408,7 @@ function restoreScene3dSnapshot(snapshot)
         tPlaced.rotationX = tInfo.rotationX or 0
         tPlaced.rotationZ = tInfo.rotationZ or 0
         tPlaced.rotationY        = tInfo.rotationY
+        tPlaced.nick_name = tInfo.nick_name or ''
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
         tPlaced.positionOffset = {x = tInfo.offsetX or 0, y = tInfo.offsetY or 0, z = tInfo.offsetZ or 0}
@@ -4544,16 +4570,16 @@ function writeScene3d(fileName, bAsyncMesh, bIsExport)
         local x, y, z = resolvePlacedMeshWorldPos(tPlaced)
         if bIsExport then
             fp:write(string.format(
-                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
-                i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                '[%d]={fileName=%q,type=%q,nick_name=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,animationName=%q,articulatedAnimationNames=%s},\n',
+                i, savedPath(tPlaced.fileName), tPlaced.type, tPlaced.nick_name or '', x, y, z, tPlaced.rotationY or 0,
                 tPlaced.rotationX or 0, tPlaced.rotationZ or 0, tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.animationName or '', formatLuaStringList(tPlaced.articulatedAnimationNames)))
         else
             fp:write(string.format(
-                '[%d]={fileName=%q,type=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,'
+                '[%d]={fileName=%q,type=%q,nick_name=%q,x=%g,y=%g,z=%g,rotationY=%g,rotationX=%g,rotationZ=%g,sx=%g,sy=%g,sz=%g,'
                 .. 'layerIndex=%d,cellX=%d,cellZ=%d,freeX=%g,freeZ=%g,freeY=%g,offsetX=%g,offsetY=%g,offsetZ=%g,bAttachedToLayer=%s,'
                 .. 'animationName=%q,articulatedAnimationNames=%s},\n',
-                i, savedPath(tPlaced.fileName), tPlaced.type, x, y, z, tPlaced.rotationY or 0,
+                i, savedPath(tPlaced.fileName), tPlaced.type, tPlaced.nick_name or '', x, y, z, tPlaced.rotationY or 0,
                 tPlaced.rotationX or 0, tPlaced.rotationZ or 0, tPlaced.scale.x, tPlaced.scale.y, tPlaced.scale.z,
                 tPlaced.layerIndex or 1, tPlaced.cellX or 0, tPlaced.cellZ or 0,
                 tPlaced.freeX or 0, tPlaced.freeZ or 0, tPlaced.freeY or 0,
@@ -4668,6 +4694,7 @@ function applyLoadedScene3d(tLoaded)
         tPlaced.rotationX = tInfo.rotationX or 0
         tPlaced.rotationZ = tInfo.rotationZ or 0
         tPlaced.rotationY = tInfo.rotationY
+        tPlaced.nick_name = tInfo.nick_name or ''
         tPlaced.animationName = tInfo.animationName or ''
         tPlaced.articulatedAnimationNames = getArticulatedAnimationNames(tInfo)
         tPlaced.positionOffset = {x = tInfo.offsetX or 0, y = tInfo.offsetY or 0, z = tInfo.offsetZ or 0}
