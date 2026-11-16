@@ -4115,9 +4115,11 @@ function getHeader3d(fileName, bIsExport)
         local tMesh = tScene3d:getByNickName('player') -- first instance with this nick_name
         local tAll  = tScene3d:getAllByNickName('enemy') -- all instances; nicknames may repeat
 
-    * To spawn a new instance at runtime:
+    * To spawn a new instance at runtime. The optional dynamicConfig table can override
+      per-instance mesh loading options without changing the saved asset configuration:
 
         local tNew = tScene3d:addMesh('rock.msh')
+        local tUnlit = tScene3d:addMesh('rock.msh', {receiveLight = false})
 
     * To read back the scene's lighting:
 
@@ -4167,9 +4169,9 @@ function getSceneLoaderCode3d(bAsyncMesh)
         -- is what the confirmed reproduction actually needed. Different files still load fully in
         -- parallel; only repeated instances of one file are serialized.
         sMeshLoadBranch = [[
-        self:_loadMeshAsyncQueued(tInfo.fileName, finish)]]
+        self:_loadMeshAsyncQueued(tInfo.fileName, finish, tInfo.dynamicConfig)]]
         sAsyncQueueHelper = [[
-tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded)
+tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded, dynamicConfig)
     self.tAsyncQueueByFile = self.tAsyncQueueByFile or {}
     local queue = self.tAsyncQueueByFile[fileName]
     if not queue then
@@ -4185,13 +4187,13 @@ tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded)
         queue.bLoading = true
         local m = mesh:new('3d')
         m:loadAsync(fileName, function(self_mesh, success)
-            local loaded = success and self:_createMeshWithLighting(fileName) or nil
+            local loaded = success and self:_createMeshWithLighting(fileName, req.dynamicConfig) or nil
             self_mesh:destroy()
-            req(loaded)
+            req.onLoaded(loaded)
             processNext()
         end)
     end
-    table.insert(queue.pending, onLoaded)
+    table.insert(queue.pending, {onLoaded = onLoaded, dynamicConfig = dynamicConfig})
     if not queue.bLoading then
         processNext()
     end
@@ -4199,7 +4201,7 @@ end
 ]]
     else
         sMeshLoadBranch = [[
-        finish(self:_createMeshWithLighting(tInfo.fileName))]]
+        finish(self:_createMeshWithLighting(tInfo.fileName, tInfo.dynamicConfig))]]
         sAsyncQueueHelper = ''
     end
 
@@ -4220,12 +4222,18 @@ tScene3d.updateCamera = function(self)
     cam:setFocus(self.fCamFocus.x, self.fCamFocus.y, self.fCamFocus.z)
 end
 
--- Lighting is selected per asset when its instance shaders are initialized. Restore the
--- scene switch immediately; one unlit mesh must never turn off lighting for its neighbours.
-tScene3d._createMeshWithLighting = function(self, fileName)
+-- Lighting is selected per asset when its instance shaders are initialized. A dynamicConfig
+-- receiveLight value overrides the saved asset preference for that one runtime-created mesh.
+-- Restore the scene switch immediately; one unlit mesh must never turn off lighting for its
+-- neighbours.
+tScene3d._createMeshWithLighting = function(self, fileName, dynamicConfig)
     local enabled = mbm.getLightState('3d').enabled
     local offset = self.tMeshOffsets[fileName] or {}
-    mbm.setLightEnabled('3d', offset.receiveLight ~= false)
+    local receiveLight = offset.receiveLight ~= false
+    if dynamicConfig and dynamicConfig.receiveLight ~= nil then
+        receiveLight = dynamicConfig.receiveLight == true
+    end
+    mbm.setLightEnabled('3d', receiveLight)
     local object = mesh:new('3d')
     local loaded = object:load(fileName)
     mbm.setLightEnabled('3d', enabled)
@@ -4368,8 +4376,19 @@ tScene3d.getAllSceneObjects = function(self)
     return self.tSceneObjects or {}
 end
 
-tScene3d.addMesh = function(self, nameOrFileName, sTypeOverride)
-    local tInfo = { fileName = nameOrFileName, type = sTypeOverride or inferType3dFromFileName(nameOrFileName), x = 0, y = 0, z = 0 }
+tScene3d.addMesh = function(self, nameOrFileName, sTypeOverride, dynamicConfig)
+    -- Keep the convenient addMesh(fileName, config) form while preserving the older
+    -- addMesh(fileName, type) signature. The explicit three-argument form is also supported.
+    if type(sTypeOverride) == 'table' and dynamicConfig == nil then
+        dynamicConfig = sTypeOverride
+        sTypeOverride = nil
+    end
+    local tInfo = {
+        fileName = nameOrFileName,
+        type = sTypeOverride or inferType3dFromFileName(nameOrFileName),
+        dynamicConfig = dynamicConfig,
+        x = 0, y = 0, z = 0,
+    }
     local result = nil
     self:_addMesh(tInfo, function(tObj) result = tObj end)
     return result
