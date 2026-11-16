@@ -15,6 +15,7 @@ Writes a Lua intermediate file with baked mesh frames:
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import io
 import json
 import math
@@ -1556,6 +1557,64 @@ def activate_animation_source(scene: Any, clip: dict[str, Any]) -> None:
     obj.animation_data.action = action
 
 
+def capture_canonical_bind_transforms(scene: Any) -> list[tuple[Any, Any]]:
+    """Capture the imported object transforms that define the canonical bind reference."""
+    return [(obj, obj.matrix_world.copy()) for obj in scene.objects
+            if getattr(obj, "type", None) in ("ARMATURE", "MESH")]
+
+
+@contextmanager
+def canonical_bind_reference(scene: Any, frame: int, reference_transforms: list[tuple[Any, Any]]):
+    """Evaluate the bind mesh and skeleton without object-level animation.
+
+    FBX files from Mixamo can store root motion in an armature object's Action.  The canonical
+    skeleton is a static bind-space contract, so capturing it while one Action is active and
+    capturing frame zero after another Action has been selected makes the mesh and inverse bind
+    matrices disagree.  Temporarily mute object Actions/NLA and force armatures to REST so both
+    captures use the same reference transform.  Animation sampling restores the original state
+    and deliberately includes the selected armature object transform in type-43 tracks.
+    """
+    saved_frame = int(scene.frame_current)
+    saved_transforms = [(obj, obj.matrix_world.copy()) for obj in scene.objects
+                        if getattr(obj, "type", None) in ("ARMATURE", "MESH")]
+    saved_animation: list[tuple[Any, Any, bool]] = []
+    saved_pose_position: list[tuple[Any, Any]] = []
+    try:
+        for obj in scene.objects:
+            animation_data = getattr(obj, "animation_data", None)
+            if animation_data is not None:
+                saved_animation.append((obj, getattr(animation_data, "action", None),
+                                        bool(getattr(animation_data, "use_nla", True))))
+                animation_data.action = None
+                if hasattr(animation_data, "use_nla"):
+                    animation_data.use_nla = False
+            if getattr(obj, "type", None) == "ARMATURE":
+                armature_data = getattr(obj, "data", None)
+                if armature_data is not None and hasattr(armature_data, "pose_position"):
+                    saved_pose_position.append((armature_data, armature_data.pose_position))
+                    armature_data.pose_position = "REST"
+        for obj, matrix_world in reference_transforms:
+            obj.matrix_world = matrix_world.copy()
+        scene.frame_set(max(1, int(frame)))
+        bpy.context.view_layer.update()
+        yield
+    finally:
+        for armature_data, pose_position in saved_pose_position:
+            armature_data.pose_position = pose_position
+        for obj, action, use_nla in saved_animation:
+            animation_data = getattr(obj, "animation_data", None)
+            if animation_data is None:
+                obj.animation_data_create()
+                animation_data = obj.animation_data
+            animation_data.action = action
+            if hasattr(animation_data, "use_nla"):
+                animation_data.use_nla = use_nla
+        scene.frame_set(saved_frame)
+        for obj, matrix_world in saved_transforms:
+            obj.matrix_world = matrix_world.copy()
+        bpy.context.view_layer.update()
+
+
 def ensure_active_canonical_action(skeleton: dict[str, Any], debug: bool = False) -> None:
     """Activate a detached pose action before an implicit scene-range bake.
 
@@ -2963,6 +3022,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    canonical_bind_frame = max(1, int(args.frame_start))
+    scene.frame_set(canonical_bind_frame)
+    bpy.context.view_layer.update()
+    canonical_bind_transforms = capture_canonical_bind_transforms(scene)
     cull_face = 0x0405 if scene_uses_backface_culling(scene) else 0x0408
     exported_source_objects = source_object_names(scene)
     debug_print(args.debug_steps, "material culling: " + ("back" if cull_face == 0x0405 else "disabled"))
@@ -3005,7 +3068,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             )
         elif can_export_canonical_skeletal(skeletal_capability, args.large_mesh_mode):
             if resolve_unweighted_meshes(scene, getattr(args, "unweighted_mesh_mode", "fail")):
-                canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg)
+                with canonical_bind_reference(scene, canonical_bind_frame, canonical_bind_transforms):
+                    canonical_skeleton = extract_canonical_skeleton(scene, import_rotation_deg)
         elif skeletal_capability:
             debug_print(
                 args.debug_steps,
@@ -3085,14 +3149,9 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             # Canonical weights and inverse bind target the undeformed bind geometry, never an
             # arbitrary sampled pose. Animation lives in type-43 local tracks instead of duplicate
             # SECTION_FRAME_STATIC geometry.
-            armature_obj = canonical_skeleton["armatureObject"]
-            previous_pose_position = armature_obj.data.pose_position
-            armature_obj.data.pose_position = "REST"
-            try:
+            with canonical_bind_reference(scene, canonical_bind_frame, canonical_bind_transforms):
                 out_index = 1
-                export_frame_to_chunk(max(1, int(args.frame_start)))
-            finally:
-                armature_obj.data.pose_position = previous_pose_position
+                export_frame_to_chunk(canonical_bind_frame)
             animations = [{
                 "name": "default", "initialFrame": 1, "finalFrame": 1,
                 "timeBetweenFrame": 0.0, "typeAnimation": 1,

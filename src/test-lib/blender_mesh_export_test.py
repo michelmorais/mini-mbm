@@ -149,6 +149,53 @@ class BlenderMeshExportTests(unittest.TestCase):
         self.assertEqual(EXPORTER.source_object_catalog_path("/tmp/megan.msh"),
                          "/tmp/megan_mbm_objects.lua")
 
+    def test_canonical_bind_reference_restores_animation_and_object_state(self) -> None:
+        class Matrix:
+            def __init__(self, value):
+                self.value = value
+
+            def copy(self):
+                return Matrix(self.value)
+
+        scene = SimpleNamespace(frame_current=7, objects=[])
+
+        def frame_set(frame):
+            scene.frame_current = frame
+
+        scene.frame_set = frame_set
+        armature = SimpleNamespace(
+            name="Rig", type="ARMATURE", matrix_world=Matrix("bind"),
+            animation_data=SimpleNamespace(action="Walking", use_nla=True),
+            data=SimpleNamespace(pose_position="POSE"),
+        )
+        mesh = SimpleNamespace(
+            name="Mesh", type="MESH", matrix_world=Matrix("bind-mesh"),
+            animation_data=SimpleNamespace(action="MeshAction", use_nla=True),
+        )
+        scene.objects = [armature, mesh]
+        reference = EXPORTER.capture_canonical_bind_transforms(scene)
+        fake_bpy = SimpleNamespace(
+            context=SimpleNamespace(view_layer=SimpleNamespace(update=mock.Mock()))
+        )
+
+        with mock.patch.object(EXPORTER, "bpy", fake_bpy, create=True):
+            with EXPORTER.canonical_bind_reference(scene, 1, reference):
+                self.assertEqual(scene.frame_current, 1)
+                self.assertIsNone(armature.animation_data.action)
+                self.assertIsNone(mesh.animation_data.action)
+                self.assertFalse(armature.animation_data.use_nla)
+                self.assertEqual(armature.data.pose_position, "REST")
+                self.assertEqual(armature.matrix_world.value, "bind")
+                self.assertEqual(mesh.matrix_world.value, "bind-mesh")
+                armature.matrix_world = Matrix("animated")
+
+        self.assertEqual(scene.frame_current, 7)
+        self.assertEqual(armature.animation_data.action, "Walking")
+        self.assertEqual(mesh.animation_data.action, "MeshAction")
+        self.assertTrue(armature.animation_data.use_nla)
+        self.assertEqual(armature.data.pose_position, "POSE")
+        self.assertEqual(armature.matrix_world.value, "bind")
+
     def test_facial_vertices_align_by_source_association_after_reordering(self) -> None:
         base = [
             {"sourceObject": "Body", "sourceVertex": 1, "sourceLoop": 11, "x": 1.0},
