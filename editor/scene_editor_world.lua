@@ -3596,8 +3596,10 @@ function drawMeshSelector(xStart)
     if isOpen then
         local tFiltered = getFilteredMeshSetEntries()
         local tSceneSelected = getSceneSelectedFileNames()
-        local winWidth = tImGui.GetWindowWidth()
-        local xLast = tImGui.GetCursorPosX()
+        local xFirst = tImGui.GetCursorPosX()
+        local contentRight = xFirst + tImGui.GetContentRegionAvail().x
+        local xLast = xFirst
+        local itemSpacing = 10
         for n, entry in ipairs(tFiltered) do
             local texInfo = getOrCreateThumbnail(entry)
             local size = {x = iSizeMeshOnSelector, y = iSizeMeshOnSelector}
@@ -3643,11 +3645,14 @@ function drawMeshSelector(xStart)
             else
                 tImGui.Button(L('generating') .. '##selpending' .. n, size)
             end
-            xLast = xLast + size.x + 10
-            if xLast < winWidth - size.x then
+            -- Keep the complete next thumbnail inside the content region.  The
+            -- old check used the full outer window width, which could include
+            -- space outside the screen after the selector was resized.
+            xLast = xLast + size.x + itemSpacing
+            if xLast + size.x <= contentRight then
                 tImGui.SameLine()
             else
-                xLast = tImGui.GetCursorPosX()
+                xLast = xFirst
             end
         end
         menuPopUpOptionToAddMesh()

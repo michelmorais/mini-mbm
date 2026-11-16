@@ -139,7 +139,11 @@ tUtil.setInitialWindowPositionDown = function(title,xStart,YPercentage,xRight)
     local tPosWin                   = {x=xStart,y=iH - (YPercentage * iH)}
     local tSize                     = {x = iW - tPosWin.x - (xRight or 0), y = math.max(80, iH - tPosWin.y - tUtil.iWindowBottomMargin)}
     local tMinSize                  = {x = math.min(120, tSize.x), y = math.min(80, tSize.y)}
-    local tMaxSize                  = {x = iW, y = tSize.y}
+    -- The window starts at xStart, so its maximum width is the space that remains
+    -- from that anchor to the right edge (including the requested right margin).
+    -- Using the full screen width here lets a resized window extend past the
+    -- viewport, while its contents continue to be laid out as if they were visible.
+    local tMaxSize                  = {x = tSize.x, y = tSize.y}
     tImGui.SetNextWindowSizeConstraints(tMinSize,tMaxSize)
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
