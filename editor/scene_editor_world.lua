@@ -4116,10 +4116,11 @@ function getHeader3d(fileName, bIsExport)
         local tAll  = tScene3d:getAllByNickName('enemy') -- all instances; nicknames may repeat
 
     * To spawn a new instance at runtime. The optional dynamicConfig table can override
-      per-instance mesh loading options without changing the saved asset configuration:
+      per-instance mesh loading options without changing the saved asset configuration.
+      `async` omitted inherits Export/Play's setting; false forces synchronous loading:
 
         local tNew = tScene3d:addMesh('rock.msh')
-        local tUnlit = tScene3d:addMesh('rock.msh', {receiveLight = false})
+        local tUnlitImmediate = tScene3d:addMesh('rock.msh', {receiveLight = false, async = false})
 
     * To read back the scene's lighting:
 
@@ -4151,26 +4152,11 @@ function getHeader3d(fileName, bIsExport)
     return sHeader
 end
 
--- bAsyncMesh picks which of two literal code branches gets baked into the generated
--- tScene3d._addMesh for the 'mesh' render type (the only type with a real loadAsync in this
--- engine) -- the emitted file only ever contains ONE of the two, not a runtime branch on a
--- baked boolean.
+-- bAsyncMesh picks the default branch baked into the generated tScene3d._addMesh for the
+-- 'mesh' render type (the only type with a real loadAsync in this engine). A per-instance
+-- dynamicConfig.async value can override that default at runtime.
 function getSceneLoaderCode3d(bAsyncMesh)
-    local sMeshLoadBranch, sAsyncQueueHelper
-    if bAsyncMesh then
-        -- Routed through _loadMeshAsyncQueued instead of calling mesh:loadAsync directly -- firing
-        -- many concurrent loadAsync calls for the SAME file (e.g. a level with many placed
-        -- instances of one prop) is a confirmed engine-level crash (SIGSEGV inside the async
-        -- callback's Lua registry lookup, mesh-lua.cpp's onLoadAsyncMeshLua via
-        -- MESH_MANAGER::pumpAsyncLoads -- see the async-mesh-load-concurrency-crash memory/commit
-        -- history), reproduced via this exact Play-with-async-enabled path. The underlying pipeline
-        -- bug itself is out of scope here (shared engine infrastructure, needs a dedicated
-        -- investigation) -- this caps same-file concurrency to 1-in-flight at the Lua level, which
-        -- is what the confirmed reproduction actually needed. Different files still load fully in
-        -- parallel; only repeated instances of one file are serialized.
-        sMeshLoadBranch = [[
-        self:_loadMeshAsyncQueued(tInfo.fileName, finish, tInfo.dynamicConfig)]]
-        sAsyncQueueHelper = [[
+    local sMeshLoadBranch, sAsyncQueueHelper = nil, [[
 tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded, dynamicConfig)
     self.tAsyncQueueByFile = self.tAsyncQueueByFile or {}
     local queue = self.tAsyncQueueByFile[fileName]
@@ -4199,10 +4185,30 @@ tScene3d._loadMeshAsyncQueued = function(self, fileName, onLoaded, dynamicConfig
     end
 end
 ]]
+    if bAsyncMesh then
+        -- Routed through _loadMeshAsyncQueued instead of calling mesh:loadAsync directly -- firing
+        -- many concurrent loadAsync calls for the SAME file (e.g. a level with many placed
+        -- instances of one prop) is a confirmed engine-level crash (SIGSEGV inside the async
+        -- callback's Lua registry lookup, mesh-lua.cpp's onLoadAsyncMeshLua via
+        -- MESH_MANAGER::pumpAsyncLoads -- see the async-mesh-load-concurrency-crash memory/commit
+        -- history), reproduced via this exact Play-with-async-enabled path. The underlying pipeline
+        -- bug itself is out of scope here (shared engine infrastructure, needs a dedicated
+        -- investigation) -- this caps same-file concurrency to 1-in-flight at the Lua level, which
+        -- is what the confirmed reproduction actually needed. Different files still load fully in
+        -- parallel; only repeated instances of one file are serialized.
+        sMeshLoadBranch = [[
+        if tInfo.dynamicConfig and tInfo.dynamicConfig.async == false then
+            finish(self:_createMeshWithLighting(tInfo.fileName, tInfo.dynamicConfig))
+        else
+            self:_loadMeshAsyncQueued(tInfo.fileName, finish, tInfo.dynamicConfig)
+        end]]
     else
         sMeshLoadBranch = [[
-        finish(self:_createMeshWithLighting(tInfo.fileName, tInfo.dynamicConfig))]]
-        sAsyncQueueHelper = ''
+        if tInfo.dynamicConfig and tInfo.dynamicConfig.async == true then
+            self:_loadMeshAsyncQueued(tInfo.fileName, finish, tInfo.dynamicConfig)
+        else
+            finish(self:_createMeshWithLighting(tInfo.fileName, tInfo.dynamicConfig))
+        end]]
     end
 
     local sCode = [[
