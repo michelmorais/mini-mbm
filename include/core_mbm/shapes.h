@@ -181,17 +181,16 @@ namespace mbm
 
     // Variable-vertex convex polyhedron used by 3D physics. The points are local to
     // the renderizable and are consumed by Bullet as a convex hull.
-    struct API_IMPL CONVEX_POLYHEDRON
+    struct CONVEX_POLYHEDRON
     {
       public:
         std::vector<VEC3> points;
 
-        CONVEX_POLYHEDRON() noexcept = default;
-        explicit CONVEX_POLYHEDRON(const std::vector<VEC3> &points_) : points(points_)
-        {
-        }
-        void getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept;
-        void getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept;
+        API_IMPL CONVEX_POLYHEDRON() noexcept;
+        API_IMPL explicit CONVEX_POLYHEDRON(const std::vector<VEC3> &points_);
+        API_IMPL ~CONVEX_POLYHEDRON() noexcept;
+        API_IMPL void getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept;
+        API_IMPL void getBounds(VEC3 &vmax, VEC3 &vmin) const noexcept;
     };
 
     using CUBE_COMPLEX = CONVEX_POLYHEDRON_8;

@@ -144,6 +144,17 @@ namespace mbm
         }
     }
 
+    CONVEX_POLYHEDRON::CONVEX_POLYHEDRON() noexcept
+    = default;
+
+    CONVEX_POLYHEDRON::CONVEX_POLYHEDRON(const std::vector<VEC3> &points_) :
+        points(points_)
+    {
+    }
+
+    CONVEX_POLYHEDRON::~CONVEX_POLYHEDRON() noexcept
+    = default;
+
     void CONVEX_POLYHEDRON::getBounds(VEC2 &vmax, VEC2 &vmin) const noexcept
     {
         for (const auto &point : this->points)
