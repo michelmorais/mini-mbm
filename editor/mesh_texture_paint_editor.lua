@@ -29,6 +29,7 @@ local Stamp = require 'mesh_texture_paint_stamp'
 local Layout = require 'mesh_texture_paint_layout'
 local Project = require 'mesh_texture_paint_project'
 local PaintIO = require 'mesh_texture_paint_io'
+local AssetPaths = require 'editor_asset_paths'
 
 local STAMP_RESOLUTION_MIN = 9
 -- Keep the captured patch odd-sized so its center maps to an exact pixel. The
@@ -73,6 +74,10 @@ local state = {
     targets = {},
     targetIndex = 0,
     target = nil,
+    textureReference = nil,
+    textureEditable = false,
+    textureNeedsRelink = false,
+    textureResolutionError = nil,
     base = nil,
     layer = nil,
     composite = nil,
@@ -217,17 +222,21 @@ local function clearPreview()
     state.hoverPickElapsed = 0
 end
 
-local function resolvePath(path)
-    return (path and mbm.getFullPath(path)) or path
+local function resolvePath(path, anchorPath)
+    if not path then return path end
+    local enginePath = mbm.getFullPath(path)
+    if enginePath and enginePath ~= path then return enginePath end
+    if anchorPath then return AssetPaths.resolve(path, anchorPath) end
+    return enginePath or path
 end
 
 local function pathDirectory(path)
     return path and path:match('^(.*)[/\\]') or nil
 end
 
-local function normalizedTexture(path)
+local function normalizedTexture(path, anchorPath)
     if not path or path == '' or path:sub(1, 1) == '#' then return nil end
-    return resolvePath(path)
+    return resolvePath(path, anchorPath)
 end
 
 local function applyCamera()
@@ -335,15 +344,16 @@ local function selectUvIslandFromHit(hit)
     return true
 end
 
-local function selectTarget(index, preparedTextureInfo)
+local function selectTarget(index, preparedTextureInfo, allowMissing)
     local target = state.targets[index]
     if not target then return false end
     local loaded, result = preparedTextureInfo ~= nil, preparedTextureInfo
     if not loaded then loaded, result = loadTextureInfo(target.path) end
-    if not loaded or not result then
+    if (not loaded or not result) and not allowMissing then
         state.status = 'Could not load texture: ' .. tostring(result)
         return false
     end
+    local textureExists = AssetPaths.exists(target.path)
     if state.previewTextureInfo and state.previewTextureIsUiCopy then
         state.previewTextureInfo:release()
     end
@@ -360,6 +370,10 @@ local function selectTarget(index, preparedTextureInfo)
     clearExternalStamp()
     releaseTextureWork()
     state.targetIndex, state.target = index, target
+    state.textureReference = target.referencePath or target.path
+    state.textureEditable = textureExists and loaded and result ~= nil
+    state.textureNeedsRelink = not state.textureEditable
+    state.textureResolutionError = (not loaded and result) or nil
     state.pendingDilationRadius = nil
     state.lastUvIslandHit = nil
     local hasSelectedSubset = false
@@ -372,18 +386,67 @@ local function selectTarget(index, preparedTextureInfo)
     state.hoverPickPending = false
     state.hoverPickElapsed = 0
     state.previewTextureInfo = textureInfo
-    state.textureWidth, state.textureHeight = textureInfo.width, textureInfo.height
-    state.brushMaxRadius = math.max(4, math.min(256,
-        math.floor(math.min(state.textureWidth, state.textureHeight) * .12)))
+    state.textureWidth = textureInfo and textureInfo.width or 0
+    state.textureHeight = textureInfo and textureInfo.height or 0
+    if state.textureWidth > 0 and state.textureHeight > 0 then
+        state.brushMaxRadius = math.max(4, math.min(256,
+            math.floor(math.min(state.textureWidth, state.textureHeight) * .12)))
+    else
+        state.brushMaxRadius = 64
+    end
     state.brush.radius = math.min(state.brush.radius, state.brushMaxRadius)
     state.composite = nil
     state.compositeDirtyTiles = nil
     state.undo, state.redo = {}, {}
     state.modified = false
-    state.previewDirty = true
-    state.previewRequiresMesh = true
-    state.status = string.format('Texture selected: %s (%dx%d)', target.path,
-        state.textureWidth, state.textureHeight)
+    state.previewDirty = textureInfo ~= nil
+    state.previewRequiresMesh = textureInfo ~= nil
+    if state.textureNeedsRelink then
+        local message = textureExists and tLang.L('mtp_texture_unavailable') or
+            tLang.L('mtp_texture_missing')
+        state.status = message .. ': ' .. state.textureReference
+    else
+        state.status = string.format('Texture selected: %s (%dx%d)', target.path,
+            state.textureWidth, state.textureHeight)
+    end
+    return true
+end
+
+local function relinkSelectedTexture()
+    if not state.target then return false end
+    local defaultPath = AssetPaths.exists(state.target.path or '') and state.target.path or
+        state.meshPath or ''
+    local path = mbm.openFile(defaultPath,
+        table.unpack(tUtil.supported_images))
+    if not path or path == '' then return false end
+    path = resolvePath(path, state.meshPath) or path
+    if not AssetPaths.exists(path) then
+        state.status = tLang.L('mtp_texture_missing') .. ': ' .. path
+        return false
+    end
+    local readable, bytes, width, height = dpCall(mbm.readImagePixels, path)
+    if not readable or not bytes then
+        state.status = tLang.L('mtp_texture_unavailable') .. ': ' .. path
+        return false
+    end
+    local loaded, textureInfo = loadTextureInfo(path)
+    if not loaded or not textureInfo then
+        state.status = tLang.L('mtp_texture_unavailable') .. ': ' .. path
+        return false
+    end
+    local target = state.target
+    local previousPath = target.path
+    target.path = path
+    if width ~= textureInfo.width or height ~= textureInfo.height then
+        target.path = previousPath
+        state.status = tLang.L('mtp_texture_unavailable') .. ': ' .. path
+        return false
+    end
+    target.referencePath = target.referencePath or previousPath
+    if not selectTarget(state.targetIndex, textureInfo, false) then return false end
+    state.modified = true
+    state.exportDirty = true
+    state.status = tLang.L('mtp_texture_linked') .. ': ' .. path
     return true
 end
 
@@ -422,13 +485,24 @@ end
 local function ensureEditableTexture()
     if state.layer then return true end
     if not state.target then return false end
+    if state.textureNeedsRelink then
+        local message = state.textureReference or state.target.path
+        state.status = tLang.L('mtp_texture_relink_help') .. ': ' .. message
+        return false
+    end
     local ok, bytes, width, height = dpCall(mbm.readImagePixels, state.target.path)
     if not ok or not bytes then
-        state.status = 'Could not read texture: ' .. tostring(bytes or width)
+        state.textureEditable = false
+        state.textureNeedsRelink = true
+        state.textureResolutionError = tostring(bytes or width)
+        state.status = tLang.L('mtp_texture_relink_help') .. ': ' .. state.target.path
         return false
     end
     if width ~= state.textureWidth or height ~= state.textureHeight then
-        state.status = 'Texture dimensions changed while loading.'
+        state.textureEditable = false
+        state.textureNeedsRelink = true
+        state.textureResolutionError = 'texture dimensions changed while loading'
+        state.status = tLang.L('mtp_texture_relink_help') .. ': ' .. state.target.path
         return false
     end
     state.base = Raster.newBuffer(width, height, bytes)
@@ -488,7 +562,8 @@ local function loadPreviewTexture()
 end
 
 local function requestPreviewRebuild()
-    if state.previewDirty and not state.painting and not state.previewJob and not state.previewCancelled then
+    if state.previewDirty and state.previewTextureInfo and not state.painting and
+        not state.previewJob and not state.previewCancelled then
         local previous = state.composite or state.base
         state.previewJob = {
             phase = 'compose', progress = 0,
@@ -644,11 +719,12 @@ local function loadMesh(path, preferredTexturePath)
         local snapshot, errorMessage = Model.snapshotSubset(source, frame, subset, dpCall)
         if not snapshot then error(errorMessage, 0) end
         snapshots[#snapshots + 1] = snapshot
-        local texturePath = normalizedTexture(snapshot.texture)
+        local texturePath = normalizedTexture(snapshot.texture, fullPath)
         if texturePath then
             local target = targetMap[texturePath]
             if not target then
-                target = {path=texturePath, subsets={}, triangles={}, subsetTriangles={}}
+                target = {path=texturePath, referencePath=snapshot.texture,
+                    subsets={}, triangles={}, subsetTriangles={}}
                 targetMap[texturePath] = target
             end
             target.subsets[#target.subsets + 1] = subset
@@ -707,7 +783,7 @@ local function loadMesh(path, preferredTexturePath)
             'preferred project texture is not used by the mesh')
     end
     local textureLoaded, textureInfo = loadTextureInfo(targets[initialTargetIndex].path)
-    assert(textureLoaded, textureInfo or 'could not load the selected texture')
+    if not textureLoaded then textureInfo = nil end
     local previewAsset = meshDebug:new()
     assert(previewAsset:load(fullPath))
     local previewMesh = mesh:new('3d')
@@ -733,10 +809,12 @@ local function loadMesh(path, preferredTexturePath)
     state.cameraOrbit = {fx=0,fy=0,fz=0,distance=5,azimuth=0,elevation=.2}
     state.camera:setFar(9999999)
     frameCamera()
-    assert(selectTarget(initialTargetIndex, textureInfo))
+    assert(selectTarget(initialTargetIndex, textureInfo, true))
     state.projectPath = nil
     state.modified = false
-    state.status = string.format('Loaded %s. Paint with right drag; orbit with left drag.', fullPath)
+    if state.textureEditable then
+        state.status = string.format('Loaded %s. Paint with right drag; orbit with left drag.', fullPath)
+    end
 end
 
 local function beginStroke(hit, screenX, screenY)
@@ -1848,10 +1926,10 @@ local function saveMeshAs()
     return true
 end
 
-local function validateProjectTarget(project)
+local function validateProjectTarget(project, projectPath)
     assert(project.frame == 1, 'project frame is not supported by this editor session')
-    local fullPath = resolvePath(project.source_mesh) or project.source_mesh
-    local targetPath = resolvePath(project.source_texture) or project.source_texture
+    local fullPath = resolvePath(project.source_mesh, projectPath) or project.source_mesh
+    local targetPath = resolvePath(project.source_texture, fullPath) or project.source_texture
     local candidate = meshDebug:new()
     assert(candidate:load(fullPath))
     assert(candidate:check())
@@ -1860,7 +1938,7 @@ local function validateProjectTarget(project)
     for subset = 1, totalSubsets do
         local snapshot, errorMessage = Model.snapshotSubset(candidate, project.frame, subset, dpCall)
         if not snapshot then error(errorMessage or 'could not inspect project mesh', 0) end
-        local snapshotTexture = normalizedTexture(snapshot.texture)
+        local snapshotTexture = normalizedTexture(snapshot.texture, fullPath)
         if snapshotTexture == targetPath then
             targetSubsets[#targetSubsets + 1] = subset
             for _, triangle in ipairs(snapshot.triangles) do
@@ -1892,14 +1970,16 @@ local function openProject(path)
         state.status = tLang.L('mtp_project_load_failed') .. ': ' .. tostring(project)
         return false
     end
+    local paintLayerPath = resolvePath(project.paint_layer, path) or project.paint_layer
+    local sourceTexturePath = resolvePath(project.source_texture, path) or project.source_texture
     local paintRead, paintBytes, paintWidth, paintHeight = dpCall(
-        mbm.readImagePixels, project.paint_layer)
+        mbm.readImagePixels, paintLayerPath)
     if not paintRead or not paintBytes then
         state.status = tLang.L('mtp_project_load_failed') .. ': paint layer could not be read.'
         return false
     end
     local sourceRead, sourceBytes, sourceWidth, sourceHeight = dpCall(
-        mbm.readImagePixels, project.source_texture)
+        mbm.readImagePixels, sourceTexturePath)
     if not sourceRead or not sourceBytes then
         state.status = tLang.L('mtp_project_load_failed') .. ': source texture could not be read.'
         return false
@@ -1909,11 +1989,14 @@ local function openProject(path)
             ': paint layer dimensions do not match the source texture.'
         return false
     end
-    local inspected, inspection = dpCall(validateProjectTarget, project)
+    local inspected, inspection = dpCall(validateProjectTarget, project, path)
     if not inspected then
         state.status = tLang.L('mtp_project_load_failed') .. ': ' .. tostring(inspection)
         return false
     end
+    project.source_mesh = inspection.meshPath
+    project.source_texture = inspection.texturePath
+    project.paint_layer = paintLayerPath
     local loaded = dpCall(loadMesh, inspection.meshPath, inspection.texturePath)
     if not loaded then return false end
     state.selectedSubset = project.subset
@@ -1957,7 +2040,7 @@ local function performSessionAction(action)
         return dpCall(loadMesh, action.path)
     end
     if action.kind == 'target' then
-        return dpCall(selectTarget, action.index)
+        return dpCall(selectTarget, action.index, nil, true)
     end
     if action.kind == 'quit' then
         mbm.quit()
@@ -2098,6 +2181,15 @@ local function showControls()
             local changed, selected = tImGui.Combo(tLang.L('texture'), state.targetIndex, labels, -1)
             if changed and selected ~= state.targetIndex then
                 requestSessionAction({kind='target', index=selected})
+            end
+            if state.target and state.textureNeedsRelink then
+                tImGui.TextWrapped(tLang.L('mtp_texture_relink_help'))
+                if state.textureReference then
+                    tImGui.TextWrapped(tLang.L('mtp_texture_reference') .. ': ' .. state.textureReference)
+                end
+                if tImGui.Button(tLang.L('mtp_relink_texture')) then
+                    dpCall(relinkSelectedTexture)
+                end
             end
             if state.target and state.target.uvOverlapCount and state.target.uvOverlapCount > 0 then
                 tImGui.TextWrapped(string.format(tLang.L('mtp_uv_overlap_warning'),
