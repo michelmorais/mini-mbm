@@ -46,6 +46,11 @@ constexpr float DEG_TO_RAD = PI / 180.0f;
 
 int PLUGIN_IDENTIFIER = 1;
 
+void pushLuaNumber(lua_State *lua, const double value)
+{
+    lua_pushnumber(lua, static_cast<lua_Number>(value));
+}
+
 struct VEC3D
 {
     double x = 0.0;
@@ -588,35 +593,35 @@ void INTERACTION_INSTANCE::callCallback(const int reference, const EVENT *event,
     {
         lua_newtable(lua);
         lua_pushstring(lua, event->id.c_str()); lua_setfield(lua, -2, "id");
-        lua_pushnumber(lua, event->time); lua_setfield(lua, -2, "time");
+        pushLuaNumber(lua, event->time); lua_setfield(lua, -2, "time");
         lua_pushstring(lua, actionName(event->action)); lua_setfield(lua, -2, "action");
         lua_pushstring(lua, event->target.c_str()); lua_setfield(lua, -2, "target");
         lua_pushstring(lua, event->clipKey.c_str()); lua_setfield(lua, -2, "clipKey");
         lua_pushstring(lua, event->transition.c_str()); lua_setfield(lua, -2, "transition");
-        lua_pushnumber(lua, event->transitionStart); lua_setfield(lua, -2, "transitionStart");
-        lua_pushnumber(lua, event->transitionEnd); lua_setfield(lua, -2, "transitionEnd");
-        lua_pushnumber(lua, event->x); lua_setfield(lua, -2, "x");
-        lua_pushnumber(lua, event->y); lua_setfield(lua, -2, "y");
-        lua_pushnumber(lua, event->z); lua_setfield(lua, -2, "z");
-        lua_pushnumber(lua, event->rx); lua_setfield(lua, -2, "rx");
-        lua_pushnumber(lua, event->ry); lua_setfield(lua, -2, "ry");
-        lua_pushnumber(lua, event->rz); lua_setfield(lua, -2, "rz");
-        lua_pushnumber(lua, event->sx); lua_setfield(lua, -2, "sx");
-        lua_pushnumber(lua, event->sy); lua_setfield(lua, -2, "sy");
-        lua_pushnumber(lua, event->sz); lua_setfield(lua, -2, "sz");
+        pushLuaNumber(lua, event->transitionStart); lua_setfield(lua, -2, "transitionStart");
+        pushLuaNumber(lua, event->transitionEnd); lua_setfield(lua, -2, "transitionEnd");
+        pushLuaNumber(lua, event->x); lua_setfield(lua, -2, "x");
+        pushLuaNumber(lua, event->y); lua_setfield(lua, -2, "y");
+        pushLuaNumber(lua, event->z); lua_setfield(lua, -2, "z");
+        pushLuaNumber(lua, event->rx); lua_setfield(lua, -2, "rx");
+        pushLuaNumber(lua, event->ry); lua_setfield(lua, -2, "ry");
+        pushLuaNumber(lua, event->rz); lua_setfield(lua, -2, "rz");
+        pushLuaNumber(lua, event->sx); lua_setfield(lua, -2, "sx");
+        pushLuaNumber(lua, event->sy); lua_setfield(lua, -2, "sy");
+        pushLuaNumber(lua, event->sz); lua_setfield(lua, -2, "sz");
         lua_pushboolean(lua, event->visible); lua_setfield(lua, -2, "visible");
         if (event->transition == "bezier")
         {
             lua_newtable(lua);
             lua_newtable(lua);
-            lua_pushnumber(lua, event->bezierP1.x); lua_setfield(lua, -2, "x");
-            lua_pushnumber(lua, event->bezierP1.y); lua_setfield(lua, -2, "y");
-            lua_pushnumber(lua, event->bezierP1.z); lua_setfield(lua, -2, "z");
+            pushLuaNumber(lua, event->bezierP1.x); lua_setfield(lua, -2, "x");
+            pushLuaNumber(lua, event->bezierP1.y); lua_setfield(lua, -2, "y");
+            pushLuaNumber(lua, event->bezierP1.z); lua_setfield(lua, -2, "z");
             lua_setfield(lua, -2, "p1");
             lua_newtable(lua);
-            lua_pushnumber(lua, event->bezierP2.x); lua_setfield(lua, -2, "x");
-            lua_pushnumber(lua, event->bezierP2.y); lua_setfield(lua, -2, "y");
-            lua_pushnumber(lua, event->bezierP2.z); lua_setfield(lua, -2, "z");
+            pushLuaNumber(lua, event->bezierP2.x); lua_setfield(lua, -2, "x");
+            pushLuaNumber(lua, event->bezierP2.y); lua_setfield(lua, -2, "y");
+            pushLuaNumber(lua, event->bezierP2.z); lua_setfield(lua, -2, "z");
             lua_setfield(lua, -2, "p2");
             lua_setfield(lua, -2, "bezier");
         }
@@ -636,7 +641,7 @@ void INTERACTION_INSTANCE::callUpdateCallback(const double delta)
     if (onUpdateReference == LUA_NOREF) return;
     lua_rawgeti(lua, LUA_REGISTRYINDEX, onUpdateReference);
     pushInstanceTable();
-    lua_pushnumber(lua, delta);
+    pushLuaNumber(lua, delta);
     if (lua_pcall(lua, 2, 0, 0) != LUA_OK)
     {
         mbm::lua_print_line(lua, TYPE_LOG_ERROR,
@@ -1230,15 +1235,15 @@ bool getPlaceholderPose(lua_State *lua, const int bindingsTable,
 void pushTransform(lua_State *lua, const TRANSFORM &transform)
 {
     lua_newtable(lua);
-    lua_pushnumber(lua, transform.position.x); lua_setfield(lua, -2, "x");
-    lua_pushnumber(lua, transform.position.y); lua_setfield(lua, -2, "y");
-    lua_pushnumber(lua, transform.position.z); lua_setfield(lua, -2, "z");
-    lua_pushnumber(lua, transform.angle.x); lua_setfield(lua, -2, "rx");
-    lua_pushnumber(lua, transform.angle.y); lua_setfield(lua, -2, "ry");
-    lua_pushnumber(lua, transform.angle.z); lua_setfield(lua, -2, "rz");
-    lua_pushnumber(lua, transform.scale.x); lua_setfield(lua, -2, "sx");
-    lua_pushnumber(lua, transform.scale.y); lua_setfield(lua, -2, "sy");
-    lua_pushnumber(lua, transform.scale.z); lua_setfield(lua, -2, "sz");
+    pushLuaNumber(lua, transform.position.x); lua_setfield(lua, -2, "x");
+    pushLuaNumber(lua, transform.position.y); lua_setfield(lua, -2, "y");
+    pushLuaNumber(lua, transform.position.z); lua_setfield(lua, -2, "z");
+    pushLuaNumber(lua, transform.angle.x); lua_setfield(lua, -2, "rx");
+    pushLuaNumber(lua, transform.angle.y); lua_setfield(lua, -2, "ry");
+    pushLuaNumber(lua, transform.angle.z); lua_setfield(lua, -2, "rz");
+    pushLuaNumber(lua, transform.scale.x); lua_setfield(lua, -2, "sx");
+    pushLuaNumber(lua, transform.scale.y); lua_setfield(lua, -2, "sy");
+    pushLuaNumber(lua, transform.scale.z); lua_setfield(lua, -2, "sz");
     lua_pushboolean(lua, transform.visible); lua_setfield(lua, -2, "visible");
 }
 
