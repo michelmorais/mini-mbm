@@ -1192,16 +1192,16 @@ namespace mbm
         for (size_t i = 1; i + 1 < count; ++i)
         {
             auto* triangle = new TRIANGLE();
-            triangle->point[0] = VEC3(points[0].x, points[0].y, 0);
-            triangle->point[1] = VEC3(points[i].x, points[i].y, 0);
-            triangle->point[2] = VEC3(points[i+1].x, points[i+1].y, 0);
+            triangle->point[0] = VEC3(points[0].x, points[0].y, 0.0f);
+            triangle->point[1] = VEC3(points[i].x, points[i].y, 0.0f);
+            triangle->point[2] = VEC3(points[i+1].x, points[i+1].y, 0.0f);
             info->lsTriangle.push_back(triangle);
         }
         if (lineMesh)
         {
             std::vector<VEC3> outline;
             for (size_t i = 0; i <= count; ++i)
-                outline.emplace_back(points[i % count].x, points[i % count].y, 0);
+                outline.emplace_back(points[i % count].x, points[i % count].y, 0.0f);
             lineMesh->add(std::move(outline));
         }
         return 0;
