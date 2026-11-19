@@ -94,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 14,
+    version = 15,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -326,6 +326,11 @@ ativos. Para clips esqueléticos, `playAs` identifica se o evento para o clip
 base ou a camada temporaria. Para clips faciais, o evento para o clip facial
 ativo. `clipKey` usa o mesmo formato do evento `play`.
 
+### `stop_all`
+
+Para explicitamente todos os clips ativos do ator: frame, skeletal base,
+camada skeletal, facial e articulated. Esse evento nao usa `clipKey`.
+
 ### `notify`
 
 Nao possui ator-alvo e nao altera uma mesh. Apenas gera o callback `onEvent`
@@ -549,9 +554,10 @@ Ao exportar, tambem valida:
 - um ator de relogio valido;
 - uma animacao valida para o relogio, exceto quando a duracao da timeline foi
   definida explicitamente;
-- clips validos nos eventos `play` e `stop`.
+- clips validos nos eventos `play` e `stop`;
+- eventos `stop_all` com alvos validos.
 
 Eventos `transform` e `visibility` podem atingir placeholders. Eventos `play`
-em placeholders sao invalidos.
+e `stop_all` em placeholders sao invalidos.
 
 Erros impedem a operacao e sao exibidos pelo aviso padrao do editor.

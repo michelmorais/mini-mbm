@@ -1834,6 +1834,8 @@ local function applyEvent(event, progress)
     elseif event.action == 'stop' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then stopClip(entry, clip, clipPlayAs(event, clip)) end
+    elseif event.action == 'stop_all' then
+        stopEntry(entry)
     elseif event.action == 'visibility' then
         local object = actorVisual(entry)
         if object then object.visible = event.visible ~= false end
@@ -1999,7 +2001,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 14,
+        version = 15,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -2222,7 +2224,8 @@ local function validateProject(forExport)
         local label = event.id and event.id ~= '' and event.id or tostring(index)
         if type(event.action) ~= 'string' or
             (event.action ~= 'transform' and event.action ~= 'play' and
-                event.action ~= 'stop' and event.action ~= 'notify' and event.action ~= 'visibility') then
+                event.action ~= 'stop' and event.action ~= 'stop_all' and
+                event.action ~= 'notify' and event.action ~= 'visibility') then
             return fail('validation_event_action', label)
         end
         local time = tonumber(event.time)
@@ -2515,6 +2518,7 @@ local function eventLabel(event, index)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or
         event.action == 'stop' and L('stop_animation') or
+        event.action == 'stop_all' and L('stop_all_animation') or
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
     local timeLabel
@@ -2744,7 +2748,8 @@ local function updatePlayback(delta)
     end
     for _, event in ipairs(S.events) do
         local eventTime = event.time or 0
-        if (event.action == 'play' or event.action == 'stop' or event.action == 'visibility') and
+        if (event.action == 'play' or event.action == 'stop' or event.action == 'stop_all' or
+            event.action == 'visibility') and
             eventTime > previousTime and eventTime <= S.time then
             applyEvent(event)
         end
@@ -3081,16 +3086,18 @@ local function showEvents()
             end
             tImGui.SetNextItemWidth(210)
             local actionIndex = event.action == 'play' and 2 or
-                event.action == 'stop' and 3 or event.action == 'notify' and 4 or
-                event.action == 'visibility' and 5 or 1
+                event.action == 'stop' and 3 or event.action == 'stop_all' and 4 or
+                event.action == 'notify' and 5 or event.action == 'visibility' and 6 or 1
             local actionChanged, nextActionIndex = tImGui.Combo(
                 L('event_action'), actionIndex,
-                {L('transform'), L('play'), L('stop_animation'), L('notify_event'), L('visibility')})
+                {L('transform'), L('play'), L('stop_animation'), L('stop_all_animation'),
+                    L('notify_event'), L('visibility')})
             if actionChanged then
                 event.action = nextActionIndex == 2 and 'play' or
                     nextActionIndex == 3 and 'stop' or
-                    nextActionIndex == 4 and 'notify' or
-                    nextActionIndex == 5 and 'visibility' or 'transform'
+                    nextActionIndex == 4 and 'stop_all' or
+                    nextActionIndex == 5 and 'notify' or
+                    nextActionIndex == 6 and 'visibility' or 'transform'
                 if event.action == 'notify' then
                     event.target = nil
                     event.clipKey = ''
@@ -3103,6 +3110,16 @@ local function showEvents()
                     event.target = actor(event.target) and event.target or S.selectedActor or S.clockActor
                     event.visible = event.visible ~= false
                     event.clipKey = ''
+                    event.transition = 'instant'
+                    event.transitionStart = nil
+                    event.transitionEnd = nil
+                    event.duration = nil
+                    event.bezier = nil
+                elseif event.action == 'stop_all' then
+                    event.target = actor(event.target) and event.target or S.selectedActor or S.clockActor
+                    event.clipKey = ''
+                    event.playAs = nil
+                    event.layerWeight = nil
                     event.transition = 'instant'
                     event.transitionStart = nil
                     event.transitionEnd = nil

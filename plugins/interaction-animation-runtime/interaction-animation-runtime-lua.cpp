@@ -76,6 +76,7 @@ enum class ACTION : uint8_t
     TRANSFORM,
     PLAY,
     STOP,
+    STOP_ALL,
     NOTIFY,
     VISIBILITY,
 };
@@ -306,6 +307,7 @@ const char *actionName(const ACTION action)
         case ACTION::TRANSFORM: return "transform";
         case ACTION::PLAY: return "play";
         case ACTION::STOP: return "stop";
+        case ACTION::STOP_ALL: return "stop_all";
         case ACTION::NOTIFY: return "notify";
         case ACTION::VISIBILITY: return "visibility";
     }
@@ -686,7 +688,8 @@ void INTERACTION_INSTANCE::applyPlayEvents(const double previousTime, const doub
     for (std::size_t index = 0; index < definition.events.size(); ++index)
     {
         const EVENT &event = definition.events[index];
-        if ((event.action != ACTION::PLAY && event.action != ACTION::STOP) || fired[index]) continue;
+        if ((event.action != ACTION::PLAY && event.action != ACTION::STOP &&
+             event.action != ACTION::STOP_ALL) || fired[index]) continue;
         const bool reached = includeInitial ? event.time <= currentTime
             : event.time > previousTime && event.time <= currentTime;
         if (!reached) continue;
@@ -695,8 +698,10 @@ void INTERACTION_INSTANCE::applyPlayEvents(const double previousTime, const doub
         {
             if (event.action == ACTION::PLAY)
                 playClip(actors[found->second], event.clipKey, event.playAs, event.layerWeight);
-            else
+            else if (event.action == ACTION::STOP)
                 stopClip(actors[found->second], event.clipKey, event.playAs);
+            else
+                stopAllClips(actors[found->second]);
         }
         fired[index] = true;
     }
@@ -1114,6 +1119,7 @@ void parseEvent(lua_State *lua, const int table, const double duration, EVENT &e
     if (action == "transform") event.action = ACTION::TRANSFORM;
     else if (action == "play") event.action = ACTION::PLAY;
     else if (action == "stop") event.action = ACTION::STOP;
+    else if (action == "stop_all") event.action = ACTION::STOP_ALL;
     else if (action == "notify") event.action = ACTION::NOTIFY;
     else if (action == "visibility") event.action = ACTION::VISIBILITY;
     else luaL_error(lua, "Unknown interaction event action: %s", action.c_str());
@@ -1281,13 +1287,14 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
             (event.action == ACTION::TRANSFORM && event.transitionEnd > definition.duration))
             luaL_error(lua, "Interaction event '%s' is outside the interaction timeline", event.id.c_str());
         if (event.action == ACTION::TRANSFORM || event.action == ACTION::PLAY ||
-            event.action == ACTION::STOP ||
+            event.action == ACTION::STOP || event.action == ACTION::STOP_ALL ||
             event.action == ACTION::VISIBILITY)
         {
             const std::size_t targetIndex = findActor(definition, event.target);
             if (targetIndex == std::numeric_limits<std::size_t>::max())
                 luaL_error(lua, "Interaction event '%s' references an invalid actor", event.id.c_str());
-            if ((event.action == ACTION::PLAY || event.action == ACTION::STOP) &&
+            if ((event.action == ACTION::PLAY || event.action == ACTION::STOP ||
+                 event.action == ACTION::STOP_ALL) &&
                 definition.actors[targetIndex].kind == "placeholder")
                 luaL_error(lua, "Interaction event '%s' targets a placeholder", event.id.c_str());
         }
