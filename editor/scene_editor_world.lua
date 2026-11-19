@@ -242,6 +242,7 @@ tLoadProgress = { bLoading = false, iLoaded = 0, iTotal = 0, sDetail = '' }
 isClickedMouseleft  = false
 isClickedMouseRight = false
 mouseLastX, mouseLastY = 0, 0
+bOpenFillLayerPopup = false
 
 ------------------------------------------------------------------------------------------------------------------
 -- Lighting
@@ -3712,7 +3713,14 @@ function menuPopUpOptionToAddMesh()
     -- reach while the Mesh Selector is showing on the Mesh property tab, where there's no grid in
     -- view and a stray right-click shouldn't silently bulk-edit the layer the user isn't looking at.
     if sActiveTab == 'layer' and sMeshSelectedForPlacement then
-        if tImGui.BeginPopupContextVoid('##fill_layer_menu', ImGuiPopupFlags_MouseButtonRight) then
+        -- BeginPopupContextVoid opens automatically on every right-button release, including the
+        -- release after orbiting the camera. Open this popup explicitly so only a stationary
+        -- right-click (recorded by onTouchUp) can show the bulk-fill actions.
+        if bOpenFillLayerPopup then
+            tImGui.OpenPopup('##fill_layer_menu')
+            bOpenFillLayerPopup = false
+        end
+        if tImGui.BeginPopup('##fill_layer_menu') then
             if tMapOptions.sMapType ~= 'Free' then
                 if tImGui.Selectable(L('fill_layer_with_selected_mesh')) then
                     fillActiveLayerWithMesh(sMeshSelectedForPlacement)
@@ -5231,10 +5239,12 @@ function onTouchDown(key, x, y)
     isClickedMouseleft  = (key == 0)
     isClickedMouseRight = (key == 1)
     mouseLastX, mouseLastY = x, y
-
-    if key == 0 then
+    if key == 0 or key == 1 then
         fMouseDownX, fMouseDownY = x, y
         bCameraDraggedThisPress  = false
+    end
+
+    if key == 0 then
         if beginMeshTransformDrag(x, y) then return end
         if beginSceneObjectDrag(x, y) then return end
         -- Shift+drag starts a selection rectangle instead of orbiting -- Shift is the explicit
@@ -5302,6 +5312,12 @@ function onTouchMove(key, x, y)
         cam3d.elevation = cam3d.elevation + (y - mouseLastY) * 0.005
         cam3d.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, cam3d.elevation))
     elseif isClickedMouseRight then
+        if not bCameraDraggedThisPress then
+            local ddx, ddy = x - fMouseDownX, y - fMouseDownY
+            if (ddx * ddx + ddy * ddy) > (iDragThresholdPx * iDragThresholdPx) then
+                bCameraDraggedThisPress = true
+            end
+        end
         -- Unproject both cursor positions onto the view plane through the orbit focus.
         -- This follows screen right/up even when the camera is rotated or pitched.
         local origin = {x=cam3d.fx,y=cam3d.fy,z=cam3d.fz}
@@ -5346,6 +5362,10 @@ function onTouchUp(key, x, y)
                 handleSelectClickAt()
             end
         end
+    end
+    if key == 1 and not tImGui.GetWantCaptureMouse() and not bCameraDraggedThisPress
+        and sActiveTab == 'layer' and sMeshSelectedForPlacement then
+        bOpenFillLayerPopup = true
     end
     bRectSelecting      = false
     isClickedMouseleft  = false
