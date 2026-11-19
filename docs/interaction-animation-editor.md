@@ -94,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 10,
+    version = 11,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -293,7 +293,10 @@ pose visual atual do ator.
 
 ### `play`
 
-Inicia ou troca a animacao de um ator no tempo indicado. `clipKey` usa o
+Inicia ou reinicia uma animacao de um ator no tempo indicado. Um evento `play`
+nao para automaticamente outros clips articulados ativos no mesmo ator. A
+composicao simultanea e suportada para clips articulados; os modos frame e
+skeletal continuam usando um player unico da mesh. `clipKey` usa o
 formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
 animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
 estatica tradicional, formada por uma faixa de frames da mesh.
@@ -302,6 +305,12 @@ Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
 crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
 calculado diretamente a partir do tempo mestre; no runtime, o modo original
 volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
+
+### `stop`
+
+Para explicitamente o clip indicado no ator. Para clips articulados, somente o
+clip informado e removido da composicao; os demais clips articulados continuam
+ativos. `clipKey` usa o mesmo formato do evento `play`.
 
 ### `notify`
 
@@ -526,7 +535,7 @@ Ao exportar, tambem valida:
 - um ator de relogio valido;
 - uma animacao valida para o relogio, exceto quando a duracao da timeline foi
   definida explicitamente;
-- clips validos nos eventos `play`.
+- clips validos nos eventos `play` e `stop`.
 
 Eventos `transform` e `visibility` podem atingir placeholders. Eventos `play`
 em placeholders sao invalidos.

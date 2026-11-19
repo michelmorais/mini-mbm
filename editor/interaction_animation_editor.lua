@@ -44,10 +44,8 @@ local function newActorState(baseX)
         object = nil,
         previewObject = nil,
         clipKey = '',
-        runtimeKey = nil,
-        runtimeClip = nil,
-        runtimeOverride = false,
-        runtimeStartTime = 0,
+        runtimeClips = {},
+        runtimeSingle = nil,
         rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
@@ -350,10 +348,8 @@ local function setActorKind(id, kind)
     if entry.object then entry.object:destroy(); entry.object = nil end
     destroyActorPreview(entry)
     entry.bundle = nil
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
+    entry.runtimeClips = {}
+    entry.runtimeSingle = nil
     entry.kind = kind
     if kind == 'placeholder' then
         entry.path = ''
@@ -1453,32 +1449,58 @@ applyTransform = function(entry)
     refreshBaseReferenceAtZero()
 end
 
-local function stopEntry(entry)
-    if entry.object and entry.bundle then
-        Animation.stop(entry.bundle)
-    end
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
-end
-
-local function seekClip(entry, clip, time, playing)
-    if not entry.object or not clip or clip.kind == 'none' then
-        stopEntry(entry)
+local function stopSingleClip(entry)
+    local active = entry.runtimeSingle
+    if not active or not entry.object then
+        entry.runtimeSingle = nil
         return
     end
-    if entry.runtimeKey ~= clip.key then
-        stopEntry(entry)
+    if active.clip.kind == 'skeletal' then
+        entry.object:stopSkeletalAnimation()
+    elseif active.clip.kind == 'frame' then
+        entry.object:setTypeAnim(mbm.PAUSED)
+    end
+    entry.runtimeSingle = nil
+end
+
+local function stopClip(entry, clip)
+    if not clip or clip.kind == 'none' or not entry.object then return end
+    if clip.kind == 'articulated' then
+        entry.object:disableArticulatedAnimation(clip.name)
+        entry.runtimeClips[clip.key] = nil
+        return
+    end
+    if entry.runtimeSingle and entry.runtimeSingle.clip.key == clip.key then
+        stopSingleClip(entry)
+    end
+end
+
+local function stopEntry(entry)
+    if not entry.object then
+        entry.runtimeClips = {}
+        entry.runtimeSingle = nil
+        return
+    end
+    for _, active in pairs(entry.runtimeClips) do
+        entry.object:disableArticulatedAnimation(active.clip.name)
+    end
+    entry.runtimeClips = {}
+    stopSingleClip(entry)
+end
+
+local function startClip(entry, clip, time, playing, startTime)
+    if not entry.object or not clip or clip.kind == 'none' then return end
+    if clip.kind == 'articulated' then
+        assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
+        entry.runtimeClips[clip.key] = {clip = clip, startTime = startTime or S.time}
+    else
+        stopSingleClip(entry)
         if clip.kind == 'frame' then
             entry.object:setAnim(clip.name)
-        elseif clip.kind == 'skeletal' then
-            assert(entry.object:playSkeletalAnimation(clip.name))
         else
-            assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
+            assert(entry.object:playSkeletalAnimation(clip.name))
         end
-        entry.runtimeKey = clip.key
-        entry.runtimeClip = clip
+        entry.runtimeSingle = {clip = clip, startTime = startTime or S.time}
     end
     local targetTime = math.max(0, time or 0)
     if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
@@ -1503,6 +1525,36 @@ local function seekClip(entry, clip, time, playing)
             -- pauses the clip. When playback resumes, make the state explicit
             -- instead of relying only on playArticulatedAnimation() from the
             -- key-change branch above.
+            assert(entry.object:resumeArticulatedAnimation(clip.name))
+        else
+            entry.object:pauseArticulatedAnimation(clip.name)
+        end
+    end
+end
+
+local function seekClip(entry, clip, time, playing)
+    if not entry.object or not clip or clip.kind == 'none' then return end
+    local active = clip.kind == 'articulated' and entry.runtimeClips[clip.key] or entry.runtimeSingle
+    if not active or active.clip.key ~= clip.key then return end
+    local targetTime = math.max(0, time or 0)
+    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+        targetTime = targetTime % clip.duration
+    else
+        targetTime = math.min(targetTime, clip.duration or 0)
+    end
+    if clip.kind == 'frame' then
+        local frame = Animation.staticFrame(clip, targetTime)
+        entry.object:setIndexFrame(frame)
+    elseif clip.kind == 'skeletal' then
+        assert(entry.object:seekSkeletalAnimation(targetTime))
+        if playing then
+            entry.object:resumeSkeletalAnimation()
+        else
+            entry.object:pauseSkeletalAnimation()
+        end
+    else
+        assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
+        if playing then
             assert(entry.object:resumeArticulatedAnimation(clip.name))
         else
             entry.object:pauseArticulatedAnimation(clip.name)
@@ -1663,15 +1715,12 @@ local function applyEvent(event, progress)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then
-            entry.runtimeStartTime = event.time or 0
-            seekClip(entry, clip, math.max(0, S.time - entry.runtimeStartTime), S.playing)
-            -- seekClip may switch from the actor's base clip and call
-            -- stopEntry(), which clears runtimeOverride. Restore the event
-            -- override after the switch so the next frame keeps this clip
-            -- instead of returning to the base animation.
-            entry.runtimeOverride = true
-            entry.runtimeStartTime = event.time or 0
+            startClip(entry, clip, math.max(0, S.time - (event.time or 0)), S.playing,
+                event.time or 0)
         end
+    elseif event.action == 'stop' then
+        local clip = findClip(entry, event.clipKey)
+        if clip.kind ~= 'none' then stopClip(entry, clip) end
     elseif event.action == 'visibility' then
         local object = actorVisual(entry)
         if object then object.visible = event.visible ~= false end
@@ -1704,7 +1753,9 @@ seekAll = function(time, keepPlaying)
         local object = actorVisual(entry)
         if object then object.visible = displayBase(entry).visible ~= false end
         local clip = findClip(entry, entry.clipKey)
-        seekClip(entry, clip, S.time, keepPlaying == true)
+        if clip.kind ~= 'none' then
+            startClip(entry, clip, S.time, keepPlaying == true, 0)
+        end
         applyTransform(entry)
     end
     for _, event in ipairs(S.events) do
@@ -1785,10 +1836,8 @@ local function loadActor(id, path)
     entry.object = bundle.object
     entry.id = id
     entry.path = path
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
+    entry.runtimeClips = {}
+    entry.runtimeSingle = nil
     entry.clipKey = entry.clipKey or ''
     entry.base.visible = entry.base.visible ~= false
     entry.object.alwaysRender = true
@@ -1835,7 +1884,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 10,
+        version = 11,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -2054,7 +2103,7 @@ local function validateProject(forExport)
         local label = event.id and event.id ~= '' and event.id or tostring(index)
         if type(event.action) ~= 'string' or
             (event.action ~= 'transform' and event.action ~= 'play' and
-                event.action ~= 'notify' and event.action ~= 'visibility') then
+                event.action ~= 'stop' and event.action ~= 'notify' and event.action ~= 'visibility') then
             return fail('validation_event_action', label)
         end
         local time = tonumber(event.time)
@@ -2064,9 +2113,10 @@ local function validateProject(forExport)
         if event.action ~= 'notify' and not actor(event.target) then
             return fail('validation_event_target', label)
         end
-        if event.action == 'play' then
+        if event.action == 'play' or event.action == 'stop' then
             if isPlaceholder(actor(event.target)) then
-                return fail('validation_placeholder_play', label)
+                return fail(event.action == 'play' and 'validation_placeholder_play' or
+                    'validation_placeholder_stop', label)
             end
             if type(event.clipKey) ~= 'string' or event.clipKey == '' then
                 return fail('validation_event_clip', label)
@@ -2330,6 +2380,7 @@ local function eventLabel(event, index)
     local targetEntry = actor(event.target)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or
+        event.action == 'stop' and L('stop_animation') or
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
     local timeLabel
@@ -2559,7 +2610,7 @@ local function updatePlayback(delta)
     end
     for _, event in ipairs(S.events) do
         local eventTime = event.time or 0
-        if (event.action == 'play' or event.action == 'visibility') and
+        if (event.action == 'play' or event.action == 'stop' or event.action == 'visibility') and
             eventTime > previousTime and eventTime <= S.time then
             applyEvent(event)
         end
@@ -2567,19 +2618,25 @@ local function updatePlayback(delta)
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
-        local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' then
-            if selected.kind == 'frame' and reachedTimelineEnd then
+        local single = entry.runtimeSingle
+        if single then
+            local localTime = S.time - single.startTime
+            if single.clip.kind == 'frame' and reachedTimelineEnd then
                 -- Frame seeking pauses the animation. Apply the final frame first,
                 -- then restore the asset playback mode when the project allows the
                 -- clip to continue past the master timeline.
-                seekClip(entry, selected, localTime, false)
-                if S.continueClipsAfterTimeline and (selected.mode or 0) ~= 0 then
-                    entry.object:setTypeAnim(selected.mode)
+                seekClip(entry, single.clip, localTime, false)
+                if S.continueClipsAfterTimeline and (single.clip.mode or 0) ~= 0 then
+                    entry.object:setTypeAnim(single.clip.mode)
                 end
             elseif not reachedTimelineEnd or not S.continueClipsAfterTimeline then
-                seekClip(entry, selected, localTime, true)
+                seekClip(entry, single.clip, localTime, true)
+            end
+        end
+        for _, active in pairs(entry.runtimeClips) do
+            local localTime = S.time - active.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, active.clip, localTime, not reachedTimelineEnd or S.continueClipsAfterTimeline)
             end
         end
     end
@@ -2874,14 +2931,16 @@ local function showEvents()
             end
             tImGui.SetNextItemWidth(210)
             local actionIndex = event.action == 'play' and 2 or
-                event.action == 'notify' and 3 or event.action == 'visibility' and 4 or 1
+                event.action == 'stop' and 3 or event.action == 'notify' and 4 or
+                event.action == 'visibility' and 5 or 1
             local actionChanged, nextActionIndex = tImGui.Combo(
                 L('event_action'), actionIndex,
-                {L('transform'), L('play'), L('notify_event'), L('visibility')})
+                {L('transform'), L('play'), L('stop_animation'), L('notify_event'), L('visibility')})
             if actionChanged then
                 event.action = nextActionIndex == 2 and 'play' or
-                    nextActionIndex == 3 and 'notify' or
-                    nextActionIndex == 4 and 'visibility' or 'transform'
+                    nextActionIndex == 3 and 'stop' or
+                    nextActionIndex == 4 and 'notify' or
+                    nextActionIndex == 5 and 'visibility' or 'transform'
                 if event.action == 'notify' then
                     event.target = nil
                     event.clipKey = ''
@@ -2906,7 +2965,7 @@ local function showEvents()
                 seekAll(S.time, false)
                 showEventHighlight(event)
             end
-            if event.action == 'play' then
+            if event.action == 'play' or event.action == 'stop' then
                 local target = actor(event.target)
                 local clips, names, current = clipList(target), {}, 1
                 for index, clip in ipairs(clips) do names[index] = clip.label; if clip.key == event.clipKey then current = index end end
