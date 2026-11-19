@@ -75,6 +75,8 @@ enum class ACTION : uint8_t
 {
     TRANSFORM,
     PLAY,
+    STOP,
+    STOP_ALL,
     NOTIFY,
     VISIBILITY,
 };
@@ -84,6 +86,8 @@ struct EVENT
     std::string id;
     std::string target;
     std::string clipKey;
+    std::string playAs = "base";
+    double layerWeight = 1.0;
     std::string transition = "instant";
     ACTION action = ACTION::NOTIFY;
     double time = 0.0;
@@ -101,6 +105,12 @@ struct EVENT
     VEC3D bezierP1;
     VEC3D bezierP2;
     bool visible = true;
+};
+
+struct ACTIVE_CLIP
+{
+    std::string key;
+    std::string playAs = "base";
 };
 
 struct ACTOR_DEFINITION
@@ -132,7 +142,7 @@ struct ACTOR_INSTANCE
     TRANSFORM initialBase;
     TRANSFORM current;
     int luaReference = LUA_NOREF;
-    std::string activeClip;
+    std::vector<ACTIVE_CLIP> activeClips;
 };
 
 class INTERACTION_RUNTIME_PLUGIN;
@@ -296,6 +306,8 @@ const char *actionName(const ACTION action)
     {
         case ACTION::TRANSFORM: return "transform";
         case ACTION::PLAY: return "play";
+        case ACTION::STOP: return "stop";
+        case ACTION::STOP_ALL: return "stop_all";
         case ACTION::NOTIFY: return "notify";
         case ACTION::VISIBILITY: return "visibility";
     }
@@ -369,9 +381,12 @@ class INTERACTION_INSTANCE
     bool destroyedByRuntime = false;
 
     void initializeAxes();
-    void playClip(ACTOR_INSTANCE &actor, const std::string &key);
-    void stopClip(ACTOR_INSTANCE &actor, const std::string &key);
-    void pauseClip(ACTOR_INSTANCE &actor, const std::string &key);
+    void playClip(ACTOR_INSTANCE &actor, const std::string &key, const std::string &playAs,
+                  double layerWeight);
+    void stopClip(ACTOR_INSTANCE &actor, const std::string &key, const std::string &playAs);
+    void stopAllClips(ACTOR_INSTANCE &actor);
+    void pauseAllClips(ACTOR_INSTANCE &actor);
+    void pauseClip(ACTOR_INSTANCE &actor, const std::string &key, const std::string &playAs);
     void applyTransforms();
     void applyVisibility();
     void rebaseToAnchor(bool applyPosition, bool applyRotation);
@@ -395,25 +410,87 @@ void INTERACTION_INSTANCE::initializeAxes()
     axes[2] = row(matrix, 2);
 }
 
-void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &key)
+void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &key,
+                                    const std::string &playAs, const double layerWeight)
 {
     if (!actor.mesh) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind != "frame" && kind != "static" && kind != "skeletal" && kind != "articulated") return;
-    if (!actor.activeClip.empty() && actor.activeClip != key)
-        stopClip(actor, actor.activeClip);
-    if (kind == "frame" || kind == "static") actor.mesh->setAnimation(name);
-    else if (kind == "skeletal") actor.mesh->playSkeletalAnimation(name);
-    else actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
-    actor.activeClip = key;
+    if (kind != "frame" && kind != "static" && kind != "skeletal" &&
+        kind != "facial" && kind != "articulated") return;
+    bool started = true;
+    if (kind == "frame" || kind == "static")
+    {
+        actor.mesh->setAnimation(name);
+        actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+            [](const ACTIVE_CLIP &active)
+            {
+                return active.key.rfind("frame:", 0) == 0 || active.key.rfind("static:", 0) == 0;
+            }), actor.activeClips.end());
+    }
+    else if (kind == "skeletal")
+    {
+        const bool layer = playAs == "absolute" || playAs == "additive";
+        if (layer)
+        {
+            if (playAs == "absolute")
+                started = actor.mesh->playSkeletalAnimationAbsoluteLayer(name,
+                    static_cast<float>(layerWeight));
+            else
+                started = actor.mesh->playSkeletalAnimationAdditiveLayer(name,
+                    static_cast<float>(layerWeight));
+            if (!started) return;
+            actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+                [](const ACTIVE_CLIP &active)
+                {
+                    return active.key.rfind("skeletal:", 0) == 0 && active.playAs != "base";
+                }), actor.activeClips.end());
+        }
+        else
+        {
+            started = actor.mesh->playSkeletalAnimation(name);
+            if (!started) return;
+            actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+                [](const ACTIVE_CLIP &active)
+                {
+                    return active.key.rfind("skeletal:", 0) == 0 && active.playAs == "base";
+                }), actor.activeClips.end());
+        }
+    }
+    else if (kind == "facial")
+    {
+        started = actor.mesh->playFacialAnimation(name);
+        if (!started) return;
+        actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+            [](const ACTIVE_CLIP &active)
+            {
+                return active.key.rfind("facial:", 0) == 0;
+            }), actor.activeClips.end());
+    }
+    else if (kind == "articulated")
+        started = actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
+    if (!started) return;
+    const auto active = std::find_if(actor.activeClips.begin(), actor.activeClips.end(),
+        [&key, &playAs](const ACTIVE_CLIP &candidate)
+        {
+            return candidate.key == key && candidate.playAs == playAs;
+        });
+    if (active == actor.activeClips.end())
+        actor.activeClips.push_back({key, playAs});
 }
 
-void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &key)
+void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &key,
+                                    const std::string &playAs)
 {
     if (!actor.mesh) return;
+    const auto active = std::find_if(actor.activeClips.begin(), actor.activeClips.end(),
+        [&key, &playAs](const ACTIVE_CLIP &candidate)
+        {
+            return candidate.key == key && candidate.playAs == playAs;
+        });
+    if (active == actor.activeClips.end()) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -423,11 +500,43 @@ void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &ke
         if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
             animation->setType(mbm::TYPE_ANIMATION_PAUSED);
     }
-    else if (kind == "skeletal") actor.mesh->stopSkeletalAnimation();
+    else if (kind == "skeletal")
+    {
+        if (playAs == "absolute" || playAs == "additive")
+            actor.mesh->stopSkeletalAnimationAbsoluteLayer();
+        else
+            actor.mesh->stopSkeletalAnimation();
+    }
+    else if (kind == "facial") actor.mesh->stopFacialAnimation();
     else if (kind == "articulated") actor.mesh->disableArticulatedAnimation(name);
+    actor.activeClips.erase(active);
+    if (kind == "skeletal" && playAs == "base")
+    {
+        actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+            [](const ACTIVE_CLIP &candidate)
+            {
+                return candidate.key.rfind("skeletal:", 0) == 0 && candidate.playAs != "base";
+            }), actor.activeClips.end());
+    }
 }
 
-void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &key)
+void INTERACTION_INSTANCE::stopAllClips(ACTOR_INSTANCE &actor)
+{
+    while (!actor.activeClips.empty())
+    {
+        const ACTIVE_CLIP active = actor.activeClips.back();
+        stopClip(actor, active.key, active.playAs);
+    }
+}
+
+void INTERACTION_INSTANCE::pauseAllClips(ACTOR_INSTANCE &actor)
+{
+    for (const ACTIVE_CLIP &active : actor.activeClips)
+        pauseClip(actor, active.key, active.playAs);
+}
+
+void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &key,
+                                     const std::string &playAs)
 {
     if (!actor.mesh) return;
     const std::size_t separator = key.find(':');
@@ -439,7 +548,14 @@ void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &k
         if (mbm::ANIMATION *animation = actor.mesh->getAnimation())
             animation->setType(mbm::TYPE_ANIMATION_PAUSED);
     }
-    else if (kind == "skeletal") actor.mesh->pauseSkeletalAnimation();
+    else if (kind == "skeletal")
+    {
+        if (playAs == "absolute" || playAs == "additive")
+            actor.mesh->pauseSkeletalAnimationLayer();
+        else
+            actor.mesh->pauseSkeletalAnimation();
+    }
+    else if (kind == "facial") actor.mesh->pauseFacialAnimation();
     else if (kind == "articulated") actor.mesh->pauseArticulatedAnimation(name);
 }
 
@@ -572,12 +688,21 @@ void INTERACTION_INSTANCE::applyPlayEvents(const double previousTime, const doub
     for (std::size_t index = 0; index < definition.events.size(); ++index)
     {
         const EVENT &event = definition.events[index];
-        if (event.action != ACTION::PLAY || fired[index]) continue;
+        if ((event.action != ACTION::PLAY && event.action != ACTION::STOP &&
+             event.action != ACTION::STOP_ALL) || fired[index]) continue;
         const bool reached = includeInitial ? event.time <= currentTime
             : event.time > previousTime && event.time <= currentTime;
         if (!reached) continue;
         const auto found = actorIndex.find(event.target);
-        if (found != actorIndex.end()) playClip(actors[found->second], event.clipKey);
+        if (found != actorIndex.end())
+        {
+            if (event.action == ACTION::PLAY)
+                playClip(actors[found->second], event.clipKey, event.playAs, event.layerWeight);
+            else if (event.action == ACTION::STOP)
+                stopClip(actors[found->second], event.clipKey, event.playAs);
+            else
+                stopAllClips(actors[found->second]);
+        }
         fired[index] = true;
     }
 }
@@ -597,6 +722,8 @@ void INTERACTION_INSTANCE::callCallback(const int reference, const EVENT *event,
         lua_pushstring(lua, actionName(event->action)); lua_setfield(lua, -2, "action");
         lua_pushstring(lua, event->target.c_str()); lua_setfield(lua, -2, "target");
         lua_pushstring(lua, event->clipKey.c_str()); lua_setfield(lua, -2, "clipKey");
+        lua_pushstring(lua, event->playAs.c_str()); lua_setfield(lua, -2, "playAs");
+        pushLuaNumber(lua, event->layerWeight); lua_setfield(lua, -2, "layerWeight");
         lua_pushstring(lua, event->transition.c_str()); lua_setfield(lua, -2, "transition");
         pushLuaNumber(lua, event->transitionStart); lua_setfield(lua, -2, "transitionStart");
         pushLuaNumber(lua, event->transitionEnd); lua_setfield(lua, -2, "transitionEnd");
@@ -679,8 +806,7 @@ void INTERACTION_INSTANCE::resetInstance()
 {
     for (ACTOR_INSTANCE &actor : actors)
     {
-        stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
-        actor.activeClip.clear();
+        stopAllClips(actor);
         actor.base = actor.initialBase;
         actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
@@ -694,7 +820,7 @@ void INTERACTION_INSTANCE::resetInstance()
     {
         std::string key = actor.definition.clipKey;
         if (actor.definition.id == definition.clockActor) key = definition.clockKey;
-        if (!key.empty()) playClip(actor, key);
+        if (!key.empty()) playClip(actor, key, "base", 1.0);
     }
     applyPlayEvents(-0.0001, 0.0, true);
     notifyEvents(-0.0001, 0.0, true);
@@ -726,7 +852,7 @@ void INTERACTION_INSTANCE::update(const double delta)
         if (!definition.continueClipsAfterTimeline)
         {
             for (ACTOR_INSTANCE &actor : actors)
-                pauseClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
+                pauseAllClips(actor);
         }
         finish();
     }
@@ -742,8 +868,7 @@ void INTERACTION_INSTANCE::stop()
 {
     for (ACTOR_INSTANCE &actor : actors)
     {
-        stopClip(actor, actor.activeClip.empty() ? actor.definition.clipKey : actor.activeClip);
-        actor.activeClip.clear();
+        stopAllClips(actor);
         actor.base = actor.initialBase;
         actor.current = actor.base;
         setTransform(actor.mesh, actor.base);
@@ -993,12 +1118,16 @@ void parseEvent(lua_State *lua, const int table, const double duration, EVENT &e
     const std::string action = stringField(lua, table, "action");
     if (action == "transform") event.action = ACTION::TRANSFORM;
     else if (action == "play") event.action = ACTION::PLAY;
+    else if (action == "stop") event.action = ACTION::STOP;
+    else if (action == "stop_all") event.action = ACTION::STOP_ALL;
     else if (action == "notify") event.action = ACTION::NOTIFY;
     else if (action == "visibility") event.action = ACTION::VISIBILITY;
     else luaL_error(lua, "Unknown interaction event action: %s", action.c_str());
     event.id = stringField(lua, table, "id");
     event.target = stringField(lua, table, "target");
     event.clipKey = stringField(lua, table, "clipKey");
+    event.playAs = stringField(lua, table, "playAs", "base");
+    event.layerWeight = numberField(lua, table, "layerWeight", 1.0);
     event.transition = stringField(lua, table, "transition", "instant");
     event.time = numberField(lua, table, "time", 0.0);
     if (event.time < 0.0 || event.time > duration)
@@ -1158,17 +1287,34 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
             (event.action == ACTION::TRANSFORM && event.transitionEnd > definition.duration))
             luaL_error(lua, "Interaction event '%s' is outside the interaction timeline", event.id.c_str());
         if (event.action == ACTION::TRANSFORM || event.action == ACTION::PLAY ||
+            event.action == ACTION::STOP || event.action == ACTION::STOP_ALL ||
             event.action == ACTION::VISIBILITY)
         {
             const std::size_t targetIndex = findActor(definition, event.target);
             if (targetIndex == std::numeric_limits<std::size_t>::max())
                 luaL_error(lua, "Interaction event '%s' references an invalid actor", event.id.c_str());
-            if (event.action == ACTION::PLAY &&
+            if ((event.action == ACTION::PLAY || event.action == ACTION::STOP ||
+                 event.action == ACTION::STOP_ALL) &&
                 definition.actors[targetIndex].kind == "placeholder")
                 luaL_error(lua, "Interaction event '%s' targets a placeholder", event.id.c_str());
         }
-        if (event.action == ACTION::PLAY && event.clipKey.empty())
-            luaL_error(lua, "Interaction event '%s' has no animation clip", event.id.c_str());
+        if (event.action == ACTION::PLAY || event.action == ACTION::STOP)
+        {
+            if (event.clipKey.empty())
+                luaL_error(lua, "Interaction event '%s' has no animation clip", event.id.c_str());
+            if (event.playAs != "base" && event.playAs != "absolute" && event.playAs != "additive")
+                luaL_error(lua, "Interaction event '%s' has an invalid playAs mode", event.id.c_str());
+            if (event.playAs != "base")
+            {
+                const std::size_t separator = event.clipKey.find(':');
+                if (separator == std::string::npos || event.clipKey.substr(0, separator) != "skeletal")
+                    luaL_error(lua, "Interaction event '%s' uses a layer mode for a non-skeletal clip",
+                               event.id.c_str());
+            }
+            if (event.action == ACTION::PLAY && event.playAs != "base" &&
+                (event.layerWeight < 0.0 || event.layerWeight > 1.0))
+                luaL_error(lua, "Interaction event '%s' has an invalid layerWeight", event.id.c_str());
+        }
     }
     return definition;
 }

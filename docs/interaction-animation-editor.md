@@ -94,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 10,
+    version = 15,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -144,7 +144,9 @@ interactionProject = {
             time = 0.2,
             action = "play",
             target = "actor2",
-            clipKey = "skeletal:reaction"
+            clipKey = "skeletal:reaction",
+            playAs = "absolute",
+            layerWeight = 0.65
         }
     }
 }
@@ -293,15 +295,41 @@ pose visual atual do ator.
 
 ### `play`
 
-Inicia ou troca a animacao de um ator no tempo indicado. `clipKey` usa o
-formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
+Inicia ou reinicia uma animacao de um ator no tempo indicado. Um evento `play`
+nao para automaticamente outros clips articulados ativos no mesmo ator. A
+composicao simultanea e suportada para clips articulados; o modo frame
+usa um player unico, enquanto o modo skeletal usa um clip base e pode
+ter um segundo clip temporario como `absolute` ou `additive`. `clipKey` usa o
+formato `frame:nome`, `skeletal:nome`, `facial:nome` ou `articulated:nome`, conforme o tipo de
 animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
 estatica tradicional, formada por uma faixa de frames da mesh.
+
+Para clips `skeletal`, `playAs` pode ser `base`, `absolute` ou `additive`.
+`base` controla o player principal. Os outros dois modos usam a camada
+esqueletica temporaria e exigem um clip base ativo. Nesses modos,
+`layerWeight` controla o peso da camada entre `0` e `1`.
+
+Clips `facial` usam o player facial independente e podem ser reproduzidos junto
+com clips esqueleticos ou articulados. A mesh possui um unico clip facial ativo;
+um novo evento `play` facial substitui o clip facial anterior.
 
 Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
 crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
 calculado diretamente a partir do tempo mestre; no runtime, o modo original
 volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
+
+### `stop`
+
+Para explicitamente o clip indicado no ator. Para clips articulados, somente o
+clip informado e removido da composicao; os demais clips articulados continuam
+ativos. Para clips esqueléticos, `playAs` identifica se o evento para o clip
+base ou a camada temporaria. Para clips faciais, o evento para o clip facial
+ativo. `clipKey` usa o mesmo formato do evento `play`.
+
+### `stop_all`
+
+Para explicitamente todos os clips ativos do ator: frame, skeletal base,
+camada skeletal, facial e articulated. Esse evento nao usa `clipKey`.
 
 ### `notify`
 
@@ -526,9 +554,10 @@ Ao exportar, tambem valida:
 - um ator de relogio valido;
 - uma animacao valida para o relogio, exceto quando a duracao da timeline foi
   definida explicitamente;
-- clips validos nos eventos `play`.
+- clips validos nos eventos `play` e `stop`;
+- eventos `stop_all` com alvos validos.
 
 Eventos `transform` e `visibility` podem atingir placeholders. Eventos `play`
-em placeholders sao invalidos.
+e `stop_all` em placeholders sao invalidos.
 
 Erros impedem a operacao e sao exibidos pelo aviso padrao do editor.

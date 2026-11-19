@@ -44,10 +44,10 @@ local function newActorState(baseX)
         object = nil,
         previewObject = nil,
         clipKey = '',
-        runtimeKey = nil,
-        runtimeClip = nil,
-        runtimeOverride = false,
-        runtimeStartTime = 0,
+        runtimeClips = {},
+        runtimeSingle = nil,
+        runtimeSkeletalLayer = nil,
+        runtimeFacial = nil,
         rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
@@ -350,10 +350,10 @@ local function setActorKind(id, kind)
     if entry.object then entry.object:destroy(); entry.object = nil end
     destroyActorPreview(entry)
     entry.bundle = nil
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
+    entry.runtimeClips = {}
+    entry.runtimeSingle = nil
+    entry.runtimeSkeletalLayer = nil
+    entry.runtimeFacial = nil
     entry.kind = kind
     if kind == 'placeholder' then
         entry.path = ''
@@ -1413,6 +1413,14 @@ local function clipList(entry)
             loop = clip.loop == true,
         })
     end
+    for _, clip in ipairs(entry.bundle.facial or {}) do
+        table.insert(list, {
+            key = 'facial:' .. clip.name,
+            label = string.format('%s - %s (%.3fs)', L('facial'), clip.name, clip.duration or 0),
+            kind = 'facial', name = clip.name, duration = clip.duration or 0,
+            loop = clip.loop == true,
+        })
+    end
     for _, clip in ipairs(entry.bundle.articulated or {}) do
         table.insert(list, {
             key = 'articulated:' .. clip.name,
@@ -1453,35 +1461,122 @@ applyTransform = function(entry)
     refreshBaseReferenceAtZero()
 end
 
-local function stopEntry(entry)
-    if entry.object and entry.bundle then
-        Animation.stop(entry.bundle)
-    end
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
-end
-
-local function seekClip(entry, clip, time, playing)
-    if not entry.object or not clip or clip.kind == 'none' then
-        stopEntry(entry)
+local function stopSingleClip(entry)
+    local active = entry.runtimeSingle
+    if not active or not entry.object then
+        entry.runtimeSingle = nil
         return
     end
-    if entry.runtimeKey ~= clip.key then
-        stopEntry(entry)
-        if clip.kind == 'frame' then
-            entry.object:setAnim(clip.name)
-        elseif clip.kind == 'skeletal' then
-            assert(entry.object:playSkeletalAnimation(clip.name))
-        else
-            assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
+    if active.clip.kind == 'skeletal' then
+        entry.object:stopSkeletalAnimation()
+        entry.runtimeSkeletalLayer = nil
+    elseif active.clip.kind == 'frame' then
+        entry.object:setTypeAnim(mbm.PAUSED)
+    end
+    entry.runtimeSingle = nil
+end
+
+local function stopSkeletalLayer(entry)
+    if not entry.runtimeSkeletalLayer or not entry.object then
+        entry.runtimeSkeletalLayer = nil
+        return
+    end
+    entry.object:stopSkeletalAnimationAbsoluteLayer()
+    entry.runtimeSkeletalLayer = nil
+end
+
+local function stopFacialClip(entry)
+    if not entry.runtimeFacial or not entry.object then
+        entry.runtimeFacial = nil
+        return
+    end
+    entry.object:stopFacialAnimation()
+    entry.runtimeFacial = nil
+end
+
+local function playAsMode(clip, playAs)
+    if clip and clip.kind == 'skeletal' and
+        (playAs == 'absolute' or playAs == 'additive') then
+        return playAs
+    end
+    return 'base'
+end
+
+local function stopClip(entry, clip, playAs)
+    if not clip or clip.kind == 'none' or not entry.object then return end
+    if clip.kind == 'articulated' then
+        entry.object:disableArticulatedAnimation(clip.name)
+        entry.runtimeClips[clip.key] = nil
+        return
+    end
+    if clip.kind == 'facial' then
+        if entry.runtimeFacial and entry.runtimeFacial.clip.key == clip.key then
+            stopFacialClip(entry)
         end
-        entry.runtimeKey = clip.key
-        entry.runtimeClip = clip
+        return
+    end
+    if clip.kind == 'skeletal' and playAsMode(clip, playAs) ~= 'base' then
+        if entry.runtimeSkeletalLayer and entry.runtimeSkeletalLayer.clip.key == clip.key then
+            stopSkeletalLayer(entry)
+        end
+        return
+    end
+    if entry.runtimeSingle and entry.runtimeSingle.clip.key == clip.key then
+        stopSingleClip(entry)
+    end
+end
+
+local function stopEntry(entry)
+    if not entry.object then
+        entry.runtimeClips = {}
+        entry.runtimeSingle = nil
+        entry.runtimeSkeletalLayer = nil
+        entry.runtimeFacial = nil
+        return
+    end
+    for _, active in pairs(entry.runtimeClips) do
+        entry.object:disableArticulatedAnimation(active.clip.name)
+    end
+    entry.runtimeClips = {}
+    stopSingleClip(entry)
+    stopSkeletalLayer(entry)
+    stopFacialClip(entry)
+end
+
+local function startClip(entry, clip, time, playing, startTime, playAs, layerWeight)
+    if not entry.object or not clip or clip.kind == 'none' then return end
+    local mode = playAsMode(clip, playAs)
+    if clip.kind == 'articulated' then
+        assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
+        entry.runtimeClips[clip.key] = {clip = clip, startTime = startTime or S.time}
+    elseif clip.kind == 'skeletal' and mode ~= 'base' then
+        stopSkeletalLayer(entry)
+        local weight = math.max(0, math.min(1, tonumber(layerWeight) or 1))
+        if mode == 'absolute' then
+            assert(entry.object:playSkeletalAnimationAbsoluteLayer(clip.name, weight))
+        else
+            assert(entry.object:playSkeletalAnimationAdditiveLayer(clip.name, weight))
+        end
+        entry.runtimeSkeletalLayer = {
+            clip = clip, playAs = mode, startTime = startTime or S.time,
+        }
+    elseif clip.kind == 'facial' then
+        assert(entry.object:playFacialAnimation(clip.name))
+        entry.runtimeFacial = {clip = clip, startTime = startTime or S.time}
+    else
+        if clip.kind == 'frame' then
+            stopSingleClip(entry)
+            entry.object:setAnim(clip.name)
+        else
+            if entry.runtimeSingle and entry.runtimeSingle.clip.kind == 'frame' then
+                stopSingleClip(entry)
+            end
+            assert(entry.object:playSkeletalAnimation(clip.name))
+        end
+        entry.runtimeSingle = {clip = clip, playAs = 'base', startTime = startTime or S.time}
     end
     local targetTime = math.max(0, time or 0)
-    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+    if (clip.kind == 'frame' or clip.kind == 'facial') and clip.loop and (clip.duration or 0) > 0 then
         -- Looping static modes must wrap their sampled time. Clamping them to
         -- the duration would keep the preview on one frame after the first
         -- cycle, even though the asset metadata says the clip loops.
@@ -1493,8 +1588,24 @@ local function seekClip(entry, clip, time, playing)
         local frame = Animation.staticFrame(clip, targetTime)
         entry.object:setIndexFrame(frame)
     elseif clip.kind == 'skeletal' then
-        assert(entry.object:seekSkeletalAnimation(targetTime))
-        if not playing then entry.object:pauseSkeletalAnimation() end
+        if mode == 'base' then
+            assert(entry.object:seekSkeletalAnimation(targetTime))
+            if not playing then entry.object:pauseSkeletalAnimation() end
+        else
+            assert(entry.object:seekSkeletalAnimationAbsoluteLayer(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimationLayer()
+            else
+                entry.object:pauseSkeletalAnimationLayer()
+            end
+        end
+    elseif clip.kind == 'facial' then
+        assert(entry.object:seekFacialAnimation(targetTime))
+        if playing then
+            entry.object:resumeFacialAnimation()
+        else
+            entry.object:pauseFacialAnimation()
+        end
     else
         assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
         if playing then
@@ -1508,6 +1619,59 @@ local function seekClip(entry, clip, time, playing)
             entry.object:pauseArticulatedAnimation(clip.name)
         end
     end
+end
+
+local function seekClip(entry, clip, time, playing, playAs)
+    if not entry.object or not clip or clip.kind == 'none' then return end
+    local mode = playAsMode(clip, playAs)
+    local active = clip.kind == 'articulated' and entry.runtimeClips[clip.key] or
+        clip.kind == 'skeletal' and mode ~= 'base' and entry.runtimeSkeletalLayer or
+        clip.kind == 'facial' and entry.runtimeFacial or entry.runtimeSingle
+    if not active or active.clip.key ~= clip.key then return end
+    local targetTime = math.max(0, time or 0)
+    if (clip.kind == 'frame' or clip.kind == 'facial') and clip.loop and (clip.duration or 0) > 0 then
+        targetTime = targetTime % clip.duration
+    else
+        targetTime = math.min(targetTime, clip.duration or 0)
+    end
+    if clip.kind == 'frame' then
+        local frame = Animation.staticFrame(clip, targetTime)
+        entry.object:setIndexFrame(frame)
+    elseif clip.kind == 'skeletal' then
+        if mode == 'base' then
+            assert(entry.object:seekSkeletalAnimation(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimation()
+            else
+                entry.object:pauseSkeletalAnimation()
+            end
+        else
+            assert(entry.object:seekSkeletalAnimationAbsoluteLayer(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimationLayer()
+            else
+                entry.object:pauseSkeletalAnimationLayer()
+            end
+        end
+    elseif clip.kind == 'facial' then
+        assert(entry.object:seekFacialAnimation(targetTime))
+        if playing then
+            entry.object:resumeFacialAnimation()
+        else
+            entry.object:pauseFacialAnimation()
+        end
+    elseif playing then
+        assert(entry.object:resumeArticulatedAnimation(clip.name))
+    else
+        entry.object:pauseArticulatedAnimation(clip.name)
+    end
+end
+
+local function clipPlayAs(event, clip)
+    if not event or not clip or clip.kind ~= 'skeletal' then return 'base' end
+    local mode = event.playAs
+    if mode == 'absolute' or mode == 'additive' then return mode end
+    return 'base'
 end
 
 local function clockClip()
@@ -1663,15 +1827,15 @@ local function applyEvent(event, progress)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then
-            entry.runtimeStartTime = event.time or 0
-            seekClip(entry, clip, math.max(0, S.time - entry.runtimeStartTime), S.playing)
-            -- seekClip may switch from the actor's base clip and call
-            -- stopEntry(), which clears runtimeOverride. Restore the event
-            -- override after the switch so the next frame keeps this clip
-            -- instead of returning to the base animation.
-            entry.runtimeOverride = true
-            entry.runtimeStartTime = event.time or 0
+            local mode = clipPlayAs(event, clip)
+            startClip(entry, clip, math.max(0, S.time - (event.time or 0)), S.playing,
+                event.time or 0, mode, event.layerWeight)
         end
+    elseif event.action == 'stop' then
+        local clip = findClip(entry, event.clipKey)
+        if clip.kind ~= 'none' then stopClip(entry, clip, clipPlayAs(event, clip)) end
+    elseif event.action == 'stop_all' then
+        stopEntry(entry)
     elseif event.action == 'visibility' then
         local object = actorVisual(entry)
         if object then object.visible = event.visible ~= false end
@@ -1704,7 +1868,9 @@ seekAll = function(time, keepPlaying)
         local object = actorVisual(entry)
         if object then object.visible = displayBase(entry).visible ~= false end
         local clip = findClip(entry, entry.clipKey)
-        seekClip(entry, clip, S.time, keepPlaying == true)
+        if clip.kind ~= 'none' then
+            startClip(entry, clip, S.time, keepPlaying == true, 0)
+        end
         applyTransform(entry)
     end
     for _, event in ipairs(S.events) do
@@ -1785,10 +1951,10 @@ local function loadActor(id, path)
     entry.object = bundle.object
     entry.id = id
     entry.path = path
-    entry.runtimeKey = nil
-    entry.runtimeClip = nil
-    entry.runtimeOverride = false
-    entry.runtimeStartTime = 0
+    entry.runtimeClips = {}
+    entry.runtimeSingle = nil
+    entry.runtimeSkeletalLayer = nil
+    entry.runtimeFacial = nil
     entry.clipKey = entry.clipKey or ''
     entry.base.visible = entry.base.visible ~= false
     entry.object.alwaysRender = true
@@ -1835,7 +2001,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 10,
+        version = 15,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1940,6 +2106,10 @@ local function applyProject(project)
     S.events = cloneTable(project.events or {})
     for _, event in ipairs(S.events) do
         normalizeEventDefaults(event)
+        if event.action == 'play' or event.action == 'stop' then
+            if event.playAs == nil then event.playAs = 'base' end
+            if event.layerWeight == nil then event.layerWeight = 1 end
+        end
         if event.action ~= 'notify' and not actor(event.target) then event.target = S.actorOrder[1] end
         if type(event.id) ~= 'string' then event.id = '' end
     end
@@ -2054,6 +2224,7 @@ local function validateProject(forExport)
         local label = event.id and event.id ~= '' and event.id or tostring(index)
         if type(event.action) ~= 'string' or
             (event.action ~= 'transform' and event.action ~= 'play' and
+                event.action ~= 'stop' and event.action ~= 'stop_all' and
                 event.action ~= 'notify' and event.action ~= 'visibility') then
             return fail('validation_event_action', label)
         end
@@ -2064,15 +2235,31 @@ local function validateProject(forExport)
         if event.action ~= 'notify' and not actor(event.target) then
             return fail('validation_event_target', label)
         end
-        if event.action == 'play' then
+        if event.action == 'play' or event.action == 'stop' then
             if isPlaceholder(actor(event.target)) then
-                return fail('validation_placeholder_play', label)
+                return fail(event.action == 'play' and 'validation_placeholder_play' or
+                    'validation_placeholder_stop', label)
             end
             if type(event.clipKey) ~= 'string' or event.clipKey == '' then
                 return fail('validation_event_clip', label)
             end
             if forExport and findClip(actor(event.target), event.clipKey).kind == 'none' then
                 return fail('validation_event_clip', label)
+            end
+            local playAs = event.playAs or 'base'
+            if playAs ~= 'base' and playAs ~= 'absolute' and playAs ~= 'additive' then
+                return fail('validation_event_play_as', label)
+            end
+            if forExport and findClip(actor(event.target), event.clipKey).kind ~= 'skeletal' and
+                playAs ~= 'base' then
+                return fail('validation_event_play_as', label)
+            end
+            if event.action == 'play' and playAs ~= 'base' then
+                local layerWeight = tonumber(event.layerWeight)
+                if not checkNumber(layerWeight, 'validation_event_layer_weight', label) or
+                    layerWeight < 0 or layerWeight > 1 then
+                    return fail('validation_event_layer_weight', label)
+                end
             end
         elseif event.action == 'visibility' then
             if event.visible ~= nil and type(event.visible) ~= 'boolean' then
@@ -2330,6 +2517,8 @@ local function eventLabel(event, index)
     local targetEntry = actor(event.target)
     local target = targetEntry and actorName(event.target, targetEntry) or string.format(L('actor_default'), 0)
     local action = event.action == 'play' and L('play_animation') or
+        event.action == 'stop' and L('stop_animation') or
+        event.action == 'stop_all' and L('stop_all_animation') or
         event.action == 'visibility' and L('visibility') or L('transform')
     local identifier = event.id and event.id ~= '' and (' [' .. event.id .. ']') or ''
     local timeLabel
@@ -2559,7 +2748,8 @@ local function updatePlayback(delta)
     end
     for _, event in ipairs(S.events) do
         local eventTime = event.time or 0
-        if (event.action == 'play' or event.action == 'visibility') and
+        if (event.action == 'play' or event.action == 'stop' or event.action == 'stop_all' or
+            event.action == 'visibility') and
             eventTime > previousTime and eventTime <= S.time then
             applyEvent(event)
         end
@@ -2567,19 +2757,41 @@ local function updatePlayback(delta)
     resetOffsets()
     for _, id in ipairs(S.actorOrder) do
         local entry = actor(id)
-        local selected = entry.runtimeOverride and entry.runtimeClip or findClip(entry, entry.clipKey)
-        local localTime = entry.runtimeOverride and (S.time - entry.runtimeStartTime) or S.time
-        if selected.kind ~= 'none' then
-            if selected.kind == 'frame' and reachedTimelineEnd then
+        local single = entry.runtimeSingle
+        if single then
+            local localTime = S.time - single.startTime
+            if single.clip.kind == 'frame' and reachedTimelineEnd then
                 -- Frame seeking pauses the animation. Apply the final frame first,
                 -- then restore the asset playback mode when the project allows the
                 -- clip to continue past the master timeline.
-                seekClip(entry, selected, localTime, false)
-                if S.continueClipsAfterTimeline and (selected.mode or 0) ~= 0 then
-                    entry.object:setTypeAnim(selected.mode)
+                seekClip(entry, single.clip, localTime, false)
+                if S.continueClipsAfterTimeline and (single.clip.mode or 0) ~= 0 then
+                    entry.object:setTypeAnim(single.clip.mode)
                 end
             elseif not reachedTimelineEnd or not S.continueClipsAfterTimeline then
-                seekClip(entry, selected, localTime, true)
+                seekClip(entry, single.clip, localTime, true)
+            end
+        end
+        for _, active in pairs(entry.runtimeClips) do
+            local localTime = S.time - active.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, active.clip, localTime, not reachedTimelineEnd or S.continueClipsAfterTimeline)
+            end
+        end
+        local layer = entry.runtimeSkeletalLayer
+        if layer then
+            local localTime = S.time - layer.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, layer.clip, localTime,
+                    not reachedTimelineEnd or S.continueClipsAfterTimeline, layer.playAs)
+            end
+        end
+        local facial = entry.runtimeFacial
+        if facial then
+            local localTime = S.time - facial.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, facial.clip, localTime,
+                    not reachedTimelineEnd or S.continueClipsAfterTimeline)
             end
         end
     end
@@ -2874,14 +3086,18 @@ local function showEvents()
             end
             tImGui.SetNextItemWidth(210)
             local actionIndex = event.action == 'play' and 2 or
-                event.action == 'notify' and 3 or event.action == 'visibility' and 4 or 1
+                event.action == 'stop' and 3 or event.action == 'stop_all' and 4 or
+                event.action == 'notify' and 5 or event.action == 'visibility' and 6 or 1
             local actionChanged, nextActionIndex = tImGui.Combo(
                 L('event_action'), actionIndex,
-                {L('transform'), L('play'), L('notify_event'), L('visibility')})
+                {L('transform'), L('play'), L('stop_animation'), L('stop_all_animation'),
+                    L('notify_event'), L('visibility')})
             if actionChanged then
                 event.action = nextActionIndex == 2 and 'play' or
-                    nextActionIndex == 3 and 'notify' or
-                    nextActionIndex == 4 and 'visibility' or 'transform'
+                    nextActionIndex == 3 and 'stop' or
+                    nextActionIndex == 4 and 'stop_all' or
+                    nextActionIndex == 5 and 'notify' or
+                    nextActionIndex == 6 and 'visibility' or 'transform'
                 if event.action == 'notify' then
                     event.target = nil
                     event.clipKey = ''
@@ -2899,20 +3115,76 @@ local function showEvents()
                     event.transitionEnd = nil
                     event.duration = nil
                     event.bezier = nil
+                elseif event.action == 'stop_all' then
+                    event.target = actor(event.target) and event.target or S.selectedActor or S.clockActor
+                    event.clipKey = ''
+                    event.playAs = nil
+                    event.layerWeight = nil
+                    event.transition = 'instant'
+                    event.transitionStart = nil
+                    event.transitionEnd = nil
+                    event.duration = nil
+                    event.bezier = nil
                 elseif not actor(event.target) then
                     event.target = S.selectedActor or S.clockActor
+                end
+                if event.action == 'play' or event.action == 'stop' then
+                    event.playAs = event.playAs or 'base'
+                    event.layerWeight = event.layerWeight or 1
+                else
+                    event.playAs = nil
+                    event.layerWeight = nil
                 end
                 S.modified = true
                 seekAll(S.time, false)
                 showEventHighlight(event)
             end
-            if event.action == 'play' then
+            if event.action == 'play' or event.action == 'stop' then
                 local target = actor(event.target)
                 local clips, names, current = clipList(target), {}, 1
                 for index, clip in ipairs(clips) do names[index] = clip.label; if clip.key == event.clipKey then current = index end end
                 tImGui.SetNextItemWidth(230)
                 local clipChanged, clipIndex = tImGui.Combo(L('event_animation'), current, names)
-                if clipChanged then event.clipKey = clips[clipIndex].key; S.modified = true; seekAll(S.time, false) end
+                if clipChanged then
+                    event.clipKey = clips[clipIndex].key
+                    if clips[clipIndex].kind ~= 'skeletal' then
+                        event.playAs = 'base'
+                        event.layerWeight = nil
+                    else
+                        event.layerWeight = event.layerWeight or 1
+                    end
+                    S.modified = true
+                    seekAll(S.time, false)
+                end
+                local selected = clips[clipIndex]
+                if selected and selected.kind == 'skeletal' then
+                    local mode = clipPlayAs(event, selected)
+                    local modeIndex = mode == 'absolute' and 2 or mode == 'additive' and 3 or 1
+                    tImGui.SetNextItemWidth(230)
+                    local modeChanged, nextMode = tImGui.Combo(L('play_as'), modeIndex,
+                        {L('play_as_base'), L('play_as_absolute'), L('play_as_additive')})
+                    if modeChanged then
+                        event.playAs = nextMode == 2 and 'absolute' or
+                            nextMode == 3 and 'additive' or 'base'
+                        S.modified = true
+                        seekAll(S.time, false)
+                    end
+                    if event.action == 'play' and mode ~= 'base' then
+                        local weight = clamp(tonumber(event.layerWeight) or 1, 0, 1)
+                        local weightChanged, nextWeight = tImGui.SliderFloat(
+                            L('layer_weight'), weight, 0, 1, '%.3f')
+                        if weightChanged then
+                            event.layerWeight = clamp(nextWeight, 0, 1)
+                            S.modified = true
+                            seekAll(S.time, false)
+                        elseif event.layerWeight == nil then
+                            event.layerWeight = weight
+                        end
+                    end
+                else
+                    event.playAs = 'base'
+                    event.layerWeight = nil
+                end
             elseif event.action == 'visibility' then
                 local visible = tImGui.Checkbox(L('visible'), event.visible ~= false)
                 if visible ~= (event.visible ~= false) then
