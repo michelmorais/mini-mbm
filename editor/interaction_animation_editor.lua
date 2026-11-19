@@ -47,6 +47,7 @@ local function newActorState(baseX)
         runtimeClips = {},
         runtimeSingle = nil,
         runtimeSkeletalLayer = nil,
+        runtimeFacial = nil,
         rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
@@ -352,6 +353,7 @@ local function setActorKind(id, kind)
     entry.runtimeClips = {}
     entry.runtimeSingle = nil
     entry.runtimeSkeletalLayer = nil
+    entry.runtimeFacial = nil
     entry.kind = kind
     if kind == 'placeholder' then
         entry.path = ''
@@ -1411,6 +1413,14 @@ local function clipList(entry)
             loop = clip.loop == true,
         })
     end
+    for _, clip in ipairs(entry.bundle.facial or {}) do
+        table.insert(list, {
+            key = 'facial:' .. clip.name,
+            label = string.format('%s - %s (%.3fs)', L('facial'), clip.name, clip.duration or 0),
+            kind = 'facial', name = clip.name, duration = clip.duration or 0,
+            loop = clip.loop == true,
+        })
+    end
     for _, clip in ipairs(entry.bundle.articulated or {}) do
         table.insert(list, {
             key = 'articulated:' .. clip.name,
@@ -1475,6 +1485,15 @@ local function stopSkeletalLayer(entry)
     entry.runtimeSkeletalLayer = nil
 end
 
+local function stopFacialClip(entry)
+    if not entry.runtimeFacial or not entry.object then
+        entry.runtimeFacial = nil
+        return
+    end
+    entry.object:stopFacialAnimation()
+    entry.runtimeFacial = nil
+end
+
 local function playAsMode(clip, playAs)
     if clip and clip.kind == 'skeletal' and
         (playAs == 'absolute' or playAs == 'additive') then
@@ -1488,6 +1507,12 @@ local function stopClip(entry, clip, playAs)
     if clip.kind == 'articulated' then
         entry.object:disableArticulatedAnimation(clip.name)
         entry.runtimeClips[clip.key] = nil
+        return
+    end
+    if clip.kind == 'facial' then
+        if entry.runtimeFacial and entry.runtimeFacial.clip.key == clip.key then
+            stopFacialClip(entry)
+        end
         return
     end
     if clip.kind == 'skeletal' and playAsMode(clip, playAs) ~= 'base' then
@@ -1506,6 +1531,7 @@ local function stopEntry(entry)
         entry.runtimeClips = {}
         entry.runtimeSingle = nil
         entry.runtimeSkeletalLayer = nil
+        entry.runtimeFacial = nil
         return
     end
     for _, active in pairs(entry.runtimeClips) do
@@ -1514,6 +1540,7 @@ local function stopEntry(entry)
     entry.runtimeClips = {}
     stopSingleClip(entry)
     stopSkeletalLayer(entry)
+    stopFacialClip(entry)
 end
 
 local function startClip(entry, clip, time, playing, startTime, playAs, layerWeight)
@@ -1533,6 +1560,9 @@ local function startClip(entry, clip, time, playing, startTime, playAs, layerWei
         entry.runtimeSkeletalLayer = {
             clip = clip, playAs = mode, startTime = startTime or S.time,
         }
+    elseif clip.kind == 'facial' then
+        assert(entry.object:playFacialAnimation(clip.name))
+        entry.runtimeFacial = {clip = clip, startTime = startTime or S.time}
     else
         if clip.kind == 'frame' then
             stopSingleClip(entry)
@@ -1546,7 +1576,7 @@ local function startClip(entry, clip, time, playing, startTime, playAs, layerWei
         entry.runtimeSingle = {clip = clip, playAs = 'base', startTime = startTime or S.time}
     end
     local targetTime = math.max(0, time or 0)
-    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+    if (clip.kind == 'frame' or clip.kind == 'facial') and clip.loop and (clip.duration or 0) > 0 then
         -- Looping static modes must wrap their sampled time. Clamping them to
         -- the duration would keep the preview on one frame after the first
         -- cycle, even though the asset metadata says the clip loops.
@@ -1569,6 +1599,13 @@ local function startClip(entry, clip, time, playing, startTime, playAs, layerWei
                 entry.object:pauseSkeletalAnimationLayer()
             end
         end
+    elseif clip.kind == 'facial' then
+        assert(entry.object:seekFacialAnimation(targetTime))
+        if playing then
+            entry.object:resumeFacialAnimation()
+        else
+            entry.object:pauseFacialAnimation()
+        end
     else
         assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
         if playing then
@@ -1588,10 +1625,11 @@ local function seekClip(entry, clip, time, playing, playAs)
     if not entry.object or not clip or clip.kind == 'none' then return end
     local mode = playAsMode(clip, playAs)
     local active = clip.kind == 'articulated' and entry.runtimeClips[clip.key] or
-        clip.kind == 'skeletal' and mode ~= 'base' and entry.runtimeSkeletalLayer or entry.runtimeSingle
+        clip.kind == 'skeletal' and mode ~= 'base' and entry.runtimeSkeletalLayer or
+        clip.kind == 'facial' and entry.runtimeFacial or entry.runtimeSingle
     if not active or active.clip.key ~= clip.key then return end
     local targetTime = math.max(0, time or 0)
-    if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
+    if (clip.kind == 'frame' or clip.kind == 'facial') and clip.loop and (clip.duration or 0) > 0 then
         targetTime = targetTime % clip.duration
     else
         targetTime = math.min(targetTime, clip.duration or 0)
@@ -1614,6 +1652,13 @@ local function seekClip(entry, clip, time, playing, playAs)
             else
                 entry.object:pauseSkeletalAnimationLayer()
             end
+        end
+    elseif clip.kind == 'facial' then
+        assert(entry.object:seekFacialAnimation(targetTime))
+        if playing then
+            entry.object:resumeFacialAnimation()
+        else
+            entry.object:pauseFacialAnimation()
         end
     elseif playing then
         assert(entry.object:resumeArticulatedAnimation(clip.name))
@@ -1907,6 +1952,7 @@ local function loadActor(id, path)
     entry.runtimeClips = {}
     entry.runtimeSingle = nil
     entry.runtimeSkeletalLayer = nil
+    entry.runtimeFacial = nil
     entry.clipKey = entry.clipKey or ''
     entry.base.visible = entry.base.visible ~= false
     entry.object.alwaysRender = true
@@ -1953,7 +1999,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 12,
+        version = 14,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -2733,6 +2779,14 @@ local function updatePlayback(delta)
             if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
                 seekClip(entry, layer.clip, localTime,
                     not reachedTimelineEnd or S.continueClipsAfterTimeline, layer.playAs)
+            end
+        end
+        local facial = entry.runtimeFacial
+        if facial then
+            local localTime = S.time - facial.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, facial.clip, localTime,
+                    not reachedTimelineEnd or S.continueClipsAfterTimeline)
             end
         end
     end

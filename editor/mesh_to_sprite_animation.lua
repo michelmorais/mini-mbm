@@ -44,7 +44,7 @@ function M.load(path,method)
     mbm.addPath(P.dirname(path))
     local d=meshDebug:new(); assert(d:load(path),'Cannot read mesh')
     local obj=M.newObject(path,method)
-    local a={object=obj,debug=d,path=path,skinning=method or 'auto',static={},skeletal={},articulated={}}
+    local a={object=obj,debug=d,path=path,skinning=method or 'auto',static={},skeletal={},facial={},articulated={}}
     for i=1,obj:getTotalAnim() do
         local name,first,last,interval,mode=d:getAnim(i)
         assert(name and last>=first,'Invalid static animation metadata')
@@ -62,11 +62,16 @@ function M.load(path,method)
         local name,duration,speed,priority,loop=d:getArticulatedAnimation(i)
         a.articulated[i]={name=name,duration=duration,speed=speed,priority=priority,loop=loop}
     end
+    local facialData=d:getFacialExportData() or {}
+    for _,clip in ipairs(facialData.clips or {}) do
+        a.facial[#a.facial+1]={name=clip.name,duration=clip.duration,loop=clip.loop==true}
+    end
     M.stop(a)
     return a
 end
 function M.stop(a)
     a.object:stopSkeletalAnimation()
+    a.object:stopFacialAnimation()
     for _,c in ipairs(a.articulated) do a.object:disableArticulatedAnimation(c.name) end
     a.object:setTypeAnim(mbm.PAUSED)
 end

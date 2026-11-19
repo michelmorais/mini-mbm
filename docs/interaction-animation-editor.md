@@ -94,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 13,
+    version = 14,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -300,7 +300,7 @@ nao para automaticamente outros clips articulados ativos no mesmo ator. A
 composicao simultanea e suportada para clips articulados; o modo frame
 usa um player unico, enquanto o modo skeletal usa um clip base e pode
 ter um segundo clip temporario como `absolute` ou `additive`. `clipKey` usa o
-formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
+formato `frame:nome`, `skeletal:nome`, `facial:nome` ou `articulated:nome`, conforme o tipo de
 animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
 estatica tradicional, formada por uma faixa de frames da mesh.
 
@@ -308,6 +308,10 @@ Para clips `skeletal`, `playAs` pode ser `base`, `absolute` ou `additive`.
 `base` controla o player principal. Os outros dois modos usam a camada
 esqueletica temporaria e exigem um clip base ativo. Nesses modos,
 `layerWeight` controla o peso da camada entre `0` e `1`.
+
+Clips `facial` usam o player facial independente e podem ser reproduzidos junto
+com clips esqueleticos ou articulados. A mesh possui um unico clip facial ativo;
+um novo evento `play` facial substitui o clip facial anterior.
 
 Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
 crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
@@ -319,7 +323,8 @@ volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
 Para explicitamente o clip indicado no ator. Para clips articulados, somente o
 clip informado e removido da composicao; os demais clips articulados continuam
 ativos. Para clips esqueléticos, `playAs` identifica se o evento para o clip
-base ou a camada temporaria. `clipKey` usa o mesmo formato do evento `play`.
+base ou a camada temporaria. Para clips faciais, o evento para o clip facial
+ativo. `clipKey` usa o mesmo formato do evento `play`.
 
 ### `notify`
 

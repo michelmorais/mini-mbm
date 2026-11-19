@@ -416,7 +416,8 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
     const char *name = key.c_str() + separator + 1;
-    if (kind != "frame" && kind != "static" && kind != "skeletal" && kind != "articulated") return;
+    if (kind != "frame" && kind != "static" && kind != "skeletal" &&
+        kind != "facial" && kind != "articulated") return;
     bool started = true;
     if (kind == "frame" || kind == "static")
     {
@@ -456,6 +457,16 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
                 }), actor.activeClips.end());
         }
     }
+    else if (kind == "facial")
+    {
+        started = actor.mesh->playFacialAnimation(name);
+        if (!started) return;
+        actor.activeClips.erase(std::remove_if(actor.activeClips.begin(), actor.activeClips.end(),
+            [](const ACTIVE_CLIP &active)
+            {
+                return active.key.rfind("facial:", 0) == 0;
+            }), actor.activeClips.end());
+    }
     else if (kind == "articulated")
         started = actor.mesh->playArticulatedAnimation(name, 0, 0.0f, 1.0f);
     if (!started) return;
@@ -494,6 +505,7 @@ void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &ke
         else
             actor.mesh->stopSkeletalAnimation();
     }
+    else if (kind == "facial") actor.mesh->stopFacialAnimation();
     else if (kind == "articulated") actor.mesh->disableArticulatedAnimation(name);
     actor.activeClips.erase(active);
     if (kind == "skeletal" && playAs == "base")
@@ -541,6 +553,7 @@ void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &k
         else
             actor.mesh->pauseSkeletalAnimation();
     }
+    else if (kind == "facial") actor.mesh->pauseFacialAnimation();
     else if (kind == "articulated") actor.mesh->pauseArticulatedAnimation(name);
 }
 
@@ -1284,6 +1297,13 @@ DEFINITION parseDefinition(lua_State *lua, const int table)
                 luaL_error(lua, "Interaction event '%s' has no animation clip", event.id.c_str());
             if (event.playAs != "base" && event.playAs != "absolute" && event.playAs != "additive")
                 luaL_error(lua, "Interaction event '%s' has an invalid playAs mode", event.id.c_str());
+            if (event.playAs != "base")
+            {
+                const std::size_t separator = event.clipKey.find(':');
+                if (separator == std::string::npos || event.clipKey.substr(0, separator) != "skeletal")
+                    luaL_error(lua, "Interaction event '%s' uses a layer mode for a non-skeletal clip",
+                               event.id.c_str());
+            }
             if (event.action == ACTION::PLAY && event.playAs != "base" &&
                 (event.layerWeight < 0.0 || event.layerWeight > 1.0))
                 luaL_error(lua, "Interaction event '%s' has an invalid layerWeight", event.id.c_str());
