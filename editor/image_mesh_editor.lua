@@ -875,7 +875,7 @@ local function regionsPanel()
         local value=tImGui.Checkbox(L('edit_mode'),E.editMode)
         if value~=E.editMode then setEditMode(value) end
         if E.editMode then
-            local names={L('select'),L('rectangle'),L('ellipse'),L('polygon'),L('freehand_title'),L('auto_title'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','freehand','auto_contour','pan'}
+            local names={L('select'),L('rectangle'),L('ellipse'),L('draw_polygon'),L('freehand_title'),L('auto_title'),L('pan')}; local tools={'select','rectangle','ellipse','polygon','freehand','auto_contour','pan'}
             if BackUv.available(E) then names[#names+1]=L('back_edit'); tools[#tools+1]='back_uv' end
             if Sides.available(E) then names[#names+1]=L('side_edit');tools[#tools+1]='side_band' end
             if E.tool=='auto_background' then names[#names+1]=L('auto_pick');tools[#tools+1]=E.tool end
@@ -895,7 +895,7 @@ local function regionsPanel()
                 tImGui.SameLine(); if tImGui.Button(L('cancel')) then Canvas.cancel(E) end
             end
             if tImGui.Button(L('fit_image')) then Canvas.fit(E) end
-            tImGui.TextWrapped(L((E.tool=='holes' or E.tool=='hole_draw') and 'holes_help' or E.tool=='side_band' and 'side_canvas_help' or (E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or 'canvas_help'))))
+            tImGui.TextWrapped(L((E.tool=='holes' or E.tool=='hole_draw') and 'holes_help' or E.tool=='side_band' and 'side_canvas_help' or (E.tool=='back_uv' and 'back_canvas_help' or (E.paint and E.paint.enabled and 'paint_canvas_help' or (E.tool=='polygon' and 'polygon_help' or 'canvas_help')))))
         else
             tImGui.TextWrapped(L('preview_help'))
             setWireframe(tImGui.Checkbox(L('wireframe'),E.wireframe))
