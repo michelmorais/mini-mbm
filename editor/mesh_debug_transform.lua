@@ -52,6 +52,55 @@ local ratioAxes = {'', 'X', 'Y', 'Z'}
 local ratioFields = {'', 'targetWidth', 'targetHeight', 'targetDepth'}
 local ratioSizes = {'', 'width', 'height', 'depth'}
 
+-- MESH_MBM_DEBUG:rotateFrame rotates around the asset origin. Transform-panel rotations need
+-- the center of the selected geometry instead, so calculate the same AABB center used by the
+-- editor's bounds/hover marker, temporarily offset the target vertices to the origin, rotate,
+-- then restore the offset. A frame=0 operation is intentionally handled one frame at a time so
+-- animated frames keep their own subset center.
+local function getRotationPivot(meshD, frame, subset)
+    local totalSubsets = meshD:getTotalSubset(frame)
+    local firstSubset = subset > 0 and subset or 1
+    local lastSubset = subset > 0 and subset or totalSubsets
+    if firstSubset > totalSubsets then return nil end
+
+    local minX, minY, minZ = nil, nil, nil
+    local maxX, maxY, maxZ = nil, nil, nil
+    for currentSubset = firstSubset, lastSubset do
+        local totalVertices = meshD:getTotalVertex(frame, currentSubset)
+        for vertexIndex = 1, totalVertices do
+            local vertex = meshD:getVertex(frame, currentSubset, vertexIndex)
+            if vertex then
+                minX = (not minX or vertex.x < minX) and vertex.x or minX
+                maxX = (not maxX or vertex.x > maxX) and vertex.x or maxX
+                minY = (not minY or vertex.y < minY) and vertex.y or minY
+                maxY = (not maxY or vertex.y > maxY) and vertex.y or maxY
+                minZ = (not minZ or vertex.z < minZ) and vertex.z or minZ
+                maxZ = (not maxZ or vertex.z > maxZ) and vertex.z or maxZ
+            end
+        end
+    end
+    if not minX then return nil end
+    return {x = (minX + maxX) * 0.5, y = (minY + maxY) * 0.5, z = (minZ + maxZ) * 0.5}
+end
+
+local function rotateFrameAroundPivot(meshD, frame, subset, xf)
+    local pivot = getRotationPivot(meshD, frame, subset)
+    if not pivot then return end
+    meshD:translateFrame(frame, -pivot.x, -pivot.y, -pivot.z, subset)
+    meshD:rotateFrame(frame, xf.rx, xf.ry, xf.rz, subset)
+    meshD:translateFrame(frame, pivot.x, pivot.y, pivot.z, subset)
+end
+
+local function rotateAroundSelectedCenter(meshD, frame, subset, xf)
+    if frame > 0 then
+        rotateFrameAroundPivot(meshD, frame, subset, xf)
+        return
+    end
+    for currentFrame = 1, meshD:getTotalFrame() do
+        rotateFrameAroundPivot(meshD, currentFrame, subset, xf)
+    end
+end
+
 function M.ratioAxis(xf)
     return ratioAxes[xf.keepRatio or 1]
 end
@@ -185,7 +234,7 @@ function M.apply(meshD, operation, xf)
             error('bones_uniform_positive_scale_required', 0)
         end
     end
-    if rotate then meshD:rotateFrame(frame, xf.rx, xf.ry, xf.rz, subset) end
+    if rotate then rotateAroundSelectedCenter(meshD, frame, subset, xf) end
     if scale then
         if skeletal or facial then meshD:scaleSkeletalAsset(xf.sx)
         else meshD:scaleFrame(frame, xf.sx, xf.sy, xf.sz, subset) end

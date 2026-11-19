@@ -5354,9 +5354,18 @@ function updateTransformSubsetHoverMarker(tEntry, meshD, frame, subset, xf, inde
     local cx = (bounds.minX + bounds.maxX) * 0.5
     local cy = (bounds.minY + bounds.maxY) * 0.5
     local cz = (bounds.minZ + bounds.maxZ) * 0.5
-    if xf.rx ~= 0 then cx, cy, cz = rotateX(cx, cy, cz, math.rad(xf.rx)) end
-    if xf.ry ~= 0 then cx, cy, cz = rotateY(cx, cy, cz, math.rad(xf.ry)) end
-    if xf.rz ~= 0 then cx, cy, cz = rotateZ(cx, cy, cz, math.rad(xf.rz)) end
+    local pivotBounds = computeMeshAABB(meshD, frame, xf.subset)
+    local pivotX, pivotY, pivotZ = cx, cy, cz
+    if pivotBounds then
+        pivotX = (pivotBounds.minX + pivotBounds.maxX) * 0.5
+        pivotY = (pivotBounds.minY + pivotBounds.maxY) * 0.5
+        pivotZ = (pivotBounds.minZ + pivotBounds.maxZ) * 0.5
+    end
+    local offsetX, offsetY, offsetZ = cx - pivotX, cy - pivotY, cz - pivotZ
+    if xf.rx ~= 0 then offsetX, offsetY, offsetZ = rotateX(offsetX, offsetY, offsetZ, math.rad(xf.rx)) end
+    if xf.ry ~= 0 then offsetX, offsetY, offsetZ = rotateY(offsetX, offsetY, offsetZ, math.rad(xf.ry)) end
+    if xf.rz ~= 0 then offsetX, offsetY, offsetZ = rotateZ(offsetX, offsetY, offsetZ, math.rad(xf.rz)) end
+    cx, cy, cz = pivotX + offsetX, pivotY + offsetY, pivotZ + offsetZ
     cx, cy, cz = cx * xf.sx + xf.dx, cy * xf.sy + xf.dy, cz * xf.sz + xf.dz
 
     local extent = math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,

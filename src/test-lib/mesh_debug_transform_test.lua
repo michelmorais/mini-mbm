@@ -24,6 +24,16 @@ package.path = 'editor/?.lua;' .. package.path
 local Transform = require 'mesh_debug_transform'
 local function fixture(skeletal, facial)
     local calls = {}
+    local geometry = {
+        [1] = {
+            {vertices={{x=10,y=0,z=0},{x=12,y=0,z=0}}},
+            {vertices={{x=0,y=0,z=0},{x=1,y=0,z=0}}},
+        },
+        [2] = {
+            {vertices={{x=20,y=0,z=0},{x=22,y=0,z=0}}},
+            {vertices={{x=2,y=0,z=0},{x=3,y=0,z=0}}},
+        },
+    }
     local mesh = { getTotalArticulatedParts = function() return 0 end,
         getTotalArticulatedAnimations = function() return 0 end,
         getModeDraw = function() return 'TRIANGLES' end, getSkeletonBindReport = function(_, dependencies)
@@ -33,9 +43,57 @@ local function fixture(skeletal, facial)
     end, getFacialExportData = function()
         if facial then return {vertexCount=3, targets={{name='jawOpen'}}} end
         return nil
-    end }
+    end,
+        getTotalFrame = function() return #geometry end,
+        getTotalSubset = function(_, frame) return #geometry[frame] end,
+        getTotalVertex = function(_, frame, subset) return #geometry[frame][subset].vertices end,
+        getVertex = function(_, frame, subset, vertex)
+            local source = geometry[frame][subset].vertices[vertex]
+            return {x=source.x,y=source.y,z=source.z}
+        end,
+        setVertex = function(_, frame, subset, vertex, value)
+            geometry[frame][subset].vertices[vertex] = {x=value.x,y=value.y,z=value.z}
+        end,
+    }
     for _, name in ipairs({'rotateFrame','translateFrame','scaleFrame','scaleSkeletalAsset','centralize','centralizeItself'}) do
-        mesh[name] = function(_, ...) calls[#calls+1] = {name, ...} end
+        if name == 'rotateFrame' then
+            mesh[name] = function(_, frame, angleX, angleY, angleZ, subset)
+                calls[#calls+1] = {name, frame, angleX, angleY, angleZ, subset}
+                local firstFrame = frame <= 0 and 1 or frame
+                local lastFrame = frame <= 0 and #geometry or frame
+                for currentFrame = firstFrame, lastFrame do
+                    local firstSubset = subset and subset > 0 and subset or 1
+                    local lastSubset = subset and subset > 0 and subset or #geometry[currentFrame]
+                    local cx, sx = math.cos(math.rad(angleX)), math.sin(math.rad(angleX))
+                    local cy, sy = math.cos(math.rad(angleY)), math.sin(math.rad(angleY))
+                    local cz, sz = math.cos(math.rad(angleZ)), math.sin(math.rad(angleZ))
+                    for currentSubset = firstSubset, lastSubset do
+                        for _, vertex in ipairs(geometry[currentFrame][currentSubset].vertices) do
+                            if angleX ~= 0 then vertex.y, vertex.z = vertex.y * cx - vertex.z * sx, vertex.y * sx + vertex.z * cx end
+                            if angleY ~= 0 then vertex.x, vertex.z = vertex.x * cy + vertex.z * sy, -vertex.x * sy + vertex.z * cy end
+                            if angleZ ~= 0 then vertex.x, vertex.y = vertex.x * cz - vertex.y * sz, vertex.x * sz + vertex.y * cz end
+                        end
+                    end
+                end
+            end
+        elseif name == 'translateFrame' then
+            mesh[name] = function(_, frame, dx, dy, dz, subset)
+                calls[#calls+1] = {name, frame, dx, dy, dz, subset}
+                local firstFrame = frame <= 0 and 1 or frame
+                local lastFrame = frame <= 0 and #geometry or frame
+                for currentFrame = firstFrame, lastFrame do
+                    local firstSubset = subset and subset > 0 and subset or 1
+                    local lastSubset = subset and subset > 0 and subset or #geometry[currentFrame]
+                    for currentSubset = firstSubset, lastSubset do
+                        for _, vertex in ipairs(geometry[currentFrame][currentSubset].vertices) do
+                            vertex.x, vertex.y, vertex.z = vertex.x + dx, vertex.y + dy, vertex.z + dz
+                        end
+                    end
+                end
+            end
+        else
+            mesh[name] = function(_, ...) calls[#calls+1] = {name, ...} end
+        end
     end
     return mesh, calls
 end
@@ -72,12 +130,24 @@ end
 for _, skeletal in ipairs({false,true}) do
     local mesh,calls=fixture(skeletal)
     Transform.apply(mesh,'combined',values({frame=1,subset=2,rx=90,sx=2,sy=3,sz=4,dx=5}))
-    assert(#calls==3 and calls[1][1]=='rotateFrame' and calls[2][1]=='scaleFrame' and calls[3][1]=='translateFrame')
+    assert(#calls==5 and calls[1][1]=='translateFrame' and calls[2][1]=='rotateFrame' and
+        calls[3][1]=='translateFrame' and calls[4][1]=='scaleFrame' and calls[5][1]=='translateFrame')
 end
 local mesh,calls=fixture(false)
 Transform.apply(mesh,'combined',values({rx=90,sx=2,sy=3,sz=4,dx=5}))
-assert(#calls==3 and calls[2][1]=='scaleFrame')
+assert(#calls==8 and calls[1][1]=='translateFrame' and calls[2][1]=='rotateFrame' and
+    calls[4][1]=='translateFrame' and calls[7][1]=='scaleFrame' and calls[8][1]=='translateFrame')
 print('Mesh Debug transform policy OK')
+
+local pivotMesh = fixture(false)
+Transform.apply(pivotMesh, 'rotate', values({frame=1, subset=1, rz=90}))
+local rotatedA = pivotMesh:getVertex(1, 1, 1)
+local rotatedB = pivotMesh:getVertex(1, 1, 2)
+local untouched = pivotMesh:getVertex(1, 2, 1)
+assert(math.abs(rotatedA.x - 11) < 1e-6 and math.abs(rotatedA.y + 1) < 1e-6)
+assert(math.abs(rotatedB.x - 11) < 1e-6 and math.abs(rotatedB.y - 1) < 1e-6)
+assert(untouched.x == 0 and untouched.y == 0 and untouched.z == 0)
+print('Mesh Debug subset rotation pivot OK')
 
 -- Every axis can drive proportional dimensions, including flat meshes.
 for mode = 2, 4 do

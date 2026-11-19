@@ -63,11 +63,13 @@ local function transformedBounds(minX,minY,minZ,maxX,maxY,maxZ,transform)
         tonumber(transform.sz) or 1
     local dx,dy,dz=tonumber(transform.dx) or 0,tonumber(transform.dy) or 0,
         tonumber(transform.dz) or 0
+    local pivotX,pivotY,pivotZ=(minX+maxX)*0.5,(minY+maxY)*0.5,(minZ+maxZ)*0.5
     local outMinX,outMinY,outMinZ,outMaxX,outMaxY,outMaxZ
     for _,x in ipairs({minX,maxX}) do
         for _,y in ipairs({minY,maxY}) do
             for _,z in ipairs({minZ,maxZ}) do
-                local tx,ty,tz=rotatePoint(x,y,z,rx,ry,rz)
+                local tx,ty,tz=rotatePoint(x-pivotX,y-pivotY,z-pivotZ,rx,ry,rz)
+                tx,ty,tz=tx+pivotX,ty+pivotY,tz+pivotZ
                 tx,ty,tz=tx*sx+dx,ty*sy+dy,tz*sz+dz
                 outMinX=not outMinX and tx or math.min(outMinX,tx)
                 outMinY=not outMinY and ty or math.min(outMinY,ty)
