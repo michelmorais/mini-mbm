@@ -46,6 +46,7 @@ local function newActorState(baseX)
         clipKey = '',
         runtimeClips = {},
         runtimeSingle = nil,
+        runtimeSkeletalLayer = nil,
         rotationIntent = nil,
         offset = {x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0},
         offsetScale = {x = 1, y = 1, z = 1},
@@ -350,6 +351,7 @@ local function setActorKind(id, kind)
     entry.bundle = nil
     entry.runtimeClips = {}
     entry.runtimeSingle = nil
+    entry.runtimeSkeletalLayer = nil
     entry.kind = kind
     if kind == 'placeholder' then
         entry.path = ''
@@ -1457,17 +1459,41 @@ local function stopSingleClip(entry)
     end
     if active.clip.kind == 'skeletal' then
         entry.object:stopSkeletalAnimation()
+        entry.runtimeSkeletalLayer = nil
     elseif active.clip.kind == 'frame' then
         entry.object:setTypeAnim(mbm.PAUSED)
     end
     entry.runtimeSingle = nil
 end
 
-local function stopClip(entry, clip)
+local function stopSkeletalLayer(entry)
+    if not entry.runtimeSkeletalLayer or not entry.object then
+        entry.runtimeSkeletalLayer = nil
+        return
+    end
+    entry.object:stopSkeletalAnimationAbsoluteLayer()
+    entry.runtimeSkeletalLayer = nil
+end
+
+local function playAsMode(clip, playAs)
+    if clip and clip.kind == 'skeletal' and
+        (playAs == 'absolute' or playAs == 'additive') then
+        return playAs
+    end
+    return 'base'
+end
+
+local function stopClip(entry, clip, playAs)
     if not clip or clip.kind == 'none' or not entry.object then return end
     if clip.kind == 'articulated' then
         entry.object:disableArticulatedAnimation(clip.name)
         entry.runtimeClips[clip.key] = nil
+        return
+    end
+    if clip.kind == 'skeletal' and playAsMode(clip, playAs) ~= 'base' then
+        if entry.runtimeSkeletalLayer and entry.runtimeSkeletalLayer.clip.key == clip.key then
+            stopSkeletalLayer(entry)
+        end
         return
     end
     if entry.runtimeSingle and entry.runtimeSingle.clip.key == clip.key then
@@ -1479,6 +1505,7 @@ local function stopEntry(entry)
     if not entry.object then
         entry.runtimeClips = {}
         entry.runtimeSingle = nil
+        entry.runtimeSkeletalLayer = nil
         return
     end
     for _, active in pairs(entry.runtimeClips) do
@@ -1486,21 +1513,37 @@ local function stopEntry(entry)
     end
     entry.runtimeClips = {}
     stopSingleClip(entry)
+    stopSkeletalLayer(entry)
 end
 
-local function startClip(entry, clip, time, playing, startTime)
+local function startClip(entry, clip, time, playing, startTime, playAs, layerWeight)
     if not entry.object or not clip or clip.kind == 'none' then return end
+    local mode = playAsMode(clip, playAs)
     if clip.kind == 'articulated' then
         assert(entry.object:playArticulatedAnimation(clip.name, clip.priority or 0, 0, 1))
         entry.runtimeClips[clip.key] = {clip = clip, startTime = startTime or S.time}
+    elseif clip.kind == 'skeletal' and mode ~= 'base' then
+        stopSkeletalLayer(entry)
+        local weight = clamp(tonumber(layerWeight) or 1, 0, 1)
+        if mode == 'absolute' then
+            assert(entry.object:playSkeletalAnimationAbsoluteLayer(clip.name, weight))
+        else
+            assert(entry.object:playSkeletalAnimationAdditiveLayer(clip.name, weight))
+        end
+        entry.runtimeSkeletalLayer = {
+            clip = clip, playAs = mode, startTime = startTime or S.time,
+        }
     else
-        stopSingleClip(entry)
         if clip.kind == 'frame' then
+            stopSingleClip(entry)
             entry.object:setAnim(clip.name)
         else
+            if entry.runtimeSingle and entry.runtimeSingle.clip.kind == 'frame' then
+                stopSingleClip(entry)
+            end
             assert(entry.object:playSkeletalAnimation(clip.name))
         end
-        entry.runtimeSingle = {clip = clip, startTime = startTime or S.time}
+        entry.runtimeSingle = {clip = clip, playAs = 'base', startTime = startTime or S.time}
     end
     local targetTime = math.max(0, time or 0)
     if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
@@ -1515,8 +1558,17 @@ local function startClip(entry, clip, time, playing, startTime)
         local frame = Animation.staticFrame(clip, targetTime)
         entry.object:setIndexFrame(frame)
     elseif clip.kind == 'skeletal' then
-        assert(entry.object:seekSkeletalAnimation(targetTime))
-        if not playing then entry.object:pauseSkeletalAnimation() end
+        if mode == 'base' then
+            assert(entry.object:seekSkeletalAnimation(targetTime))
+            if not playing then entry.object:pauseSkeletalAnimation() end
+        else
+            assert(entry.object:seekSkeletalAnimationAbsoluteLayer(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimationLayer()
+            else
+                entry.object:pauseSkeletalAnimationLayer()
+            end
+        end
     else
         assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
         if playing then
@@ -1532,9 +1584,11 @@ local function startClip(entry, clip, time, playing, startTime)
     end
 end
 
-local function seekClip(entry, clip, time, playing)
+local function seekClip(entry, clip, time, playing, playAs)
     if not entry.object or not clip or clip.kind == 'none' then return end
-    local active = clip.kind == 'articulated' and entry.runtimeClips[clip.key] or entry.runtimeSingle
+    local mode = playAsMode(clip, playAs)
+    local active = clip.kind == 'articulated' and entry.runtimeClips[clip.key] or
+        clip.kind == 'skeletal' and mode ~= 'base' and entry.runtimeSkeletalLayer or entry.runtimeSingle
     if not active or active.clip.key ~= clip.key then return end
     local targetTime = math.max(0, time or 0)
     if clip.kind == 'frame' and clip.loop and (clip.duration or 0) > 0 then
@@ -1546,20 +1600,33 @@ local function seekClip(entry, clip, time, playing)
         local frame = Animation.staticFrame(clip, targetTime)
         entry.object:setIndexFrame(frame)
     elseif clip.kind == 'skeletal' then
-        assert(entry.object:seekSkeletalAnimation(targetTime))
-        if playing then
-            entry.object:resumeSkeletalAnimation()
+        if mode == 'base' then
+            assert(entry.object:seekSkeletalAnimation(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimation()
+            else
+                entry.object:pauseSkeletalAnimation()
+            end
         else
-            entry.object:pauseSkeletalAnimation()
+            assert(entry.object:seekSkeletalAnimationAbsoluteLayer(targetTime))
+            if playing then
+                entry.object:resumeSkeletalAnimationLayer()
+            else
+                entry.object:pauseSkeletalAnimationLayer()
+            end
         end
+    elseif playing then
+        assert(entry.object:resumeArticulatedAnimation(clip.name))
     else
-        assert(entry.object:seekArticulatedAnimation(clip.name, targetTime))
-        if playing then
-            assert(entry.object:resumeArticulatedAnimation(clip.name))
-        else
-            entry.object:pauseArticulatedAnimation(clip.name)
-        end
+        entry.object:pauseArticulatedAnimation(clip.name)
     end
+end
+
+local function clipPlayAs(event, clip)
+    if not event or not clip or clip.kind ~= 'skeletal' then return 'base' end
+    local mode = event.playAs
+    if mode == 'absolute' or mode == 'additive' then return mode end
+    return 'base'
 end
 
 local function clockClip()
@@ -1715,12 +1782,13 @@ local function applyEvent(event, progress)
     elseif event.action == 'play' then
         local clip = findClip(entry, event.clipKey)
         if clip.kind ~= 'none' then
+            local mode = clipPlayAs(event, clip)
             startClip(entry, clip, math.max(0, S.time - (event.time or 0)), S.playing,
-                event.time or 0)
+                event.time or 0, mode, event.layerWeight)
         end
     elseif event.action == 'stop' then
         local clip = findClip(entry, event.clipKey)
-        if clip.kind ~= 'none' then stopClip(entry, clip) end
+        if clip.kind ~= 'none' then stopClip(entry, clip, clipPlayAs(event, clip)) end
     elseif event.action == 'visibility' then
         local object = actorVisual(entry)
         if object then object.visible = event.visible ~= false end
@@ -1838,6 +1906,7 @@ local function loadActor(id, path)
     entry.path = path
     entry.runtimeClips = {}
     entry.runtimeSingle = nil
+    entry.runtimeSkeletalLayer = nil
     entry.clipKey = entry.clipKey or ''
     entry.base.visible = entry.base.visible ~= false
     entry.object.alwaysRender = true
@@ -1884,7 +1953,7 @@ local function serializeProject()
     local maximumTime = projectDuration()
     for _, event in ipairs(events) do normalizeTransition(event, maximumTime) end
     local project = {
-        version = 11,
+        version = 12,
         language = tLang.getLanguage(),
         baseReference = cloneTable(S.baseReference),
         actors = {},
@@ -1989,6 +2058,10 @@ local function applyProject(project)
     S.events = cloneTable(project.events or {})
     for _, event in ipairs(S.events) do
         normalizeEventDefaults(event)
+        if event.action == 'play' or event.action == 'stop' then
+            if event.playAs == nil then event.playAs = 'base' end
+            if event.layerWeight == nil then event.layerWeight = 1 end
+        end
         if event.action ~= 'notify' and not actor(event.target) then event.target = S.actorOrder[1] end
         if type(event.id) ~= 'string' then event.id = '' end
     end
@@ -2123,6 +2196,21 @@ local function validateProject(forExport)
             end
             if forExport and findClip(actor(event.target), event.clipKey).kind == 'none' then
                 return fail('validation_event_clip', label)
+            end
+            local playAs = event.playAs or 'base'
+            if playAs ~= 'base' and playAs ~= 'absolute' and playAs ~= 'additive' then
+                return fail('validation_event_play_as', label)
+            end
+            if forExport and findClip(actor(event.target), event.clipKey).kind ~= 'skeletal' and
+                playAs ~= 'base' then
+                return fail('validation_event_play_as', label)
+            end
+            if event.action == 'play' and playAs ~= 'base' then
+                local layerWeight = tonumber(event.layerWeight)
+                if not checkNumber(layerWeight, 'validation_event_layer_weight', label) or
+                    layerWeight < 0 or layerWeight > 1 then
+                    return fail('validation_event_layer_weight', label)
+                end
             end
         elseif event.action == 'visibility' then
             if event.visible ~= nil and type(event.visible) ~= 'boolean' then
@@ -2639,6 +2727,14 @@ local function updatePlayback(delta)
                 seekClip(entry, active.clip, localTime, not reachedTimelineEnd or S.continueClipsAfterTimeline)
             end
         end
+        local layer = entry.runtimeSkeletalLayer
+        if layer then
+            local localTime = S.time - layer.startTime
+            if not reachedTimelineEnd or not S.continueClipsAfterTimeline then
+                seekClip(entry, layer.clip, localTime,
+                    not reachedTimelineEnd or S.continueClipsAfterTimeline, layer.playAs)
+            end
+        end
     end
     -- Apply interaction transforms after clip sampling. Some renderable
     -- animation operations update the selected frame/player state, so the
@@ -2961,6 +3057,13 @@ local function showEvents()
                 elseif not actor(event.target) then
                     event.target = S.selectedActor or S.clockActor
                 end
+                if event.action == 'play' or event.action == 'stop' then
+                    event.playAs = event.playAs or 'base'
+                    event.layerWeight = event.layerWeight or 1
+                else
+                    event.playAs = nil
+                    event.layerWeight = nil
+                end
                 S.modified = true
                 seekAll(S.time, false)
                 showEventHighlight(event)
@@ -2971,7 +3074,46 @@ local function showEvents()
                 for index, clip in ipairs(clips) do names[index] = clip.label; if clip.key == event.clipKey then current = index end end
                 tImGui.SetNextItemWidth(230)
                 local clipChanged, clipIndex = tImGui.Combo(L('event_animation'), current, names)
-                if clipChanged then event.clipKey = clips[clipIndex].key; S.modified = true; seekAll(S.time, false) end
+                if clipChanged then
+                    event.clipKey = clips[clipIndex].key
+                    if clips[clipIndex].kind ~= 'skeletal' then
+                        event.playAs = 'base'
+                        event.layerWeight = nil
+                    else
+                        event.layerWeight = event.layerWeight or 1
+                    end
+                    S.modified = true
+                    seekAll(S.time, false)
+                end
+                local selected = clips[clipIndex]
+                if selected and selected.kind == 'skeletal' then
+                    local mode = clipPlayAs(event, selected)
+                    local modeIndex = mode == 'absolute' and 2 or mode == 'additive' and 3 or 1
+                    tImGui.SetNextItemWidth(230)
+                    local modeChanged, nextMode = tImGui.Combo(L('play_as'), modeIndex,
+                        {L('play_as_base'), L('play_as_absolute'), L('play_as_additive')})
+                    if modeChanged then
+                        event.playAs = nextMode == 2 and 'absolute' or
+                            nextMode == 3 and 'additive' or 'base'
+                        S.modified = true
+                        seekAll(S.time, false)
+                    end
+                    if event.action == 'play' and mode ~= 'base' then
+                        local weight = clamp(tonumber(event.layerWeight) or 1, 0, 1)
+                        local weightChanged, nextWeight = tImGui.SliderFloat(
+                            L('layer_weight'), weight, 0, 1, '%.3f')
+                        if weightChanged then
+                            event.layerWeight = clamp(nextWeight, 0, 1)
+                            S.modified = true
+                            seekAll(S.time, false)
+                        elseif event.layerWeight == nil then
+                            event.layerWeight = weight
+                        end
+                    end
+                else
+                    event.playAs = 'base'
+                    event.layerWeight = nil
+                end
             elseif event.action == 'visibility' then
                 local visible = tImGui.Checkbox(L('visible'), event.visible ~= false)
                 if visible ~= (event.visible ~= false) then

@@ -94,7 +94,7 @@ Os campos principais sao:
 
 ```lua
 interactionProject = {
-    version = 11,
+    version = 13,
     language = "pt_br",
     duration = 2.0,
     continueClipsAfterTimeline = false,
@@ -144,7 +144,9 @@ interactionProject = {
             time = 0.2,
             action = "play",
             target = "actor2",
-            clipKey = "skeletal:reaction"
+            clipKey = "skeletal:reaction",
+            playAs = "absolute",
+            layerWeight = 0.65
         }
     }
 }
@@ -295,11 +297,17 @@ pose visual atual do ator.
 
 Inicia ou reinicia uma animacao de um ator no tempo indicado. Um evento `play`
 nao para automaticamente outros clips articulados ativos no mesmo ator. A
-composicao simultanea e suportada para clips articulados; os modos frame e
-skeletal continuam usando um player unico da mesh. `clipKey` usa o
+composicao simultanea e suportada para clips articulados; o modo frame
+usa um player unico, enquanto o modo skeletal usa um clip base e pode
+ter um segundo clip temporario como `absolute` ou `additive`. `clipKey` usa o
 formato `frame:nome`, `skeletal:nome` ou `articulated:nome`, conforme o tipo de
 animacao descoberto no asset. O formato `frame:nome` seleciona uma animacao
 estatica tradicional, formada por uma faixa de frames da mesh.
+
+Para clips `skeletal`, `playAs` pode ser `base`, `absolute` ou `additive`.
+`base` controla o player principal. Os outros dois modos usam a camada
+esqueletica temporaria e exigem um clip base ativo. Nesses modos,
+`layerWeight` controla o peso da camada entre `0` e `1`.
 
 Animacoes estaticas preservam o modo de reproducao configurado na mesh, como
 crescimento, decrescimento, loop ou recursao. Durante a edicao, o frame e
@@ -310,7 +318,8 @@ volta a ser aplicado quando `continueClipsAfterTimeline` estiver habilitado.
 
 Para explicitamente o clip indicado no ator. Para clips articulados, somente o
 clip informado e removido da composicao; os demais clips articulados continuam
-ativos. `clipKey` usa o mesmo formato do evento `play`.
+ativos. Para clips esqueléticos, `playAs` identifica se o evento para o clip
+base ou a camada temporaria. `clipKey` usa o mesmo formato do evento `play`.
 
 ### `notify`
 
