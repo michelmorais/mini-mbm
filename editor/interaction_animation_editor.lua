@@ -1524,7 +1524,7 @@ local function startClip(entry, clip, time, playing, startTime, playAs, layerWei
         entry.runtimeClips[clip.key] = {clip = clip, startTime = startTime or S.time}
     elseif clip.kind == 'skeletal' and mode ~= 'base' then
         stopSkeletalLayer(entry)
-        local weight = clamp(tonumber(layerWeight) or 1, 0, 1)
+        local weight = math.max(0, math.min(1, tonumber(layerWeight) or 1))
         if mode == 'absolute' then
             assert(entry.object:playSkeletalAnimationAbsoluteLayer(clip.name, weight))
         else
