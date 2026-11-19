@@ -51,7 +51,7 @@ local ImageMeshBuild=require 'image_mesh_build'
 local TextureAliases=require 'image_mesh_texture_aliases'
 local Normal=require 'image_mesh_normal_map'
 local E={project=Model.new(),history=Model.history(),selected=0,selection={},tool='select',zoom=1,
-    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
+    primitive={kind='rectangle',w=64,h=64,sides=6},editMode=true,wireframe=false,heightView=1,sidebar=370,rightbar=310,polygon={},statistics={},revision=0,builds=0,modified=false,highlightPolygonPoint=false,grid={columns=4,rows=3,marginX=0,marginY=0,gapX=0,gapY=0},
     orbit={fx=0,fy=0,fz=0,azimuth=0.3,elevation=0.3,distance=300},status='',point=1}
 local function L(key) return tLang.L('ime_'..key) end
 local meshModes={L('mesh_mode_standard'),L('mesh_mode_voxelized')}
@@ -75,6 +75,7 @@ local function releasePreview()
 end
 local function syncDraft()
     E.canvasDirty=true
+    local previousPoint,previousPointRegion=E.point,E.pointRegion
     local r=Model.region(E.project,E.selected)
     E.draft=r and Model.copy(r) or nil
     E.values=Model.copy(E.editDefaults and E.project.defaults or (r and Model.options(E.project,r) or E.project.defaults))
@@ -98,7 +99,10 @@ local function syncDraft()
         if Areas.active(E) then E.tool='select' end
     end
     E.curvedNode=math.max(0,math.min(E.curvedNode or 0,r and #(r.curvedNodes or {}) or 0))
-    E.point=1
+    if r and r.shape=='polygon' and previousPointRegion==E.selected then
+        E.point=math.max(1,math.min(previousPoint or 1,#r.contour))
+    else E.point=1 end
+    E.pointRegion=E.selected
 end
 local function changed(before)
     Normal.clearComparison(E)
@@ -614,15 +618,19 @@ local function propertiesPanel()
             local shapes={'rectangle','ellipse','polygon'}; local idx=d.shape=='rectangle' and 1 or (d.shape=='ellipse' and 2 or 3)
             local c,v=tImGui.Combo(L('shape'),idx,{L('rectangle'),L('ellipse'),L('polygon')})
             if c then d.shape=shapes[v]; if d.shape=='polygon' and not d.contour then d.contour={{x=0,y=0},{x=1,y=0},{x=1,y=1},{x=0,y=1}} end end
+            tImGui.TextWrapped(L('crop_contour_help'))
+            end
             if d.shape=='polygon' and tImGui.CollapsingHeader(L('points')) then
-                local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=Model.clampNumber(index,1,#d.contour,E.point,true) end
+                tImGui.TextWrapped(L('points_help'))
+                local change,index=tImGui.SliderInt(L('point'),E.point,1,#d.contour); if change then E.point=Model.clampNumber(index,1,#d.contour,E.point,true);E.canvasDirty=true end
                 local point=d.contour[E.point]
+                local highlight=tImGui.Checkbox(L('highlight_point'),E.highlightPolygonPoint)
+                if highlight~=E.highlightPolygonPoint then E.highlightPolygonPoint=highlight;E.canvasDirty=true end
                 for _,axis in ipairs({'x','y'}) do local modified,n=tImGui.InputFloat(axis,point[axis],0.01,0.1,'%.3f'); if modified then point[axis]=Model.clampNumber(n,0,1,point[axis]) end end
                 if tImGui.Button(L('add_point')) and #d.contour<128 then local nextPoint=d.contour[E.point%#d.contour+1]
-                    table.insert(d.contour,E.point+1,{x=(point.x+nextPoint.x)/2,y=(point.y+nextPoint.y)/2}); E.point=E.point+1
+                    table.insert(d.contour,E.point+1,{x=(point.x+nextPoint.x)/2,y=(point.y+nextPoint.y)/2}); E.point=E.point+1;E.canvasDirty=true
                 end
-                tImGui.SameLine(); if tImGui.Button(L('remove_point')) and #d.contour>3 then table.remove(d.contour,E.point); E.point=math.min(E.point,#d.contour) end
-            end
+                tImGui.SameLine(); if tImGui.Button(L('remove_point')) and #d.contour>3 then table.remove(d.contour,E.point); E.point=math.min(E.point,#d.contour);E.canvasDirty=true end
             end
         end
         if tImGui.CollapsingHeader(L('target_group')) then require('image_mesh_triangle_target').panel(E,confirmAutomaticTarget) end

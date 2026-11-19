@@ -121,6 +121,7 @@ function M.sync(E)
         elseif selected=='hole' then object:setColor(1,0.25,0.5)
         elseif selected=='side' then object:setColor(0.2,1,0.35)
         elseif selected=='back' then object:setColor(0.9,0.3,1)
+        elseif selected=='polygon_point' then object:setColor(1,0.2,0.9)
         elseif selected then object:setColor(1,0.7,0.1) else object:setColor(0.2,0.8,1) end
         E.sceneLines[#E.sceneLines+1]=object
     end
@@ -134,7 +135,9 @@ function M.sync(E)
         draw(r.points,true,E.selection[r.id])
         if not r.locked and r.id==E.selected and not Areas.active(E) and E.tool~='curved' and E.tool~='back_uv' and E.tool~='side_band' and E.tool~='holes' and E.tool~='hole_draw' and E.tool~='freehand' and E.tool~='hole_freehand' and E.tool~='auto_contour' and E.tool~='auto_background' then
             local region=Model.region(E.project,r.id)
-            if region.shape=='polygon' then for _,p in ipairs(r.points) do handle(p.x,p.y) end
+            if region.shape=='polygon' then for i,p in ipairs(r.points) do
+                handle(p.x,p.y,E.highlightPolygonPoint and i==E.point and 'polygon_point' or nil)
+            end
             else handle(region.x+region.w-1,region.y+region.h-1) end
         end
     end
@@ -217,6 +220,7 @@ function M.input(E,H,event,mx,my)
             if id then
                 handled=true
                 H.select(id,E.control)
+                if mode=='point' and E.highlightPolygonPoint then E.point=index;E.canvasDirty=true end
                 if not E.control then E.drag={mode=mode,index=index,id=id,x=x,y=y,cx=x,cy=y,before=Model.copy(E.project),region=Model.copy(Model.region(E.project,id))} end
             end
         end
