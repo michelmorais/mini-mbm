@@ -1323,6 +1323,39 @@ namespace
         char error[512] = "";
         expect(writeCanonicalWeightedFixture(source, 100, 1.0f, 100, 10, 0, true) && mesh.loadV11(source),
                "canonical writer source fixture must load");
+        MESH_MBM_DEBUG retimeMesh;
+        uint32_t retimeClipIndex = 0;
+        uint32_t retimeTrackIndex = 0;
+        uint32_t retimeKeyIndex = 0;
+        SKELETAL_CLIP_INFO retimeClip;
+        SKELETAL_KEY_INFO retimeKey;
+        expect(retimeMesh.loadV11(source) &&
+                   retimeMesh.addSkeletalClip("retime",2.0f,false,&retimeClipIndex,
+                       error,sizeof(error)-1) &&
+                   retimeMesh.addSkeletalTrack(retimeClipIndex,0,
+                       SKELETAL_CHANNEL_TRANSLATION|SKELETAL_CHANNEL_ROTATION,
+                       &retimeTrackIndex,error,sizeof(error)-1) &&
+                   retimeMesh.addSkeletalKey(retimeClipIndex,retimeTrackIndex,1.5f,
+                       &retimeKeyIndex,error,sizeof(error)-1) &&
+                   retimeMesh.scaleSkeletalClipTime(retimeClipIndex,4.0f,
+                       error,sizeof(error)-1) &&
+                   retimeMesh.getSkeletalClip(retimeClipIndex,retimeClip) &&
+                   std::fabs(retimeClip.duration-4.0f)<=MATRIX_TOLERANCE &&
+                   retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,retimeKeyIndex,retimeKey) &&
+                   std::fabs(retimeKey.time-3.0f)<=MATRIX_TOLERANCE &&
+                   retimeMesh.scaleSkeletalClipTime(retimeClipIndex,1.0f,
+                       error,sizeof(error)-1) &&
+                   retimeMesh.getSkeletalClip(retimeClipIndex,retimeClip) &&
+                   std::fabs(retimeClip.duration-1.0f)<=MATRIX_TOLERANCE &&
+                   retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,retimeKeyIndex,retimeKey) &&
+                   std::fabs(retimeKey.time-0.75f)<=MATRIX_TOLERANCE &&
+                   !retimeMesh.scaleSkeletalClipTime(retimeClipIndex,0.0000005f,
+                       error,sizeof(error)-1) &&
+                   retimeMesh.getSkeletalClip(retimeClipIndex,retimeClip) &&
+                   std::fabs(retimeClip.duration-1.0f)<=MATRIX_TOLERANCE &&
+                   retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,retimeKeyIndex,retimeKey) &&
+                   std::fabs(retimeKey.time-0.75f)<=MATRIX_TOLERANCE,
+               "canonical clip retiming must scale duration and key times atomically");
         MESH_MBM_DEBUG clipEditMesh;
         uint32_t editedClipIndex = 0;
         expect(clipEditMesh.loadV11(source) &&

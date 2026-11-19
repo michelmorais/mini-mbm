@@ -780,10 +780,14 @@ not runtime retargeting or arbitrary humanoid semantic mapping.
 
 The same node can create an empty clip and update the selected clip's name, duration, and loop
 policy. Clip IDs remain unchanged when properties are edited. A duration reduction that would
-exclude an existing key is rejected rather than truncating or moving animation data. Clip removal
-requires explicit confirmation because it removes all contained tracks and keys; removing the final
-clip also removes canonical type-43 storage. These operations use the shared whole-asset history
-boundary; track, key, timeline, and viewport authoring are documented below.
+exclude an existing key is rejected rather than truncating or moving animation data. **Resize clip
+duration** is the explicit retiming operation: it scales every key time proportionally to the new
+duration, preserves each key's T/R/S, easing, and Bezier data, and commits the complete candidate
+atomically. It can shorten or lengthen a clip; compression that would make two keys collide is
+rejected without mutation. Clip removal requires explicit confirmation because it removes all
+contained tracks and keys; removing the final clip also removes canonical type-43 storage. These
+operations use the shared whole-asset history boundary; track, key, timeline, and viewport
+authoring are documented below.
 
 Track-container authoring is now available for the selected clip. The editor lists only bones that
 do not already have a track there, accepts any nonempty T/R/S channel combination, and creates the
@@ -1443,3 +1447,7 @@ availability and playback.
 The **Apply clip properties** tooltip identifies the exact transaction boundary: it applies the
 edited name, duration, and loop flag while preserving the clip ID, tracks, and keys. It also warns
 that names must be non-empty and unique and that duration cannot end before an existing key.
+The separate **Resize clip duration** control changes the time scale of the authored animation,
+including its endpoint keys, and records one Undo entry. The target duration is independent from the
+ordinary property-edit field so a user can choose between changing only metadata (when valid) and
+retiming all keys together.

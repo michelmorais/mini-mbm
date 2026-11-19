@@ -230,7 +230,7 @@ The standalone editor contains six mutually exclusive worktrees:
 | Bone Editor | Create and edit joints/bones, hierarchy, head/tail/connectivity, bind transforms, chains, mirroring where compatible, referenced removal, and transactional Undo/Redo |
 | Bind Pose Contract | Inspect canonical hierarchy, stable IDs, local/global/inverse-bind transforms, validation findings, and bind skeleton selection |
 | Runtime Skeletal Preview | Run the actual backend player, select LBS/DQS and GPU/CPU policies, compare LBS against DQS or GPU against CPU, inspect evaluated skeleton/masks, root motion, and transient wearable followers |
-| Create / Edit Animations | Create/edit clips, tracks and T/R/S keys; import and bind-relative-retarget clips offline from compatible same-topology MSH skeletons with generic prefix detection; manipulate poses; use easing, timeline selection/drag/duplicate/ripple/time editing, playback, clipboards, and Undo/Redo |
+| Create / Edit Animations | Create/edit clips, tracks and T/R/S keys; import and bind-relative-retarget clips offline from compatible same-topology MSH skeletons with generic prefix detection; manipulate poses; use easing, timeline selection/drag/duplicate/ripple/time editing and proportional clip-duration retiming, playback, clipboards, and Undo/Redo |
 | Paint Weights | Paint/add/replace/rigid brushes, masks and regional tools, smoothing, influence limiting/cleanup, seam and normal diagnostics/repair, pose-safety checks, heatmaps, and persistent canonical type-42 output |
 
 The editor preview uses the same runtime pose evaluation and deformation path as a game. Secondary

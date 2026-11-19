@@ -54,6 +54,7 @@ local state = {
     animationEditClipId = nil,
     animationClipName = 'Clip',
     animationClipDuration = 1,
+    animationClipResizeDuration = 1,
     animationClipLoop = true,
     animationNewClipName = 'Clip',
     animationNewClipDuration = 1,
@@ -9068,6 +9069,7 @@ local function showSkeletalAnimationInspection()
             state.animationEditClipId=clip.clipId
             state.animationClipName=clip.name or ''
             state.animationClipDuration=clip.duration or 0
+            state.animationClipResizeDuration=clip.duration or 0
             state.animationClipLoop=clip.loop==true
             state.animationRemoveConfirmed=false
         end
@@ -9223,6 +9225,39 @@ local function showSkeletalAnimationInspection()
             state.animationClipDuration,0.01,0.1,'%.6g',tImGui.Flags('ImGuiInputTextFlags_None'))
         if durationChanged then state.animationClipDuration=duration end
         tImGui.PopItemWidth()
+        tImGui.PushItemWidth(190)
+        local resizeDurationChanged,resizeDuration=tImGui.InputFloat(
+            tLang.L('swl_animation_resize_duration')..'##swlClipResizeDuration',
+            state.animationClipResizeDuration,0.01,0.1,'%.6g',
+            tImGui.Flags('ImGuiInputTextFlags_None'))
+        if resizeDurationChanged then state.animationClipResizeDuration=resizeDuration end
+        tImGui.PopItemWidth()
+        local resizeTarget=state.animationClipResizeDuration or -1
+        tImGui.BeginDisabled(resizeTarget<0)
+        if tImGui.Button(tLang.L('swl_animation_resize_clip')..'##swlClipResize') then
+            local snapshot=stageRollbackSnapshot()
+            local resized=false
+            if snapshot then
+                resized=select(1,safeCall(function()
+                    return state.meshD:scaleSkeletalClipTime(state.animationClipSelected,resizeTarget)
+                end))
+            end
+            if resized then
+                commitRollbackSnapshot(snapshot,'swl_history_resize_clip_duration')
+                state.modified=true
+                state.animationClipDuration=resizeTarget
+                state.animationClipResizeDuration=resizeTarget
+                state.animationEditClipId=nil
+                state.authoringTime=math.min(state.authoringTime or 0,math.max(0,resizeTarget))
+                clearAuthoringOverride()
+                refreshBindReport()
+                setStatus(tLang.L('swl_animation_clip_resized'),false)
+            elseif snapshot then
+                discardRollbackSnapshot(snapshot)
+            end
+        end
+        showItemTooltip(tLang.L('swl_animation_resize_clip_help'),true,400)
+        tImGui.EndDisabled()
         state.animationClipLoop=tImGui.Checkbox(tLang.L('swl_animation_loop')..'##swlClipLoop',
             state.animationClipLoop)
         local trimmed=(state.animationClipName or ''):match('^%s*(.-)%s*$')

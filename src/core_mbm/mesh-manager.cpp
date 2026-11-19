@@ -7278,6 +7278,51 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::scaleSkeletalClipTime(const uint32_t clipIndex, const float duration,
+                                                char *errorOut, const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (clipIndex >= impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!std::isfinite(duration) || duration < 0.0f)
+            return fail("canonical retimed clip duration must be finite and non-negative");
+
+        const skeletal::SKELETAL_CLIP &sourceClip = impl->canonicalAnimations.clips[clipIndex];
+        const float sourceDuration = sourceClip.duration;
+        if (std::fabs(sourceDuration - duration) <= skeletal::KEY_TIME_TOLERANCE)
+            return true;
+        if (sourceDuration <= skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical retiming requires a clip with a positive duration");
+
+        const float timeScale = duration / sourceDuration;
+        if (!std::isfinite(timeScale))
+            return fail("canonical retiming scale must be finite");
+
+        skeletal::CANONICAL_ANIMATIONS candidate = impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip = candidate.clips[clipIndex];
+        clip.duration = duration;
+        for (skeletal::SKELETAL_TRACK &track : clip.tracks)
+        {
+            for (skeletal::SKELETAL_KEY &key : track.keys)
+            {
+                if (std::fabs(key.time - sourceDuration) <= skeletal::KEY_TIME_TOLERANCE)
+                    key.time = duration;
+                else
+                    key.time *= timeScale;
+                if (!std::isfinite(key.time) || key.time < 0.0f)
+                    return fail("canonical retiming produced an invalid key time");
+            }
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton, candidate))
+            return fail("canonical retiming would make key times collide or leave the clip invalid");
+        impl->canonicalAnimations = std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::removeSkeletalClip(const uint32_t clipIndex,
                                              char *errorOut, const int errorOutLen)
     {

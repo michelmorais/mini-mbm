@@ -2732,6 +2732,7 @@ mesh. An asset without type-43 clips returns an empty table.
 ```lua
 local oneBasedClipIndex = meshD:addSkeletalClip(name, duration, loop)
 meshD:updateSkeletalClip(oneBasedClipIndex, name, duration, loop)
+meshD:scaleSkeletalClipTime(oneBasedClipIndex, targetDuration)
 meshD:removeSkeletalClip(oneBasedClipIndex)
 ```
 
@@ -2742,6 +2743,13 @@ duration that would place any existing key beyond the clip end. Removal deletes 
 and all of its tracks/keys; removing the final clip clears type-43 storage entirely. Each operation
 validates the complete canonical animation collection before commit and raises a Lua error without
 mutation on failure.
+`scaleSkeletalClipTime` is the explicit retiming operation for an authored clip. It multiplies every
+key time by `targetDuration / currentDuration`, moves endpoint keys to the exact new end, and then
+commits the new duration and all key times atomically. Translation, rotation, scale, easing, and
+Bezier values are preserved. It rejects non-finite or negative durations, zero-duration source clips
+when the target differs, key-time collisions caused by compressing the timeline, and any other
+invalid candidate without mutation. The Lua binding returns `true` on success and raises a Lua error
+on failure.
 
 ```lua
 local oneBasedTrackIndex = meshD:addSkeletalTrack(

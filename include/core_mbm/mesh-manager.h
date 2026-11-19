@@ -488,6 +488,10 @@ namespace mbm
         API_IMPL bool updateSkeletalClip(const uint32_t clipIndex, const char *name,
                                          const float duration, const bool loop,
                                          char *errorOut, const int errorOutLen);
+        // Scales every key time in one canonical clip by the ratio between the current and
+        // requested duration, then commits the duration and key times atomically.
+        API_IMPL bool scaleSkeletalClipTime(const uint32_t clipIndex, const float duration,
+                                            char *errorOut, const int errorOutLen);
         API_IMPL bool removeSkeletalClip(const uint32_t clipIndex,
                                          char *errorOut, const int errorOutLen);
         API_IMPL bool addSkeletalTrack(const uint32_t clipIndex, const uint32_t boneIndex,
