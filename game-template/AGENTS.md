@@ -17,6 +17,15 @@ instead. Projects that use synchronized mesh interactions can consult
 `CLAUDE.md` links to `AGENTS.md`. Keep this file and the Copilot instructions synchronized
 when changing game-specific guidance. Engine binaries and plugins remain external.
 
+## Engine runtime and testing
+
+Read `ENGINE.md` before running tests. The template copier records the matching engine
+build directory there, so use its `mini-mbm` executable rather than searching the operating
+system for `lua`, `luajit`, or `lua5.4`. The bundled standalone `lua-5.4.1.exe` is useful for
+pure Lua checks, but game/API checks must run through `mini-mbm`, which registers the `mbm`
+namespace and engine renderable tables. Automated runs should pass `--disable_select_monitor`
+and use a scene-local `mbm.getTimeRun()` deadline followed by `mbm.quit()`.
+
 ## What is mini-mbm
 
 mini-mbm is a lightweight, cross-platform 2D/3D game engine written in C++17. Games are written in **Lua 5.4** using the `mbm` namespace. This project is a game built on top of mini-mbm.
@@ -25,7 +34,8 @@ mini-mbm is a lightweight, cross-platform 2D/3D game engine written in C++17. Ga
 
 Run the game with:
 ```sh
-./mini-mbm main.lua
+# Use the ENGINE_BIN value and command recorded in ENGINE.md.
+"$ENGINE_BIN/mini-mbm" --scene main.lua --disable_select_monitor --nosplash
 ```
 
 ---

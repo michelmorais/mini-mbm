@@ -365,12 +365,16 @@ ERROR_AT(lineNum, fileName, "message");
 
 When creating a new standalone Lua game project (e.g., `/home/michel/tower-defense`):
 
-1. Copy `game-template/.github/copilot-instructions.md` → `<game-folder>/.github/copilot-instructions.md`.
+1. Prefer `copy-game-template.sh [--engine-bin /path/to/bin] <game-folder>`; it records the
+   matching engine binary directory in `<game-folder>/ENGINE.md`.
+2. Copy `game-template/.github/copilot-instructions.md` → `<game-folder>/.github/copilot-instructions.md`.
    VS Code Copilot auto-loads it, giving the agent full mini-mbm Lua API knowledge without engine source being present.
-2. Copy `game-template/AGENTS.md` → `<game-folder>/AGENTS.md`.
+3. Copy `game-template/AGENTS.md` → `<game-folder>/AGENTS.md`.
    Codex auto-loads it as the game project's repository instructions.
-3. Copy `game-template/main.lua` as the entry-point script for the game.
-4. Run the game: `./mini-mbm main.lua` (or `./bin/debug/linux_x86/mini-mbm main.lua`).
+4. Copy `game-template/main.lua` as the entry-point script for the game.
+5. Read `<game-folder>/ENGINE.md` before running checks. Game/API checks use the recorded
+   `mini-mbm` binary with `--disable_select_monitor`; the standalone bundled Lua is only for
+   pure Lua checks.
 
 ### Key Resources
 

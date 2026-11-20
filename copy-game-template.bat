@@ -8,6 +8,7 @@ setlocal EnableExtensions DisableDelayedExpansion
 set "ENGINE_DIR=%~dp0"
 set "PROFILE=2d"
 set "DEST="
+set "ENGINE_BIN="
 
 :parse_args
 if "%~1"=="" goto args_done
@@ -21,10 +22,23 @@ if /i "%~1"=="--profile" (
     shift
     goto parse_args
 )
+if /i "%~1"=="--engine-bin" (
+    if "%~2"=="" goto usage_error
+    set "ENGINE_BIN=%~2"
+    shift
+    shift
+    goto parse_args
+)
 set "ARG=%~1"
 if /i "%ARG:~0,10%"=="--profile=" (
     set "PROFILE=%ARG:~10%"
     if not defined PROFILE goto usage_error
+    shift
+    goto parse_args
+)
+if /i "%ARG:~0,13%"=="--engine-bin=" (
+    set "ENGINE_BIN=%ARG:~13%"
+    if not defined ENGINE_BIN goto usage_error
     shift
     goto parse_args
 )
@@ -49,8 +63,20 @@ goto usage_error
 
 :profile_valid
 
+if not defined ENGINE_BIN set "ENGINE_BIN=%ENGINE_DIR%bin\debug\windows_x86"
+if exist "%ENGINE_BIN%\mini-mbm.exe" goto engine_bin_found
+if exist "%ENGINE_BIN%\mini-mbm" goto engine_bin_found
+echo Warning: usable engine build was not detected. Set --engine-bin when copying. 1>&2
+set "ENGINE_BIN=C:\path\to\mini-mbm\bin\platform-build"
+set "ENGINE_STATUS=No usable engine build was detected while copying. Set ENGINE_BIN in ENGINE.md, or recreate with --engine-bin C:\path\to\bin."
+goto engine_bin_ready
+:engine_bin_found
+set "ENGINE_STATUS=Detected usable engine build automatically. Keep this path updated if the build is moved."
+:engine_bin_ready
+:engine_bin_ready
+
 rem Validate sources before creating the destination.
-for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
+for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\ENGINE.md" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
     if not exist "%ENGINE_DIR%%%~F" (
         echo Error: required source not found: "%ENGINE_DIR%%%~F" 1>&2
         exit /b 1
@@ -65,7 +91,7 @@ for /f "usebackq eol=# delims=" %%F in ("%ENGINE_DIR%game-template\%DOC_LIST%") 
 )
 
 rem Refuse directory/file collisions before copying or deleting link entries.
-for %%F in (main.lua AGENTS.md CLAUDE.md .github\copilot-instructions.md docs\ENGINE-LICENSE.md) do (
+for %%F in (main.lua AGENTS.md CLAUDE.md ENGINE.md .github\copilot-instructions.md docs\ENGINE-LICENSE.md) do (
     if exist "%DEST%\%%F\" (
         echo Error: expected a file, found a directory: "%DEST%\%%F" 1>&2
         exit /b 1
@@ -97,7 +123,7 @@ goto copy_template
 
 :confirm_overwrite
 echo Destination contains files: "%DEST%"
-echo This overwrites main.lua, agent instructions, CLAUDE.md and selected docs.
+echo This overwrites main.lua, agent instructions, CLAUDE.md, ENGINE.md and selected docs.
 echo Other files are preserved.
 choice /c YN /n /m "Continue? [Y/N] "
 if errorlevel 2 goto cancelled
@@ -121,7 +147,13 @@ copy /y "%ENGINE_DIR%game-template\main.lua" "%DEST%\main.lua" >nul
 if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\AGENTS.md" "%DEST%\AGENTS.md" >nul
 if errorlevel 1 goto failed
+copy /y "%ENGINE_DIR%game-template\ENGINE.md" "%DEST%\ENGINE.md" >nul
+if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\.github\copilot-instructions.md" "%DEST%\.github\copilot-instructions.md" >nul
+if errorlevel 1 goto failed
+
+rem Replace the engine path placeholders in the generated runtime guide.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = [IO.File]::ReadAllText('%DEST%\ENGINE.md'); $p = $p.Replace('@ENGINE_BIN_DIR@', '%ENGINE_BIN%').Replace('@ENGINE_STATUS@', '%ENGINE_STATUS%'); [IO.File]::WriteAllText('%DEST%\ENGINE.md', $p)"
 if errorlevel 1 goto failed
 
 rem A relative symlink keeps the project movable. A hard link also shares content
@@ -151,9 +183,10 @@ echo Game template copied to: "%DEST%"
 echo Agent context: AGENTS.md, CLAUDE.md, .github\copilot-instructions.md
 echo Documentation profile: %PROFILE%
 echo Current engine documentation: "%DEST%\docs\lua-api.md"
+echo Engine binary directory: %ENGINE_BIN%
 echo Run your game with your Lua-enabled engine build:
 echo   cd /d "%DEST%"
-echo   "C:\path\to\mini_mbm.exe" --scene main.lua
+echo   "%ENGINE_BIN%\mini-mbm.exe" --scene main.lua --disable_select_monitor --nosplash
 exit /b 0
 
 :link_failed
@@ -174,10 +207,11 @@ call :usage
 exit /b 0
 
 :usage
-echo Usage: %~nx0 [--profile ^<2d^|2d5^|3d^|animation^|authoring^|all^>] ^<destination-folder^>
+echo Usage: %~nx0 [--profile ^<2d^|2d5^|3d^|animation^|authoring^|all^>] [--engine-bin ^<path^>] ^<destination-folder^>
 echo.
 echo Creates a standalone Lua game; asks before overwriting a nonempty folder.
 echo The default profile is 2d. Profiles control which engine docs are copied.
 echo Profiles: 2d, 2d5, 3d, animation, authoring, all.
-echo Engine binaries and plugins are provided externally.
+echo --engine-bin records the engine binary directory in the generated ENGINE.md.
+echo If omitted, a standard debug Windows build path is checked.
 exit /b 0

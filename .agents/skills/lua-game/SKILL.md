@@ -36,7 +36,9 @@ The engine binary and shared libraries (`box2d.so`, `ImGui.so`, etc.) are extern
 
 Run with:
 ```sh
-./mini-mbm main.lua
+# Use the engine path recorded in ENGINE.md by copy-game-template.sh.
+ENGINE_BIN="/path/to/mini-mbm/bin/<platform-build>"
+"$ENGINE_BIN/mini-mbm" --scene main.lua --disable_select_monitor --nosplash
 ```
 
 The `.github/copilot-instructions.md` and `AGENTS.md` files are the **game-project API context** for Copilot and Codex. They should be copied from `game-template/.github/copilot-instructions.md` and `game-template/AGENTS.md` in this engine repo. `CLAUDE.md` is a symlink to the game folder's own `AGENTS.md` — not a copy — so Claude Code sees the same content without a second file to keep in sync; `game-template/CLAUDE.md` itself follows the same pattern (symlinked to `game-template/AGENTS.md`) for anyone opening `game-template/` directly.
@@ -231,6 +233,7 @@ end
 - [ ] Game folder created
 - [ ] `.github/copilot-instructions.md` copied from `game-template/`
 - [ ] `AGENTS.md` copied from `game-template/`
+- [ ] `ENGINE.md` generated with the matching engine binary directory
 - [ ] `CLAUDE.md` symlinked to `AGENTS.md` (`ln -s AGENTS.md CLAUDE.md`), not copied
 - [ ] `main.lua` created with `onInitScene`, `onLoop`, key callbacks
 - [ ] `mbm.addPath(script_dir)` at top so assets resolve correctly

@@ -2,10 +2,10 @@
 # copy-game-template.sh — Copy the mini-mbm Lua game template to a new folder.
 #
 # Usage:
-#   ./copy-game-template.sh [--profile <name>] <destination-folder>
+#   ./copy-game-template.sh [--profile <name>] [--engine-bin <path>] <destination-folder>
 #
 # Example:
-#   ./copy-game-template.sh --profile 2d5 /home/michel/my-new-game
+#   ./copy-game-template.sh --profile 2d5 --engine-bin /home/michel/mini-mbm/bin/debug/linux_x86 /home/michel/my-new-game
 
 set -euo pipefail
 
@@ -13,16 +13,18 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="${SCRIPT_DIR}/game-template"
 
 usage() {
-    echo "Usage: $0 [--profile <2d|2d5|3d|animation|authoring|all>] <destination-folder>"
+    echo "Usage: $0 [--profile <2d|2d5|3d|animation|authoring|all>] [--engine-bin <path>] <destination-folder>"
     echo ""
     echo "Creates a standalone Lua game; asks before overwriting a nonempty folder."
     echo "The default profile is 2d. Profiles control which engine docs are copied."
     echo "Profiles: 2d, 2d5, 3d, animation, authoring, all."
-    echo "Engine binaries and plugins are provided externally."
+    echo "--engine-bin records the engine binary directory in the generated ENGINE.md."
+    echo "If omitted, MBM_ENGINE_BIN_DIR or a build under this engine checkout is used."
 }
 
 PROFILE="2d"
 DEST=""
+ENGINE_BIN_DIR="${MBM_ENGINE_BIN_DIR:-}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --help|-h)
@@ -42,6 +44,24 @@ while [[ $# -gt 0 ]]; do
             PROFILE="${1#--profile=}"
             if [[ -z "$PROFILE" ]]; then
                 echo "Error: --profile requires a profile name." >&2
+                usage >&2
+                exit 1
+            fi
+            shift
+            ;;
+        --engine-bin)
+            if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                echo "Error: --engine-bin requires a directory." >&2
+                usage >&2
+                exit 1
+            fi
+            ENGINE_BIN_DIR="$2"
+            shift 2
+            ;;
+        --engine-bin=*)
+            ENGINE_BIN_DIR="${1#--engine-bin=}"
+            if [[ -z "$ENGINE_BIN_DIR" ]]; then
+                echo "Error: --engine-bin requires a directory." >&2
                 usage >&2
                 exit 1
             fi
@@ -82,8 +102,36 @@ case "$PROFILE" in
         ;;
 esac
 
+is_engine_bin_dir() {
+    [[ -d "$1" && -x "$1/mini-mbm" ]]
+}
+
+if [[ -n "$ENGINE_BIN_DIR" ]]; then
+    if ! is_engine_bin_dir "$ENGINE_BIN_DIR"; then
+        echo "Error: engine binary directory is not a usable build: $ENGINE_BIN_DIR" >&2
+        echo "Expected executable mini-mbm. The standalone lua-5.4.1.exe is optional." >&2
+        exit 1
+    fi
+    ENGINE_BIN_DIR="$(cd -- "$ENGINE_BIN_DIR" && pwd)"
+else
+    while IFS= read -r -d '' engine_binary; do
+        candidate="$(dirname -- "$engine_binary")"
+        if is_engine_bin_dir "$candidate"; then
+            ENGINE_BIN_DIR="$(cd -- "$candidate" && pwd)"
+            break
+        fi
+    done < <(find "$SCRIPT_DIR/bin" -type f -name mini-mbm -print0 2>/dev/null)
+fi
+
+if [[ -n "$ENGINE_BIN_DIR" ]]; then
+    ENGINE_STATUS="Detected usable engine build automatically. Keep this path updated if the build is moved."
+else
+    ENGINE_BIN_DIR="/path/to/mini-mbm/bin/<platform-build>"
+    ENGINE_STATUS="No usable engine build was detected while copying. Set ENGINE_BIN_DIR in ENGINE.md, or recreate with --engine-bin /path/to/bin."
+fi
+
 # Validate all sources before creating the destination.
-for source in game-template/main.lua game-template/AGENTS.md \
+for source in game-template/main.lua game-template/AGENTS.md game-template/ENGINE.md \
               game-template/.github/copilot-instructions.md \
               "game-template/$DOC_LIST" LICENSE.md; do
     if [[ ! -f "${SCRIPT_DIR}/${source}" ]]; then
@@ -108,7 +156,7 @@ if [[ -e "$DEST" && ! -d "$DEST" ]]; then
     exit 1
 fi
 # Refuse directory/file collisions before changing any project files.
-for target in main.lua AGENTS.md CLAUDE.md .github/copilot-instructions.md docs/ENGINE-LICENSE.md "${docs[@]/#/docs/}"; do
+for target in main.lua AGENTS.md CLAUDE.md ENGINE.md .github/copilot-instructions.md docs/ENGINE-LICENSE.md "${docs[@]/#/docs/}"; do
     if [[ -d "$DEST/$target" ]]; then
         echo "Error: expected a file, found a directory: $DEST/$target" >&2
         exit 1
@@ -119,7 +167,7 @@ shopt -s nullglob dotglob
 entries=("$DEST"/*)
 if [[ ${#entries[@]} -ne 0 ]]; then
     echo "Destination contains files: $DEST"
-    echo "This overwrites main.lua, agent instructions, CLAUDE.md and selected docs."
+    echo "This overwrites main.lua, agent instructions, CLAUDE.md, ENGINE.md and selected docs."
     echo "Other files are preserved."
     answer=""
     if ! read -r -p "Continue? [y/N] " answer || [[ ! "$answer" =~ ^([yY]|[yY][eE][sS])$ ]]; then
@@ -136,8 +184,21 @@ for asset in sounds sprites tilesets fonts textures meshes; do
 done
 
 # Copy only the standalone starter, not engine-dependent manual test scenes.
-cp -- "$TEMPLATE_DIR/main.lua" "$TEMPLATE_DIR/AGENTS.md" "$DEST/"
+cp -- "$TEMPLATE_DIR/main.lua" "$TEMPLATE_DIR/AGENTS.md" "$TEMPLATE_DIR/ENGINE.md" "$DEST/"
 cp -- "$TEMPLATE_DIR/.github/copilot-instructions.md" "$DEST/.github/"
+
+replace_token() {
+    local token="$1"
+    local value="$2"
+    local file="$3"
+    value="${value//\\/\\\\}"
+    value="${value//&/\\&}"
+    value="${value//|/\\|}"
+    sed -i "s|${token}|${value}|g" "$file"
+}
+
+replace_token "@ENGINE_BIN_DIR@" "$ENGINE_BIN_DIR" "$DEST/ENGINE.md"
+replace_token "@ENGINE_STATUS@" "$ENGINE_STATUS" "$DEST/ENGINE.md"
 if [[ -e "$DEST/CLAUDE.md" || -L "$DEST/CLAUDE.md" ]]; then
     rm -- "$DEST/CLAUDE.md"
 fi
@@ -152,5 +213,6 @@ echo "Game template copied to: $DEST"
 echo "Agent context: AGENTS.md, CLAUDE.md -> AGENTS.md, .github/copilot-instructions.md"
 echo "Documentation profile: $PROFILE"
 echo "Current engine documentation: $DEST/docs/lua-api.md"
+echo "Engine binary directory: $ENGINE_BIN_DIR"
 echo "Run your game with your Lua-enabled engine build:"
-printf '  cd %q && /path/to/mini-mbm --scene main.lua\n' "$DEST"
+printf '  cd %q && %q/mini-mbm --scene main.lua --disable_select_monitor --nosplash\n' "$DEST" "$ENGINE_BIN_DIR"

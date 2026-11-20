@@ -1014,15 +1014,20 @@ Create or refresh a standalone Lua game template:
 ```sh
 ./copy-game-template.sh /path/to/my-game
 cd /path/to/my-game
-/path/to/mini-mbm --scene main.lua
+cat ENGINE.md
+/path/to/mini-mbm/bin/<platform-build>/mini-mbm --scene main.lua \
+    --disable_select_monitor --nosplash
 ```
 
 On Windows, use `copy-game-template.bat "C:\path\to\my-game"` from Command Prompt.
-It creates the same structure. For `CLAUDE.md`, it tries a relative symbolic link,
+The copier auto-detects a usable build under this engine checkout; pass
+`--engine-bin /path/to/mini-mbm/bin/<platform-build>` (or the Windows equivalent)
+when another build should be recorded. It creates `ENGINE.md` with the resolved
+binary directory and engine-first testing instructions. For `CLAUDE.md`, it tries a relative symbolic link,
 then a hard link if symbolic-link creation is unavailable. A hard link shares file
 contents, but replacing either file can break synchronization.
 
-The script copies `main.lua`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
+The script copies `main.lua`, `ENGINE.md`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
 `AGENTS.md`, and the current game-development documents listed in
 `game-template/docs-list.txt`: the canonical Lua API, lighting/materials, animation,
 and asset editor guides. Future plans, investigations, and engine-internal audits are
