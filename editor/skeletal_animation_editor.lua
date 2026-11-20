@@ -235,6 +235,7 @@ local state = {
     statusError = false,
     statusChanged = false,
     cam = {azimuth = 0.35, elevation = 0.25, distance = 5, fx = 0, fy = 0, fz = 0},
+    cameraMousePan = {active = false, x = 0, y = 0},
 }
 
 local camera3d
@@ -10748,6 +10749,14 @@ function onTouchDown(key, x, y)
         if hit then beginPaintStroke(hit) end
         return
     end
+    if key == 1 and not tImGui.GetWantCaptureMouse() and
+            (state.workspace=='bind' or state.workspace=='bone_editor' or
+             state.workspace=='armature_template' or state.workspace=='animation' or
+             state.workspace=='runtime') then
+        state.cameraMousePan.active = true
+        state.cameraMousePan.x, state.cameraMousePan.y = x, y
+        return
+    end
     if key == 0 and not tImGui.GetWantCaptureMouse() then
         if state.workspace=='paint' and state.paint.visualizationMode~=1 and
                 state.showAdvancedDiagnostics and state.paint.showVertexInspector then
@@ -10933,6 +10942,24 @@ function onTouchMove(key, x, y)
                 math.abs(x-state.paint.cursorLastX)>=1 or math.abs(y-state.paint.cursorLastY)>=1
             if moved then state.paint.cursorPendingX,state.paint.cursorPendingY=x,y end
         end
+    end
+    if state.cameraMousePan.active then
+        if tImGui.GetWantCaptureMouse() then return end
+        local c=state.cam
+        local px,py,pz=cameraPosition()
+        local vx,vy,vz=c.fx-px,c.fy-py,c.fz-pz
+        local viewLength=math.sqrt(vx*vx+vy*vy+vz*vz)
+        if viewLength>1e-6 then vx,vy,vz=vx/viewLength,vy/viewLength,vz/viewLength end
+        local rx,rz=vz,-vx
+        local rightLength=math.sqrt(rx*rx+rz*rz)
+        if rightLength>1e-6 then rx,rz=rx/rightLength,rz/rightLength end
+        local scale=c.distance*0.001
+        c.fx=c.fx+rx*(state.cameraMousePan.x-x)*scale
+        c.fy=c.fy+(y-state.cameraMousePan.y)*scale
+        c.fz=c.fz+rz*(state.cameraMousePan.x-x)*scale
+        state.cameraMousePan.x,state.cameraMousePan.y=x,y
+        applyCamera()
+        return
     end
     local drag=state.translationGizmo.drag
     local rotationDrag=state.rotationGizmo.drag
@@ -11133,6 +11160,11 @@ function onTouchUp(key, x, y)
             commitPaintStroke()
             rebuildPaintCursor(hit)
         end
+        return
+    end
+    if key == 1 then
+        state.cameraMousePan.active = false
+        state.cameraMousePan.x, state.cameraMousePan.y = x, y
         return
     end
     if key == 0 then
