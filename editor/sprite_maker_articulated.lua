@@ -35,7 +35,8 @@ local E={project=Model.new(),frame=1,image=1,selected=0,clip=1,time=0,playing=fa
     rect={x=0,y=0,w=100,h=100},kind='rectangle',budget=2,threshold=16,
     form={inner=0.5,dx=0,dy=0,linked=true,circular=true},textures={},alpha={},dirty=false,poseDirty=false,
     pose={x=0,y=0,z=0,angle=0,sx=1,sy=1},mode='setup',editContour=false,contour=1,point=1,
-    status='',preview=nil,ghosts={},scale=1,showParts=true,showTimeline=true}
+    status='',preview=nil,ghosts={},scale=1,showParts=true,showTimeline=true,
+    clipResizeDuration=1,clipResizeSource=nil}
 local function dpCall(fn,...)
     local result=table.pack(pcall(fn,...))
     if not result[1] then
@@ -844,7 +845,23 @@ local function timeline()
                 end)
             end)
             tImGui.EndDisabled()
-            if field('duration',clip,'duration',0.05,0.01,3600) then commit() end
+            if field('duration',clip,'duration',0.05,0.01,3600) then
+                commit(); E.clipResizeSource=nil
+            end
+            if E.clipResizeSource~=clip then
+                E.clipResizeSource=clip; E.clipResizeDuration=clip.duration
+            end
+            local resizeChanged,resizeValue=widget('DragFloat','resize_duration',
+                E.clipResizeDuration,0.05,0.01,3600,'%.3f s')
+            if resizeChanged then E.clipResizeDuration=resizeValue end
+            tImGui.BeginDisabled((E.clipResizeDuration or 0)<=TimelineOps.epsilon)
+            if widget('Button','resize_clip') then
+                local target=E.clipResizeDuration
+                if action(function() TimelineOps.resizeDuration(clip,target) end) then
+                    E.time=math.min(E.time,target); E.status=L('resize_applied')
+                end
+            end
+            tImGui.EndDisabled()
             if field('speed',clip,'speed',0.05,0.01,100) then commit() end
             local priorityChanged,priority=widget('SliderInt','priority',clip.priority or 0,-20,20)
             if priorityChanged then clip.priority=priority; commit() end
