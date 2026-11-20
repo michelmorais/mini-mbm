@@ -138,7 +138,7 @@ fi
 
 # Validate all sources before creating the destination.
 for source in game-template/main.lua game-template/AGENTS.md game-template/ENGINE.md \
-              game-template/ENGINE.local.md game-template/ENGINE.local.example.md \
+              game-template/ENGINE.local.example.md \
               game-template/.gitignore \
               game-template/.github/copilot-instructions.md \
               "game-template/$DOC_LIST" LICENSE.md; do
@@ -194,7 +194,8 @@ done
 
 # Copy only the standalone starter, not engine-dependent manual test scenes.
 cp -- "$TEMPLATE_DIR/main.lua" "$TEMPLATE_DIR/AGENTS.md" "$TEMPLATE_DIR/ENGINE.md" \
-    "$TEMPLATE_DIR/ENGINE.local.md" "$TEMPLATE_DIR/ENGINE.local.example.md" "$DEST/"
+    "$TEMPLATE_DIR/ENGINE.local.example.md" "$DEST/"
+cp -- "$TEMPLATE_DIR/ENGINE.local.example.md" "$DEST/ENGINE.local.md"
 cp -- "$TEMPLATE_DIR/.github/copilot-instructions.md" "$DEST/.github/"
 
 if [[ ! -e "$DEST/.gitignore" ]]; then
@@ -213,7 +214,10 @@ replace_token() {
     value="${value//\\/\\\\}"
     value="${value//&/\\&}"
     value="${value//|/\\|}"
-    sed -i "s|${token}|${value}|g" "$file"
+    # Use a backup suffix supported by both GNU sed and the BSD sed shipped
+    # with macOS; plain `sed -i` is not portable between them.
+    sed -i.bak "s|${token}|${value}|g" "$file"
+    rm -f "$file.bak"
 }
 
 replace_token "@ENGINE_PLATFORM@" "$ENGINE_PLATFORM" "$DEST/ENGINE.local.md"

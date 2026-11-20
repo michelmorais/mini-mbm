@@ -73,7 +73,7 @@ goto engine_bin_ready
 :engine_bin_ready
 
 rem Validate sources before creating the destination.
-for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\ENGINE.md" "game-template\ENGINE.local.md" "game-template\ENGINE.local.example.md" "game-template\.gitignore" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
+for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\ENGINE.md" "game-template\ENGINE.local.example.md" "game-template\.gitignore" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
     if not exist "%ENGINE_DIR%%%~F" (
         echo Error: required source not found: "%ENGINE_DIR%%%~F" 1>&2
         exit /b 1
@@ -146,7 +146,7 @@ copy /y "%ENGINE_DIR%game-template\AGENTS.md" "%DEST%\AGENTS.md" >nul
 if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\ENGINE.md" "%DEST%\ENGINE.md" >nul
 if errorlevel 1 goto failed
-copy /y "%ENGINE_DIR%game-template\ENGINE.local.md" "%DEST%\ENGINE.local.md" >nul
+copy /y "%ENGINE_DIR%game-template\ENGINE.local.example.md" "%DEST%\ENGINE.local.md" >nul
 if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\ENGINE.local.example.md" "%DEST%\ENGINE.local.example.md" >nul
 if errorlevel 1 goto failed

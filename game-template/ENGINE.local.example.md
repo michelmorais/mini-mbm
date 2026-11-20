@@ -3,6 +3,13 @@
 Copy this file to `ENGINE.local.md` and replace the path for the current
 developer and operating system. `ENGINE.local.md` is ignored by Git.
 
+## Current machine
+
+```text
+Engine platform: @ENGINE_PLATFORM@
+Engine binary directory: @ENGINE_BIN_DIR@
+```
+
 ## Linux
 
 ```text
