@@ -25,11 +25,13 @@ tImGui=require 'ImGui'
 tUtil=require 'editor_utils'
 local Model=require 'articulated_sprite_model'
 local Timeline=require 'articulated_sprite_timeline'
+local TimelineOps=require 'articulated_sprite_timeline_model'
 local IO=require 'articulated_mesh_io'
 local Pose=require 'articulated_mesh_pose'
 local View=require 'articulated_mesh_view'
 local E={project={frames={{parts={}}},clips={},options={autoKey=false}},frame=1,clip=1,selected=0,time=0,
     mode='animate',playing=false,geometryRevision=0,poseController=Pose,poseRevision=0,
+    clipResizeDuration=1,clipResizeSource=nil,
     showTimeline=true,showParts=true,showView=true,showLight=true,showPivot=true,showOutline=false,light3d=true,dirty=false,poseDirty=false,
     cam={azimuth=0.3,elevation=0.3,distance=100,fx=0,fy=0,fz=0},status='',mask=7}
 local function L(key) return tLang.L('ame_'..key) end
@@ -266,9 +268,20 @@ end
 local function clipProperties(clip)
     if not tImGui.CollapsingHeader(A('clip_properties')) then return end
     if E.clipDraftSource~=clip or not E.clipDraft then E.clipDraft=Model.copy(clip); E.clipDraftSource=clip end
+    if E.clipResizeSource~=clip then E.clipResizeSource=clip; E.clipResizeDuration=clip.duration end
     local d=E.clipDraft
     local _,name=tImGui.InputText(A('clip_name'),d.name); d.name=name
     local edit,value=tImGui.DragFloat(A('duration'),d.duration,0.01,0.001,36000,'%.3f s'); if edit then d.duration=value end
+    edit,value=tImGui.DragFloat(A('resize_duration'),E.clipResizeDuration,0.01,0.001,36000,'%.3f s')
+    if edit then E.clipResizeDuration=value end
+    tImGui.BeginDisabled((E.clipResizeDuration or 0)<=TimelineOps.epsilon)
+    button('resize_clip',function()
+        local target=E.clipResizeDuration
+        if action(function() TimelineOps.resizeDuration(clip,target) end) then
+            E.time=math.min(E.time,target); E.status=A('resize_applied')
+        end
+    end)
+    tImGui.EndDisabled()
     edit,value=tImGui.DragFloat(A('speed'),d.speed,0.01,0.001,100,'%.2f'); if edit then d.speed=value end
     edit,value=tImGui.DragInt(A('priority'),d.priority,1,-1000,1000); if edit then d.priority=value end
     d.loop=tImGui.Checkbox(A('loop'),d.loop)

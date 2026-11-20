@@ -133,4 +133,18 @@ function M.removeTime(clip,time,duration)
     end
     out.duration=clip.duration-span; publish(clip,out)
 end
+function M.resizeDuration(clip,duration)
+    assert(finite(duration) and duration>M.epsilon,'tl_invalid_time')
+    assert(finite(clip.duration) and clip.duration>M.epsilon,'tl_invalid_time')
+    local scale=duration/clip.duration
+    assert(finite(scale) and scale>0,'tl_invalid_time')
+    local out=candidate(clip); out.duration=duration
+    for _,track in ipairs(out.tracks) do
+        for _,key in ipairs(track.keys) do
+            if math.abs(key.time-clip.duration)<=M.epsilon then key.time=duration
+            else key.time=key.time*scale end
+        end
+    end
+    publish(clip,out)
+end
 return M
