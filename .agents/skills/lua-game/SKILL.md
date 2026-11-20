@@ -36,7 +36,7 @@ The engine binary and shared libraries (`box2d.so`, `ImGui.so`, etc.) are extern
 
 Run with:
 ```sh
-# Use the engine path recorded in ENGINE.md by copy-game-template.sh.
+# Use the engine path recorded in ENGINE.local.md by copy-game-template.sh.
 ENGINE_BIN="/path/to/mini-mbm/bin/<platform-build>"
 "$ENGINE_BIN/mini-mbm" --scene main.lua --disable_select_monitor --nosplash
 ```
@@ -233,7 +233,8 @@ end
 - [ ] Game folder created
 - [ ] `.github/copilot-instructions.md` copied from `game-template/`
 - [ ] `AGENTS.md` copied from `game-template/`
-- [ ] `ENGINE.md` generated with the matching engine binary directory
+- [ ] `ENGINE.md` copied as shared, platform-neutral testing guidance
+- [ ] `ENGINE.local.md` generated with the matching local engine binary directory
 - [ ] `CLAUDE.md` symlinked to `AGENTS.md` (`ln -s AGENTS.md CLAUDE.md`), not copied
 - [ ] `main.lua` created with `onInitScene`, `onLoop`, key callbacks
 - [ ] `mbm.addPath(script_dir)` at top so assets resolve correctly

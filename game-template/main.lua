@@ -5,7 +5,7 @@
 | Copy this file to your game project and rename it main.lua (or any name     |
 | you pass on the command line).                                               |
 |                                                                              |
-| Run with the engine executable recorded in ENGINE.md:                        |
+| Run with the engine executable configured in ENGINE.local.md:                |
 |   "$ENGINE_BIN/mini-mbm" --scene main.lua                                   |
 --------------------------------------------------------------------------------
 ]]--

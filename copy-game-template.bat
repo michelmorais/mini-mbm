@@ -68,15 +68,12 @@ if exist "%ENGINE_BIN%\mini-mbm.exe" goto engine_bin_found
 if exist "%ENGINE_BIN%\mini-mbm" goto engine_bin_found
 echo Warning: usable engine build was not detected. Set --engine-bin when copying. 1>&2
 set "ENGINE_BIN=C:\path\to\mini-mbm\bin\platform-build"
-set "ENGINE_STATUS=No usable engine build was detected while copying. Set ENGINE_BIN in ENGINE.md, or recreate with --engine-bin C:\path\to\bin."
 goto engine_bin_ready
 :engine_bin_found
-set "ENGINE_STATUS=Detected usable engine build automatically. Keep this path updated if the build is moved."
-:engine_bin_ready
 :engine_bin_ready
 
 rem Validate sources before creating the destination.
-for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\ENGINE.md" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
+for %%F in ("game-template\main.lua" "game-template\AGENTS.md" "game-template\ENGINE.md" "game-template\ENGINE.local.md" "game-template\ENGINE.local.example.md" "game-template\.gitignore" "game-template\.github\copilot-instructions.md" "game-template\%DOC_LIST%" "LICENSE.md") do (
     if not exist "%ENGINE_DIR%%%~F" (
         echo Error: required source not found: "%ENGINE_DIR%%%~F" 1>&2
         exit /b 1
@@ -91,7 +88,7 @@ for /f "usebackq eol=# delims=" %%F in ("%ENGINE_DIR%game-template\%DOC_LIST%") 
 )
 
 rem Refuse directory/file collisions before copying or deleting link entries.
-for %%F in (main.lua AGENTS.md CLAUDE.md ENGINE.md .github\copilot-instructions.md docs\ENGINE-LICENSE.md) do (
+for %%F in (main.lua AGENTS.md CLAUDE.md ENGINE.md ENGINE.local.md ENGINE.local.example.md .gitignore .github\copilot-instructions.md docs\ENGINE-LICENSE.md) do (
     if exist "%DEST%\%%F\" (
         echo Error: expected a file, found a directory: "%DEST%\%%F" 1>&2
         exit /b 1
@@ -123,7 +120,7 @@ goto copy_template
 
 :confirm_overwrite
 echo Destination contains files: "%DEST%"
-echo This overwrites main.lua, agent instructions, CLAUDE.md, ENGINE.md and selected docs.
+echo This overwrites main.lua, agent instructions, ENGINE.local.md and selected docs.
 echo Other files are preserved.
 choice /c YN /n /m "Continue? [Y/N] "
 if errorlevel 2 goto cancelled
@@ -149,11 +146,20 @@ copy /y "%ENGINE_DIR%game-template\AGENTS.md" "%DEST%\AGENTS.md" >nul
 if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\ENGINE.md" "%DEST%\ENGINE.md" >nul
 if errorlevel 1 goto failed
+copy /y "%ENGINE_DIR%game-template\ENGINE.local.md" "%DEST%\ENGINE.local.md" >nul
+if errorlevel 1 goto failed
+copy /y "%ENGINE_DIR%game-template\ENGINE.local.example.md" "%DEST%\ENGINE.local.example.md" >nul
+if errorlevel 1 goto failed
 copy /y "%ENGINE_DIR%game-template\.github\copilot-instructions.md" "%DEST%\.github\copilot-instructions.md" >nul
 if errorlevel 1 goto failed
 
-rem Replace the engine path placeholders in the generated runtime guide.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = [IO.File]::ReadAllText('%DEST%\ENGINE.md'); $p = $p.Replace('@ENGINE_BIN_DIR@', '%ENGINE_BIN%').Replace('@ENGINE_STATUS@', '%ENGINE_STATUS%'); [IO.File]::WriteAllText('%DEST%\ENGINE.md', $p)"
+if not exist "%DEST%\.gitignore" copy /y "%ENGINE_DIR%game-template\.gitignore" "%DEST%\.gitignore" >nul
+if errorlevel 1 goto failed
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$f = '%DEST%\.gitignore'; $lines = if (Test-Path -LiteralPath $f) { [IO.File]::ReadAllLines($f) } else { @() }; if ($lines -notcontains 'ENGINE.local.md') { Add-Content -LiteralPath $f -Value @('', '# Machine-local path to the mini-mbm engine build.', 'ENGINE.local.md') }"
+if errorlevel 1 goto failed
+
+rem Replace the local engine path placeholders; ENGINE.md stays shared by all OSes.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = [IO.File]::ReadAllText('%DEST%\ENGINE.local.md'); $p = $p.Replace('@ENGINE_PLATFORM@', 'Windows').Replace('@ENGINE_BIN_DIR@', '%ENGINE_BIN%'); [IO.File]::WriteAllText('%DEST%\ENGINE.local.md', $p)"
 if errorlevel 1 goto failed
 
 rem A relative symlink keeps the project movable. A hard link also shares content
@@ -184,6 +190,7 @@ echo Agent context: AGENTS.md, CLAUDE.md, .github\copilot-instructions.md
 echo Documentation profile: %PROFILE%
 echo Current engine documentation: "%DEST%\docs\lua-api.md"
 echo Engine binary directory: %ENGINE_BIN%
+echo Local engine configuration: "%DEST%\ENGINE.local.md" (ignored by Git)
 echo Run your game with your Lua-enabled engine build:
 echo   cd /d "%DEST%"
 echo   "%ENGINE_BIN%\mini-mbm.exe" --scene main.lua --disable_select_monitor --nosplash
@@ -212,6 +219,6 @@ echo.
 echo Creates a standalone Lua game; asks before overwriting a nonempty folder.
 echo The default profile is 2d. Profiles control which engine docs are copied.
 echo Profiles: 2d, 2d5, 3d, animation, authoring, all.
-echo --engine-bin records the engine binary directory in the generated ENGINE.md.
+echo --engine-bin records the local engine binary directory in ignored ENGINE.local.md.
 echo If omitted, a standard debug Windows build path is checked.
 exit /b 0

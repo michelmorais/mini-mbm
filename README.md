@@ -1015,19 +1015,21 @@ Create or refresh a standalone Lua game template:
 ./copy-game-template.sh /path/to/my-game
 cd /path/to/my-game
 cat ENGINE.md
-/path/to/mini-mbm/bin/<platform-build>/mini-mbm --scene main.lua \
+ENGINE_BIN="/path/to/mini-mbm/bin/<platform-build>"
+"$ENGINE_BIN/mini-mbm" --scene main.lua \
     --disable_select_monitor --nosplash
 ```
 
 On Windows, use `copy-game-template.bat "C:\path\to\my-game"` from Command Prompt.
 The copier auto-detects a usable build under this engine checkout; pass
 `--engine-bin /path/to/mini-mbm/bin/<platform-build>` (or the Windows equivalent)
-when another build should be recorded. It creates `ENGINE.md` with the resolved
-binary directory and engine-first testing instructions. For `CLAUDE.md`, it tries a relative symbolic link,
+when another build should be recorded. It creates a machine-local ignored
+`ENGINE.local.md` with the resolved binary directory, while `ENGINE.md` remains
+shared and platform-neutral. For `CLAUDE.md`, it tries a relative symbolic link,
 then a hard link if symbolic-link creation is unavailable. A hard link shares file
 contents, but replacing either file can break synchronization.
 
-The script copies `main.lua`, `ENGINE.md`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
+The script copies `main.lua`, `ENGINE.md`, `ENGINE.local.example.md`, Codex/Copilot instructions, a `CLAUDE.md` symlink to
 `AGENTS.md`, and the current game-development documents listed in
 `game-template/docs-list.txt`: the canonical Lua API, lighting/materials, animation,
 and asset editor guides. Future plans, investigations, and engine-internal audits are
