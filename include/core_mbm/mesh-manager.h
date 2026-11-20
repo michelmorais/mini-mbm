@@ -518,6 +518,12 @@ namespace mbm
         API_IMPL bool moveSkeletalKeys(const uint32_t clipIndex, const uint32_t *trackIndices,
                                        const uint32_t *keyIndices, const uint32_t keyCount,
                                        const float timeDelta, char *errorOut, const int errorOutLen);
+        // Remaps the selected keys from their source min/max interval to the requested target
+        // interval while preserving relative spacing; validation and commit are atomic.
+        API_IMPL bool retimeSkeletalKeys(const uint32_t clipIndex, const uint32_t *trackIndices,
+                                         const uint32_t *keyIndices, const uint32_t keyCount,
+                                         const float targetStartTime, const float targetEndTime,
+                                         char *errorOut, const int errorOutLen);
         API_IMPL bool duplicateSkeletalKeys(const uint32_t clipIndex,
                                             const uint32_t *trackIndices,
                                             const uint32_t *keyIndices, const uint32_t keyCount,

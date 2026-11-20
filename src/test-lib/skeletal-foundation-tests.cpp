@@ -1327,6 +1327,8 @@ namespace
         uint32_t retimeClipIndex = 0;
         uint32_t retimeTrackIndex = 0;
         uint32_t retimeKeyIndex = 0;
+        const uint32_t redistributeTracks[2] = {0, 0};
+        const uint32_t redistributeKeys[2] = {0, 1};
         SKELETAL_CLIP_INFO retimeClip;
         SKELETAL_KEY_INFO retimeKey;
         expect(retimeMesh.loadV11(source) &&
@@ -1354,7 +1356,15 @@ namespace
                    retimeMesh.getSkeletalClip(retimeClipIndex,retimeClip) &&
                    std::fabs(retimeClip.duration-1.0f)<=MATRIX_TOLERANCE &&
                    retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,retimeKeyIndex,retimeKey) &&
-                   std::fabs(retimeKey.time-0.75f)<=MATRIX_TOLERANCE,
+                   std::fabs(retimeKey.time-0.75f)<=MATRIX_TOLERANCE &&
+                   retimeMesh.retimeSkeletalKeys(retimeClipIndex,redistributeTracks,
+                       redistributeKeys,2,0.0f,1.0f,error,sizeof(error)-1) &&
+                   retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,0,retimeKey) &&
+                   std::fabs(retimeKey.time)<=MATRIX_TOLERANCE &&
+                   retimeMesh.getSkeletalKey(retimeClipIndex,retimeTrackIndex,1,retimeKey) &&
+                   std::fabs(retimeKey.time-1.0f)<=MATRIX_TOLERANCE &&
+                   !retimeMesh.retimeSkeletalKeys(retimeClipIndex,redistributeTracks,
+                       redistributeKeys,1,0.0f,1.0f,error,sizeof(error)-1),
                "canonical clip retiming must scale duration and key times atomically");
         MESH_MBM_DEBUG clipEditMesh;
         uint32_t editedClipIndex = 0;

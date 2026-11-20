@@ -2775,6 +2775,8 @@ meshD:moveSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
 meshD:duplicateSkeletalKeys(oneBasedClipIndex,
     {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, timeDelta)
+meshD:retimeSkeletalKeys(oneBasedClipIndex,
+    {trackIndex1, keyIndex1, trackIndex2, keyIndex2, ...}, targetStartTime, targetEndTime)
 meshD:pasteSkeletalKeys(oneBasedDestinationClipIndex, {
     {hexBoneId, channelMask, sourceTime,
      tx, ty, tz, qx, qy, qz, qw, sx, sy, sz,
@@ -2802,6 +2804,11 @@ validates once before one atomic commit.
 `duplicateSkeletalKeys` uses the same pre-operation pair contract and copies complete key payloads
 into their source tracks at shifted times. Existing keys remain untouched. Duplicate references,
 out-of-range destinations, and collisions reject the entire candidate before commit.
+`retimeSkeletalKeys` maps the selected keys' source minimum/maximum time interval to the requested
+target interval, preserving each selected key's relative position. The target interval must be
+finite, positive, and inside the clip; the selected keys must span more than one time. Duplicate
+references, out-of-range indices, collisions with unselected keys, and any invalid complete
+animation candidate reject the entire operation without mutation.
 `pasteSkeletalKeys` accepts detached complete key payloads, so the source clip does not need to
 exist or remain unchanged. Each hexadecimal bone ID resolves against the destination skeleton. A
 matching destination track must have the same T/R/S mask; an absent track is created with the copied

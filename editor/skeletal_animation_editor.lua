@@ -77,6 +77,8 @@ local state = {
     animationTimelineKeyIndex = nil,
     animationTimelineDrag = nil,
     animationTimelineSelection = {},
+    animationTimelineSelectedRemovalConfirmed = false,
+    animationTimelineSelectedRemovalSignature = nil,
     animationKeyClipboard = nil,
     animationBonePoseClipboard = nil,
     animationSkeletonPoseClipboard = nil,
@@ -8193,6 +8195,66 @@ local function copyTimelineSelection()
     return true
 end
 
+local function removeTimelineSelection()
+    local clip=state.animationTimelineClip
+    if state.workspace~='animation' or not clip then return false end
+    local selectedByTrack={}
+    local selectedCount=0
+    for trackIndex,track in ipairs(clip.tracks or {}) do
+        for keyIndex,_ in ipairs(track.keys or {}) do
+            if state.animationTimelineSelection[timelineSelectionId(trackIndex,keyIndex)] then
+                local keys=selectedByTrack[trackIndex]
+                if not keys then keys={}; selectedByTrack[trackIndex]=keys end
+                keys[#keys+1]=keyIndex
+                selectedCount=selectedCount+1
+            end
+        end
+    end
+    if selectedCount==0 then return false end
+    for trackIndex,keys in pairs(selectedByTrack) do
+        if #keys>=#(clip.tracks[trackIndex].keys or {}) then
+            setStatus(tLang.L('swl_animation_timeline_selected_removal_blocked'),true)
+            return false
+        end
+    end
+    local snapshot=stageRollbackSnapshot()
+    if not snapshot then return false end
+    local removed=true
+    local removedCount=0
+    for trackIndex,keys in pairs(selectedByTrack) do
+        for keyIndex=#keys,1,-1 do
+            local callOk,callResult=safeCall(function()
+                return state.meshD:removeSkeletalKey(state.animationClipSelected,trackIndex,keys[keyIndex])
+            end)
+            if not callOk or callResult~=true then
+                removed=false
+                break
+            end
+            removedCount=removedCount+1
+        end
+        if not removed then break end
+    end
+    if not removed then
+        local restored=restoreHistoryEntry(snapshot)
+        discardRollbackSnapshot(snapshot)
+        if not restored then setStatus(tLang.L('swl_animation_timeline_selected_removal_failed'),true) end
+        return false
+    end
+    commitRollbackSnapshot(snapshot,'swl_history_remove_selected_keys')
+    state.modified=true
+    state.animationKeyEdits={}
+    state.animationNewKeyTimes={}
+    state.animationTimelineSelection={}
+    state.animationTimelineTrackIndex=nil
+    state.animationTimelineKeyIndex=nil
+    state.animationTimelineSelectedRemovalConfirmed=false
+    state.animationTimelineSelectedRemovalSignature=nil
+    clearAuthoringOverride()
+    refreshAuthoringPose(clip)
+    setStatus(string.format(tLang.L('swl_animation_timeline_keys_removed_fmt'),removedCount),false)
+    return true
+end
+
 local function pasteTimelineClipboardAtPlayhead()
     local clip=state.animationTimelineClip
     local clipboard=state.animationKeyClipboard
@@ -8722,6 +8784,16 @@ local function showSkeletalTimelineWindow()
     if opened then
         local playback=state.animationPlayback
         local selectedCount=timelineSelectionCount()
+        local selectedSignatureParts={}
+        for selectionId,selected in pairs(state.animationTimelineSelection) do
+            if selected then selectedSignatureParts[#selectedSignatureParts+1]=selectionId end
+        end
+        table.sort(selectedSignatureParts)
+        local selectedSignature=table.concat(selectedSignatureParts,'|')
+        if state.animationTimelineSelectedRemovalSignature~=selectedSignature then
+            state.animationTimelineSelectedRemovalSignature=selectedSignature
+            state.animationTimelineSelectedRemovalConfirmed=false
+        end
         tImGui.Text(string.format(tLang.L('swl_animation_timeline_selection_fmt'),selectedCount))
         tImGui.SameLine()
         if tImGui.Button(tLang.L('swl_animation_timeline_fit_clip')..
@@ -8767,6 +8839,22 @@ local function showSkeletalTimelineWindow()
                 '##swlTimelineCopy')
             tImGui.EndDisabled()
         end
+        if selectedCount>0 then
+            tImGui.SameLine()
+            local confirmed=tImGui.Checkbox(
+                tLang.L('swl_animation_timeline_confirm_remove_selected'),
+                state.animationTimelineSelectedRemovalConfirmed)
+            if confirmed~=state.animationTimelineSelectedRemovalConfirmed then
+                state.animationTimelineSelectedRemovalConfirmed=confirmed
+            end
+            tImGui.SameLine()
+            tImGui.BeginDisabled(not state.animationTimelineSelectedRemovalConfirmed)
+            if tImGui.Button(tLang.L('swl_animation_timeline_remove_selected')..
+                    '##swlTimelineRemoveSelected') then
+                removeTimelineSelection()
+            end
+            tImGui.EndDisabled()
+        end
         tImGui.SameLine()
         local clipboard=state.animationKeyClipboard
         tImGui.BeginDisabled(clipboard==nil)
@@ -8782,7 +8870,7 @@ local function showSkeletalTimelineWindow()
                 clipboard.clipName or '?'))
         end
         if selectedCount>0 then
-            tImGui.SameLine()
+            tImGui.NewLine()
             if tImGui.Button(tLang.L('swl_animation_timeline_clear_selection')..
                     '##swlTimelineClearSelection') then
                 state.animationTimelineSelection={}
@@ -8812,6 +8900,44 @@ local function showSkeletalTimelineWindow()
                 elseif snapshot then discardRollbackSnapshot(snapshot) end
             end
             tImGui.EndDisabled()
+            local redistributionBlocked=#references==0 or maximumTime-minimumTime<=1e-6 or
+                (state.animationTimelineClip.duration or 0)<=1e-6
+            tImGui.SameLine()
+            tImGui.BeginDisabled(redistributionBlocked)
+            if tImGui.Button(tLang.L('swl_animation_timeline_redistribute_selected')..
+                    '##swlTimelineRedistributeSelected') then
+                local retimeReferences=select(1,collectTimelineSelection(
+                    state.animationTimelineClip))
+                local retimeDuration=math.max(0,state.animationTimelineClip.duration or 0)
+                local snapshot=stageRollbackSnapshot()
+                local callOk,callResult=false,nil
+                if snapshot then
+                    callOk,callResult=safeCall(function()
+                        return state.meshD:retimeSkeletalKeys(state.animationClipSelected,
+                            retimeReferences,0,retimeDuration)
+                    end)
+                end
+                if callOk and callResult==true then
+                    commitRollbackSnapshot(snapshot,'swl_history_retime_selected_keys')
+                    state.modified=true
+                    state.animationKeyEdits={}
+                    state.animationNewKeyTimes={}
+                    state.animationTimelineSelection={}
+                    state.animationTimelineTrackIndex=nil
+                    state.animationTimelineKeyIndex=nil
+                    state.animationTimelineSelectedRemovalConfirmed=false
+                    state.animationTimelineSelectedRemovalSignature=nil
+                    clearAuthoringOverride()
+                    refreshAuthoringPose(state.animationTimelineClip)
+                    setStatus(string.format(
+                        tLang.L('swl_animation_timeline_keys_redistributed_fmt'),
+                        #retimeReferences/2,retimeDuration),false)
+                elseif snapshot then
+                    discardRollbackSnapshot(snapshot)
+                end
+            end
+            tImGui.EndDisabled()
+            showItemTooltip(tLang.L('swl_animation_timeline_redistribute_selected_help'),true,400)
             local selectionSpan=maximumTime-minimumTime
             local rippleBlocked=selectionSpan<=1e-6
             tImGui.SameLine()

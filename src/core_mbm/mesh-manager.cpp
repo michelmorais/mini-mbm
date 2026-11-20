@@ -7660,6 +7660,83 @@ namespace mbm
         return true;
     }
 
+    bool MESH_MBM_DEBUG::retimeSkeletalKeys(const uint32_t clipIndex,
+                                             const uint32_t *trackIndices,
+                                             const uint32_t *keyIndices,
+                                             const uint32_t keyCount,
+                                             const float targetStartTime,
+                                             const float targetEndTime,
+                                             char *errorOut, const int errorOutLen)
+    {
+        const auto fail=[errorOut,errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen>0) snprintf(errorOut,errorOutLen,"%s",message);
+            return false;
+        };
+        if (clipIndex>=impl->canonicalAnimations.clips.size())
+            return fail("canonical clip index is out of range");
+        if (!trackIndices || !keyIndices || keyCount==0)
+            return fail("canonical key retime selection must not be empty");
+        if (!std::isfinite(targetStartTime) || !std::isfinite(targetEndTime) ||
+                targetStartTime<0.0f || targetEndTime>impl->canonicalAnimations.clips[clipIndex].duration ||
+                targetEndTime-targetStartTime<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical key retime target interval is invalid");
+
+        const skeletal::SKELETAL_CLIP &sourceClip=impl->canonicalAnimations.clips[clipIndex];
+        std::unordered_set<uint64_t> references;
+        references.reserve(keyCount);
+        float sourceStart=std::numeric_limits<float>::max();
+        float sourceEnd=std::numeric_limits<float>::lowest();
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            if (trackIndex>=sourceClip.tracks.size() ||
+                    keyIndex>=sourceClip.tracks[trackIndex].keys.size())
+                return fail("canonical key retime index is out of range");
+            const uint64_t reference=(static_cast<uint64_t>(trackIndex)<<32u)|keyIndex;
+            if (!references.insert(reference).second)
+                return fail("canonical key retime selection contains a duplicate reference");
+            const float sourceTime=sourceClip.tracks[trackIndex].keys[keyIndex].time;
+            sourceStart=std::min(sourceStart,sourceTime);
+            sourceEnd=std::max(sourceEnd,sourceTime);
+        }
+        const float sourceDuration=sourceEnd-sourceStart;
+        if (!std::isfinite(sourceDuration) || sourceDuration<=skeletal::KEY_TIME_TOLERANCE)
+            return fail("canonical key retime selection must span more than one time");
+        const float scale=(targetEndTime-targetStartTime)/sourceDuration;
+        if (!std::isfinite(scale)) return fail("canonical key retime scale must be finite");
+
+        skeletal::CANONICAL_ANIMATIONS candidate=impl->canonicalAnimations;
+        skeletal::SKELETAL_CLIP &clip=candidate.clips[clipIndex];
+        std::unordered_set<uint32_t> affectedTracks;
+        for (uint32_t index=0;index<keyCount;++index)
+        {
+            const uint32_t trackIndex=trackIndices[index];
+            const uint32_t keyIndex=keyIndices[index];
+            const float sourceTime=sourceClip.tracks[trackIndex].keys[keyIndex].time;
+            float targetTime=targetStartTime+(sourceTime-sourceStart)*scale;
+            if (std::fabs(sourceTime-sourceStart)<=skeletal::KEY_TIME_TOLERANCE)
+                targetTime=targetStartTime;
+            else if (std::fabs(sourceTime-sourceEnd)<=skeletal::KEY_TIME_TOLERANCE)
+                targetTime=targetEndTime;
+            if (!std::isfinite(targetTime) || targetTime<0.0f || targetTime>clip.duration)
+                return fail("retimed canonical key must remain inside the clip duration");
+            clip.tracks[trackIndex].keys[keyIndex].time=targetTime;
+            affectedTracks.insert(trackIndex);
+        }
+        for (const uint32_t trackIndex:affectedTracks)
+        {
+            std::stable_sort(clip.tracks[trackIndex].keys.begin(),clip.tracks[trackIndex].keys.end(),
+                [](const skeletal::SKELETAL_KEY &a,const skeletal::SKELETAL_KEY &b)
+                { return a.time<b.time; });
+        }
+        if (!skeletal::validateCanonicalAnimations(impl->canonicalSkeleton,candidate))
+            return fail("retimed canonical keys would be invalid or collide with another key time");
+        impl->canonicalAnimations=std::move(candidate);
+        return true;
+    }
+
     bool MESH_MBM_DEBUG::pasteSkeletalKeys(const uint32_t clipIndex, const uint64_t *boneIds,
                                             const uint8_t *channelMasks,
                                             const SKELETAL_KEY_INFO *keys,
