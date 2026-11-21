@@ -443,32 +443,19 @@ local function rayPlaneHit(screenX, screenY, point, normal)
     return ox + dx * distance, oy + dy * distance, oz + dz * distance
 end
 
-local function raySphereDistance(screenX, screenY, center, radius)
-    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
-    if not ok then return nil end
-    local lx, ly, lz = ox - center.x, oy - center.y, oz - center.z
-    local b = dot(lx, ly, lz, dx, dy, dz)
-    local c = dot(lx, ly, lz, lx, ly, lz) - radius * radius
-    local discriminant = b * b - c
-    if discriminant < 0 then return nil end
-    local near = -b - math.sqrt(discriminant)
-    return near >= 0 and near or -b + math.sqrt(discriminant)
-end
-
 local function pickRole(screenX, screenY)
-    local bestRole, bestDistance
     for _, role in ipairs({'source', 'target'}) do
         local entry = roleEntry(role)
-        if entry.selectable ~= false then
-            local scale = math.max(math.abs(entry.pose.sx), math.abs(entry.pose.sy), math.abs(entry.pose.sz))
-            local radius = math.max(entry.previewSize * scale, 25)
-            local distance = raySphereDistance(screenX, screenY, entry.pose, radius)
-            if distance and (not bestDistance or distance < bestDistance) then
-                bestRole, bestDistance = role, distance
+        if entry.selectable ~= false and entry.object then
+            local ok, hit = dpCall(function()
+                return entry.object:collide(screenX, screenY, true)
+            end)
+            if ok and hit then
+                return role
             end
         end
     end
-    return bestRole
+    return nil
 end
 
 local function hideGizmo()
