@@ -2122,16 +2122,20 @@ Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
 `local attachments = require "attachments"`. This plugin is independent from
 `interaction_animation_runtime`.
 
-`attachments.attach(spec)` supports root transforms in phase 1. The specification requires
-`source` and `target` renderizable objects and accepts `id`, `sourceType = "root"`, `inherit`, and
-`offset`. Position, rotation, and scale inheritance are independent. Angles and offset rotation
-use radians. The offset is in source-local space, and source scale affects offset position when
-scale inheritance is enabled.
+`attachments.attach(spec)` supports root transforms and evaluated skeletal-bone sources. The
+specification requires `source` and `target` renderizable objects and accepts `id`, `sourceType`
+(`"root"` or `"bone"`), `sourceBone` when using a bone, `inherit`, and `offset`. Position,
+rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
+offset is in the selected source's local space, and source scale affects offset position when
+scale inheritance is enabled. Bone sources require a mesh with an active evaluated skeletal pose;
+sockets are not supported yet.
 
 ```lua
 local relation, err = attachments.attach {
     source = character,
     target = hat,
+    sourceType = "bone",
+    sourceBone = "mixamorig:RightHand",
     inherit = {position = true, rotation = true, scale = false},
     offset = {
         position = {x = 0, y = 1.8, z = 0},

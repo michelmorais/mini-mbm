@@ -24,6 +24,7 @@
 #include <core_mbm/plugin-callback.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/util-interface.h>
+#include <render/mesh.h>
 
 #include <algorithm>
 #include <cmath>
@@ -44,6 +45,8 @@ constexpr const char *ATTACHMENT_METATABLE = "_mbmAttachmentsAttachment";
 constexpr uint8_t INHERIT_POSITION = 1u;
 constexpr uint8_t INHERIT_ROTATION = 2u;
 constexpr uint8_t INHERIT_SCALE = 4u;
+constexpr uint8_t SOURCE_ROOT = 0u;
+constexpr uint8_t SOURCE_BONE = 1u;
 
 int PLUGIN_IDENTIFIER = 1;
 
@@ -273,6 +276,8 @@ struct ATTACHMENT
     int sourceReference = LUA_NOREF;
     int targetReference = LUA_NOREF;
     std::string id;
+    std::string sourceBone;
+    uint8_t sourceType = SOURCE_ROOT;
     POSE offset;
     POSE poseBeforeAttach;
     uint8_t inherit = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
@@ -281,6 +286,39 @@ struct ATTACHMENT
 
     void releaseReferences() noexcept;
 };
+
+bool readBonePose(mbm::RENDERIZABLE *source, const std::string &boneName, POSE &pose)
+{
+    if (!source || source->getTypeClass() != mbm::TYPE_CLASS_MESH || boneName.empty()) return false;
+    auto *mesh = dynamic_cast<mbm::MESH *>(source);
+    if (!mesh) return false;
+    uint64_t boneId = 0;
+    mbm::MATRIX matrix;
+    mbm::VEC3 position;
+    mbm::VEC3 angle;
+    mbm::VEC3 scale;
+    float rotation[4] = {};
+    if (!mesh->getSkeletalBoneTransform(boneName.c_str(), true, &boneId, &matrix, &position,
+                                        rotation, &angle, &scale))
+        return false;
+    pose.position = {position.x, position.y, position.z};
+    pose.angle = {angle.x, angle.y, angle.z};
+    pose.scale = {scale.x, scale.y, scale.z};
+    return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
+}
+
+bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POSE &pose)
+{
+    if (!attachment || !source) return false;
+    if (attachment->sourceType == SOURCE_ROOT)
+    {
+        pose = readPose(source);
+        return true;
+    }
+    if (attachment->sourceType == SOURCE_BONE)
+        return readBonePose(source, attachment->sourceBone, pose);
+    return false;
+}
 
 POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
                           const POSE &currentTargetPose)
@@ -353,6 +391,8 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
     void onDestroy() override;
 
     std::shared_ptr<ATTACHMENT> createAttachment(const std::string &id,
+                                                  const uint8_t sourceType,
+                                                  const std::string &sourceBone,
                                                   const POSE &offset,
                                                   const POSE &before,
                                                   uint8_t inherit,
@@ -430,7 +470,9 @@ bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) co
     mbm::RENDERIZABLE *target = nullptr;
     if (!resolve(attachment, &source, &target) || source->getIdScene() != target->getIdScene())
         return false;
-    pose = composeEffectivePose(attachment, readPose(source), readPose(target));
+    POSE sourcePose;
+    if (!readSourcePose(attachment, source, sourcePose)) return false;
+    pose = composeEffectivePose(attachment, sourcePose, readPose(target));
     return true;
 }
 
@@ -501,8 +543,9 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 }
 
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
-    const std::string &id, const POSE &offset, const POSE &before, const uint8_t inherit,
-    const int sourceReference, const int targetReference)
+    const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
+    const POSE &offset, const POSE &before, const uint8_t inherit, const int sourceReference,
+    const int targetReference)
 {
     std::shared_ptr<ATTACHMENT> attachment = std::make_shared<ATTACHMENT>();
     attachment->manager = this;
@@ -510,6 +553,8 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->sourceReference = sourceReference;
     attachment->targetReference = targetReference;
     attachment->id = id;
+    attachment->sourceType = sourceType;
+    attachment->sourceBone = sourceBone;
     attachment->offset = offset;
     attachment->poseBeforeAttach = before;
     attachment->inherit = inherit;
@@ -636,7 +681,12 @@ void ATTACHMENTS_PLUGIN::onLoop(float)
     {
         const RESOLVED_ATTACHMENT &resolvedAttachment = resolved[index];
         ATTACHMENT *attachment = resolvedAttachment.attachment;
-        const POSE sourcePose = readPose(resolvedAttachment.source);
+        POSE sourcePose;
+        if (!readSourcePose(attachment, resolvedAttachment.source, sourcePose))
+        {
+            deactivate(attachment, true);
+            continue;
+        }
         const POSE effectivePose = composeEffectivePose(attachment, sourcePose,
                                                         readPose(resolvedAttachment.target));
         if ((attachment->inherit & INHERIT_POSITION) != 0u) writePosition(resolvedAttachment.target,
@@ -824,7 +874,9 @@ int onAttachmentCaptureOffset(lua_State *lua)
     mbm::RENDERIZABLE *target = nullptr;
     if (!attachment->manager->resolve(attachment, &source, &target))
         return fail(lua, "source or target is no longer valid");
-    const POSE sourcePose = readPose(source);
+    POSE sourcePose;
+    if (!readSourcePose(attachment, source, sourcePose))
+        return fail(lua, "source bone is invalid or has no evaluated pose");
     const POSE targetPose = readPose(target);
     const bool scaleIsInherited = (attachment->inherit & INHERIT_SCALE) != 0u;
     if (scaleIsInherited && (std::abs(sourcePose.scale.x) < 0.000001 ||
@@ -870,7 +922,7 @@ int onAttachmentGetState(lua_State *lua)
         lua_pushnil(lua);
         return 1;
     }
-    lua_createtable(lua, 0, 5);
+    lua_createtable(lua, 0, 8);
     lua_pushboolean(lua, attachment->active && attachment->manager ? 1 : 0);
     lua_setfield(lua, -2, "active");
     lua_pushboolean(lua, attachment->invalid ? 1 : 0);
@@ -883,6 +935,13 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritRotation");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_SCALE) != 0u);
     lua_setfield(lua, -2, "inheritScale");
+    lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" : "root");
+    lua_setfield(lua, -2, "sourceType");
+    if (attachment->sourceType == SOURCE_BONE)
+    {
+        lua_pushlstring(lua, attachment->sourceBone.c_str(), attachment->sourceBone.size());
+        lua_setfield(lua, -2, "sourceBone");
+    }
     pushAttachmentData(lua, attachment);
     lua_setfield(lua, -2, "offset");
     POSE effectivePose;
@@ -923,15 +982,54 @@ int onAttach(lua_State *lua)
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
         return fail(lua, "source and target must belong to the same scene");
     }
+    uint8_t sourceType = SOURCE_ROOT;
+    std::string sourceBone;
     lua_getfield(lua, 1, "sourceType");
-    const bool validSourceType = lua_isnil(lua, -1) ||
-        (lua_isstring(lua, -1) && std::string(lua_tostring(lua, -1)) == "root");
-    lua_pop(lua, 1);
-    if (!validSourceType)
+    if (!lua_isnil(lua, -1))
     {
-        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
-        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-        return fail(lua, "only sourceType='root' is supported in phase 1");
+        if (!lua_isstring(lua, -1))
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType must be 'root' or 'bone'");
+        }
+        const std::string sourceTypeName = lua_tostring(lua, -1);
+        if (sourceTypeName == "bone") sourceType = SOURCE_BONE;
+        else if (sourceTypeName != "root")
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType must be 'root' or 'bone'; sockets are not supported yet");
+        }
+    }
+    lua_pop(lua, 1);
+    if (sourceType == SOURCE_BONE)
+    {
+        lua_getfield(lua, 1, "sourceBone");
+        if (!lua_isstring(lua, -1) || lua_tostring(lua, -1)[0] == '\0')
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceBone must be a non-empty bone name for sourceType='bone'");
+        }
+        sourceBone = lua_tostring(lua, -1);
+        lua_pop(lua, 1);
+        if (source->getTypeClass() != mbm::TYPE_CLASS_MESH)
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType='bone' requires a mesh source");
+        }
+        POSE sourcePose;
+        if (!readBonePose(source, sourceBone, sourcePose))
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "source bone is invalid or has no evaluated pose");
+        }
     }
     const uint8_t inherit = parseInheritance(lua, 1);
     const POSE offset = parseOffset(lua, 1);
@@ -971,7 +1069,7 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, offset, before, inherit, sourceReference, targetReference);
+        id, sourceType, sourceBone, offset, before, inherit, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");

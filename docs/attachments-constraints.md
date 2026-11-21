@@ -1,10 +1,10 @@
 # Attachments and constraints
 
-Document version: **1.1**
-Status: **Phase 2 implemented**
+Document version: **1.2**
+Status: **Phase 3 bone sources implemented; sockets pending**
 Last updated: **2026-11-21**
 
-This document defines the first runtime contract for root-transform attachments. It is independent
+This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
 from `interaction_animation_runtime`; the interaction plugin does not create, update, or own
 attachments.
 
@@ -22,8 +22,8 @@ profiles link the plugin statically; desktop builds load `attachments.so`, `atta
 
 ## Transform contract
 
-Phase 1 supports only the `root` transform of existing renderizable objects. An offset is stored in
-the source's local space:
+The source can be the `root` transform of a renderizable object or the evaluated world transform of
+a named skeletal bone on a mesh. An offset is stored in the selected source's local space:
 
 ```text
 world position = source position + source rotation * (source scale * offset position)
@@ -34,13 +34,14 @@ world scale    = source scale * offset scale
 The source scale in the position expression is used only when `inherit.scale` is enabled. The
 source rotation orients the position offset whenever position inheritance is enabled, even when
 rotation inheritance is disabled. Position, rotation, and scale are written independently; a
-component whose inheritance flag is false is left untouched.
+component whose inheritance flag is false is left untouched. Bone sources require an active,
+evaluated skeletal pose; sockets are not supported because the mesh format has no socket contract
+yet.
 
 Angles use radians, matching `RENDERIZABLE::getAngle()` and the regular Lua renderizable API.
 Composition uses matrices internally and converts back to Euler XYZ radians only when writing the
-engine transform. Non-uniform scale is supported for this root-transform composition because the
-offset position is scaled before source rotation. Skeletal bones, sockets, and sheared transforms
-are not part of this contract.
+engine transform. Non-uniform scale is supported because the offset position is scaled before
+source rotation. Sheared transforms are not part of this contract.
 
 ## Lua API
 
@@ -49,7 +50,8 @@ local attachment, err = attachments.attach {
     id = "hat_on_character", -- optional; generated when omitted
     source = character,
     target = hat,
-    sourceType = "root", -- optional; this is the only phase 1 value
+    sourceType = "bone", -- "root" or "bone"; defaults to "root"
+    sourceBone = "mixamorig:RightHand", -- required when sourceType is "bone"
     inherit = {
         position = true,
         rotation = true,
@@ -65,7 +67,8 @@ assert(attachment, err)
 ```
 
 `attach` rejects invalid or destroyed renderizables, cross-scene references, self-attachments,
-cycles, duplicate component ownership on one target, and unsupported source types. It returns
+cycles, duplicate component ownership on one target, missing or unevaluated bones, and unsupported
+source types. It returns
 `nil, errorMessage` for those validation failures.
 
 An attachment object provides:
@@ -80,7 +83,7 @@ An attachment object provides:
 | `setInherit(inherit)` | boolean or `nil,error` | Changes the component mask after conflict/cycle validation. |
 | `captureOffset()` | boolean or `nil,error` | Captures the current target pose relative to the current source pose. |
 | `getEffectivePose()` | table or `nil,error` | Returns the target pose currently computed by the attachment. |
-| `getState()` | table | Returns active/invalid status, inheritance flags, and offset. |
+| `getState()` | table | Returns active/invalid status, source type/name, inheritance flags, and offset. |
 
 `detach()` preserves the target's current pose by default. Passing
 `{preserveWorldPose = false}` restores the target pose captured immediately before `attach`.
@@ -124,10 +127,11 @@ Its UX follows the interaction animation editor: a file/options menu, an objects
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
 source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
 controls, editable source and target authoring poses, mesh loading through the standard file picker,
-offset capture, and interaction-style move/rotate gizmos for the selected actor. Loading a runtime
-scene and resolving labels to actual renderizables is deliberately left as the next authoring
-integration step. Each preview actor also has an editor-only viewport-selection toggle to avoid
-ambiguous picking when the source and target overlap.
+offset capture, and interaction-style move/rotate gizmos for the selected actor. Bone source mode
+adds a named bone field and evaluates the selected bone through the loaded source mesh when a final
+skeletal pose is available. Loading a runtime scene and resolving labels to actual renderizables is
+deliberately left as the next authoring integration step. Each preview actor also has an editor-only
+viewport-selection toggle to avoid ambiguous picking when the source and target overlap.
 
 ## Phase 2 lifecycle guarantees
 
@@ -140,5 +144,5 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 
-Bones, sockets, skeletal-pose sampling, IK, aim constraints, spring/damping, physics integration,
-cross-scene attachments, and a general scene graph remain out of scope for Phase 1.
+Sockets, IK, aim constraints, spring/damping, physics integration, cross-scene attachments, and a
+general scene graph remain out of scope. Socket support requires a mesh-format/API contract.

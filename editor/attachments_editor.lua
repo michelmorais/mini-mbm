@@ -20,7 +20,7 @@
 
    Attachments Editor
 
-   Independent Phase 1 authoring tool for root-transform attachments.
+   Independent authoring tool for root-transform and skeletal-bone attachments.
    Its layout follows the interaction animation editor, but its state and
    saved definition are independent from interaction_animation_editor.lua.
 ]]--
@@ -50,6 +50,7 @@ local function newDefinition()
         source = 'source',
         target = 'target',
         sourceType = 'root',
+        sourceBone = '',
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -383,6 +384,23 @@ local function applyMarker(role, value)
     entry.object:setScale(size * value.sx, size * value.sy, size * value.sz)
 end
 
+local function getPreviewSourcePose()
+    if S.definition.sourceType ~= 'bone' then return clonePose(S.source.pose) end
+    if not S.source.object or not S.source.meshLoaded or S.definition.sourceBone == '' then return nil end
+    local ok, bone = dpCall(function()
+        return S.source.object:getSkeletalBoneTransform(S.definition.sourceBone, 'world')
+    end)
+    if not ok or type(bone) ~= 'table' or type(bone.position) ~= 'table' or
+            type(bone.angle) ~= 'table' or type(bone.scale) ~= 'table' then
+        return nil
+    end
+    return {
+        x = bone.position.x or 0, y = bone.position.y or 0, z = bone.position.z or 0,
+        rx = bone.angle.x or 0, ry = bone.angle.y or 0, rz = bone.angle.z or 0,
+        sx = bone.scale.x or 1, sy = bone.scale.y or 1, sz = bone.scale.z or 1,
+    }
+end
+
 local function dot(ax, ay, az, bx, by, bz)
     return ax * bx + ay * by + az * bz
 end
@@ -679,7 +697,7 @@ local function endViewportInteraction(key)
 end
 
 local function calculateTargetPose()
-    local source, target = S.source.pose, S.target.pose
+    local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
     local result = clonePose(target)
     local inherit = S.definition.inherit
     local offset = S.definition.offset
@@ -719,14 +737,15 @@ local function rebuildPreview()
     applyMarker('source', S.source.pose)
     applyMarker('target', S.target.pose)
     if S.relationLine then
-        S.relationLine:set({S.source.pose.x, S.source.pose.y, S.source.pose.z,
+        local source = getPreviewSourcePose() or S.source.pose
+        S.relationLine:set({source.x, source.y, source.z,
             S.target.pose.x, S.target.pose.y, S.target.pose.z}, 1)
     end
     S.dirtyPreview = false
 end
 
 local function captureOffset()
-    local source, target = S.source.pose, S.target.pose
+    local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
     local inherit = S.definition.inherit
     local sourceRotation = eulerRotation(source.rx, source.ry, source.rz)
     local inverseSource = transposeRotation(sourceRotation)
@@ -801,7 +820,8 @@ local function normalizeDefinition(value)
     local result = newDefinition()
     result.source = tostring(value.source or result.source)
     result.target = tostring(value.target or result.target)
-    result.sourceType = tostring(value.sourceType or 'root')
+    result.sourceType = value.sourceType == 'bone' and 'bone' or 'root'
+    result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
         result.inherit.rotation = value.inherit.rotation ~= false
@@ -830,7 +850,7 @@ local function normalizeDefinition(value)
         result.editor.sourceSelectable = editor.sourceSelectable ~= false
         result.editor.targetSelectable = editor.targetSelectable ~= false
     end
-    if result.sourceType ~= 'root' then return nil end
+    if result.sourceType == 'bone' and result.sourceBone == '' then return nil end
     return result
 end
 
@@ -999,7 +1019,26 @@ local function showAttachment()
     if opened then
         tImGui.Text(L('attachment'))
         tImGui.Text(string.format('%s -> %s', roleName('source'), roleName('target')))
-        tImGui.Text(L('root_transform'))
+        tImGui.SetNextItemWidth(210)
+        local sourceTypeIndex = S.definition.sourceType == 'bone' and 2 or 1
+        local sourceTypeChanged, nextSourceType = tImGui.Combo(L('source_type'), sourceTypeIndex,
+            {L('root_transform'), L('bone_transform')})
+        if sourceTypeChanged then
+            S.definition.sourceType = nextSourceType == 2 and 'bone' or 'root'
+            if S.definition.sourceType == 'root' then S.definition.sourceBone = '' end
+            S.target.manualOverride = false
+            markModified()
+        end
+        if S.definition.sourceType == 'bone' then
+            tImGui.SetNextItemWidth(210)
+            local boneChanged, nextBone = tImGui.InputText(L('source_bone'), S.definition.sourceBone)
+            if boneChanged then
+                S.definition.sourceBone = nextBone
+                S.target.manualOverride = false
+                markModified()
+            end
+            tImGui.TextWrapped(L('source_bone_help'))
+        end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
             {'scale', L('inherit_scale')}}
         for _, component in ipairs(components) do
