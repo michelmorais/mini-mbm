@@ -64,6 +64,7 @@ local function newDefinition()
             sourcePose = pose(0, 0, 0),
             targetPose = pose(100, 0, 0),
             targetManualOverride = false,
+            language = nil,
             sourceSelectable = true,
             targetSelectable = true,
         },
@@ -473,11 +474,13 @@ end
 local function hideGizmo()
     for _, object in pairs(S.gizmo.axes) do object.visible = false end
     for _, object in pairs(S.gizmo.rings) do object.visible = false end
+    S.gizmo.drag = nil
     S.gizmo.origin, S.gizmo.length, S.gizmo.radius = nil, nil, nil
 end
 
 local function updateGizmo()
     local entry = roleEntry(S.selectedRole)
+    if entry.selectable == false then hideGizmo(); return end
     if not entry.object then hideGizmo(); return end
     local origin = {x = entry.pose.x, y = entry.pose.y, z = entry.pose.z}
     local length = math.max(entry.previewSize * 1.6, 45)
@@ -534,7 +537,9 @@ local function updateGizmo()
 end
 
 local function pickGizmoAxis(screenX, screenY)
-    if S.transformMode ~= 'move' or not S.gizmo.origin then return nil end
+    if S.transformMode ~= 'move' or not S.gizmo.origin or roleEntry(S.selectedRole).selectable == false then
+        return nil
+    end
     local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
     local bestName, bestDistance
     local threshold = math.max(S.gizmo.length * 0.12, 12)
@@ -551,7 +556,9 @@ local function pickGizmoAxis(screenX, screenY)
 end
 
 local function pickRotationRing(screenX, screenY)
-    if S.transformMode ~= 'rotate' or not S.gizmo.origin then return nil end
+    if S.transformMode ~= 'rotate' or not S.gizmo.origin or roleEntry(S.selectedRole).selectable == false then
+        return nil
+    end
     local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
     local best, bestError
     local tolerance = math.max(S.gizmo.radius * 0.12, 12)
@@ -774,6 +781,7 @@ local function syncEditorDefinition()
         sourcePose = clonePose(S.source.pose),
         targetPose = clonePose(S.target.pose),
         targetManualOverride = S.target.manualOverride == true,
+        language = tLang.getLanguage(),
         sourceSelectable = S.source.selectable ~= false,
         targetSelectable = S.target.selectable ~= false,
     }
@@ -826,6 +834,9 @@ local function normalizeDefinition(value)
         if type(editor.sourcePose) == 'table' then result.editor.sourcePose = clonePose(editor.sourcePose) end
         if type(editor.targetPose) == 'table' then result.editor.targetPose = clonePose(editor.targetPose) end
         result.editor.targetManualOverride = editor.targetManualOverride == true
+        if editor.language == 'pt_br' or editor.language == 'en' then
+            result.editor.language = editor.language
+        end
         result.editor.sourceSelectable = editor.sourceSelectable ~= false
         result.editor.targetSelectable = editor.targetSelectable ~= false
     end
@@ -861,6 +872,10 @@ local function loadDefinition(path)
     restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
     S.source.selectable = definition.editor.sourceSelectable ~= false
     S.target.selectable = definition.editor.targetSelectable ~= false
+    if definition.editor.language == 'pt_br' or definition.editor.language == 'en' then
+        tLang.setLanguage(definition.editor.language)
+        refreshWindowTitles()
+    end
     S.projectPath, S.modified = path, false
     S.target.manualOverride = definition.editor.targetManualOverride == true
     S.dirtyPreview = true
@@ -913,6 +928,8 @@ local function showViewSelectable(role)
     if nextValue ~= previous then
         entry.selectable = nextValue
         markModified()
+        if not nextValue and S.selectedRole == role then S.gizmo.drag = nil end
+        updateGizmo()
     end
 end
 
