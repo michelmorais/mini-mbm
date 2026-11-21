@@ -56,6 +56,15 @@ local function newDefinition()
             rotation = vector(0, 0, 0),
             scale = vector(1, 1, 1),
         },
+        editor = {
+            sourceKind = 'placeholder',
+            targetKind = 'placeholder',
+            sourceMesh = '',
+            targetMesh = '',
+            sourcePose = pose(0, 0, 0),
+            targetPose = pose(100, 0, 0),
+            targetManualOverride = false,
+        },
     }
 end
 
@@ -66,8 +75,10 @@ local S = {
     modified = false,
     dirtyPreview = true,
     selectedRole = 'target',
-    source = {pose = pose(0, 0, 0), object = nil},
-    target = {pose = pose(100, 0, 0), object = nil, manualOverride = false},
+    source = {pose = pose(0, 0, 0), object = nil, kind = 'placeholder', path = '',
+        previewSize = 70, meshLoaded = false},
+    target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
+        path = '', previewSize = 50, meshLoaded = false},
     relationLine = nil,
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
@@ -229,6 +240,73 @@ local function createMarker(role, color)
     return object
 end
 
+local function directoryOf(path)
+    return type(path) == 'string' and path:match('^(.*)[/\\]') or ''
+end
+
+local function destroyRoleObject(role)
+    local entry = roleEntry(role)
+    if entry.object then entry.object:destroy(); entry.object = nil end
+    entry.meshLoaded = false
+end
+
+local function ensureRolePlaceholder(role)
+    local entry = roleEntry(role)
+    if entry.object then return end
+    local color = role == 'source' and {0.15, 0.75, 1.0, 0.42} or {1.0, 0.65, 0.15, 0.42}
+    entry.object = createMarker(role, color)
+    entry.meshLoaded = false
+end
+
+local function setRoleKind(role, kind)
+    local entry = roleEntry(role)
+    if kind ~= 'mesh' and kind ~= 'placeholder' then return end
+    entry.kind = kind
+    if kind == 'placeholder' then
+        entry.path = ''
+        destroyRoleObject(role)
+        ensureRolePlaceholder(role)
+        markModified()
+        return
+    end
+    if entry.meshLoaded then destroyRoleObject(role) end
+    entry.path = ''
+    ensureRolePlaceholder(role)
+    markModified()
+end
+
+local function loadRoleMesh(role, path)
+    local entry = roleEntry(role)
+    if not path or path == '' then return false end
+    local ok, object = dpCall(function()
+        local folder = directoryOf(path)
+        if folder ~= '' then mbm.addPath(folder) end
+        local loaded = mesh:new('3d')
+        if not loaded:load(path) then
+            loaded:destroy()
+            error('Could not load attachment mesh: ' .. tostring(path))
+        end
+        return loaded
+    end)
+    if not ok or not object then return false end
+    destroyRoleObject(role)
+    entry.kind = 'mesh'
+    entry.path = path
+    entry.object = object
+    entry.meshLoaded = true
+    object.alwaysRender = true
+    object.visible = true
+    markModified()
+    setStatus(string.format(L('mesh_loaded'), roleName(role), path))
+    return true
+end
+
+local function openRoleMesh(role)
+    local entry = roleEntry(role)
+    local path = mbm.openFile(entry.path or '', 'msh')
+    if path then loadRoleMesh(role, path) end
+end
+
 local function setOriginsVisible(visible)
     S.showOrigins = visible == true
     for _, object in pairs(S.originLines) do
@@ -286,10 +364,11 @@ end
 
 local function applyMarker(role, value)
     local entry = roleEntry(role)
+    ensureRolePlaceholder(role)
     if not entry.object then return end
     entry.object:setPos(value.x, value.y, value.z)
     entry.object:setAngle(value.rx, value.ry, value.rz)
-    local size = role == 'source' and 70 or 50
+    local size = entry.meshLoaded and 1 or entry.previewSize
     entry.object:setScale(size * value.sx, size * value.sy, size * value.sz)
 end
 
@@ -370,9 +449,22 @@ local function resetTargetPreview()
     setStatus(L('preview_reset'))
 end
 
+local function syncEditorDefinition()
+    S.definition.editor = {
+        sourceKind = S.source.kind,
+        targetKind = S.target.kind,
+        sourceMesh = S.source.path,
+        targetMesh = S.target.path,
+        sourcePose = clonePose(S.source.pose),
+        targetPose = clonePose(S.target.pose),
+        targetManualOverride = S.target.manualOverride == true,
+    }
+end
+
 local function saveDefinition(path)
     if not path or path == '' then path = mbm.saveFile(S.projectPath or '', 'att.lua') end
     if not path then return end
+    syncEditorDefinition()
     local output = {'attachmentDefinition = {}'}
     tUtil.save('attachmentDefinition', S.definition, output)
     local file, errorMessage = io.open(path, 'w')
@@ -407,8 +499,29 @@ local function normalizeDefinition(value)
             end
         end
     end
+    if type(value.editor) == 'table' then
+        local editor = value.editor
+        result.editor.sourceKind = editor.sourceKind == 'mesh' and 'mesh' or 'placeholder'
+        result.editor.targetKind = editor.targetKind == 'mesh' and 'mesh' or 'placeholder'
+        result.editor.sourceMesh = type(editor.sourceMesh) == 'string' and editor.sourceMesh or ''
+        result.editor.targetMesh = type(editor.targetMesh) == 'string' and editor.targetMesh or ''
+        if type(editor.sourcePose) == 'table' then result.editor.sourcePose = clonePose(editor.sourcePose) end
+        if type(editor.targetPose) == 'table' then result.editor.targetPose = clonePose(editor.targetPose) end
+        result.editor.targetManualOverride = editor.targetManualOverride == true
+    end
     if result.sourceType ~= 'root' then return nil end
     return result
+end
+
+local function restoreRoleAsset(role, kind, path)
+    local entry = roleEntry(role)
+    destroyRoleObject(role)
+    entry.kind = kind == 'mesh' and 'mesh' or 'placeholder'
+    entry.path = path or ''
+    if entry.kind == 'mesh' and entry.path ~= '' and loadRoleMesh(role, entry.path) then return end
+    entry.kind = 'placeholder'
+    entry.path = ''
+    ensureRolePlaceholder(role)
 end
 
 local function loadDefinition(path)
@@ -422,8 +535,12 @@ local function loadDefinition(path)
     local definition = normalizeDefinition(attachmentDefinition)
     if not definition then setStatus(L('invalid_definition'), true); return end
     S.definition = definition
+    S.source.pose = clonePose(definition.editor.sourcePose)
+    S.target.pose = clonePose(definition.editor.targetPose)
+    restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
+    restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
     S.projectPath, S.modified = path, false
-    S.target.manualOverride = false
+    S.target.manualOverride = definition.editor.targetManualOverride == true
     S.dirtyPreview = true
     setStatus(string.format(L('loaded'), path))
 end
@@ -447,6 +564,26 @@ local function showPoseFields(role)
     end
 end
 
+local function showRoleAsset(role)
+    local entry = roleEntry(role)
+    local kindIndex = entry.kind == 'mesh' and 1 or 2
+    tImGui.SetNextItemWidth(210)
+    local kindChanged, nextKind = tImGui.Combo(L('actor_type') .. '##att_' .. role .. '_type', kindIndex,
+        {L('mesh'), L('placeholder')})
+    if kindChanged then setRoleKind(role, nextKind == 1 and 'mesh' or 'placeholder') end
+    if entry.kind == 'mesh' then
+        local meshName = entry.path ~= '' and tUtil.getShortName(entry.path) or L('not_loaded')
+        tImGui.Text(string.format(L('mesh_file'), meshName))
+        if tImGui.Button(L('browse') .. '##att_' .. role .. '_mesh') then openRoleMesh(role) end
+    else
+        tImGui.SetNextItemWidth(150)
+        local sizeChanged, nextSize = tImGui.InputFloat(L('preview_size') .. '##att_' .. role,
+            entry.previewSize, 1)
+        if sizeChanged then entry.previewSize = math.max(3, nextSize); markModified() end
+        tImGui.TextWrapped(L('placeholder_note'))
+    end
+end
+
 local function showObjects()
     tUtil.setInitialWindowPositionLeft(S.windows.objects, 0, 20, 380)
     local opened = tImGui.Begin(S.windows.objects, true, 0)
@@ -459,11 +596,13 @@ local function showObjects()
         end
         local sourceChanged, sourceName = tImGui.InputText(L('source_name'), S.definition.source)
         if sourceChanged then S.definition.source = sourceName; markModified() end
+        showRoleAsset('source')
         if tImGui.Selectable(L('target') .. ': ' .. roleName('target'), S.selectedRole == 'target') then
             S.selectedRole = 'target'
         end
         local targetChanged, targetName = tImGui.InputText(L('target_name'), S.definition.target)
         if targetChanged then S.definition.target = targetName; markModified() end
+        showRoleAsset('target')
         tImGui.Separator()
         tImGui.Text(string.format(L('selected_object'), roleName(S.selectedRole)))
         showPoseFields(S.selectedRole)

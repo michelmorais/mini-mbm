@@ -111,16 +111,17 @@ their references.
 ## Authoring boundary
 
 `editor/attachments_editor.lua` is an independent, definition-only authoring tool. Its saved
-`.att.lua` file contains source/target labels, inheritance flags, and the local offset; it does not
-store runtime objects. The editor has its own state and does not require or modify
+`.att.lua` file contains source/target labels, inheritance flags, and the local offset. It may also
+contain an `editor` block with mesh paths, actor kinds, and preview poses; that block is ignored by
+the runtime plugin. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
 
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
-source/target placeholder pair, XYZ origins, an XZ reference plane, orbit/pan camera controls,
-editable source and target authoring poses, and offset capture. Loading a runtime scene and
-resolving labels to actual renderizables is deliberately left as the next authoring integration
-step.
+source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
+controls, editable source and target authoring poses, mesh loading through the standard file picker,
+and offset capture. Loading a runtime scene and resolving labels to actual renderizables is
+deliberately left as the next authoring integration step.
 
 ## Phase 2 lifecycle guarantees
 
