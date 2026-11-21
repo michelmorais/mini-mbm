@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.2**
-Status: **Phase 3 bone sources implemented; sockets pending**
+Document version: **1.4**
+Status: **Phase 3 bone sources and graphical bone-selection mode implemented; sockets pending**
 Last updated: **2026-11-21**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -128,10 +128,16 @@ attachment-properties panel, a camera panel, and a lower preview panel. The view
 source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
 controls, editable source and target authoring poses, mesh loading through the standard file picker,
 offset capture, and interaction-style move/rotate gizmos for the selected actor. Bone source mode
-adds a named bone field and evaluates the selected bone through the loaded source mesh when a final
-skeletal pose is available. Loading a runtime scene and resolving labels to actual renderizables is
+adds a read-only selected-bone display and evaluates the selected bind-pose bone through the loaded
+source mesh preview. Loading a runtime scene and resolving labels to actual renderizables is
 deliberately left as the next authoring integration step. Each preview actor also has an editor-only
-viewport-selection toggle to avoid ambiguous picking when the source and target overlap.
+viewport-selection toggle to avoid ambiguous picking when the source and target overlap. When the
+source type is `bone`, the editor provides a `Select bone` mode. That mode frames the complete source
+mesh in the viewport, hides the target and relation helpers, loads the canonical bind skeleton in
+bind/T-pose, and draws large joint spheres and bone segments over the mesh. The user selects the
+source bone directly in the viewport; the selected bone name is displayed as read-only editor state
+and is saved with the definition. Leaving the mode restores the previous camera and target preview.
+There is no free-text bone authoring field.
 
 ## Phase 2 lifecycle guarantees
 

@@ -81,7 +81,8 @@ local S = {
     selectedRole = 'target',
     transformMode = 'move',
     source = {pose = pose(0, 0, 0), object = nil, kind = 'placeholder', path = '',
-        previewSize = 70, meshLoaded = false, selectable = true},
+        previewSize = 70, meshLoaded = false, selectable = true, debugMesh = nil,
+        skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0},
     target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
         path = '', previewSize = 50, meshLoaded = false, selectable = true},
     relationLine = nil,
@@ -92,6 +93,9 @@ local S = {
     xzPlaneZ = nil,
     showOrigins = true,
     showXZPlane = true,
+    boneSelectionMode = false,
+    boneSelectionCamera = nil,
+    boneSelectionTargetVisible = nil,
     camera = nil,
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0},
     cameraDrag = nil,
@@ -188,6 +192,27 @@ local function roleEntry(role)
     return role == 'source' and S.source or S.target
 end
 
+local function destroySourceSkeletonVisuals()
+    for _, visual in pairs(S.source.boneVisuals) do
+        if visual.object then visual.object:destroy() end
+        if visual.joint then visual.joint:destroy() end
+    end
+    S.source.boneVisuals = {}
+end
+
+local function updateSourceSkeletonVisibility()
+    local visible = S.definition.sourceType == 'bone' and S.boneSelectionMode
+    for _, visual in pairs(S.source.boneVisuals) do
+        if visual.object then visual.object.visible = visible end
+        if visual.joint then visual.joint.visible = visible end
+    end
+end
+
+local prepareSourceSkeleton
+local updateSourceSkeletonVisuals
+local setBoneSelectionMode
+local hideGizmo
+
 local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
 end
@@ -258,8 +283,13 @@ end
 
 local function destroyRoleObject(role)
     local entry = roleEntry(role)
+    if role == 'source' then destroySourceSkeletonVisuals() end
     if entry.object then entry.object:destroy(); entry.object = nil end
+    if entry.debugMesh then entry.debugMesh:destroy(); entry.debugMesh = nil end
     entry.meshLoaded = false
+    entry.skeletonReport = nil
+    entry.meshBounds = nil
+    entry.selectedBone = ''
 end
 
 local function ensureRolePlaceholder(role)
@@ -308,9 +338,363 @@ local function loadRoleMesh(role, path)
     entry.meshLoaded = true
     object.alwaysRender = true
     object.visible = true
+    if role == 'source' and S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
     markModified()
     setStatus(string.format(L('mesh_loaded'), roleName(role), path))
     return true
+end
+
+local function matrixPoint(matrix)
+    return vector(matrix[13] or 0, matrix[14] or 0, matrix[15] or 0)
+end
+
+local function matrixPose(matrix)
+    if type(matrix) ~= 'table' then return nil end
+    local x1, x2, x3 = matrix[1] or 1, matrix[2] or 0, matrix[3] or 0
+    local y1, y2, y3 = matrix[5] or 0, matrix[6] or 1, matrix[7] or 0
+    local z1, z2, z3 = matrix[9] or 0, matrix[10] or 0, matrix[11] or 1
+    local sx = math.sqrt(x1 * x1 + x2 * x2 + x3 * x3)
+    local sy = math.sqrt(y1 * y1 + y2 * y2 + y3 * y3)
+    local sz = math.sqrt(z1 * z1 + z2 * z2 + z3 * z3)
+    if sx <= 1e-8 or sy <= 1e-8 or sz <= 1e-8 then return nil end
+    local rotation = {
+        {x1 / sx, y1 / sy, z1 / sz},
+        {x2 / sx, y2 / sy, z2 / sz},
+        {x3 / sx, y3 / sy, z3 / sz},
+    }
+    local rx, ry, rz = matrixToEuler(rotation)
+    local position = matrixPoint(matrix)
+    return {
+        x = position.x, y = position.y, z = position.z,
+        rx = rx, ry = ry, rz = rz, sx = sx, sy = sy, sz = sz,
+        rotation = rotation,
+    }
+end
+
+local function transformSourcePoint(point)
+    local source = S.source.pose
+    local rootRotation = eulerRotation(source.rx, source.ry, source.rz)
+    local rotated = rotateVector(rootRotation, vector(point.x * source.sx,
+        point.y * source.sy, point.z * source.sz))
+    return vector(source.x + rotated.x, source.y + rotated.y, source.z + rotated.z)
+end
+
+local function getSourceBone(name)
+    local report = S.source.skeletonReport
+    if not report or type(report.bones) ~= 'table' then return nil end
+    for _, bone in ipairs(report.bones) do
+        if bone.name == name then return bone end
+    end
+    return nil
+end
+
+local function getSourceBoneEndpoints(bone)
+    local report = S.source.skeletonReport
+    if not bone or not report or type(report.bones) ~= 'table' then return nil end
+    local head
+    if (bone.parentIndex or 0) > 0 then
+        local parent = report.bones[bone.parentIndex]
+        head = parent and matrixPoint(parent.globalBindMatrix)
+    else
+        head = matrixPoint(bone.globalBindMatrix)
+    end
+    if not head then return nil end
+    local matrix = bone.globalBindMatrix or {}
+    local offset = bone.tailOffset
+    if type(offset) ~= 'table' then
+        offset = {x = 0, y = math.max(bone.length or 0, 0.001), z = 0}
+    end
+    local tail = vector(
+        (matrix[13] or head.x) + (matrix[1] or 1) * (offset.x or 0) +
+            (matrix[5] or 0) * (offset.y or 0) + (matrix[9] or 0) * (offset.z or 0),
+        (matrix[14] or head.y) + (matrix[2] or 0) * (offset.x or 0) +
+            (matrix[6] or 1) * (offset.y or 0) + (matrix[10] or 0) * (offset.z or 0),
+        (matrix[15] or head.z) + (matrix[3] or 0) * (offset.x or 0) +
+            (matrix[7] or 0) * (offset.y or 0) + (matrix[11] or 1) * (offset.z or 0))
+    if (bone.parentIndex or 0) > 0 then tail = matrixPoint(bone.globalBindMatrix) end
+    return head, tail
+end
+
+local function unitSphereVertices()
+    local vertices = {}
+    local function add(x, y, z)
+        vertices[#vertices + 1] = x
+        vertices[#vertices + 1] = y
+        vertices[#vertices + 1] = z
+    end
+    local latitudeSegments, longitudeSegments = 8, 12
+    for latitude = 0, latitudeSegments - 1 do
+        local theta1 = latitude / latitudeSegments * math.pi
+        local theta2 = (latitude + 1) / latitudeSegments * math.pi
+        for longitude = 0, longitudeSegments - 1 do
+            local phi1 = longitude / longitudeSegments * math.pi * 2
+            local phi2 = (longitude + 1) / longitudeSegments * math.pi * 2
+            local function point(theta, phi)
+                local sine = math.sin(theta)
+                return sine * math.cos(phi), math.cos(theta), sine * math.sin(phi)
+            end
+            local x1, y1, z1 = point(theta1, phi1)
+            local x2, y2, z2 = point(theta1, phi2)
+            local x3, y3, z3 = point(theta2, phi1)
+            local x4, y4, z4 = point(theta2, phi2)
+            add(x1, y1, z1); add(x2, y2, z2); add(x3, y3, z3)
+            add(x2, y2, z2); add(x4, y4, z4); add(x3, y3, z3)
+        end
+    end
+    return vertices
+end
+
+local function getSourceMeshBounds()
+    local source = S.source
+    if source.meshBounds then return source.meshBounds end
+    if not source.debugMesh then return nil end
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    local total = 0
+    local ok, subsets = dpCall(function() return source.debugMesh:getTotalSubset(1) end)
+    if not ok then return nil end
+    for subset = 1, subsets do
+        local okVertices, count = dpCall(function()
+            return source.debugMesh:getTotalVertex(1, subset)
+        end)
+        if okVertices then
+            for vertex = 1, count do
+                local okPoint, point = dpCall(function()
+                    return source.debugMesh:getVertex(1, subset, vertex)
+                end)
+                if okPoint and point then
+                    minX, minY, minZ = math.min(minX, point.x), math.min(minY, point.y), math.min(minZ, point.z)
+                    maxX, maxY, maxZ = math.max(maxX, point.x), math.max(maxY, point.y), math.max(maxZ, point.z)
+                    total = total + 1
+                end
+            end
+        end
+    end
+    if total == 0 then return nil end
+    source.meshBounds = {minX = minX, minY = minY, minZ = minZ,
+        maxX = maxX, maxY = maxY, maxZ = maxZ, total = total}
+    return source.meshBounds
+end
+
+local function getBoneSelectionMinCameraDistance()
+    if not S.boneSelectionMode then return 80 end
+    local bounds = getSourceMeshBounds()
+    if not bounds then return 0.01 end
+    local extent = math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,
+        bounds.maxZ - bounds.minZ)
+    return math.max(0.01, extent * 0.01)
+end
+
+local function frameBoneSelectionCamera()
+    local bounds = getSourceMeshBounds()
+    if not bounds then return false end
+    local points = {}
+    for _, x in ipairs({bounds.minX, bounds.maxX}) do
+        for _, y in ipairs({bounds.minY, bounds.maxY}) do
+            for _, z in ipairs({bounds.minZ, bounds.maxZ}) do
+                points[#points + 1] = transformSourcePoint({x = x, y = y, z = z})
+            end
+        end
+    end
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    for _, point in ipairs(points) do
+        minX, minY, minZ = math.min(minX, point.x), math.min(minY, point.y), math.min(minZ, point.z)
+        maxX, maxY, maxZ = math.max(maxX, point.x), math.max(maxY, point.y), math.max(maxZ, point.z)
+    end
+    S.cameraOrbit.fx = (minX + maxX) * 0.5
+    S.cameraOrbit.fy = (minY + maxY) * 0.5
+    S.cameraOrbit.fz = (minZ + maxZ) * 0.5
+    local dx, dy, dz = maxX - minX, maxY - minY, maxZ - minZ
+    S.cameraOrbit.distance = math.max(getBoneSelectionMinCameraDistance(),
+        math.sqrt(dx * dx + dy * dy + dz * dz) * 1.4)
+    applyCamera()
+    return true
+end
+
+local function setSourceMeshToTPose()
+    local source = S.source
+    local report = source.skeletonReport
+    if not source.object or not report or type(report.bones) ~= 'table' or #report.bones == 0 then return false end
+    local okMethod, method = dpCall(function()
+        return source.object:getResolvedSkeletalSkinningMethod()
+    end)
+    if not okMethod or (method ~= 'lbs' and method ~= 'dqs') then method = 'lbs' end
+    local rows, boneIds = {}, {}
+    local function appendRow(a, b, c, d)
+        rows[#rows + 1] = a
+        rows[#rows + 1] = b
+        rows[#rows + 1] = c
+        rows[#rows + 1] = d
+    end
+    for _, bone in ipairs(report.bones) do
+        boneIds[#boneIds + 1] = bone.boneId
+        if method == 'dqs' then
+            appendRow(0, 0, 0, 1)
+            appendRow(0, 0, 0, 0)
+        else
+            appendRow(1, 0, 0, 0)
+            appendRow(0, 1, 0, 0)
+            appendRow(0, 0, 1, 0)
+        end
+    end
+    local okApply, applied, reason = dpCall(function()
+        return source.object:setSkeletalAuthoringPalette(method, rows, 0, boneIds)
+    end)
+    if not okApply or not applied then
+        setStatus('Could not set skeletal mesh to bind/T-pose: ' .. tostring(reason or 'unknown'), true)
+        return false
+    end
+    return true
+end
+
+local function buildSourceSkeletonVisuals()
+    destroySourceSkeletonVisuals()
+    local report = S.source.skeletonReport
+    if not report or report.canonical ~= true or type(report.bones) ~= 'table' then return false end
+    S.source.skeletonGeneration = S.source.skeletonGeneration + 1
+    local bounds = getSourceMeshBounds()
+    local extent = bounds and math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,
+        bounds.maxZ - bounds.minZ) or 1
+    local jointRadius = math.max(extent * 0.018, 0.001)
+    local sphereVertices = unitSphereVertices()
+    for _, bone in ipairs(report.bones) do
+        local head, tail = getSourceBoneEndpoints(bone)
+        if head and tail then
+            local object = line:new('3d', 0, 0, 0)
+            object:add({head.x, head.y, head.z, tail.x, tail.y, tail.z})
+            object.alwaysOnTop = true
+            object.alwaysOnTopPriority = 6
+            object.alwaysRender = true
+            local joint = shape:new('3d', head.x, head.y, head.z)
+            joint:create(sphereVertices, nil, 'attachments_bone_joint_' ..
+                tostring(S.source.skeletonGeneration) .. '_' .. tostring(bone.name))
+            joint:setScale(jointRadius, jointRadius, jointRadius)
+            joint.alwaysOnTop = true
+            joint.alwaysOnTopPriority = 7
+            joint.alwaysRender = true
+            S.source.boneVisuals[bone.name] = {
+                object = object, joint = joint, head = head, tail = tail, radius = jointRadius,
+            }
+        end
+    end
+    updateSourceSkeletonVisuals()
+    return next(S.source.boneVisuals) ~= nil
+end
+
+updateSourceSkeletonVisuals = function()
+    local source = S.source
+    local visible = S.definition.sourceType == 'bone' and S.boneSelectionMode
+    for name, visual in pairs(source.boneVisuals) do
+        local object = visual.object
+        object:setPos(source.pose.x, source.pose.y, source.pose.z)
+        object:setAngle(source.pose.rx, source.pose.ry, source.pose.rz)
+        object:setScale(source.pose.sx, source.pose.sy, source.pose.sz)
+        if visual.joint then
+            local jointPosition = transformSourcePoint(visual.head)
+            visual.joint:setPos(jointPosition.x, jointPosition.y, jointPosition.z)
+            visual.joint:setAngle(source.pose.rx, source.pose.ry, source.pose.rz)
+            visual.joint:setScale(visual.radius * source.pose.sx, visual.radius * source.pose.sy,
+                visual.radius * source.pose.sz)
+        end
+        if name == source.selectedBone then
+            object:setColor(1, 0.85, 0.05, 1)
+            if visual.joint then visual.joint:setColor(1, 0.85, 0.05, 1) end
+        else
+            object:setColor(1, 0.1, 1, 0.9)
+            if visual.joint then visual.joint:setColor(1, 0, 1, 0.85) end
+        end
+        object.visible = visible
+        if visual.joint then visual.joint.visible = visible end
+    end
+end
+
+prepareSourceSkeleton = function()
+    local source = S.source
+    if not source.object or not source.meshLoaded or source.path == '' then return false end
+    if not source.debugMesh then
+        local ok, debugMesh = dpCall(function()
+            local result = meshDebug:new()
+            if not result:load(source.path) then
+                result:destroy()
+                error('Could not load skeletal data for attachment bone picker')
+            end
+            return result
+        end)
+        if not ok or not debugMesh then return false end
+        source.debugMesh = debugMesh
+    end
+    local okReport, report = dpCall(function() return source.debugMesh:getSkeletonBindReport(false) end)
+    if not okReport or type(report) ~= 'table' or report.canonical ~= true or
+            type(report.bones) ~= 'table' or #report.bones == 0 then
+        setStatus('The source mesh has no canonical skeletal bind pose.', true)
+        destroySourceSkeletonVisuals()
+        source.skeletonReport = nil
+        return false
+    end
+    source.skeletonReport = report
+    source.selectedBone = S.definition.sourceBone or ''
+    setSourceMeshToTPose()
+    buildSourceSkeletonVisuals()
+    updateSourceSkeletonVisibility()
+    if S.boneSelectionMode then frameBoneSelectionCamera() end
+    return true
+end
+
+setBoneSelectionMode = function(enabled)
+    enabled = enabled == true
+    if enabled == S.boneSelectionMode then return true end
+    if enabled then
+        if S.definition.sourceType ~= 'bone' then return false end
+        if not S.source.meshLoaded then
+            setStatus(L('bone_select_requires_mesh'), true)
+            return false
+        end
+        if not prepareSourceSkeleton() then return false end
+        S.boneSelectionCamera = {
+            azimuth = S.cameraOrbit.azimuth, elevation = S.cameraOrbit.elevation,
+            distance = S.cameraOrbit.distance, fx = S.cameraOrbit.fx,
+            fy = S.cameraOrbit.fy, fz = S.cameraOrbit.fz,
+        }
+        S.boneSelectionTargetVisible = S.target.object and S.target.object.visible ~= false
+        S.boneSelectionMode = true
+        if S.target.object then S.target.object.visible = false end
+        if S.relationLine then S.relationLine.visible = false end
+        if S.xzPlane then S.xzPlane.visible = false end
+        updateSourceSkeletonVisibility()
+        frameBoneSelectionCamera()
+        hideGizmo()
+        return true
+    end
+    S.boneSelectionMode = false
+    if S.target.object then S.target.object.visible = S.boneSelectionTargetVisible ~= false end
+    if S.relationLine then S.relationLine.visible = true end
+    if S.boneSelectionCamera then
+        S.cameraOrbit = S.boneSelectionCamera
+        S.boneSelectionCamera = nil
+        applyCamera()
+    end
+    S.boneSelectionTargetVisible = nil
+    updateSourceSkeletonVisibility()
+    S.dirtyPreview = true
+    return true
+end
+
+local function getSourceBonePose(name)
+    local bone = getSourceBone(name)
+    local bindPose = bone and matrixPose(bone.globalBindMatrix) or nil
+    if not bindPose then return nil end
+    local source = S.source.pose
+    local rootRotation = eulerRotation(source.rx, source.ry, source.rz)
+    local localPosition = vector(bindPose.x * source.sx, bindPose.y * source.sy, bindPose.z * source.sz)
+    local worldPosition = rotateVector(rootRotation, localPosition)
+    local worldRotation = multiplyRotation(rootRotation, bindPose.rotation)
+    local rx, ry, rz = matrixToEuler(worldRotation)
+    return {
+        x = source.x + worldPosition.x, y = source.y + worldPosition.y, z = source.z + worldPosition.z,
+        rx = rx, ry = ry, rz = rz,
+        sx = source.sx * bindPose.sx, sy = source.sy * bindPose.sy, sz = source.sz * bindPose.sz,
+    }
 end
 
 local function openRoleMesh(role)
@@ -371,7 +755,7 @@ local function updateXZPlane()
         S.xzPlane:setPos(S.cameraOrbit.fx, 0, S.cameraOrbit.fz)
         S.xzPlaneX, S.xzPlaneZ = S.cameraOrbit.fx, S.cameraOrbit.fz
     end
-    S.xzPlane.visible = S.showXZPlane
+    S.xzPlane.visible = S.showXZPlane and not S.boneSelectionMode
 end
 
 local function applyMarker(role, value)
@@ -387,6 +771,8 @@ end
 local function getPreviewSourcePose()
     if S.definition.sourceType ~= 'bone' then return clonePose(S.source.pose) end
     if not S.source.object or not S.source.meshLoaded or S.definition.sourceBone == '' then return nil end
+    local bindPose = getSourceBonePose(S.definition.sourceBone)
+    if bindPose then return bindPose end
     local ok, bone = dpCall(function()
         return S.source.object:getSkeletalBoneTransform(S.definition.sourceBone, 'world')
     end)
@@ -476,7 +862,7 @@ local function pickRole(screenX, screenY)
     return nil
 end
 
-local function hideGizmo()
+hideGizmo = function()
     for _, object in pairs(S.gizmo.axes) do object.visible = false end
     for _, object in pairs(S.gizmo.rings) do object.visible = false end
     S.gizmo.drag = nil
@@ -484,6 +870,7 @@ local function hideGizmo()
 end
 
 local function updateGizmo()
+    if S.boneSelectionMode then hideGizmo(); return end
     if not S.selectedRole then hideGizmo(); return end
     local entry = roleEntry(S.selectedRole)
     if entry.selectable == false then hideGizmo(); return end
@@ -587,6 +974,21 @@ local function pickRotationRing(screenX, screenY)
     return best
 end
 
+local function pickSourceBone(screenX, screenY)
+    if S.definition.sourceType ~= 'bone' or not S.boneSelectionMode then return nil end
+    local bestName, bestDistance
+    local threshold = math.max(S.source.previewSize * 0.04, 2)
+    for name, visual in pairs(S.source.boneVisuals) do
+        local first = transformSourcePoint(visual.head)
+        local second = transformSourcePoint(visual.tail)
+        local distance = raySegmentDistance(screenX, screenY, first, second)
+        if distance <= threshold and (not bestDistance or distance < bestDistance) then
+            bestName, bestDistance = name, distance
+        end
+    end
+    return bestName
+end
+
 local function beginViewportInteraction(key, screenX, screenY)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
@@ -614,6 +1016,16 @@ local function beginViewportInteraction(key, screenX, screenY)
                 S.cameraDrag = nil
                 return
             end
+        end
+        local pickedBone = pickSourceBone(screenX, screenY)
+        if pickedBone then
+            S.selectedRole = 'source'
+            S.source.selectedBone = pickedBone
+            S.definition.sourceType = 'bone'
+            S.definition.sourceBone = pickedBone
+            S.target.manualOverride = false
+            markModified()
+            return
         end
         local picked = pickRole(screenX, screenY)
         if picked then
@@ -735,6 +1147,7 @@ end
 local function rebuildPreview()
     if not S.target.manualOverride then S.target.pose = calculateTargetPose() end
     applyMarker('source', S.source.pose)
+    updateSourceSkeletonVisuals()
     applyMarker('target', S.target.pose)
     if S.relationLine then
         local source = getPreviewSourcePose() or S.source.pose
@@ -875,6 +1288,7 @@ local function loadDefinition(path)
     if not ok then return end
     local definition = normalizeDefinition(attachmentDefinition)
     if not definition then setStatus(L('invalid_definition'), true); return end
+    if S.boneSelectionMode then setBoneSelectionMode(false) end
     S.definition = definition
     S.source.pose = clonePose(definition.editor.sourcePose)
     S.target.pose = clonePose(definition.editor.targetPose)
@@ -1025,18 +1439,23 @@ local function showAttachment()
             {L('root_transform'), L('bone_transform')})
         if sourceTypeChanged then
             S.definition.sourceType = nextSourceType == 2 and 'bone' or 'root'
-            if S.definition.sourceType == 'root' then S.definition.sourceBone = '' end
+            if S.definition.sourceType == 'root' then
+                S.definition.sourceBone = ''
+                setBoneSelectionMode(false)
+            else
+                setBoneSelectionMode(true)
+            end
             S.target.manualOverride = false
             markModified()
         end
         if S.definition.sourceType == 'bone' then
-            tImGui.SetNextItemWidth(210)
-            local boneChanged, nextBone = tImGui.InputText(L('source_bone'), S.definition.sourceBone)
-            if boneChanged then
-                S.definition.sourceBone = nextBone
-                S.target.manualOverride = false
-                markModified()
+            local selectedBone = S.definition.sourceBone ~= '' and S.definition.sourceBone or L('none_selected')
+            tImGui.Text(string.format('%s: %s', L('source_bone'), selectedBone))
+            local selectBone = tImGui.Checkbox(L('select_bone'), S.boneSelectionMode)
+            if selectBone ~= S.boneSelectionMode then
+                setBoneSelectionMode(selectBone)
             end
+            tImGui.TextWrapped(L('bone_select_help'))
             tImGui.TextWrapped(L('source_bone_help'))
         end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
@@ -1172,6 +1591,7 @@ end
 
 function onKeyDown(key)
     if key == mbm.getKeyCode('ESC') then
+        if S.boneSelectionMode then setBoneSelectionMode(false) end
         S.selectedRole = nil
         hideGizmo()
         return
@@ -1186,7 +1606,8 @@ end
 
 function onTouchZoom(zoom)
     if not tImGui.GetWantCaptureMouse() then
-        S.cameraOrbit.distance = math.max(80, S.cameraOrbit.distance - zoom * 40)
+        local minimum = getBoneSelectionMinCameraDistance()
+        S.cameraOrbit.distance = math.max(minimum, S.cameraOrbit.distance * (1 - zoom * 0.15))
         applyCamera()
     end
 end
@@ -1207,7 +1628,9 @@ function onFinalizeScene()
     for _, object in pairs(S.gizmo.axes) do object:destroy() end
     for _, object in pairs(S.gizmo.rings) do object:destroy() end
     S.gizmo.axes, S.gizmo.rings = {}, {}
+    destroySourceSkeletonVisuals()
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
+    if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
     if S.target.object then S.target.object:destroy(); S.target.object = nil end
     if S.relationLine then S.relationLine:destroy(); S.relationLine = nil end
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
