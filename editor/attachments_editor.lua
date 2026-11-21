@@ -27,6 +27,7 @@
 
 tImGui = require 'ImGui'
 tUtil = require 'editor_utils'
+tRuntimeExport = require 'attachments_runtime_export'
 
 local function vector(x, y, z)
     return {x = x or 0, y = y or 0, z = z or 0}
@@ -1228,6 +1229,24 @@ local function saveDefinitionAs()
     if path then saveDefinition(path) end
 end
 
+local function runtimeExportDefaultPath()
+    if not S.projectPath or S.projectPath == '' then return '' end
+    local base = S.projectPath:gsub('%.att%.lua$', '')
+    if base == S.projectPath then base = S.projectPath:gsub('%.lua$', '') end
+    return base .. '.runtime.lua'
+end
+
+local function exportRuntimeDefinition()
+    local path = mbm.saveFile(runtimeExportDefaultPath(), 'runtime.lua')
+    if not path then return end
+    local ok, errorMessage = tRuntimeExport.write(path, S.definition)
+    if not ok then
+        setStatus(errorMessage or L('runtime_export_failed'), true)
+        return
+    end
+    setStatus(string.format(L('runtime_exported'), path))
+end
+
 local function normalizeDefinition(value)
     if type(value) ~= 'table' then return nil end
     local result = newDefinition()
@@ -1516,6 +1535,7 @@ local function showPreviewPanel()
         if tImGui.Button(L('reset_preview')) then resetTargetPreview() end
         tImGui.SameLine()
         if tImGui.Button(L('save')) then saveDefinition(S.projectPath) end
+        if tImGui.Button(L('export_runtime')) then exportRuntimeDefinition() end
         tImGui.Text(string.format(L('relation_status'), roleName('source'), roleName('target')))
     end
     tImGui.End()
@@ -1527,6 +1547,7 @@ local function showMainMenu()
         if tImGui.MenuItem(L('load')) then loadDefinition() end
         if tImGui.MenuItem(L('save')) then saveDefinition(S.projectPath) end
         if tImGui.MenuItem(L('save_as')) then saveDefinitionAs() end
+        if tImGui.MenuItem(L('export_runtime')) then exportRuntimeDefinition() end
         tImGui.Separator()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()

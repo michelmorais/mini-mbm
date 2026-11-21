@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.4**
-Status: **Phase 3 bone sources and graphical bone-selection mode implemented; sockets pending**
+Document version: **1.5**
+Status: **Phase 4 runtime export and binding bridge implemented; sockets pending**
 Last updated: **2026-11-21**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -119,9 +119,25 @@ contain an `editor` block with mesh paths, actor kinds, and preview poses; that 
 the runtime plugin. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
 
-The source and target strings are runtime binding labels, not mesh filenames. The current editor
-stores these labels in the definition but does not yet resolve them against objects in a loaded
-runtime scene.
+The source and target strings are runtime binding labels, not mesh filenames. The editor does not
+discover actors from a runtime scene. Instead, its `Export runtime` action writes a self-contained
+Lua module that keeps these labels and resolves them against an explicit binding table supplied by
+the game.
+
+For example, if the editor exports `character_weapon.runtime.lua`, the game can use:
+
+```lua
+local runtime = require "character_weapon.runtime"
+local relation, errorMessage = runtime.attach {
+    character = characterMesh,
+    weapon = weaponMesh,
+}
+assert(relation, errorMessage)
+```
+
+The generated module validates the binding names, builds the `attachments.attach` specification,
+and returns the plugin's relation/error result. It contains only runtime fields; editor-only mesh
+paths, preview poses, selection state, and language settings are not exported.
 
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
@@ -129,8 +145,8 @@ source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbi
 controls, editable source and target authoring poses, mesh loading through the standard file picker,
 offset capture, and interaction-style move/rotate gizmos for the selected actor. Bone source mode
 adds a read-only selected-bone display and evaluates the selected bind-pose bone through the loaded
-source mesh preview. Loading a runtime scene and resolving labels to actual renderizables is
-deliberately left as the next authoring integration step. Each preview actor also has an editor-only
+source mesh preview. Loading a runtime scene and discovering renderizables remains outside the
+editor; the exported module receives those objects through the game's binding table. Each preview actor also has an editor-only
 viewport-selection toggle to avoid ambiguous picking when the source and target overlap. When the
 source type is `bone`, the editor provides a `Select bone` mode. That mode frames the complete source
 mesh in the viewport, hides the target and relation helpers, loads the canonical bind skeleton in
