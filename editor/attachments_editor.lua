@@ -479,6 +479,7 @@ local function hideGizmo()
 end
 
 local function updateGizmo()
+    if not S.selectedRole then hideGizmo(); return end
     local entry = roleEntry(S.selectedRole)
     if entry.selectable == false then hideGizmo(); return end
     if not entry.object then hideGizmo(); return end
@@ -537,7 +538,8 @@ local function updateGizmo()
 end
 
 local function pickGizmoAxis(screenX, screenY)
-    if S.transformMode ~= 'move' or not S.gizmo.origin or roleEntry(S.selectedRole).selectable == false then
+    if not S.selectedRole or S.transformMode ~= 'move' or not S.gizmo.origin or
+            roleEntry(S.selectedRole).selectable == false then
         return nil
     end
     local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
@@ -556,7 +558,8 @@ local function pickGizmoAxis(screenX, screenY)
 end
 
 local function pickRotationRing(screenX, screenY)
-    if S.transformMode ~= 'rotate' or not S.gizmo.origin or roleEntry(S.selectedRole).selectable == false then
+    if not S.selectedRole or S.transformMode ~= 'rotate' or not S.gizmo.origin or
+            roleEntry(S.selectedRole).selectable == false then
         return nil
     end
     local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
@@ -958,10 +961,15 @@ local function showObjects()
         showRoleAsset('target')
         tImGui.TextWrapped(L('runtime_id_help'))
         tImGui.Separator()
-        tImGui.Text(string.format(L('selected_object'), roleName(S.selectedRole)))
-        showPoseFields(S.selectedRole)
-        if S.selectedRole == 'target' then tImGui.TextWrapped(L('target_pose_help'))
-        else tImGui.TextWrapped(L('source_pose_help')) end
+        if S.selectedRole then
+            tImGui.Text(string.format(L('selected_object'), roleName(S.selectedRole)))
+            showPoseFields(S.selectedRole)
+            if S.selectedRole == 'target' then tImGui.TextWrapped(L('target_pose_help'))
+            else tImGui.TextWrapped(L('source_pose_help')) end
+        else
+            tImGui.Text(string.format(L('selected_object'), L('none_selected')))
+            tImGui.TextWrapped(L('select_actor_hint'))
+        end
         tImGui.Separator()
         tImGui.Text(L('transform_mode'))
         local modeIndex = tImGui.RadioButton(L('move'), S.transformMode == 'move' and 1 or 2, 1)
@@ -1137,7 +1145,11 @@ function onLoop(delta)
 end
 
 function onKeyDown(key)
-    if key == mbm.getKeyCode('ESC') then mbm.quit() end
+    if key == mbm.getKeyCode('ESC') then
+        S.selectedRole = nil
+        hideGizmo()
+        return
+    end
     if key == mbm.getKeyCode('control') then S.control = true end
     if S.control and key == mbm.getKeyCode('S') then saveDefinition(S.projectPath) end
 end
