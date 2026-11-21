@@ -64,6 +64,8 @@ local function newDefinition()
             sourcePose = pose(0, 0, 0),
             targetPose = pose(100, 0, 0),
             targetManualOverride = false,
+            sourceSelectable = true,
+            targetSelectable = true,
         },
     }
 end
@@ -75,10 +77,11 @@ local S = {
     modified = false,
     dirtyPreview = true,
     selectedRole = 'target',
+    transformMode = 'move',
     source = {pose = pose(0, 0, 0), object = nil, kind = 'placeholder', path = '',
-        previewSize = 70, meshLoaded = false},
+        previewSize = 70, meshLoaded = false, selectable = true},
     target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
-        path = '', previewSize = 50, meshLoaded = false},
+        path = '', previewSize = 50, meshLoaded = false, selectable = true},
     relationLine = nil,
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
@@ -90,6 +93,7 @@ local S = {
     camera = nil,
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0},
     cameraDrag = nil,
+    gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, drag = nil},
     windows = {objects = '', attachment = '', camera = '', preview = ''},
 }
 
@@ -165,11 +169,17 @@ local function matrixToEuler(matrix)
     return x, y, z
 end
 
+local function unwrapAngle(value, reference)
+    if reference == nil then return value end
+    local turns = math.floor((reference - value) / (math.pi * 2) + 0.5)
+    return value + turns * math.pi * 2
+end
+
 local function rotateVector(matrix, value)
     return vector(
-        matrix[1][1] * value.x + matrix[1][2] * value.y + matrix[1][3] * value.z,
-        matrix[2][1] * value.x + matrix[2][2] * value.y + matrix[2][3] * value.z,
-        matrix[3][1] * value.x + matrix[3][2] * value.y + matrix[3][3] * value.z)
+        matrix[1][1] * value.x + matrix[2][1] * value.y + matrix[3][1] * value.z,
+        matrix[1][2] * value.x + matrix[2][2] * value.y + matrix[3][2] * value.z,
+        matrix[1][3] * value.x + matrix[2][3] * value.y + matrix[3][3] * value.z)
 end
 
 local function roleEntry(role)
@@ -372,6 +382,305 @@ local function applyMarker(role, value)
     entry.object:setScale(size * value.sx, size * value.sy, size * value.sz)
 end
 
+local function dot(ax, ay, az, bx, by, bz)
+    return ax * bx + ay * by + az * bz
+end
+
+local function normalizedDirection(x, y, z)
+    local length = math.sqrt(x * x + y * y + z * z)
+    if length <= 1e-8 then return nil end
+    return {x = x / length, y = y / length, z = z / length}
+end
+
+local function rayAxisParameter(screenX, screenY, origin, axis)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
+    if not ok then return nil end
+    local rx, ry, rz = ox - origin.x, oy - origin.y, oz - origin.z
+    local a = dot(dx, dy, dz, dx, dy, dz)
+    local b = dot(dx, dy, dz, axis.x, axis.y, axis.z)
+    local c = dot(axis.x, axis.y, axis.z, axis.x, axis.y, axis.z)
+    local d = dot(dx, dy, dz, rx, ry, rz)
+    local e = dot(axis.x, axis.y, axis.z, rx, ry, rz)
+    local denominator = a * c - b * b
+    if math.abs(denominator) < 1e-6 then return nil end
+    return (a * e - b * d) / denominator
+end
+
+local function raySegmentDistance(screenX, screenY, first, second)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
+    if not ok then return math.huge end
+    local ax, ay, az = second.x - first.x, second.y - first.y, second.z - first.z
+    local rx, ry, rz = ox - first.x, oy - first.y, oz - first.z
+    local aa = dot(dx, dy, dz, dx, dy, dz)
+    local ab = dot(dx, dy, dz, ax, ay, az)
+    local bb = dot(ax, ay, az, ax, ay, az)
+    local ar = dot(dx, dy, dz, rx, ry, rz)
+    local br = dot(ax, ay, az, rx, ry, rz)
+    local denominator = aa * bb - ab * ab
+    local rayT, segmentT
+    if math.abs(denominator) < 1e-6 then
+        rayT = 0
+        segmentT = bb > 1e-6 and math.max(0, math.min(1, br / bb)) or 0
+    else
+        rayT = math.max(0, (ab * br - bb * ar) / denominator)
+        segmentT = math.max(0, math.min(1, (aa * br - ab * ar) / denominator))
+    end
+    local px, py, pz = ox + dx * rayT, oy + dy * rayT, oz + dz * rayT
+    local qx, qy, qz = first.x + ax * segmentT, first.y + ay * segmentT, first.z + az * segmentT
+    local ex, ey, ez = px - qx, py - qy, pz - qz
+    return math.sqrt(ex * ex + ey * ey + ez * ez)
+end
+
+local function rayPlaneHit(screenX, screenY, point, normal)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
+    if not ok then return nil end
+    local denominator = normal.x * dx + normal.y * dy + normal.z * dz
+    if math.abs(denominator) < 1e-6 then return nil end
+    local distance = ((point.x - ox) * normal.x + (point.y - oy) * normal.y +
+        (point.z - oz) * normal.z) / denominator
+    if distance < 0 then return nil end
+    return ox + dx * distance, oy + dy * distance, oz + dz * distance
+end
+
+local function raySphereDistance(screenX, screenY, center, radius)
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
+    if not ok then return nil end
+    local lx, ly, lz = ox - center.x, oy - center.y, oz - center.z
+    local b = dot(lx, ly, lz, dx, dy, dz)
+    local c = dot(lx, ly, lz, lx, ly, lz) - radius * radius
+    local discriminant = b * b - c
+    if discriminant < 0 then return nil end
+    local near = -b - math.sqrt(discriminant)
+    return near >= 0 and near or -b + math.sqrt(discriminant)
+end
+
+local function pickRole(screenX, screenY)
+    local bestRole, bestDistance
+    for _, role in ipairs({'source', 'target'}) do
+        local entry = roleEntry(role)
+        if entry.selectable ~= false then
+            local scale = math.max(math.abs(entry.pose.sx), math.abs(entry.pose.sy), math.abs(entry.pose.sz))
+            local radius = math.max(entry.previewSize * scale, 25)
+            local distance = raySphereDistance(screenX, screenY, entry.pose, radius)
+            if distance and (not bestDistance or distance < bestDistance) then
+                bestRole, bestDistance = role, distance
+            end
+        end
+    end
+    return bestRole
+end
+
+local function hideGizmo()
+    for _, object in pairs(S.gizmo.axes) do object.visible = false end
+    for _, object in pairs(S.gizmo.rings) do object.visible = false end
+    S.gizmo.origin, S.gizmo.length, S.gizmo.radius = nil, nil, nil
+end
+
+local function updateGizmo()
+    local entry = roleEntry(S.selectedRole)
+    if not entry.object then hideGizmo(); return end
+    local origin = {x = entry.pose.x, y = entry.pose.y, z = entry.pose.z}
+    local length = math.max(entry.previewSize * 1.6, 45)
+    local radius = math.max(entry.previewSize * 0.9, 30)
+    local originChanged = not S.gizmo.origin or S.gizmo.origin.x ~= origin.x or
+        S.gizmo.origin.y ~= origin.y or S.gizmo.origin.z ~= origin.z
+    local lengthChanged = S.gizmo.length ~= length
+    local radiusChanged = S.gizmo.radius ~= radius
+    local axes = {
+        x = {x = 1, y = 0, z = 0, color = {1, 0.15, 0.15, 1}},
+        y = {x = 0, y = 1, z = 0, color = {0.15, 1, 0.2, 1}},
+        z = {x = 0, y = 0, z = 1, color = {0.2, 0.45, 1, 1}},
+    }
+    for name, axis in pairs(axes) do
+        local object = S.gizmo.axes[name]
+        local points = {0, 0, 0, axis.x * length, axis.y * length, axis.z * length}
+        if not object then
+            object = line:new('3d', 0, 0, 0)
+            object:add(points)
+            S.gizmo.axes[name] = object
+        elseif lengthChanged then
+            object:set(points, 1)
+        end
+        if originChanged then object:setPos(origin.x, origin.y, origin.z) end
+        object:setColor(table.unpack(axis.color))
+        object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 10, true
+        object.visible = S.transformMode == 'move'
+    end
+    local rings = {
+        x = {u = axes.y, v = axes.z}, y = {u = axes.z, v = axes.x}, z = {u = axes.x, v = axes.y},
+    }
+    for name, ring in pairs(rings) do
+        local object = S.gizmo.rings[name]
+        local points = {}
+        for index = 0, 64 do
+            local angle = index / 64 * math.pi * 2
+            points[#points + 1] = (ring.u.x * math.cos(angle) + ring.v.x * math.sin(angle)) * radius
+            points[#points + 1] = (ring.u.y * math.cos(angle) + ring.v.y * math.sin(angle)) * radius
+            points[#points + 1] = (ring.u.z * math.cos(angle) + ring.v.z * math.sin(angle)) * radius
+        end
+        if not object then
+            object = line:new('3d', 0, 0, 0)
+            object:add(points)
+            S.gizmo.rings[name] = object
+        elseif radiusChanged then
+            object:set(points, 1)
+        end
+        if originChanged then object:setPos(origin.x, origin.y, origin.z) end
+        object:setColor(table.unpack(axes[name].color))
+        object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 20, true
+        object.visible = S.transformMode == 'rotate'
+    end
+    S.gizmo.origin, S.gizmo.length, S.gizmo.radius = origin, length, radius
+end
+
+local function pickGizmoAxis(screenX, screenY)
+    if S.transformMode ~= 'move' or not S.gizmo.origin then return nil end
+    local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
+    local bestName, bestDistance
+    local threshold = math.max(S.gizmo.length * 0.12, 12)
+    for name, axis in pairs(axes) do
+        local endpoint = {x = S.gizmo.origin.x + axis.x * S.gizmo.length,
+            y = S.gizmo.origin.y + axis.y * S.gizmo.length,
+            z = S.gizmo.origin.z + axis.z * S.gizmo.length}
+        local distance = raySegmentDistance(screenX, screenY, S.gizmo.origin, endpoint)
+        if distance <= threshold and (not bestDistance or distance < bestDistance) then
+            bestName, bestDistance = name, distance
+        end
+    end
+    return bestName
+end
+
+local function pickRotationRing(screenX, screenY)
+    if S.transformMode ~= 'rotate' or not S.gizmo.origin then return nil end
+    local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
+    local best, bestError
+    local tolerance = math.max(S.gizmo.radius * 0.12, 12)
+    for name, axis in pairs(axes) do
+        local wx, wy, wz = rayPlaneHit(screenX, screenY, S.gizmo.origin, axis)
+        if wx then
+            local direction = normalizedDirection(wx - S.gizmo.origin.x, wy - S.gizmo.origin.y,
+                wz - S.gizmo.origin.z)
+            local radial = direction and math.sqrt((wx - S.gizmo.origin.x)^2 +
+                (wy - S.gizmo.origin.y)^2 + (wz - S.gizmo.origin.z)^2) or 0
+            local error = math.abs(radial - S.gizmo.radius)
+            if direction and error <= tolerance and (not bestError or error < bestError) then
+                best = {name = name, axis = axis, direction = direction}
+                bestError = error
+            end
+        end
+    end
+    return best
+end
+
+local function beginViewportInteraction(key, screenX, screenY)
+    if tImGui.GetWantCaptureMouse() then return end
+    if key == 0 then
+        local ring = pickRotationRing(screenX, screenY)
+        if ring then
+            local entry = roleEntry(S.selectedRole)
+            S.gizmo.drag = {
+                mode = 'rotate', axis = ring.axis, origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y,
+                    z = S.gizmo.origin.z}, startDirection = ring.direction, base = clonePose(entry.pose),
+                lastAngle = 0, accumulatedAngle = 0,
+                lastEuler = {rx = entry.pose.rx, ry = entry.pose.ry, rz = entry.pose.rz},
+            }
+            S.cameraDrag = nil
+            return
+        end
+        local axisName = pickGizmoAxis(screenX, screenY)
+        if axisName then
+            local axis = ({x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0},
+                z = {x = 0, y = 0, z = 1}})[axisName]
+            local parameter = rayAxisParameter(screenX, screenY, S.gizmo.origin, axis)
+            if parameter then
+                S.gizmo.drag = {mode = 'move', axis = axis,
+                    origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y, z = S.gizmo.origin.z},
+                    startParameter = parameter, base = clonePose(roleEntry(S.selectedRole).pose)}
+                S.cameraDrag = nil
+                return
+            end
+        end
+        local picked = pickRole(screenX, screenY)
+        if picked then
+            S.selectedRole = picked
+            updateGizmo()
+            return
+        end
+        S.cameraDrag = {kind = 'orbit', startX = screenX, startY = screenY}
+    elseif key == 1 then
+        S.cameraDrag = {kind = 'pan', startX = screenX, startY = screenY}
+    end
+end
+
+local function updateViewportInteraction(screenX, screenY)
+    local drag = S.gizmo.drag
+    if drag then
+        local entry = roleEntry(S.selectedRole)
+        if drag.mode == 'move' then
+            local parameter = rayAxisParameter(screenX, screenY, drag.origin, drag.axis)
+            if parameter then
+                local amount = parameter - drag.startParameter
+                entry.pose.x = drag.base.x + drag.axis.x * amount
+                entry.pose.y = drag.base.y + drag.axis.y * amount
+                entry.pose.z = drag.base.z + drag.axis.z * amount
+                if S.selectedRole == 'target' then S.target.manualOverride = true
+                else S.target.manualOverride = false end
+                markModified()
+            end
+        else
+            local wx, wy, wz = rayPlaneHit(screenX, screenY, drag.origin, drag.axis)
+            local current = wx and normalizedDirection(wx - drag.origin.x, wy - drag.origin.y,
+                wz - drag.origin.z) or nil
+            if current then
+                local start = drag.startDirection
+                local cross = {x = start.y * current.z - start.z * current.y,
+                    y = start.z * current.x - start.x * current.z,
+                    z = start.x * current.y - start.y * current.x}
+                local sinAngle = dot(drag.axis.x, drag.axis.y, drag.axis.z, cross.x, cross.y, cross.z)
+                local cosAngle = math.max(-1, math.min(1, dot(start.x, start.y, start.z,
+                    current.x, current.y, current.z)))
+                local angle = math.atan(sinAngle, cosAngle)
+                local delta = angle - drag.lastAngle
+                if delta > math.pi then delta = delta - math.pi * 2
+                elseif delta < -math.pi then delta = delta + math.pi * 2 end
+                drag.accumulatedAngle = drag.accumulatedAngle + delta
+                drag.lastAngle = angle
+                local baseRotation = eulerRotation(drag.base.rx, drag.base.ry, drag.base.rz)
+                local rotated = multiplyRotation(baseRotation, axisRotation(drag.axis, drag.accumulatedAngle))
+                local rx, ry, rz = matrixToEuler(rotated)
+                entry.pose.rx = unwrapAngle(rx, drag.lastEuler.rx)
+                entry.pose.ry = unwrapAngle(ry, drag.lastEuler.ry)
+                entry.pose.rz = unwrapAngle(rz, drag.lastEuler.rz)
+                drag.lastEuler = {rx = entry.pose.rx, ry = entry.pose.ry, rz = entry.pose.rz}
+                if S.selectedRole == 'target' then S.target.manualOverride = true
+                else S.target.manualOverride = false end
+                markModified()
+            end
+        end
+        return
+    end
+    local cameraDrag = S.cameraDrag
+    if not cameraDrag or tImGui.GetWantCaptureMouse() then return end
+    local dx, dy = screenX - cameraDrag.startX, screenY - cameraDrag.startY
+    if cameraDrag.kind == 'orbit' then
+        S.cameraOrbit.azimuth = S.cameraOrbit.azimuth + dx * 0.008
+        S.cameraOrbit.elevation = math.max(-1.45, math.min(1.45, S.cameraOrbit.elevation + dy * 0.008))
+    else
+        local right = S.camera:getNormal('R')
+        local scale = S.cameraOrbit.distance * 0.0015
+        S.cameraOrbit.fx = S.cameraOrbit.fx - right.x * dx * scale
+        S.cameraOrbit.fy = S.cameraOrbit.fy + dy * scale
+        S.cameraOrbit.fz = S.cameraOrbit.fz - right.z * dx * scale
+    end
+    cameraDrag.startX, cameraDrag.startY = screenX, screenY
+    applyCamera()
+end
+
+local function endViewportInteraction(key)
+    if key == 0 then S.gizmo.drag = nil end
+    if key == 0 or key == 1 then S.cameraDrag = nil end
+end
+
 local function calculateTargetPose()
     local source, target = S.source.pose, S.target.pose
     local result = clonePose(target)
@@ -391,9 +700,14 @@ local function calculateTargetPose()
         result.z = source.z + worldPosition.z
     end
     if inherit.rotation then
-        local targetRotation = multiplyRotation(sourceRotation,
-            eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z))
-        result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
+        if math.abs(offset.rotation.x) < 1e-8 and math.abs(offset.rotation.y) < 1e-8 and
+                math.abs(offset.rotation.z) < 1e-8 then
+            result.rx, result.ry, result.rz = source.rx, source.ry, source.rz
+        else
+            local targetRotation = multiplyRotation(sourceRotation,
+                eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z))
+            result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
+        end
     end
     if inherit.scale then
         result.sx = source.sx * offset.scale.x
@@ -446,6 +760,8 @@ end
 local function resetTargetPreview()
     S.target.manualOverride = false
     S.dirtyPreview = true
+    rebuildPreview()
+    updateGizmo()
     setStatus(L('preview_reset'))
 end
 
@@ -458,6 +774,8 @@ local function syncEditorDefinition()
         sourcePose = clonePose(S.source.pose),
         targetPose = clonePose(S.target.pose),
         targetManualOverride = S.target.manualOverride == true,
+        sourceSelectable = S.source.selectable ~= false,
+        targetSelectable = S.target.selectable ~= false,
     }
 end
 
@@ -508,6 +826,8 @@ local function normalizeDefinition(value)
         if type(editor.sourcePose) == 'table' then result.editor.sourcePose = clonePose(editor.sourcePose) end
         if type(editor.targetPose) == 'table' then result.editor.targetPose = clonePose(editor.targetPose) end
         result.editor.targetManualOverride = editor.targetManualOverride == true
+        result.editor.sourceSelectable = editor.sourceSelectable ~= false
+        result.editor.targetSelectable = editor.targetSelectable ~= false
     end
     if result.sourceType ~= 'root' then return nil end
     return result
@@ -539,6 +859,8 @@ local function loadDefinition(path)
     S.target.pose = clonePose(definition.editor.targetPose)
     restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
     restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
+    S.source.selectable = definition.editor.sourceSelectable ~= false
+    S.target.selectable = definition.editor.targetSelectable ~= false
     S.projectPath, S.modified = path, false
     S.target.manualOverride = definition.editor.targetManualOverride == true
     S.dirtyPreview = true
@@ -584,6 +906,16 @@ local function showRoleAsset(role)
     end
 end
 
+local function showViewSelectable(role)
+    local entry = roleEntry(role)
+    local previous = entry.selectable ~= false
+    local nextValue = tImGui.Checkbox(L('select_in_view') .. '##att_' .. role .. '_selectable', previous)
+    if nextValue ~= previous then
+        entry.selectable = nextValue
+        markModified()
+    end
+end
+
 local function showObjects()
     tUtil.setInitialWindowPositionLeft(S.windows.objects, 0, 20, 380)
     local opened = tImGui.Begin(S.windows.objects, true, 0)
@@ -594,20 +926,36 @@ local function showObjects()
         if tImGui.Selectable(L('source') .. ': ' .. roleName('source'), S.selectedRole == 'source') then
             S.selectedRole = 'source'
         end
+        tImGui.SetNextItemWidth(210)
         local sourceChanged, sourceName = tImGui.InputText(L('source_name'), S.definition.source)
         if sourceChanged then S.definition.source = sourceName; markModified() end
+        showViewSelectable('source')
         showRoleAsset('source')
         if tImGui.Selectable(L('target') .. ': ' .. roleName('target'), S.selectedRole == 'target') then
             S.selectedRole = 'target'
         end
+        tImGui.SetNextItemWidth(210)
         local targetChanged, targetName = tImGui.InputText(L('target_name'), S.definition.target)
         if targetChanged then S.definition.target = targetName; markModified() end
+        showViewSelectable('target')
         showRoleAsset('target')
+        tImGui.TextWrapped(L('runtime_id_help'))
         tImGui.Separator()
         tImGui.Text(string.format(L('selected_object'), roleName(S.selectedRole)))
         showPoseFields(S.selectedRole)
         if S.selectedRole == 'target' then tImGui.TextWrapped(L('target_pose_help'))
         else tImGui.TextWrapped(L('source_pose_help')) end
+        tImGui.Separator()
+        tImGui.Text(L('transform_mode'))
+        local modeIndex = tImGui.RadioButton(L('move'), S.transformMode == 'move' and 1 or 2, 1)
+        tImGui.SameLine()
+        modeIndex = tImGui.RadioButton(L('rotate'), modeIndex, 2)
+        local nextMode = modeIndex == 2 and 'rotate' or 'move'
+        if nextMode ~= S.transformMode then
+            S.transformMode = nextMode
+            S.gizmo.drag = nil
+        end
+        tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
     end
     tImGui.End()
 end
@@ -766,6 +1114,7 @@ function onLoop(delta)
     showAttachment()
     showCameraPanel()
     showPreviewPanel()
+    updateGizmo()
     updateXZPlane()
     tUtil.showOverlayMessage()
 end
@@ -788,34 +1137,21 @@ function onTouchZoom(zoom)
 end
 
 function onTouchDown(key, x, y)
-    if tImGui.GetWantCaptureMouse() then return end
-    if key == 0 then S.cameraDrag = {kind = 'orbit', startX = x, startY = y} end
-    if key == 1 then S.cameraDrag = {kind = 'pan', startX = x, startY = y} end
+    beginViewportInteraction(key, x, y)
 end
 
 function onTouchMove(key, x, y)
-    local drag = S.cameraDrag
-    if not drag or tImGui.GetWantCaptureMouse() then return end
-    local dx, dy = x - drag.startX, y - drag.startY
-    if drag.kind == 'orbit' then
-        S.cameraOrbit.azimuth = S.cameraOrbit.azimuth + dx * 0.008
-        S.cameraOrbit.elevation = math.max(-1.45, math.min(1.45, S.cameraOrbit.elevation + dy * 0.008))
-    else
-        local right = S.camera:getNormal('R')
-        local scale = S.cameraOrbit.distance * 0.0015
-        S.cameraOrbit.fx = S.cameraOrbit.fx - right.x * dx * scale
-        S.cameraOrbit.fy = S.cameraOrbit.fy + dy * scale
-        S.cameraOrbit.fz = S.cameraOrbit.fz - right.z * dx * scale
-    end
-    drag.startX, drag.startY = x, y
-    applyCamera()
+    updateViewportInteraction(x, y)
 end
 
 function onTouchUp(key, x, y)
-    if key == 0 or key == 1 then S.cameraDrag = nil end
+    endViewportInteraction(key)
 end
 
 function onFinalizeScene()
+    for _, object in pairs(S.gizmo.axes) do object:destroy() end
+    for _, object in pairs(S.gizmo.rings) do object:destroy() end
+    S.gizmo.axes, S.gizmo.rings = {}, {}
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
     if S.target.object then S.target.object:destroy(); S.target.object = nil end
     if S.relationLine then S.relationLine:destroy(); S.relationLine = nil end

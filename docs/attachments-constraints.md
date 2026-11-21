@@ -116,12 +116,18 @@ contain an `editor` block with mesh paths, actor kinds, and preview poses; that 
 the runtime plugin. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
 
+The source and target strings are runtime binding labels, not mesh filenames. The current editor
+stores these labels in the definition but does not yet resolve them against objects in a loaded
+runtime scene.
+
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
 source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
 controls, editable source and target authoring poses, mesh loading through the standard file picker,
-and offset capture. Loading a runtime scene and resolving labels to actual renderizables is
-deliberately left as the next authoring integration step.
+offset capture, and interaction-style move/rotate gizmos for the selected actor. Loading a runtime
+scene and resolving labels to actual renderizables is deliberately left as the next authoring
+integration step. Each preview actor also has an editor-only viewport-selection toggle to avoid
+ambiguous picking when the source and target overlap.
 
 ## Phase 2 lifecycle guarantees
 
