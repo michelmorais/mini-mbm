@@ -106,14 +106,17 @@ their references.
 
 ## Authoring boundary
 
-`editor/attachments_editor.lua` is an independent, definition-only authoring skeleton. Its saved
+`editor/attachments_editor.lua` is an independent, definition-only authoring tool. Its saved
 `.att.lua` file contains source/target labels, inheritance flags, and the local offset; it does not
 store runtime objects. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
 
-The editor can edit and visualize a relation with preview markers, capture a preview offset, and
-save/load the definition. Loading a runtime scene and resolving labels to actual renderizables is
-deliberately left as the next authoring integration step.
+Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
+attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
+source/target placeholder pair, XYZ origins, an XZ reference plane, orbit/pan camera controls,
+editable source and target authoring poses, and offset capture. Loading a runtime scene and
+resolving labels to actual renderizables is deliberately left as the next authoring integration
+step.
 
 ## Future phases
 
