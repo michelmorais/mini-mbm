@@ -2009,6 +2009,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     message(STATUS "Interaction animation runtime is enabled — linking statically for Android")
     target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
 
+    if(USE_ATTACHMENTS)
+        message(STATUS "USE_ATTACHMENTS is enabled, ${ATTACHMENTS_LIBRARY} for ANDROID will be linked as workaround")
+        target_link_libraries(mini-mbm ${ATTACHMENTS_LIBRARY})
+    endif()
+
 endif()
 
 # plugins for iOS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2038,6 +2043,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     message(STATUS "Interaction animation runtime is enabled — linking statically for iOS")
     target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
 
+    if(USE_ATTACHMENTS)
+        message(STATUS "USE_ATTACHMENTS is enabled - linking statically for iOS")
+        target_link_libraries(mini-mbm ${ATTACHMENTS_LIBRARY})
+    endif()
+
 endif()
 
 # plugins for macOS MAS must also be statically linked (App Store sandbox forbids user-space dylibs)
@@ -2066,6 +2076,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
 
     message(STATUS "Interaction animation runtime is enabled — linking statically for macOS MAS")
     target_link_libraries(mini-mbm ${INTERACTION_ANIMATION_RUNTIME_LIBRARY})
+
+    if(USE_ATTACHMENTS)
+        message(STATUS "USE_ATTACHMENTS is enabled - linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${ATTACHMENTS_LIBRARY})
+    endif()
 
 endif()
 
@@ -2105,6 +2120,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias for mesh_texture_paint_editor"
         COMMAND cmake -E echo "alias for facial_rig_editor"
         COMMAND cmake -E echo "alias for interaction_animation_editor"
+        COMMAND cmake -E echo "alias for attachments_editor"
         COMMAND cmake -E echo "alias for morph_editor"
         COMMAND cmake -E echo "alias for shader_editor"
         COMMAND cmake -E echo "alias for particle_editor"
@@ -2127,6 +2143,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias attachments_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/attachments_editor.lua --nosplash --name attachments_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua  --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
@@ -2213,6 +2230,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         COMMAND cmake -E echo "alias skeletal_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/skeletal_animation_editor.lua -w 1470 -h 900 --nosplash --name skeletal_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias facial_rig_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/facial_rig_editor.lua -w 1470 -h 900 --nosplash --name facial_rig_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias interaction_animation_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/interaction_animation_editor.lua -w 1470 -h 900 --nosplash --name interaction_animation_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias attachments_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/attachments_editor.lua -w 1470 -h 900 --nosplash --name attachments_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias morph_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/morph_region_editor.lua -w 1470 -h 900 --nosplash --name morph_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias mesh_to_sprite_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_to_sprite_editor.lua -w 1470 -h 900 --nosplash --name mesh_to_sprite_editor'" >> ${PATH_BIN}/shortcuts.sh
         COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua -w 1470 -h 900 --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh

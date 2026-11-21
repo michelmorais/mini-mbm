@@ -1,13 +1,13 @@
 # Lua plugin symbol index
 
 Companion to [the Lua API reference](lua-api.md). This inventory covers the `luaL_Reg`
-method tables in all eight bundled Lua plugins, including build-conditional entries.
+method tables in all nine bundled Lua plugins, including build-conditional entries.
 It records **registered names**, not the whole upstream C++ APIs. It is a navigation and
 coverage index, not a claim that every method has a complete usage guide or runtime test.
 Internal `__*` metamethods are excluded. Constants and dynamically constructed data tables
 are outside this method inventory.
 
-Checked against the repository bindings on 2026-11-12; unified Box2D entries updated on 2026-10-13. When updating a registration
+Checked against the repository bindings on 2026-11-21; unified Box2D entries updated on 2026-10-13. When updating a registration
 table, update this index and the relevant usage section together. Each binding link
 points to its implementation; table names distinguish factory, object and module APIs.
 
@@ -31,6 +31,7 @@ may depend on plugin/build configuration. See the source preprocessor guards.
 - [Tilemap editor](#tilemap-editor)
 - [Steam](#steam)
 - [Interaction animation runtime](#interaction-animation-runtime)
+- [Attachments](#attachments)
 
 ## Box2D world and factory
 
@@ -812,3 +813,17 @@ The returned interaction instance exposes `restart`, `stop` and `isFinished`
 methods. The instance is updated automatically by the C++ plugin callback loop;
 there is no per-instance `update` method. These methods are installed directly
 on the instance table and are not separate module functions.
+
+## Attachments
+
+Source: [plugins/attachments/attachments-lua.cpp](../plugins/attachments/attachments-lua.cpp).
+
+### Module functions
+
+| Lua name | Binding |
+|---|---|
+| `attach` | [`onAttach`](../plugins/attachments/attachments-lua.cpp) |
+
+The returned attachment object exposes `detach`, `isActive`, `getId`, `getOffset`, `setOffset`,
+`setInherit`, `captureOffset`, and `getState`. It is updated automatically by the C++ plugin
+callback loop.

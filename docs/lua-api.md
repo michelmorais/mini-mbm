@@ -27,6 +27,7 @@ Engine version: see `mbm.get("mbm")` at runtime.
 13c. [Plugin: tilemap](#13c-plugin-tilemap-tiled-editor)
 13d. [Plugin: steam](#13d-plugin-steam)
 13e. [Plugin: interaction_animation_runtime](#13e-plugin-interaction_animation_runtime)
+13f. [Plugin: attachments](#13f-plugin-attachments)
 14. [print() extensions](#14-print-extensions)
 
 [Complete plugin method index](lua-plugin-symbols.md)
@@ -2114,6 +2115,49 @@ one-based. The runtime calls callbacks only at lifecycle or event boundaries, no
 for every internal interpolation step.
 
 ---
+
+## 13f. Plugin: attachments
+
+Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
+`local attachments = require "attachments"`. This plugin is independent from
+`interaction_animation_runtime`.
+
+`attachments.attach(spec)` supports root transforms in phase 1. The specification requires
+`source` and `target` renderizable objects and accepts `id`, `sourceType = "root"`, `inherit`, and
+`offset`. Position, rotation, and scale inheritance are independent. Angles and offset rotation
+use radians. The offset is in source-local space, and source scale affects offset position when
+scale inheritance is enabled.
+
+```lua
+local relation, err = attachments.attach {
+    source = character,
+    target = hat,
+    inherit = {position = true, rotation = true, scale = false},
+    offset = {
+        position = {x = 0, y = 1.8, z = 0},
+        rotation = {x = 0, y = 0, z = 0},
+        scale = {x = 1, y = 1, z = 1},
+    },
+}
+assert(relation, err)
+relation:captureOffset()
+local offset = relation:getOffset()
+relation:setOffset(offset)
+relation:setInherit({position = true, rotation = false, scale = true})
+relation:detach() -- preserves the current target pose by default
+-- relation:detach({preserveWorldPose = false}) restores the pre-attach pose
+```
+
+The call returns `nil, errorMessage` when the source or target is invalid, belongs to another
+scene, is the same object, uses an unsupported source type, introduces a cycle, or conflicts with
+another active attachment writing the same target component. The returned object provides
+`detach`, `isActive`, `getId`, `getOffset`, `setOffset`, `setInherit`, `captureOffset`, and
+`getState`.
+
+Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
+stable topological order for acyclic chains. Destroyed objects and scene teardown deactivate
+relations and release their Lua references. Bones, sockets, IK, aim, spring, damping, and physics
+constraints are not supported yet; see [Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions
 
