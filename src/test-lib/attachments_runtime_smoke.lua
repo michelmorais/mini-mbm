@@ -27,7 +27,7 @@ local first = assert(attachments.attach {
         scale = {x = 2, y = 2, z = 2},
     },
 })
-assert(attachments.attach {
+local chainAttachment = assert(attachments.attach {
     id = 'smoke_chain', source = target, target = chain,
     inherit = {position = true, rotation = false, scale = false},
     offset = {position = {x = 1, y = 0, z = 0}},
@@ -37,6 +37,7 @@ assert(not attachments.attach {source = target, target = source, inherit = {posi
 
 local started = nil
 local complete = false
+local destroyed = false
 
 function onInitScene()
     started = mbm.getTimeRun()
@@ -56,12 +57,24 @@ function onLoop()
         assert(math.abs(chain.y - 27) < 0.01)
         assert(math.abs(chain.sx - 7) < 0.01)
         assert(math.abs(chain.az - 0.25) < 0.01)
+        local effective = assert(first:getEffectivePose())
+        assert(math.abs(effective.position.x - 10) < 0.01)
+        assert(math.abs(effective.position.y - 26) < 0.01)
+        assert(math.abs(effective.scale.x - 6) < 0.01)
+        local state = first:getState()
+        assert(state.effectivePose and math.abs(state.effectivePose.position.y - 26) < 0.01)
         local x, y, z = target.x, target.y, target.z
         assert(first:detach())
         assert(math.abs(target.x - x) < 0.01)
         assert(math.abs(target.y - y) < 0.01)
         assert(math.abs(target.z - z) < 0.01)
         complete = true
+    elseif not destroyed then
+        chain:destroy()
+        destroyed = true
+    else
+        assert(not chainAttachment:isActive())
+        mbm.quit()
     end
-    if started and mbm.getTimeRun() - started > 1 then mbm.quit() end
+    if started and mbm.getTimeRun() - started > 2 then mbm.quit() end
 end

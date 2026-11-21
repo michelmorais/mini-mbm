@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.0**
-Status: **Phase 1 implemented**
+Document version: **1.1**
+Status: **Phase 2 implemented**
 Last updated: **2026-11-21**
 
 This document defines the first runtime contract for root-transform attachments. It is independent
@@ -79,11 +79,15 @@ An attachment object provides:
 | `setOffset(offset)` | boolean | Changes the local offset without changing ownership. |
 | `setInherit(inherit)` | boolean or `nil,error` | Changes the component mask after conflict/cycle validation. |
 | `captureOffset()` | boolean or `nil,error` | Captures the current target pose relative to the current source pose. |
+| `getEffectivePose()` | table or `nil,error` | Returns the target pose currently computed by the attachment. |
 | `getState()` | table | Returns active/invalid status, inheritance flags, and offset. |
 
 `detach()` preserves the target's current pose by default. Passing
 `{preserveWorldPose = false}` restores the target pose captured immediately before `attach`.
-Destroying a source, target, or scene deactivates the relation and releases its Lua references.
+`getEffectivePose()` and `getState().effectivePose` expose `position`, `rotation` (radians), and
+`scale` after applying the inheritance mask; components that are not inherited retain the target's
+current values. Destroying a source, target, or scene deactivates the relation and releases its Lua
+references.
 
 ## Frame order and ownership
 
@@ -117,6 +121,15 @@ source/target placeholder pair, XYZ origins, an XZ reference plane, orbit/pan ca
 editable source and target authoring poses, and offset capture. Loading a runtime scene and
 resolving labels to actual renderizables is deliberately left as the next authoring integration
 step.
+
+## Phase 2 lifecycle guarantees
+
+The engine invokes plugin `onLoop` after scene logic, deferred main-thread work, physics, and audio,
+and invokes rendering only afterward. Attachment resolution therefore reads the final source pose
+for that frame and writes inherited target components before the render pass. Scene transitions call
+`onDestroy` before the plugin list is cleared; the plugin disables all relations, releases registry
+references, and leaves surviving Lua attachment objects inert instead of retaining a dangling plugin
+pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 

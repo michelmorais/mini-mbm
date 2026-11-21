@@ -825,5 +825,5 @@ Source: [plugins/attachments/attachments-lua.cpp](../plugins/attachments/attachm
 | `attach` | [`onAttach`](../plugins/attachments/attachments-lua.cpp) |
 
 The returned attachment object exposes `detach`, `isActive`, `getId`, `getOffset`, `setOffset`,
-`setInherit`, `captureOffset`, and `getState`. It is updated automatically by the C++ plugin
-callback loop.
+`setInherit`, `captureOffset`, `getEffectivePose`, and `getState`. It is updated automatically by
+the C++ plugin callback loop.

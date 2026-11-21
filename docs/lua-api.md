@@ -2142,6 +2142,7 @@ local relation, err = attachments.attach {
 assert(relation, err)
 relation:captureOffset()
 local offset = relation:getOffset()
+local effectivePose = relation:getEffectivePose()
 relation:setOffset(offset)
 relation:setInherit({position = true, rotation = false, scale = true})
 relation:detach() -- preserves the current target pose by default
@@ -2151,8 +2152,9 @@ relation:detach() -- preserves the current target pose by default
 The call returns `nil, errorMessage` when the source or target is invalid, belongs to another
 scene, is the same object, uses an unsupported source type, introduces a cycle, or conflicts with
 another active attachment writing the same target component. The returned object provides
-`detach`, `isActive`, `getId`, `getOffset`, `setOffset`, `setInherit`, `captureOffset`, and
-`getState`.
+`detach`, `isActive`, `getId`, `getOffset`, `setOffset`, `setInherit`, `captureOffset`,
+`getEffectivePose`, and `getState`. `getEffectivePose()` returns the pose the relation currently
+computes for the target, including the target's current values for non-inherited components.
 
 Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
 stable topological order for acyclic chains. Destroyed objects and scene teardown deactivate

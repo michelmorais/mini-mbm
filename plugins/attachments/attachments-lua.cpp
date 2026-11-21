@@ -282,6 +282,40 @@ struct ATTACHMENT
     void releaseReferences() noexcept;
 };
 
+POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
+                          const POSE &currentTargetPose)
+{
+    POSE result = currentTargetPose;
+    if (!attachment) return result;
+    const MATRIX3 sourceRotation = eulerRotation(sourcePose.angle);
+    if ((attachment->inherit & INHERIT_POSITION) != 0u)
+    {
+        VEC3D local = attachment->offset.position;
+        if ((attachment->inherit & INHERIT_SCALE) != 0u)
+        {
+            local.x *= sourcePose.scale.x;
+            local.y *= sourcePose.scale.y;
+            local.z *= sourcePose.scale.z;
+        }
+        const VEC3D rotated = transformVector(sourceRotation, local);
+        result.position = {sourcePose.position.x + rotated.x,
+                           sourcePose.position.y + rotated.y,
+                           sourcePose.position.z + rotated.z};
+    }
+    if ((attachment->inherit & INHERIT_ROTATION) != 0u)
+    {
+        result.angle = rotationToEuler(multiply(sourceRotation,
+                                                eulerRotation(attachment->offset.angle)));
+    }
+    if ((attachment->inherit & INHERIT_SCALE) != 0u)
+    {
+        result.scale = {sourcePose.scale.x * attachment->offset.scale.x,
+                        sourcePose.scale.y * attachment->offset.scale.y,
+                        sourcePose.scale.z * attachment->offset.scale.z};
+    }
+    return result;
+}
+
 struct RESOLVED_ATTACHMENT
 {
     ATTACHMENT *attachment = nullptr;
@@ -330,6 +364,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                  mbm::RENDERIZABLE **target) const;
     void deactivate(ATTACHMENT *attachment, const bool invalid);
     bool detach(ATTACHMENT *attachment, const bool preserveWorldPose);
+    bool getEffectivePose(ATTACHMENT *attachment, POSE &pose) const;
     void clearReferences(ATTACHMENT *attachment) noexcept;
     bool isActive() const noexcept { return active; }
     lua_State *getLua() const noexcept { return lua; }
@@ -386,6 +421,16 @@ bool ATTACHMENTS_PLUGIN::resolve(ATTACHMENT *attachment, mbm::RENDERIZABLE **sou
         return false;
     *source = sourceObject;
     *target = targetObject;
+    return true;
+}
+
+bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) const
+{
+    mbm::RENDERIZABLE *source = nullptr;
+    mbm::RENDERIZABLE *target = nullptr;
+    if (!resolve(attachment, &source, &target) || source->getIdScene() != target->getIdScene())
+        return false;
+    pose = composeEffectivePose(attachment, readPose(source), readPose(target));
     return true;
 }
 
@@ -592,34 +637,14 @@ void ATTACHMENTS_PLUGIN::onLoop(float)
         const RESOLVED_ATTACHMENT &resolvedAttachment = resolved[index];
         ATTACHMENT *attachment = resolvedAttachment.attachment;
         const POSE sourcePose = readPose(resolvedAttachment.source);
-        if ((attachment->inherit & INHERIT_POSITION) != 0u)
-        {
-            VEC3D local = attachment->offset.position;
-            if ((attachment->inherit & INHERIT_SCALE) != 0u)
-            {
-                local.x *= sourcePose.scale.x;
-                local.y *= sourcePose.scale.y;
-                local.z *= sourcePose.scale.z;
-            }
-            const VEC3D rotated = transformVector(eulerRotation(sourcePose.angle), local);
-            writePosition(resolvedAttachment.target,
-                          {sourcePose.position.x + rotated.x,
-                           sourcePose.position.y + rotated.y,
-                           sourcePose.position.z + rotated.z});
-        }
-        if ((attachment->inherit & INHERIT_ROTATION) != 0u)
-        {
-            const MATRIX3 composed = multiply(eulerRotation(sourcePose.angle),
-                                              eulerRotation(attachment->offset.angle));
-            writeAngle(resolvedAttachment.target, rotationToEuler(composed));
-        }
-        if ((attachment->inherit & INHERIT_SCALE) != 0u)
-        {
-            writeScale(resolvedAttachment.target,
-                       {sourcePose.scale.x * attachment->offset.scale.x,
-                        sourcePose.scale.y * attachment->offset.scale.y,
-                        sourcePose.scale.z * attachment->offset.scale.z});
-        }
+        const POSE effectivePose = composeEffectivePose(attachment, sourcePose,
+                                                        readPose(resolvedAttachment.target));
+        if ((attachment->inherit & INHERIT_POSITION) != 0u) writePosition(resolvedAttachment.target,
+                                                                            effectivePose.position);
+        if ((attachment->inherit & INHERIT_ROTATION) != 0u) writeAngle(resolvedAttachment.target,
+                                                                        effectivePose.angle);
+        if ((attachment->inherit & INHERIT_SCALE) != 0u) writeScale(resolvedAttachment.target,
+                                                                    effectivePose.scale);
     }
 }
 
@@ -726,12 +751,17 @@ int onAttachmentGetId(lua_State *lua)
     return 1;
 }
 
-void pushAttachmentData(lua_State *lua, const ATTACHMENT *attachment)
+void pushPoseData(lua_State *lua, const POSE &pose)
 {
     lua_createtable(lua, 0, 4);
-    pushVec3(lua, attachment->offset.position); lua_setfield(lua, -2, "position");
-    pushVec3(lua, attachment->offset.angle); lua_setfield(lua, -2, "rotation");
-    pushVec3(lua, attachment->offset.scale); lua_setfield(lua, -2, "scale");
+    pushVec3(lua, pose.position); lua_setfield(lua, -2, "position");
+    pushVec3(lua, pose.angle); lua_setfield(lua, -2, "rotation");
+    pushVec3(lua, pose.scale); lua_setfield(lua, -2, "scale");
+}
+
+void pushAttachmentData(lua_State *lua, const ATTACHMENT *attachment)
+{
+    pushPoseData(lua, attachment->offset);
 }
 
 int onAttachmentGetOffset(lua_State *lua)
@@ -822,6 +852,16 @@ int onAttachmentCaptureOffset(lua_State *lua)
     return 1;
 }
 
+int onAttachmentGetEffectivePose(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    POSE pose;
+    if (!attachment || !attachment->manager || !attachment->manager->getEffectivePose(attachment, pose))
+        return fail(lua, "source or target is no longer valid");
+    pushPoseData(lua, pose);
+    return 1;
+}
+
 int onAttachmentGetState(lua_State *lua)
 {
     ATTACHMENT *attachment = getAttachment(lua, 1);
@@ -845,6 +885,12 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritScale");
     pushAttachmentData(lua, attachment);
     lua_setfield(lua, -2, "offset");
+    POSE effectivePose;
+    if (attachment->manager && attachment->manager->getEffectivePose(attachment, effectivePose))
+    {
+        pushPoseData(lua, effectivePose);
+        lua_setfield(lua, -2, "effectivePose");
+    }
     return 1;
 }
 
@@ -934,6 +980,7 @@ int onAttach(lua_State *lua)
     lua_pushcfunction(lua, onAttachmentSetOffset); lua_setfield(lua, -2, "setOffset");
     lua_pushcfunction(lua, onAttachmentSetInherit); lua_setfield(lua, -2, "setInherit");
     lua_pushcfunction(lua, onAttachmentCaptureOffset); lua_setfield(lua, -2, "captureOffset");
+    lua_pushcfunction(lua, onAttachmentGetEffectivePose); lua_setfield(lua, -2, "getEffectivePose");
     lua_pushcfunction(lua, onAttachmentGetState); lua_setfield(lua, -2, "getState");
     lua_newuserdata(lua, sizeof(std::shared_ptr<ATTACHMENT>));
     auto *holder = static_cast<std::shared_ptr<ATTACHMENT> *>(lua_touserdata(lua, -1));
