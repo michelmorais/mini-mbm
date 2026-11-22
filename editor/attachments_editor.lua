@@ -1959,7 +1959,6 @@ showTargetPivotFields = function()
             S.target.manualOverride = false
             markModified()
         end
-        if axis ~= 'z' then tImGui.SameLine() end
     end
     tImGui.TextWrapped(L('target_pivot_help'))
 end
