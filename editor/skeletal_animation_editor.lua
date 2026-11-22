@@ -29,6 +29,7 @@ tAnimationImport = require "skeletal_animation_import"
 tTutorials = require "skeletal_animation_tutorials"
 tTutorialAssets = require "skeletal_animation_tutorial_assets"
 tSkeletalVisual = require "skeletal_animation_visual"
+tSocketAuthoring = require "skeletal_socket_authoring"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -10063,6 +10064,26 @@ local function showBoneEditor()
     local previousRemovePreview=state.boneEditorRemovePreviewIndex
     state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
+    tImGui.Separator()
+    state.socketAuthoringCallbacks = state.socketAuthoringCallbacks or {
+        stage = stageRollbackSnapshot,
+        commit = commitRollbackSnapshot,
+        discard = discardRollbackSnapshot,
+        refresh = refreshBindReport,
+        rebuild = function()
+            rebuildPreview()
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+        end,
+        status = function(key, isError)
+            setStatus(tLang.L(key), isError)
+        end
+    }
+    if tImGui.TreeNode(tLang.L('swl_socket_authoring') .. '##swlSocketAuthoring') then
+        tSocketAuthoring.draw(state, state.meshD, 'bone-editor', safeCall,
+            state.socketAuthoringCallbacks, tLang, tImGui)
+        tImGui.TreePop()
+    end
     tImGui.Separator()
     if tImGui.TreeNode(tLang.L('swl_bone_editor_reorient_tails_section')..
             '##swlBoneEditorReorientTails') then

@@ -131,9 +131,9 @@ Sockets do not alter weights or animation tracks. Runtime code can enumerate the
 `mesh:getSkeletalSocketTransform(name, "world")`; the attachments plugin accepts the same point as
 `sourceType = "socket"` and `sourceSocket = name`.
 The reverse MSH-to-FBX exporter recreates section-47 sockets as Blender Empty objects with the same
-bone parent and local bind transform. Mesh Debug also exposes socket creation/editing in its
-Skeletal panel using local bind-space TRS; direct viewport picking and a socket gizmo remain a
-separate editor increment.
+bone parent and local bind transform. The Skeletal Animation Editor exposes socket creation/editing
+in its Bone Editor worktree using local bind-space TRS; direct viewport picking and a socket gizmo
+remain a separate editor increment.
 
 ## Runtime and editor boundaries
 

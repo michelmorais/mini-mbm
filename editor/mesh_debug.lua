@@ -5957,100 +5957,6 @@ function showMeshExportBuildDialog()
     tImGui.EndPopup()
 end
 
-local function showSkeletalSocketAuthoring(tEntry, meshD, index, onEdit)
-    local state = tEntry.skeletalSocketAuthoring
-    if not state or state.data ~= meshD then
-        state = {
-            data = meshD, sockets = {}, bones = {}, selected = 0,
-            draft = {name = 'socket', bone = 1, tx = 0, ty = 0, tz = 0,
-                rx = 0, ry = 0, rz = 0, rw = 1, sx = 1, sy = 1, sz = 1}
-        }
-        tEntry.skeletalSocketAuthoring = state
-    end
-    local function refresh()
-        local okBones, report = dpCall(function() return meshD:getSkeletonBindReport(false) end)
-        state.bones = okBones and type(report) == 'table' and report.bones or {}
-        local okSockets, sockets = dpCall(function() return meshD:getSkeletalSocketReport() end)
-        state.sockets = okSockets and type(sockets) == 'table' and sockets or {}
-        if state.selected > #state.sockets then state.selected = 0 end
-    end
-    local function loadDraft(socketIndex)
-        local socket = state.sockets[socketIndex]
-        if not socket then
-            state.selected = 0
-            state.draft = {name = 'socket', bone = #state.bones > 0 and 1 or 0,
-                tx = 0, ty = 0, tz = 0, rx = 0, ry = 0, rz = 0, rw = 1,
-                sx = 1, sy = 1, sz = 1}
-            return
-        end
-        local boneIndex = 1
-        for bone, info in ipairs(state.bones) do
-            if info.name == socket.boneName then boneIndex = bone break end
-        end
-        state.draft = {name = socket.name or 'socket', bone = boneIndex,
-            tx = socket.translationX or 0, ty = socket.translationY or 0,
-            tz = socket.translationZ or 0, rx = socket.rotationX or 0,
-            ry = socket.rotationY or 0, rz = socket.rotationZ or 0,
-            rw = socket.rotationW or 1, sx = socket.scaleX or 1,
-            sy = socket.scaleY or 1, sz = socket.scaleZ or 1}
-    end
-    if #state.bones == 0 and #state.sockets == 0 then refresh() end
-    tImGui.TextDisabled('Socket authoring uses local bind-space transforms.')
-    if tImGui.Button('Refresh sockets##socketRefresh-' .. index) then refresh() end
-    if #state.bones == 0 then
-        tImGui.TextDisabled('A canonical skeleton is required before adding sockets.')
-        return
-    end
-    local socketOptions = {'<new socket>'}
-    for _, socket in ipairs(state.sockets) do socketOptions[#socketOptions + 1] = socket.name or '<unnamed>' end
-    local changed, selected = tImGui.Combo('Socket##socketSelect-' .. index, state.selected + 1, socketOptions)
-    if changed and selected then state.selected = selected - 1 loadDraft(state.selected) end
-    local draft = state.draft
-    local noInputFlags = tImGui.Flags('ImGuiInputTextFlags_None')
-    local nameChanged, name = tImGui.InputText('Name##socketName-' .. index, draft.name or '', noInputFlags)
-    if nameChanged then draft.name = name end
-    local boneOptions = {}
-    for _, bone in ipairs(state.bones) do boneOptions[#boneOptions + 1] = bone.name or '<unnamed>' end
-    local boneChanged, bone = tImGui.Combo('Bone##socketBone-' .. index, draft.bone, boneOptions)
-    if boneChanged and bone then draft.bone = bone end
-    local function socketFloat(label, key)
-        tImGui.PushItemWidth(90)
-        local valueChanged, value = tImGui.InputFloat(label .. '##socket-' .. key .. '-' .. index,
-            draft[key] or 0, 0.01, 0.1, '%.4f', noInputFlags)
-        tImGui.PopItemWidth()
-        if valueChanged and value then draft[key] = value end
-    end
-    socketFloat('TX', 'tx'); tImGui.SameLine(); socketFloat('TY', 'ty'); tImGui.SameLine(); socketFloat('TZ', 'tz')
-    socketFloat('RX', 'rx'); tImGui.SameLine(); socketFloat('RY', 'ry'); tImGui.SameLine(); socketFloat('RZ', 'rz')
-    socketFloat('RW', 'rw'); tImGui.SameLine(); socketFloat('SX', 'sx'); tImGui.SameLine(); socketFloat('SY', 'sy')
-    socketFloat('SZ', 'sz')
-    if tImGui.Button((state.selected == 0 and 'Add socket' or 'Update socket') .. '##socketSave-' .. index) then
-        local ok, result = dpCall(function()
-            if state.selected == 0 then
-                return meshD:addSkeletalSocket(draft.name, draft.bone, draft.tx, draft.ty, draft.tz,
-                    draft.rx, draft.ry, draft.rz, draft.rw, draft.sx, draft.sy, draft.sz)
-            end
-            return meshD:updateSkeletalSocket(state.selected, draft.name, draft.bone,
-                draft.tx, draft.ty, draft.tz, draft.rx, draft.ry, draft.rz, draft.rw,
-                draft.sx, draft.sy, draft.sz)
-        end)
-        if ok and result ~= false then
-            local wasNew = state.selected == 0
-            refresh()
-            if wasNew then state.selected = #state.sockets end
-            loadDraft(state.selected)
-            if onEdit then onEdit() end
-        end
-    end
-    if state.selected > 0 then
-        tImGui.SameLine()
-        if tImGui.Button('Remove socket##socketRemove-' .. index) then
-            local ok = dpCall(function() return meshD:removeSkeletalSocket(state.selected) end)
-            if ok then state.selected = 0 refresh() loadDraft(0) if onEdit then onEdit() end end
-        end
-    end
-end
-
 -- Articulated authoring moved to mesh_maker_articulated.lua.
 function showArticulatedAnimationNode(tEntry, meshD, index, onEdit)
     if not openNode(tEntry,'articulated',tLang.L('articulated_animation'),0,'articulated-'..index) then return end
@@ -10040,8 +9946,6 @@ function showMeshOptions(tEntry, index)
     showArticulatedAnimationNode(tEntry, meshD, index, onEdit)
 
     if openNode(tEntry, 'skeletal', tLang.L('mesh_debug_skeletal_animation'), 0, 'skeletal-' .. index) then
-        showSkeletalSocketAuthoring(tEntry, meshD, index, onEdit)
-        tImGui.Separator()
         require('skeletal_mesh_playback').draw(tEntry,
             meshD,
             index == iSelectedMeshIndex and tPreviewMesh or nil,

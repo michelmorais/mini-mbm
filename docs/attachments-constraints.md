@@ -1,7 +1,7 @@
 # Attachments and constraints
 
 Document version: **2.0**
-Status: **Phase 5 socket contract, runtime query, attachment source, editor selection, FBX round-trip, and Mesh Debug TRS authoring implemented; viewport gizmo pending**
+Status: **Phase 5 socket contract, runtime query, attachment source, editor selection, FBX round-trip, and Skeletal Animation Editor TRS authoring implemented; viewport gizmo pending**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent

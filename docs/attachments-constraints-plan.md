@@ -10,8 +10,9 @@ rato e da Helice.
 O milestone **Sockets** ja possui a primeira entrega: a secao opcional 47 do MSH
 V11, as consultas Lua/C++ no runtime, a origem `sourceType = "socket"` no plugin
 e a selecao por combo no editor. O fluxo FBX/Blender agora preserva os sockets
-como Empty objects parentados aos ossos. O Mesh Debug agora permite criar, editar e remover
-sockets no painel Skeletal, com osso e TRS local. A proxima etapa deste milestone e adicionar
+como Empty objects parentados aos ossos. O editor de animacao esquelética agora permite criar,
+editar e remover sockets no worktree Bone Editor, com osso e TRS local. A proxima etapa deste
+milestone e adicionar
 selecao direta e gizmo de socket na viewport.
 
 A extensao `follow_actor` foi retirada do escopo do editor e do runtime de

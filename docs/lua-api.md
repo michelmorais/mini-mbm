@@ -2536,9 +2536,9 @@ and all scale components must be positive. Add/update validates a complete candi
 committing, so a failed call leaves the previous socket set unchanged. New socket IDs are opaque
 stable IDs allocated without colliding with existing IDs. Removing the last socket omits section
 47 on the next save. A bone referenced by a socket cannot be removed until the socket is removed
-or reassigned. Mesh Debug exposes these operations in its Skeletal panel; viewport picking and a
-socket gizmo are the next visual increment. The Blender roundtrip already preserves the records
-as Empty objects parented to their bones.
+or reassigned. The Skeletal Animation Editor exposes these operations in its Bone Editor worktree;
+viewport picking and a socket gizmo are the next visual increment. The Blender roundtrip already
+preserves the records as Empty objects parented to their bones.
 
 ```lua
 meshD:renameSkeletalBone(oneBasedBoneIndex, newName)
