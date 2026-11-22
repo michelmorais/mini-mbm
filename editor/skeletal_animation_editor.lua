@@ -3706,6 +3706,15 @@ local function loadMesh(path)
         bounds.maxZ-bounds.minZ) or 1
     state.paint.radius=math.max(extent*0.05,0.001)
     rebuildPreview()
+    -- A skeletal editor opens a loaded asset in bind/T-pose. Autoplay belongs to runtime
+    -- instances; do not let an asset's saved autoplay selection move the authoring viewport.
+    if state.preview then safeCall(function() return state.preview:stopSkeletalAnimation() end) end
+    if state.comparisonPreview then
+        safeCall(function() return state.comparisonPreview:stopSkeletalAnimation() end)
+    end
+    state.skeletalPreview.playing=false
+    state.skeletalPreview.paused=false
+    state.skeletalPreview.runtimePose=nil
     rebuildSkeletonVisuals()
     buildPaintGeometryCache()
     if state.workspace=='paint' then rebuildPaintHeatmap() end

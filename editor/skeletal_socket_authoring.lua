@@ -79,8 +79,17 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
         authoring.sockets = {}
         authoring.bones = {}
         authoring.selected = 0
+        authoring.lastObservedBoneIndex = nil
         authoring.draft = newDraft(0)
         refresh(authoring, meshD, safeCall)
+    end
+
+    local selection = state.boneEditorSelection
+    local selectedBoneIndex = selection and selection.boneIndex or state.boneIndex
+    if selectedBoneIndex and selectedBoneIndex >= 1 and selectedBoneIndex <= #authoring.bones and
+            authoring.lastObservedBoneIndex ~= selectedBoneIndex then
+        authoring.lastObservedBoneIndex = selectedBoneIndex
+        authoring.draft.bone = selectedBoneIndex
     end
 
     imgui.TextDisabled(lang.L('swl_socket_authoring_help'))
