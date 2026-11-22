@@ -259,7 +259,6 @@ local targetPivotWorldPosition
 local updateTargetPivotMarker
 local showTargetPivotFields
 local getPreviewSourcePose
-local getAttachmentFrameAxes
 local captureOffset
 
 local function roleName(role)
@@ -2026,7 +2025,7 @@ showTargetPivotFields = function()
 end
 
 local function showAttachment()
-    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 380, 560)
+    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 400, 430, 560)
     local opened = tImGui.Begin(S.windows.attachment, true, 0)
     if opened then
         tImGui.Text(L('attachment'))
