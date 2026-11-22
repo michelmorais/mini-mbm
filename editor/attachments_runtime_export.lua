@@ -43,6 +43,17 @@ local function validateVector(value, fallback)
     return true
 end
 
+local function validateRotationMatrix(value)
+    if type(value) ~= 'table' then return false end
+    for row = 1, 3 do
+        if type(value[row]) ~= 'table' then return false end
+        for column = 1, 3 do
+            if not finite(value[row][column]) then return false end
+        end
+    end
+    return true
+end
+
 function M.validate(definition)
     if type(definition) ~= 'table' then return false, 'attachment definition must be a table' end
     if type(definition.source) ~= 'string' or definition.source == '' then
@@ -69,6 +80,9 @@ function M.validate(definition)
         if not validateVector(offset[component], component == 'scale' and 1 or 0) then
             return false, 'offset.' .. component .. ' must be a vector'
         end
+    end
+    if offset.rotationMatrix ~= nil and not validateRotationMatrix(offset.rotationMatrix) then
+        return false, 'offset.rotationMatrix must be a 3x3 matrix'
     end
     if definition.targetPivot ~= nil and not validateVector(definition.targetPivot, 0) then
         return false, 'targetPivot must be a vector'
@@ -99,6 +113,15 @@ local function appendDefinition(output, definition)
     addVector('position', offset.position)
     addVector('rotation', offset.rotation)
     addVector('scale', offset.scale)
+    if validateRotationMatrix(offset.rotationMatrix) then
+        output[#output + 1] = '        rotationMatrix = {'
+        for row = 1, 3 do
+            output[#output + 1] = string.format('            {%.17g, %.17g, %.17g},',
+                offset.rotationMatrix[row][1], offset.rotationMatrix[row][2],
+                offset.rotationMatrix[row][3])
+        end
+        output[#output + 1] = '        },'
+    end
     output[#output + 1] = '    },'
     local targetPivot = definition.targetPivot or {x = 0, y = 0, z = 0}
     output[#output + 1] = string.format('    targetPivot = {x = %.17g, y = %.17g, z = %.17g},',

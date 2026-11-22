@@ -2129,8 +2129,10 @@ rotation, and scale inheritance are independent. Angles and offset rotation use 
 offset is in the selected source's local space, and source scale affects offset position when
 scale inheritance is enabled. The optional `targetPivot` is a point in the target mesh's local
 space; the target origin is moved so this point remains at the attachment position. Its zero value
-preserves the usual target-origin behavior. Bone sources require a mesh with an active evaluated
-skeletal pose; sockets are not supported yet.
+preserves the usual target-origin behavior. `offset.rotationMatrix` may contain the authoritative
+3x3 source-local rotation captured by the editor or `relation:captureOffset()`; when omitted, the
+runtime derives it from `offset.rotation` for backward compatibility. Bone sources require a mesh
+with an active evaluated skeletal pose; sockets are not supported yet.
 
 ```lua
 local relation, err = attachments.attach {

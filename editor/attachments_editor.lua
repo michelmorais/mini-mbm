@@ -56,6 +56,7 @@ local function newDefinition()
         offset = {
             position = vector(100, 0, 0),
             rotation = vector(0, 0, 0),
+            rotationMatrix = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
             scale = vector(1, 1, 1),
         },
         targetPivot = vector(0, 0, 0),
@@ -140,6 +141,29 @@ end
 
 local function identityRotation()
     return {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
+end
+
+local function cloneRotation(matrix)
+    return {
+        {matrix[1][1], matrix[1][2], matrix[1][3]},
+        {matrix[2][1], matrix[2][2], matrix[2][3]},
+        {matrix[3][1], matrix[3][2], matrix[3][3]},
+    }
+end
+
+local function readRotation(value, fallback)
+    if type(value) ~= 'table' then return cloneRotation(fallback) end
+    local result = {}
+    for row = 1, 3 do
+        if type(value[row]) ~= 'table' then return cloneRotation(fallback) end
+        result[row] = {}
+        for column = 1, 3 do
+            local number = tonumber(value[row][column])
+            if not number then return cloneRotation(fallback) end
+            result[row][column] = number
+        end
+    end
+    return result
 end
 
 local function multiplyRotation(a, b)
@@ -1334,8 +1358,10 @@ local function calculateTargetPose()
     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
     local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
     if inherit.rotation then
+        local offsetRotation = S.definition.offset.rotationMatrix or
+            eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z)
         targetRotation = multiplyRotation(sourceRotation,
-            eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z))
+            offsetRotation)
         result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
     end
     if inherit.scale then
@@ -1423,6 +1449,7 @@ local function captureOffset()
     local rx, ry, rz = matrixToEuler(relativeRotation)
     S.definition.offset.position = localPosition
     S.definition.offset.rotation = vector(rx, ry, rz)
+    S.definition.offset.rotationMatrix = cloneRotation(relativeRotation)
     if inherit.scale then
         S.definition.offset.scale = vector(target.sx / source.sx, target.sy / source.sy, target.sz / source.sz)
     end
@@ -1679,6 +1706,13 @@ local function normalizeDefinition(value)
                 result.offset[component][axis] = tonumber(value.offset[component][axis]) or fallback
             end
         end
+    end
+    local fallbackRotation = eulerRotation(result.offset.rotation.x, result.offset.rotation.y,
+        result.offset.rotation.z)
+    if type(value.offset) == 'table' then
+        result.offset.rotationMatrix = readRotation(value.offset.rotationMatrix, fallbackRotation)
+    else
+        result.offset.rotationMatrix = fallbackRotation
     end
     if type(value.editor) == 'table' then
         local editor = value.editor

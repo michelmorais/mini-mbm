@@ -75,6 +75,18 @@ bool isFinite(const VEC3D &value)
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
+bool isFinite(const MATRIX3 &value)
+{
+    for (const auto &row : value.value)
+    {
+        for (const double component : row)
+        {
+            if (!std::isfinite(component)) return false;
+        }
+    }
+    return true;
+}
+
 struct ATTACHMENT;
 class ATTACHMENTS_PLUGIN;
 
@@ -223,6 +235,21 @@ void pushVec3(lua_State *lua, const VEC3D &value)
     lua_pushnumber(lua, value.z); lua_setfield(lua, -2, "z");
 }
 
+void pushMatrix3(lua_State *lua, const MATRIX3 &value)
+{
+    lua_createtable(lua, 3, 0);
+    for (int row = 0; row < 3; ++row)
+    {
+        lua_createtable(lua, 3, 0);
+        for (int column = 0; column < 3; ++column)
+        {
+            lua_pushnumber(lua, value.value[row][column]);
+            lua_rawseti(lua, -2, column + 1);
+        }
+        lua_rawseti(lua, -2, row + 1);
+    }
+}
+
 double numberField(lua_State *lua, const int table, const char *field, const double fallback)
 {
     lua_getfield(lua, table, field);
@@ -244,6 +271,29 @@ VEC3D vec3Field(lua_State *lua, const int table, const char *field, const VEC3D 
     }
     lua_pop(lua, 1);
     return value;
+}
+
+bool matrix3Field(lua_State *lua, const int table, const char *field, MATRIX3 &value)
+{
+    lua_getfield(lua, table, field);
+    const int matrixTable = lua_absindex(lua, -1);
+    bool valid = lua_istable(lua, matrixTable);
+    for (int row = 0; valid && row < 3; ++row)
+    {
+        lua_rawgeti(lua, matrixTable, row + 1);
+        const int rowTable = lua_absindex(lua, -1);
+        valid = lua_istable(lua, rowTable);
+        for (int column = 0; valid && column < 3; ++column)
+        {
+            lua_rawgeti(lua, rowTable, column + 1);
+            if (!lua_isnumber(lua, -1)) valid = false;
+            else value.value[row][column] = lua_tonumber(lua, -1);
+            lua_pop(lua, 1);
+        }
+        lua_pop(lua, 1);
+    }
+    lua_pop(lua, 1);
+    return valid && isFinite(value);
 }
 
 bool booleanField(lua_State *lua, const int table, const char *field, const bool fallback)
@@ -279,6 +329,8 @@ POSE parseOffset(lua_State *lua, const int spec)
         result.position = vec3Field(lua, offset, "position", result.position);
         result.angle = vec3Field(lua, offset, "rotation", result.angle);
         result.scale = vec3Field(lua, offset, "scale", result.scale);
+        result.rotationMatrix = eulerRotation(result.angle);
+        result.hasRotationMatrix = matrix3Field(lua, offset, "rotationMatrix", result.rotationMatrix);
     }
     lua_pop(lua, 1);
     return result;
@@ -355,7 +407,7 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     MATRIX3 targetRotation = eulerRotation(currentTargetPose.angle);
     if ((attachment->inherit & INHERIT_ROTATION) != 0u)
     {
-        targetRotation = multiply(sourceRotation, eulerRotation(attachment->offset.angle));
+        targetRotation = multiply(sourceRotation, poseRotation(attachment->offset));
         result.angle = rotationToEuler(targetRotation);
     }
     if ((attachment->inherit & INHERIT_SCALE) != 0u)
@@ -849,6 +901,8 @@ void pushPoseData(lua_State *lua, const POSE &pose)
 void pushAttachmentData(lua_State *lua, const ATTACHMENT *attachment)
 {
     pushPoseData(lua, attachment->offset);
+    pushMatrix3(lua, poseRotation(attachment->offset));
+    lua_setfield(lua, -2, "rotationMatrix");
     pushVec3(lua, attachment->targetPivot);
     lua_setfield(lua, -2, "targetPivot");
 }
@@ -872,11 +926,15 @@ int onAttachmentSetOffset(lua_State *lua)
     const VEC3D position = vec3Field(lua, 2, "position", attachment->offset.position);
     const VEC3D angle = vec3Field(lua, 2, "rotation", attachment->offset.angle);
     const VEC3D scale = vec3Field(lua, 2, "scale", attachment->offset.scale);
+    MATRIX3 rotationMatrix = eulerRotation(angle);
+    const bool hasRotationMatrix = matrix3Field(lua, 2, "rotationMatrix", rotationMatrix);
     const VEC3D targetPivot = vec3Field(lua, 2, "targetPivot", attachment->targetPivot);
     if (!isFinite(position) || !isFinite(angle) || !isFinite(scale) || !isFinite(targetPivot))
         return fail(lua, "offset values must be finite");
     attachment->offset.position = position;
     attachment->offset.angle = angle;
+    attachment->offset.rotationMatrix = rotationMatrix;
+    attachment->offset.hasRotationMatrix = hasRotationMatrix;
     attachment->offset.scale = scale;
     attachment->targetPivot = targetPivot;
     lua_pushboolean(lua, 1);
@@ -942,8 +1000,9 @@ int onAttachmentCaptureOffset(lua_State *lua)
                 localDelta.y / sourcePose.scale.y,
                 localDelta.z / sourcePose.scale.z}
         : localDelta;
-    attachment->offset.angle = rotationToEuler(multiply(transpose(sourceRotation),
-                                                        eulerRotation(targetPose.angle)));
+    attachment->offset.rotationMatrix = multiply(transpose(sourceRotation), targetRotation);
+    attachment->offset.hasRotationMatrix = true;
+    attachment->offset.angle = rotationToEuler(attachment->offset.rotationMatrix);
     attachment->offset.scale = scaleIsInherited
         ? VEC3D{targetPose.scale.x / sourcePose.scale.x,
                 targetPose.scale.y / sourcePose.scale.y,

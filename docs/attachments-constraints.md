@@ -28,7 +28,7 @@ a named skeletal bone on a mesh. An offset is stored in the selected source's lo
 ```text
 attachment position = source position + source rotation * (source scale * offset position)
 target origin = attachment position - target rotation * (target scale * targetPivot)
-world rotation = source rotation * offset rotation
+world rotation = source rotation * offset rotationMatrix
 world scale    = source scale * offset scale
 ```
 
@@ -44,8 +44,11 @@ around it.
 
 Angles use radians, matching `RENDERIZABLE::getAngle()` and the regular Lua renderizable API.
 Composition uses matrices internally and converts back to Euler XYZ radians only when writing the
-engine transform. For bone sources, the evaluated bone matrix is normalized by its evaluated scale
-before composition, avoiding an intermediate Euler reconstruction during animation. Non-uniform
+engine transform. The optional `offset.rotationMatrix` is the authoritative 3x3 source-local
+rotation captured by the editor and runtime capture API; older definitions without it derive the
+same matrix from `offset.rotation`. For bone sources, the evaluated bone matrix is normalized by
+its evaluated scale before composition, avoiding an intermediate Euler reconstruction during
+animation. Non-uniform
 scale is supported because the offset position is scaled before source rotation. Sheared transforms
 are not part of this contract.
 
