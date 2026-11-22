@@ -262,6 +262,7 @@ local updateTargetPivotMarker
 local showTargetPivotFields
 local getPreviewSourcePose
 local getAttachmentFrameAxes
+local captureOffset
 
 local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
@@ -1341,10 +1342,12 @@ local function beginViewportInteraction(key, screenX, screenY)
         end
         local pickedBone = pickSourceBone(screenX, screenY)
         if pickedBone then
+            local preservedTargetPose = clonePose(S.target.pose)
             S.selectedRole = 'source'
             S.source.selectedBone = pickedBone
             S.definition.sourceType = 'bone'
             S.definition.sourceBone = pickedBone
+            captureOffset(preservedTargetPose)
             S.target.manualOverride = false
             markModified()
             return
@@ -1550,8 +1553,9 @@ local function rebuildPreview()
     S.dirtyPreview = false
 end
 
-local function captureOffset()
-    local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
+captureOffset = function(targetPoseOverride)
+    local source = getPreviewSourcePose() or S.source.pose
+    local target = targetPoseOverride or S.target.pose
     local inherit = S.definition.inherit
     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
     local inverseSource = transposeRotation(sourceRotation)
