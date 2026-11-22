@@ -47,7 +47,7 @@ end
 
 local function newDefinition()
     return {
-        version = 1,
+        version = 2,
         source = 'source',
         target = 'target',
         sourceType = 'root',
@@ -342,6 +342,10 @@ local function playSourceAnimation()
     end
     local name = source.animationClips[source.selectedAnimation]
     if not source.object or not name then return end
+    if source.activeAnimation == name and source.animationPaused then
+        resumeSourceAnimation()
+        return
+    end
     local ok, played = dpCall(function() return source.object:playSkeletalAnimation(name) end)
     if not ok or played == false then
         setStatus(L('animation_play_failed'), true)
@@ -376,6 +380,31 @@ local function stopSourceAnimation()
     S.source.activeAnimation = ''
     S.source.animationPaused = false
     S.dirtyPreview = true
+end
+
+local function sourceAnimationDuration()
+    local source = S.source
+    if not source.object or #source.animationClips == 0 then return 0 end
+    local ok, duration = dpCall(function()
+        return source.object:getSkeletalAnimationDuration(source.selectedAnimation)
+    end)
+    return ok and math.max(0, tonumber(duration) or 0) or 0
+end
+
+local function seekSourceAnimation(time)
+    local source = S.source
+    local name = source.animationClips[source.selectedAnimation]
+    if not source.object or not name then return end
+    if source.activeAnimation ~= name then
+        playSourceAnimation()
+        if source.activeAnimation ~= name then return end
+    end
+    dpCall(function() return source.object:pauseSkeletalAnimation() end)
+    local ok, seeked = dpCall(function() return source.object:seekSkeletalAnimation(math.max(0, time or 0)) end)
+    if ok and seeked ~= false then
+        source.animationPaused = true
+        S.dirtyPreview = true
+    end
 end
 
 local function ensureRolePlaceholder(role)
@@ -448,9 +477,9 @@ local function matrixPose(matrix)
     local sz = math.sqrt(z1 * z1 + z2 * z2 + z3 * z3)
     if sx <= 1e-8 or sy <= 1e-8 or sz <= 1e-8 then return nil end
     local rotation = {
-        {x1 / sx, y1 / sy, z1 / sz},
-        {x2 / sx, y2 / sy, z2 / sz},
-        {x3 / sx, y3 / sy, z3 / sz},
+        {x1 / sx, x2 / sx, x3 / sx},
+        {y1 / sy, y2 / sy, y3 / sy},
+        {z1 / sz, z2 / sz, z3 / sz},
     }
     local rx, ry, rz = matrixToEuler(rotation)
     local position = matrixPoint(matrix)
@@ -1356,6 +1385,9 @@ local function previewDriverSource(projectPath)
 local project = dofile(]] .. projectLiteral .. [[)
 local definition = project.definition
 local attachments = require 'attachments'
+local previewObjects = {}
+local previewRelation = nil
+local previewSpecification = nil
 
 local function cubeVertices()
     return {
@@ -1402,6 +1434,8 @@ function onInitScene()
         {r = 1, g = 0.98, b = 0.9, a = 1})
     local source = loadRole('source', definition.editor)
     local target = loadRole('target', definition.editor)
+    previewObjects.source = source
+    previewObjects.target = target
     local camera = mbm.getCamera('3d')
     local orbit = project.camera or {azimuth = 0.3, elevation = 0.3, distance = 700,
         fx = 50, fy = 30, fz = 0}
@@ -1415,7 +1449,7 @@ function onInitScene()
     if definition.editor.sourceAnimationPaused and clip and clip ~= '' then
         assert(source:pauseSkeletalAnimation())
     end
-    local specification = {
+    previewSpecification = {
         source = source,
         target = target,
         sourceType = definition.sourceType,
@@ -1423,10 +1457,20 @@ function onInitScene()
         offset = definition.offset,
     }
     if definition.sourceBone and definition.sourceBone ~= '' then
-        specification.sourceBone = definition.sourceBone
+        previewSpecification.sourceBone = definition.sourceBone
     end
-    local relation, errorMessage = attachments.attach(specification)
-    assert(relation, errorMessage)
+end
+
+function onLoop()
+    if not previewRelation then
+        if definition.sourceType == 'bone' and
+                not previewObjects.source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
+            return
+        end
+        local relation, errorMessage = attachments.attach(previewSpecification)
+        assert(relation, errorMessage)
+        previewRelation = relation
+    end
 end
 
 function onKeyDown(key)
@@ -1492,6 +1536,7 @@ end
 local function normalizeDefinition(value)
     if type(value) ~= 'table' then return nil end
     local result = newDefinition()
+    result.version = math.max(1, math.floor(tonumber(value.version) or 1))
     result.source = tostring(value.source or result.source)
     result.target = tostring(value.target or result.target)
     result.sourceType = value.sourceType == 'bone' and 'bone' or 'root'
@@ -1564,6 +1609,10 @@ local function loadDefinition(path)
                 break
             end
         end
+    end
+    if definition.version < 2 and definition.sourceType == 'bone' and S.source.skeletonReport then
+        captureOffset()
+        S.definition.version = 2
     end
     S.source.selectable = definition.editor.sourceSelectable ~= false
     S.target.selectable = definition.editor.targetSelectable ~= false
@@ -1663,6 +1712,26 @@ local function showSourceAnimationControls()
     else
         tImGui.Text(L('animation_stopped'))
     end
+    local duration = sourceAnimationDuration()
+    local currentTime = 0
+    if source.activeAnimation ~= '' then
+        local ok, time = dpCall(function() return source.object:getSkeletalAnimationTime() end)
+        if ok then currentTime = math.max(0, tonumber(time) or 0) end
+    end
+    if duration > 0 then
+        local timelineChanged, timelineValue = tImGui.SliderFloat(L('animation_time'), currentTime, 0, duration)
+        if timelineChanged then seekSourceAnimation(timelineValue) end
+        tImGui.SameLine()
+        tImGui.Text(string.format(L('animation_timeline_status'), currentTime, duration))
+        if tImGui.Button(L('step_back') .. '##att_source_animation_step_back') then
+            seekSourceAnimation(math.max(0, currentTime - 1 / 30))
+        end
+        tImGui.SameLine()
+        if tImGui.Button(L('step_forward') .. '##att_source_animation_step_forward') then
+            seekSourceAnimation(math.min(duration, currentTime + 1 / 30))
+        end
+    end
+    tImGui.TextWrapped(L('animation_timeline_help'))
     if S.definition.sourceType == 'bone' then tImGui.TextWrapped(L('animation_bone_note')) end
 end
 
@@ -1681,7 +1750,6 @@ local function showObjects()
         if sourceChanged then S.definition.source = sourceName; markModified() end
         showViewSelectable('source')
         showRoleAsset('source')
-        showSourceAnimationControls()
         if tImGui.Selectable(L('target') .. ': ' .. roleName('target'), S.selectedRole == 'target') then
             S.selectedRole = 'target'
         end
@@ -1816,11 +1884,13 @@ local function showCameraPanel()
 end
 
 local function showPreviewPanel()
-    tUtil.setInitialWindowPositionDown(S.windows.preview, 390, 0.16, 350)
+    tUtil.setInitialWindowPositionDown(S.windows.preview, 390, 0.32, 350)
     local opened = tImGui.Begin(S.windows.preview, true, 0)
     if opened then
         tImGui.Text(L('preview'))
         tImGui.TextWrapped(L('preview_help'))
+        showSourceAnimationControls()
+        tImGui.Separator()
         if tImGui.Button(L('capture')) then captureOffset() end
         tImGui.SameLine()
         if tImGui.Button(L('reset_preview')) then resetTargetPreview() end
