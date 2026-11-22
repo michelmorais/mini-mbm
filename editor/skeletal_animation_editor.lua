@@ -144,7 +144,8 @@ local state = {
     workspace = 'none',
     meshVisible = true,
     skeletonAlwaysOnTop = true,
-    skeletonGizmo = {spheres={}, bones={}, referenceTails={}, referenceSegments={}, sockets={}},
+    skeletonGizmo = {spheres={}, bones={}, referenceTails={}, referenceSegments={},
+        sockets={}, socketAxes={}},
     skeletonGizmoGeneration = 0,
     markersAlwaysOnTop = true,
     info = nil,
@@ -759,7 +760,11 @@ local function destroySkeletonVisuals(preserveTranslationGizmo)
     for _,object in pairs(state.skeletonGizmo.referenceTails) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.referenceSegments) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.sockets) do destroyObject(object) end
-    state.skeletonGizmo={spheres={},bones={},referenceTails={},referenceSegments={},sockets={}}
+    for _,axes in pairs(state.skeletonGizmo.socketAxes or {}) do
+        for _,object in pairs(axes) do destroyObject(object) end
+    end
+    state.skeletonGizmo={spheres={},bones={},referenceTails={},referenceSegments={},
+        sockets={},socketAxes={}}
     for _,object in pairs(state.socketGizmo.axes) do destroyObject(object) end
     state.socketGizmo={axes={},origin=nil,length=nil,selectedIndex=nil,positions={},records={},drag=nil}
     if not preserveTranslationGizmo then
@@ -1176,6 +1181,9 @@ local function updateSkeletonVisibility()
     for _,object in pairs(state.skeletonGizmo.sockets) do
         object.visible=shouldShowSkeleton()
     end
+    for _,axes in pairs(state.skeletonGizmo.socketAxes or {}) do
+        for _,object in pairs(axes) do object.visible=shouldShowSkeleton() end
+    end
 end
 
 function applyWorkspaceVisibility()
@@ -1523,10 +1531,55 @@ rebuildSkeletonVisuals=function()
                         'swl_socket_marker_'..socketIndex,1,0.55,0.05,1)
                     marker:setScale(math.max(extent*0.012,0.002),math.max(extent*0.012,0.002),
                         math.max(extent*0.012,0.002))
+                    marker.alwaysOnTop=true
                     marker.alwaysOnTopPriority=2
-                    state.skeletonGizmo.sockets[socket.name or tostring(socketIndex)]=marker
+                    local socketKey=socket.name or tostring(socketIndex)
+                    state.skeletonGizmo.sockets[socketKey]=marker
+                    local qx,qy,qz,qw=socket.rotationX or 0,socket.rotationY or 0,
+                        socket.rotationZ or 0,socket.rotationW or 1
+                    local qLength=math.sqrt(qx*qx+qy*qy+qz*qz+qw*qw)
+                    if qLength>1e-8 then
+                        qx,qy,qz,qw=qx/qLength,qy/qLength,qz/qLength,qw/qLength
+                    else
+                        qx,qy,qz,qw=0,0,0,1
+                    end
+                    local xx,yy,zz=qx*qx,qy*qy,qz*qz
+                    local xy,xz,yz=qx*qy,qx*qz,qy*qz
+                    local xw,yw,zw=qx*qw,qy*qw,qz*qw
+                    local r11,r21,r31=1-2*(yy+zz),2*(xy+zw),2*(xz-yw)
+                    local r12,r22,r32=2*(xy-zw),1-2*(xx+zz),2*(yz+xw)
+                    local r13,r23,r33=2*(xz+yw),2*(yz-xw),1-2*(xx+yy)
+                    local function transformedAxis(a,b,c)
+                        local ax=(matrix[1] or 1)*a+(matrix[5] or 0)*b+(matrix[9] or 0)*c
+                        local ay=(matrix[2] or 0)*a+(matrix[6] or 1)*b+(matrix[10] or 0)*c
+                        local az=(matrix[3] or 0)*a+(matrix[7] or 0)*b+(matrix[11] or 1)*c
+                        local length=math.sqrt(ax*ax+ay*ay+az*az)
+                        if length<=1e-8 then return 0,0,0 end
+                        return ax/length,ay/length,az/length
+                    end
+                    local axisX,axisY,axisZ=transformedAxis(r11,r21,r31)
+                    local axis2X,axis2Y,axis2Z=transformedAxis(r12,r22,r32)
+                    local axis3X,axis3Y,axis3Z=transformedAxis(r13,r23,r33)
+                    local axisLength=math.max(extent*0.055,0.01)
+                    local axisDefinitions={
+                        {axisX,axisY,axisZ,1,0.15,0.15},
+                        {axis2X,axis2Y,axis2Z,0.15,1,0.2},
+                        {axis3X,axis3Y,axis3Z,0.2,0.45,1},
+                    }
+                    local socketAxes={}
+                    for axisIndex,definition in ipairs(axisDefinitions) do
+                        local axisObject=line:new('3d',0,0,0)
+                        axisObject:add({0,0,0,definition[1]*axisLength,
+                            definition[2]*axisLength,definition[3]*axisLength})
+                        axisObject:setColor(definition[4],definition[5],definition[6],1)
+                        axisObject:setPos(x,y,z)
+                        axisObject.alwaysOnTop=true
+                        axisObject.alwaysOnTopPriority=3
+                        socketAxes[axisIndex]=axisObject
+                    end
+                    state.skeletonGizmo.socketAxes[socketKey]=socketAxes
                     state.socketGizmo.positions[socketIndex]={x=x,y=y,z=z,
-                        name=socket.name or tostring(socketIndex)}
+                        name=socketKey}
                     state.socketGizmo.records[socketIndex]=socket
                 end
             end
@@ -6466,6 +6519,17 @@ local function saveTo(path)
         state.fileName = path
         state.modified = false
         rebuildPreview()
+        -- Loading a preview mesh can honor the asset's autoplay flag. The skeletal
+        -- editor always returns to bind/T-pose after save, just like after load.
+        if state.preview then safeCall(function() return state.preview:stopSkeletalAnimation() end) end
+        if state.comparisonPreview then
+            safeCall(function() return state.comparisonPreview:stopSkeletalAnimation() end)
+        end
+        state.skeletalPreview.playing=false
+        state.skeletalPreview.paused=false
+        state.skeletalPreview.runtimePose=nil
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
         setStatus(string.format(tLang.L('swl_saved_fmt'), shortName(path)), false)
         return true
     end
@@ -11499,6 +11563,13 @@ function onTouchMove(key, x, y)
                         local marker=state.skeletonGizmo.sockets[socketDrag.record.name or
                             tostring(socketDrag.socketIndex)]
                         if marker then marker:setPos(position.x,position.y,position.z) end
+                        local axisObjects=state.skeletonGizmo.socketAxes[socketDrag.record.name or
+                            tostring(socketDrag.socketIndex)]
+                        if axisObjects then
+                            for _,axisObject in pairs(axisObjects) do
+                                axisObject:setPos(position.x,position.y,position.z)
+                            end
+                        end
                     end
                     if state.socketAuthoring and state.socketAuthoring.draft then
                         state.socketAuthoring.draft.tx=newX
