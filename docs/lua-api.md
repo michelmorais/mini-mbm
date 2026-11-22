@@ -2127,8 +2127,10 @@ specification requires `source` and `target` renderizable objects and accepts `i
 (`"root"` or `"bone"`), `sourceBone` when using a bone, `inherit`, and `offset`. Position,
 rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
 offset is in the selected source's local space, and source scale affects offset position when
-scale inheritance is enabled. Bone sources require a mesh with an active evaluated skeletal pose;
-sockets are not supported yet.
+scale inheritance is enabled. The optional `targetPivot` is a point in the target mesh's local
+space; the target origin is moved so this point remains at the attachment position. Its zero value
+preserves the usual target-origin behavior. Bone sources require a mesh with an active evaluated
+skeletal pose; sockets are not supported yet.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2142,6 +2144,7 @@ local relation, err = attachments.attach {
         rotation = {x = 0, y = 0, z = 0},
         scale = {x = 1, y = 1, z = 1},
     },
+    targetPivot = {x = 0, y = -2, z = 0},
 }
 assert(relation, err)
 relation:captureOffset()
@@ -2161,8 +2164,8 @@ another active attachment writing the same target component. The returned object
 computes for the target, including the target's current values for non-inherited components.
 
 Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
-stable topological order for acyclic chains. Destroyed objects and scene teardown deactivate
-relations and release their Lua references. Bones, sockets, IK, aim, spring, damping, and physics
+stable topological order for acyclic chains. Scene teardown deactivates relations and releases
+their Lua references. Bones, sockets, IK, aim, spring, damping, and physics
 constraints are not supported yet; see [Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions

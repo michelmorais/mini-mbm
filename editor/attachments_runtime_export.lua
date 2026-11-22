@@ -70,6 +70,9 @@ function M.validate(definition)
             return false, 'offset.' .. component .. ' must be a vector'
         end
     end
+    if definition.targetPivot ~= nil and not validateVector(definition.targetPivot, 0) then
+        return false, 'targetPivot must be a vector'
+    end
     return true
 end
 
@@ -97,6 +100,9 @@ local function appendDefinition(output, definition)
     addVector('rotation', offset.rotation)
     addVector('scale', offset.scale)
     output[#output + 1] = '    },'
+    local targetPivot = definition.targetPivot or {x = 0, y = 0, z = 0}
+    output[#output + 1] = string.format('    targetPivot = {x = %.17g, y = %.17g, z = %.17g},',
+        number(targetPivot.x, 0), number(targetPivot.y, 0), number(targetPivot.z, 0))
     output[#output + 1] = '}'
 end
 
@@ -124,6 +130,7 @@ function M.build(definition)
     output[#output + 1] = '        sourceType = definition.sourceType,'
     output[#output + 1] = '        inherit = definition.inherit,'
     output[#output + 1] = '        offset = definition.offset,'
+    output[#output + 1] = '        targetPivot = definition.targetPivot,'
     output[#output + 1] = '    }'
     output[#output + 1] = '    if definition.sourceBone then specification.sourceBone = definition.sourceBone end'
     output[#output + 1] = '    return attachments.attach(specification)'

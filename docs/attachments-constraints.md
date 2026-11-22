@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.6**
-Status: **Phase 4 runtime export and editor preview implemented; sockets pending**
+Document version: **1.7**
+Status: **Phase 4 runtime export and editor preview implemented; virtual target pivots added; sockets pending**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -26,7 +26,8 @@ The source can be the `root` transform of a renderizable object or the evaluated
 a named skeletal bone on a mesh. An offset is stored in the selected source's local space:
 
 ```text
-world position = source position + source rotation * (source scale * offset position)
+attachment position = source position + source rotation * (source scale * offset position)
+target origin = attachment position - target rotation * (target scale * targetPivot)
 world rotation = source rotation * offset rotation
 world scale    = source scale * offset scale
 ```
@@ -36,12 +37,17 @@ source rotation orients the position offset whenever position inheritance is ena
 rotation inheritance is disabled. Position, rotation, and scale are written independently; a
 component whose inheritance flag is false is left untouched. Bone sources require an active,
 evaluated skeletal pose; sockets are not supported because the mesh format has no socket contract
-yet.
+yet. `targetPivot` is an optional point in the target mesh's local space. Its zero value preserves
+the original behavior, where the target renderizable origin is the attachment point. A non-zero
+value lets a base, socket-like point inside a mesh remain attached while the target origin moves
+around it.
 
 Angles use radians, matching `RENDERIZABLE::getAngle()` and the regular Lua renderizable API.
 Composition uses matrices internally and converts back to Euler XYZ radians only when writing the
-engine transform. Non-uniform scale is supported because the offset position is scaled before
-source rotation. Sheared transforms are not part of this contract.
+engine transform. For bone sources, the evaluated bone matrix is normalized by its evaluated scale
+before composition, avoiding an intermediate Euler reconstruction during animation. Non-uniform
+scale is supported because the offset position is scaled before source rotation. Sheared transforms
+are not part of this contract.
 
 ## Lua API
 
@@ -62,6 +68,7 @@ local attachment, err = attachments.attach {
         rotation = {x = 0, y = 0, z = 0}, -- radians
         scale = {x = 1, y = 1, z = 1},
     },
+    targetPivot = {x = 0, y = 0, z = 0}, -- target-local point kept on the attachment
 }
 assert(attachment, err)
 ```
@@ -106,10 +113,10 @@ rotation, or scale component of one target. The first implementation cannot obse
 gameplay or physics writes made outside the attachment plugin; it guarantees only that attachment
 relations do not conflict with one another and that unowned components are not overwritten.
 
-Lua references to the source and target tables keep them alive while an attachment is active. An
-explicit renderizable destroy invalidates its `USER_DATA_RENDER_LUA` table reference; the next update
-detects that state and disables the attachment. Scene teardown disables all relations and releases
-their references.
+Lua references to the source and target tables keep them alive while an attachment is active. The
+attachment keeps these references itself; `USER_DATA_RENDER_LUA::ref_MeAsTable` is not required for
+ordinary renderizable construction. Scene teardown disables all relations and releases their
+references.
 
 ## Authoring boundary
 
@@ -154,6 +161,8 @@ bind/T-pose, and draws large joint spheres and bone segments over the mesh. The 
 source bone directly in the viewport; the selected bone name is displayed as read-only editor state
 and is saved with the definition. Leaving the mode restores the previous camera and target preview.
 There is no free-text bone authoring field.
+The Attachment panel also exposes a target-local virtual pivot. The viewport draws that point and
+the relation line ends there; zero keeps the mesh origin as the target point.
 
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
 preview`. The preview is a standalone Lua driver containing the saved source and target asset

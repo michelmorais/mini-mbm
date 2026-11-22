@@ -66,6 +66,8 @@ struct POSE
     VEC3D position;
     VEC3D angle;
     VEC3D scale{1.0, 1.0, 1.0};
+    MATRIX3 rotationMatrix;
+    bool hasRotationMatrix = false;
 };
 
 bool isFinite(const VEC3D &value)
@@ -141,6 +143,18 @@ MATRIX3 eulerRotation(const VEC3D &angle)
     return multiply(zRotation, multiply(yRotation, xRotation));
 }
 
+MATRIX3 normalizedRotation(const mbm::MATRIX &matrix, const VEC3D &scale)
+{
+    MATRIX3 result;
+    const double scaleValues[3] = {scale.x, scale.y, scale.z};
+    for (int row = 0; row < 3; ++row)
+    {
+        for (int column = 0; column < 3; ++column)
+            result.value[row][column] = matrix.m[row][column] / scaleValues[row];
+    }
+    return result;
+}
+
 VEC3D rotationToEuler(const MATRIX3 &matrix)
 {
     const double value = std::max(-1.0, std::min(1.0, matrix.value[2][0]));
@@ -165,9 +179,12 @@ POSE readPose(const mbm::RENDERIZABLE *renderizable)
     const mbm::VEC3 &position = renderizable->getPosition();
     const mbm::VEC3 &angle = renderizable->getAngle();
     const mbm::VEC3 &scale = renderizable->getScale();
-    return {{position.x, position.y, position.z},
-            {angle.x, angle.y, angle.z},
-            {scale.x, scale.y, scale.z}};
+    POSE result{{position.x, position.y, position.z},
+                {angle.x, angle.y, angle.z},
+                {scale.x, scale.y, scale.z}};
+    result.rotationMatrix = eulerRotation(result.angle);
+    result.hasRotationMatrix = true;
+    return result;
 }
 
 void writePosition(mbm::RENDERIZABLE *renderizable, const VEC3D &position)
@@ -277,6 +294,7 @@ struct ATTACHMENT
     std::string sourceBone;
     uint8_t sourceType = SOURCE_ROOT;
     POSE offset;
+    VEC3D targetPivot;
     POSE poseBeforeAttach;
     uint8_t inherit = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
     bool active = true;
@@ -302,6 +320,11 @@ bool readBonePose(mbm::RENDERIZABLE *source, const std::string &boneName, POSE &
     pose.position = {position.x, position.y, position.z};
     pose.angle = {angle.x, angle.y, angle.z};
     pose.scale = {scale.x, scale.y, scale.z};
+    if (std::abs(pose.scale.x) <= 0.000001 || std::abs(pose.scale.y) <= 0.000001 ||
+        std::abs(pose.scale.z) <= 0.000001)
+        return false;
+    pose.rotationMatrix = normalizedRotation(matrix, pose.scale);
+    pose.hasRotationMatrix = true;
     return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
 }
 
@@ -318,12 +341,29 @@ bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POS
     return false;
 }
 
+MATRIX3 poseRotation(const POSE &pose)
+{
+    return pose.hasRotationMatrix ? pose.rotationMatrix : eulerRotation(pose.angle);
+}
+
 POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
                           const POSE &currentTargetPose)
 {
     POSE result = currentTargetPose;
     if (!attachment) return result;
-    const MATRIX3 sourceRotation = eulerRotation(sourcePose.angle);
+    const MATRIX3 sourceRotation = poseRotation(sourcePose);
+    MATRIX3 targetRotation = eulerRotation(currentTargetPose.angle);
+    if ((attachment->inherit & INHERIT_ROTATION) != 0u)
+    {
+        targetRotation = multiply(sourceRotation, eulerRotation(attachment->offset.angle));
+        result.angle = rotationToEuler(targetRotation);
+    }
+    if ((attachment->inherit & INHERIT_SCALE) != 0u)
+    {
+        result.scale = {sourcePose.scale.x * attachment->offset.scale.x,
+                        sourcePose.scale.y * attachment->offset.scale.y,
+                        sourcePose.scale.z * attachment->offset.scale.z};
+    }
     if ((attachment->inherit & INHERIT_POSITION) != 0u)
     {
         VEC3D local = attachment->offset.position;
@@ -337,17 +377,13 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
         result.position = {sourcePose.position.x + rotated.x,
                            sourcePose.position.y + rotated.y,
                            sourcePose.position.z + rotated.z};
-    }
-    if ((attachment->inherit & INHERIT_ROTATION) != 0u)
-    {
-        result.angle = rotationToEuler(multiply(sourceRotation,
-                                                eulerRotation(attachment->offset.angle)));
-    }
-    if ((attachment->inherit & INHERIT_SCALE) != 0u)
-    {
-        result.scale = {sourcePose.scale.x * attachment->offset.scale.x,
-                        sourcePose.scale.y * attachment->offset.scale.y,
-                        sourcePose.scale.z * attachment->offset.scale.z};
+        const VEC3D pivot = {attachment->targetPivot.x * result.scale.x,
+                             attachment->targetPivot.y * result.scale.y,
+                             attachment->targetPivot.z * result.scale.z};
+        const VEC3D rotatedPivot = transformVector(targetRotation, pivot);
+        result.position.x -= rotatedPivot.x;
+        result.position.y -= rotatedPivot.y;
+        result.position.z -= rotatedPivot.z;
     }
     return result;
 }
@@ -392,6 +428,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const uint8_t sourceType,
                                                   const std::string &sourceBone,
                                                   const POSE &offset,
+                                                  const VEC3D &targetPivot,
                                                   const POSE &before,
                                                   uint8_t inherit,
                                                   int sourceReference,
@@ -542,8 +579,8 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
-    const POSE &offset, const POSE &before, const uint8_t inherit, const int sourceReference,
-    const int targetReference)
+    const POSE &offset, const VEC3D &targetPivot, const POSE &before,
+    const uint8_t inherit, const int sourceReference, const int targetReference)
 {
     std::shared_ptr<ATTACHMENT> attachment = std::make_shared<ATTACHMENT>();
     attachment->manager = this;
@@ -554,6 +591,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->sourceType = sourceType;
     attachment->sourceBone = sourceBone;
     attachment->offset = offset;
+    attachment->targetPivot = targetPivot;
     attachment->poseBeforeAttach = before;
     attachment->inherit = inherit;
     attachments.push_back(attachment);
@@ -811,6 +849,8 @@ void pushPoseData(lua_State *lua, const POSE &pose)
 void pushAttachmentData(lua_State *lua, const ATTACHMENT *attachment)
 {
     pushPoseData(lua, attachment->offset);
+    pushVec3(lua, attachment->targetPivot);
+    lua_setfield(lua, -2, "targetPivot");
 }
 
 int onAttachmentGetOffset(lua_State *lua)
@@ -832,11 +872,13 @@ int onAttachmentSetOffset(lua_State *lua)
     const VEC3D position = vec3Field(lua, 2, "position", attachment->offset.position);
     const VEC3D angle = vec3Field(lua, 2, "rotation", attachment->offset.angle);
     const VEC3D scale = vec3Field(lua, 2, "scale", attachment->offset.scale);
-    if (!isFinite(position) || !isFinite(angle) || !isFinite(scale))
+    const VEC3D targetPivot = vec3Field(lua, 2, "targetPivot", attachment->targetPivot);
+    if (!isFinite(position) || !isFinite(angle) || !isFinite(scale) || !isFinite(targetPivot))
         return fail(lua, "offset values must be finite");
     attachment->offset.position = position;
     attachment->offset.angle = angle;
     attachment->offset.scale = scale;
+    attachment->targetPivot = targetPivot;
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -882,10 +924,18 @@ int onAttachmentCaptureOffset(lua_State *lua)
         std::abs(sourcePose.scale.y) < 0.000001 ||
         std::abs(sourcePose.scale.z) < 0.000001))
         return fail(lua, "cannot capture offset from a zero source scale");
-    const MATRIX3 sourceRotation = eulerRotation(sourcePose.angle);
-    const VEC3D worldDelta{targetPose.position.x - sourcePose.position.x,
-                           targetPose.position.y - sourcePose.position.y,
-                           targetPose.position.z - sourcePose.position.z};
+    const MATRIX3 sourceRotation = poseRotation(sourcePose);
+    const MATRIX3 targetRotation = eulerRotation(targetPose.angle);
+    const VEC3D targetPivot = {attachment->targetPivot.x * targetPose.scale.x,
+                               attachment->targetPivot.y * targetPose.scale.y,
+                               attachment->targetPivot.z * targetPose.scale.z};
+    const VEC3D rotatedTargetPivot = transformVector(targetRotation, targetPivot);
+    const VEC3D targetAnchor{targetPose.position.x + rotatedTargetPivot.x,
+                             targetPose.position.y + rotatedTargetPivot.y,
+                             targetPose.position.z + rotatedTargetPivot.z};
+    const VEC3D worldDelta{targetAnchor.x - sourcePose.position.x,
+                           targetAnchor.y - sourcePose.position.y,
+                           targetAnchor.z - sourcePose.position.z};
     const VEC3D localDelta = transformVector(transpose(sourceRotation), worldDelta);
     attachment->offset.position = scaleIsInherited
         ? VEC3D{localDelta.x / sourcePose.scale.x,
@@ -1032,7 +1082,9 @@ int onAttach(lua_State *lua)
     }
     const uint8_t inherit = parseInheritance(lua, 1);
     const POSE offset = parseOffset(lua, 1);
-    if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale))
+    const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
+    if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale) ||
+        !isFinite(targetPivot))
     {
         luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
@@ -1068,7 +1120,8 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, offset, before, inherit, sourceReference, targetReference);
+        id, sourceType, sourceBone, offset, targetPivot, before, inherit, sourceReference,
+        targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");

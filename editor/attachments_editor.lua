@@ -47,7 +47,7 @@ end
 
 local function newDefinition()
     return {
-        version = 2,
+        version = 3,
         source = 'source',
         target = 'target',
         sourceType = 'root',
@@ -58,6 +58,7 @@ local function newDefinition()
             rotation = vector(0, 0, 0),
             scale = vector(1, 1, 1),
         },
+        targetPivot = vector(0, 0, 0),
         editor = {
             sourceKind = 'placeholder',
             targetKind = 'placeholder',
@@ -91,6 +92,7 @@ local S = {
     target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
         path = '', previewSize = 50, meshLoaded = false, selectable = true},
     relationLine = nil,
+    targetPivotMarker = nil,
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
     xzPlaneSize = nil,
@@ -792,6 +794,7 @@ setBoneSelectionMode = function(enabled)
         S.boneSelectionMode = true
         if S.target.object then S.target.object.visible = false end
         if S.relationLine then S.relationLine.visible = false end
+        if S.targetPivotMarker then S.targetPivotMarker.visible = false end
         if S.xzPlane then S.xzPlane.visible = false end
         updateSourceSkeletonVisibility()
         frameBoneSelectionCamera()
@@ -801,6 +804,7 @@ setBoneSelectionMode = function(enabled)
     S.boneSelectionMode = false
     if S.target.object then S.target.object.visible = S.boneSelectionTargetVisible ~= false end
     if S.relationLine then S.relationLine.visible = true end
+    if S.targetPivotMarker then S.targetPivotMarker.visible = true end
     if S.boneSelectionCamera then
         S.cameraOrbit = S.boneSelectionCamera
         S.boneSelectionCamera = nil
@@ -827,6 +831,7 @@ local function getSourceBonePose(name)
         x = source.x + worldPosition.x, y = source.y + worldPosition.y, z = source.z + worldPosition.z,
         rx = rx, ry = ry, rz = rz,
         sx = source.sx * bindPose.sx, sy = source.sy * bindPose.sy, sz = source.sz * bindPose.sz,
+        rotation = worldRotation,
     }
 end
 
@@ -910,10 +915,12 @@ local function getPreviewSourcePose()
         end)
         if ok and type(bone) == 'table' and type(bone.position) == 'table' and
                 type(bone.angle) == 'table' and type(bone.scale) == 'table' then
+            local boneMatrixPose = matrixPose(bone.matrix)
             return {
                 x = bone.position.x or 0, y = bone.position.y or 0, z = bone.position.z or 0,
                 rx = bone.angle.x or 0, ry = bone.angle.y or 0, rz = bone.angle.z or 0,
                 sx = bone.scale.x or 1, sy = bone.scale.y or 1, sz = bone.scale.z or 1,
+                rotation = boneMatrixPose and boneMatrixPose.rotation or nil,
             }
         end
     end
@@ -1246,7 +1253,18 @@ local function calculateTargetPose()
     local result = clonePose(target)
     local inherit = S.definition.inherit
     local offset = S.definition.offset
-    local sourceRotation = eulerRotation(source.rx, source.ry, source.rz)
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
+    if inherit.rotation then
+        targetRotation = multiplyRotation(sourceRotation,
+            eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z))
+        result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
+    end
+    if inherit.scale then
+        result.sx = source.sx * offset.scale.x
+        result.sy = source.sy * offset.scale.y
+        result.sz = source.sz * offset.scale.z
+    end
     if inherit.position then
         local localPosition = vector(offset.position.x, offset.position.y, offset.position.z)
         if inherit.scale then
@@ -1258,23 +1276,22 @@ local function calculateTargetPose()
         result.x = source.x + worldPosition.x
         result.y = source.y + worldPosition.y
         result.z = source.z + worldPosition.z
-    end
-    if inherit.rotation then
-        if math.abs(offset.rotation.x) < 1e-8 and math.abs(offset.rotation.y) < 1e-8 and
-                math.abs(offset.rotation.z) < 1e-8 then
-            result.rx, result.ry, result.rz = source.rx, source.ry, source.rz
-        else
-            local targetRotation = multiplyRotation(sourceRotation,
-                eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z))
-            result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
-        end
-    end
-    if inherit.scale then
-        result.sx = source.sx * offset.scale.x
-        result.sy = source.sy * offset.scale.y
-        result.sz = source.sz * offset.scale.z
+        local pivot = vector(S.definition.targetPivot.x * result.sx,
+            S.definition.targetPivot.y * result.sy, S.definition.targetPivot.z * result.sz)
+        local worldPivot = rotateVector(targetRotation, pivot)
+        result.x = result.x - worldPivot.x
+        result.y = result.y - worldPivot.y
+        result.z = result.z - worldPivot.z
     end
     return result
+end
+
+local function targetPivotWorldPosition(target)
+    local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
+    local localPivot = vector(S.definition.targetPivot.x * target.sx,
+        S.definition.targetPivot.y * target.sy, S.definition.targetPivot.z * target.sz)
+    local worldPivot = rotateVector(targetRotation, localPivot)
+    return vector(target.x + worldPivot.x, target.y + worldPivot.y, target.z + worldPivot.z)
 end
 
 local function rebuildPreview()
@@ -1284,8 +1301,17 @@ local function rebuildPreview()
     applyMarker('target', S.target.pose)
     if S.relationLine then
         local source = getPreviewSourcePose() or S.source.pose
+        local targetPivot = targetPivotWorldPosition(S.target.pose)
         S.relationLine:set({source.x, source.y, source.z,
-            S.target.pose.x, S.target.pose.y, S.target.pose.z}, 1)
+            targetPivot.x, targetPivot.y, targetPivot.z}, 1)
+    end
+    if S.targetPivotMarker then
+        local targetPivot = targetPivotWorldPosition(S.target.pose)
+        S.targetPivotMarker:setPos(targetPivot.x, targetPivot.y, targetPivot.z)
+        S.targetPivotMarker.visible = not S.boneSelectionMode and
+            (math.abs(S.definition.targetPivot.x) > 1e-6 or
+             math.abs(S.definition.targetPivot.y) > 1e-6 or
+             math.abs(S.definition.targetPivot.z) > 1e-6)
     end
     S.dirtyPreview = false
 end
@@ -1293,9 +1319,11 @@ end
 local function captureOffset()
     local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
     local inherit = S.definition.inherit
-    local sourceRotation = eulerRotation(source.rx, source.ry, source.rz)
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
     local inverseSource = transposeRotation(sourceRotation)
-    local delta = vector(target.x - source.x, target.y - source.y, target.z - source.z)
+    local targetAnchor = targetPivotWorldPosition(target)
+    local delta = vector(targetAnchor.x - source.x, targetAnchor.y - source.y,
+        targetAnchor.z - source.z)
     local localPosition = rotateVector(inverseSource, delta)
     if inherit.scale then
         if math.abs(source.sx) < 1e-6 or math.abs(source.sy) < 1e-6 or math.abs(source.sz) < 1e-6 then
@@ -1471,6 +1499,7 @@ function onLoop()
             sourceType = definition.sourceType,
             inherit = definition.inherit,
             offset = definition.offset,
+            targetPivot = definition.targetPivot,
         }
         if definition.sourceBone and definition.sourceBone ~= '' then
             specification.sourceBone = definition.sourceBone
@@ -1554,6 +1583,11 @@ local function normalizeDefinition(value)
         result.inherit.rotation = value.inherit.rotation ~= false
         result.inherit.scale = value.inherit.scale == true
     end
+    if type(value.targetPivot) == 'table' then
+        for _, axis in ipairs({'x', 'y', 'z'}) do
+            result.targetPivot[axis] = tonumber(value.targetPivot[axis]) or 0
+        end
+    end
     for _, component in ipairs({'position', 'rotation', 'scale'}) do
         if type(value.offset) == 'table' and type(value.offset[component]) == 'table' then
             for _, axis in ipairs({'x', 'y', 'z'}) do
@@ -1622,6 +1656,7 @@ local function loadDefinition(path)
         captureOffset()
         S.definition.version = 2
     end
+    S.definition.version = math.max(3, S.definition.version)
     S.source.selectable = definition.editor.sourceSelectable ~= false
     S.target.selectable = definition.editor.targetSelectable ~= false
     if definition.editor.language == 'pt_br' or definition.editor.language == 'en' then
@@ -1815,6 +1850,22 @@ local function showOffsetFields()
     end
 end
 
+local function showTargetPivotFields()
+    tImGui.Text(L('target_pivot'))
+    for _, axis in ipairs({'x', 'y', 'z'}) do
+        tImGui.SetNextItemWidth(105)
+        local changed, nextValue = tImGui.InputFloat(string.upper(axis) .. '##att_target_pivot_' .. axis,
+            S.definition.targetPivot[axis])
+        if changed then
+            S.definition.targetPivot[axis] = nextValue
+            S.target.manualOverride = false
+            markModified()
+        end
+        if axis ~= 'z' then tImGui.SameLine() end
+    end
+    tImGui.TextWrapped(L('target_pivot_help'))
+end
+
 local function showAttachment()
     tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 360, 430)
     local opened = tImGui.Begin(S.windows.attachment, true, 0)
@@ -1860,6 +1911,7 @@ local function showAttachment()
         end
         tImGui.Separator()
         showOffsetFields()
+        showTargetPivotFields()
         tImGui.TextWrapped(L('offset_help'))
     end
     tImGui.End()
@@ -1948,6 +2000,11 @@ function onInitScene()
     applyCamera()
     S.source.object = createMarker('source', {0.15, 0.75, 1.0, 0.42})
     S.target.object = createMarker('target', {1.0, 0.65, 0.15, 0.42})
+    S.targetPivotMarker = createMarker('target_pivot', {1.0, 0.9, 0.15, 1.0})
+    if S.targetPivotMarker then
+        S.targetPivotMarker:setScale(8, 8, 8)
+        S.targetPivotMarker.visible = false
+    end
     S.relationLine = line:new('3d', 0, 0, 0)
     S.relationLine:add({0, 0, 0, 100, 0, 0})
     S.relationLine:setColor(0.85, 0.85, 0.85, 1)
@@ -2024,6 +2081,7 @@ function onFinalizeScene()
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
     if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
     if S.target.object then S.target.object:destroy(); S.target.object = nil end
+    if S.targetPivotMarker then S.targetPivotMarker:destroy(); S.targetPivotMarker = nil end
     if S.relationLine then S.relationLine:destroy(); S.relationLine = nil end
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for key, object in pairs(S.originLines) do
