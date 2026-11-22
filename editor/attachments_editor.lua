@@ -96,6 +96,8 @@ local S = {
     targetPivotMarker = nil,
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
+    frameSourceAxes = {},
+    frameSourceAxesSignature = nil,
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
     xzPlaneSize = nil,
@@ -109,7 +111,8 @@ local S = {
     camera = nil,
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0},
     cameraDrag = nil,
-    gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, drag = nil},
+    gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil,
+        axesSignature = nil, drag = nil},
     windows = {objects = '', attachment = '', camera = '', timeline = ''},
 }
 
@@ -257,6 +260,8 @@ local hideGizmo
 local targetPivotWorldPosition
 local updateTargetPivotMarker
 local showTargetPivotFields
+local getPreviewSourcePose
+local getAttachmentFrameAxes
 
 local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
@@ -977,7 +982,7 @@ local function applyMarker(role, value)
     entry.object:setScale(size * value.sx, size * value.sy, size * value.sz)
 end
 
-local function getPreviewSourcePose()
+getPreviewSourcePose = function()
     if S.definition.sourceType ~= 'bone' then return clonePose(S.source.pose) end
     if not S.source.object or not S.source.meshLoaded or S.definition.sourceBone == '' then return nil end
     if not S.boneSelectionMode and S.source.activeAnimation ~= '' then
@@ -996,6 +1001,66 @@ local function getPreviewSourcePose()
         end
     end
     return getSourceBonePose(S.definition.sourceBone)
+end
+
+getAttachmentFrameAxes = function()
+    local source = getPreviewSourcePose() or S.source.pose
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local offsetRotation = S.definition.offset.rotationMatrix or
+        eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
+            S.definition.offset.rotation.z)
+    local frameRotation = multiplyRotation(sourceRotation, offsetRotation)
+    return {
+        x = rotateVector(frameRotation, vector(1, 0, 0)),
+        y = rotateVector(frameRotation, vector(0, 1, 0)),
+        z = rotateVector(frameRotation, vector(0, 0, 1)),
+    }, sourceRotation, frameRotation
+end
+
+local function updateAttachmentSourceAxes()
+    local visible = not S.boneSelectionMode and S.selectedRole == 'target' and
+        S.transformMode == 'frame'
+    if not visible then
+        for _, object in pairs(S.frameSourceAxes) do object.visible = false end
+        S.frameSourceAxesSignature = nil
+        return
+    end
+    local source = getPreviewSourcePose() or S.source.pose
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local length = math.max(S.target.previewSize * 1.1, 35)
+    local axes = {
+        x = {vector(1, 0, 0), {1, 0.15, 0.15, 0.55}},
+        y = {vector(0, 1, 0), {0.15, 1, 0.2, 0.55}},
+        z = {vector(0, 0, 1), {0.2, 0.45, 1, 0.55}},
+    }
+    local signatureParts = {source.x, source.y, source.z, length}
+    local axisVectors = {}
+    for _, name in ipairs({'x', 'y', 'z'}) do
+        local axis = rotateVector(sourceRotation, axes[name][1])
+        axisVectors[name] = axis
+        signatureParts[#signatureParts + 1] = axis.x
+        signatureParts[#signatureParts + 1] = axis.y
+        signatureParts[#signatureParts + 1] = axis.z
+    end
+    local signature = table.concat(signatureParts, ':')
+    for _, name in ipairs({'x', 'y', 'z'}) do
+        local axis = axisVectors[name]
+        local object = S.frameSourceAxes[name]
+        if not object then
+            object = line:new('3d', 0, 0, 0)
+            S.frameSourceAxes[name] = object
+            object.alwaysOnTop = true
+            object.alwaysOnTopPriority = 8
+            object.alwaysRender = true
+        end
+        object.visible = true
+        object:setColor(table.unpack(axes[name][2]))
+        if S.frameSourceAxesSignature ~= signature then
+            object:set({0, 0, 0, axis.x * length, axis.y * length, axis.z * length}, 1)
+            object:setPos(source.x, source.y, source.z)
+        end
+    end
+    S.frameSourceAxesSignature = signature
 end
 
 local function dot(ax, ay, az, bx, by, bz)
@@ -1077,10 +1142,27 @@ hideGizmo = function()
     for _, object in pairs(S.gizmo.axes) do object.visible = false end
     for _, object in pairs(S.gizmo.rings) do object.visible = false end
     S.gizmo.drag = nil
-    S.gizmo.origin, S.gizmo.length, S.gizmo.radius = nil, nil, nil
+    S.gizmo.origin, S.gizmo.length, S.gizmo.radius, S.gizmo.axesSignature = nil, nil, nil, nil
+end
+
+local function getGizmoAxes()
+    local axes = {
+        x = {x = 1, y = 0, z = 0, color = {1, 0.15, 0.15, 1}},
+        y = {x = 0, y = 1, z = 0, color = {0.15, 1, 0.2, 1}},
+        z = {x = 0, y = 0, z = 1, color = {0.2, 0.45, 1, 1}},
+    }
+    if S.transformMode == 'frame' then
+        local frameAxes = getAttachmentFrameAxes()
+        for _, name in ipairs({'x', 'y', 'z'}) do
+            axes[name].x, axes[name].y, axes[name].z = frameAxes[name].x,
+                frameAxes[name].y, frameAxes[name].z
+        end
+    end
+    return axes
 end
 
 local function updateGizmo()
+    updateAttachmentSourceAxes()
     if S.boneSelectionMode then
         if S.targetPivotMarker then S.targetPivotMarker.visible = false end
         hideGizmo()
@@ -1088,12 +1170,13 @@ local function updateGizmo()
     end
     updateTargetPivotMarker()
     if not S.selectedRole then hideGizmo(); return end
-    if S.transformMode == 'pivot' and S.selectedRole ~= 'target' then hideGizmo(); return end
+    if (S.transformMode == 'pivot' or S.transformMode == 'frame') and
+            S.selectedRole ~= 'target' then hideGizmo(); return end
     local entry = roleEntry(S.selectedRole)
     if entry.selectable == false then hideGizmo(); return end
     if not entry.object then hideGizmo(); return end
     local origin = {x = entry.pose.x, y = entry.pose.y, z = entry.pose.z}
-    if S.transformMode == 'pivot' then
+    if S.transformMode == 'pivot' or S.transformMode == 'frame' then
         origin = targetPivotWorldPosition(entry.pose)
     end
     local length = math.max(entry.previewSize * 1.6, 45)
@@ -1102,11 +1185,15 @@ local function updateGizmo()
         S.gizmo.origin.y ~= origin.y or S.gizmo.origin.z ~= origin.z
     local lengthChanged = S.gizmo.length ~= length
     local radiusChanged = S.gizmo.radius ~= radius
-    local axes = {
-        x = {x = 1, y = 0, z = 0, color = {1, 0.15, 0.15, 1}},
-        y = {x = 0, y = 1, z = 0, color = {0.15, 1, 0.2, 1}},
-        z = {x = 0, y = 0, z = 1, color = {0.2, 0.45, 1, 1}},
-    }
+    local axes = getGizmoAxes()
+    local axisSignatureParts = {}
+    for _, name in ipairs({'x', 'y', 'z'}) do
+        axisSignatureParts[#axisSignatureParts + 1] = axes[name].x
+        axisSignatureParts[#axisSignatureParts + 1] = axes[name].y
+        axisSignatureParts[#axisSignatureParts + 1] = axes[name].z
+    end
+    local axesSignature = table.concat(axisSignatureParts, ':')
+    local axesChanged = S.gizmo.axesSignature ~= axesSignature
     for name, axis in pairs(axes) do
         local object = S.gizmo.axes[name]
         local points = {0, 0, 0, axis.x * length, axis.y * length, axis.z * length}
@@ -1114,13 +1201,14 @@ local function updateGizmo()
             object = line:new('3d', 0, 0, 0)
             object:add(points)
             S.gizmo.axes[name] = object
-        elseif lengthChanged then
+        elseif lengthChanged or axesChanged then
             object:set(points, 1)
         end
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(axis.color))
         object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 10, true
-        object.visible = S.transformMode == 'move' or S.transformMode == 'pivot'
+        object.visible = S.transformMode == 'move' or S.transformMode == 'pivot' or
+            S.transformMode == 'frame'
     end
     local rings = {
         x = {u = axes.y, v = axes.z}, y = {u = axes.z, v = axes.x}, z = {u = axes.x, v = axes.y},
@@ -1138,15 +1226,16 @@ local function updateGizmo()
             object = line:new('3d', 0, 0, 0)
             object:add(points)
             S.gizmo.rings[name] = object
-        elseif radiusChanged then
+        elseif radiusChanged or axesChanged then
             object:set(points, 1)
         end
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(axes[name].color))
         object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 20, true
-        object.visible = S.transformMode == 'rotate'
+        object.visible = S.transformMode == 'rotate' or S.transformMode == 'frame'
     end
-    S.gizmo.origin, S.gizmo.length, S.gizmo.radius = origin, length, radius
+    S.gizmo.origin, S.gizmo.length, S.gizmo.radius, S.gizmo.axesSignature = origin, length, radius,
+        axesSignature
 end
 
 local function pickGizmoAxis(screenX, screenY)
@@ -1171,11 +1260,12 @@ local function pickGizmoAxis(screenX, screenY)
 end
 
 local function pickRotationRing(screenX, screenY)
-    if not S.selectedRole or S.transformMode ~= 'rotate' or not S.gizmo.origin or
+    if not S.selectedRole or (S.transformMode ~= 'rotate' and S.transformMode ~= 'frame') or
+            not S.gizmo.origin or
             roleEntry(S.selectedRole).selectable == false then
         return nil
     end
-    local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
+    local axes = getGizmoAxes()
     local best, bestError
     local tolerance = math.max(S.gizmo.radius * 0.12, 12)
     for name, axis in pairs(axes) do
@@ -1216,12 +1306,18 @@ local function beginViewportInteraction(key, screenX, screenY)
         local ring = pickRotationRing(screenX, screenY)
         if ring then
             local entry = roleEntry(S.selectedRole)
-            S.gizmo.drag = {
-                mode = 'rotate', axis = ring.axis, origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y,
+            local drag = {
+                mode = S.transformMode, axis = ring.axis, origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y,
                     z = S.gizmo.origin.z}, startDirection = ring.direction, base = clonePose(entry.pose),
                 lastAngle = 0, accumulatedAngle = 0,
                 lastEuler = {rx = entry.pose.rx, ry = entry.pose.ry, rz = entry.pose.rz},
             }
+            if S.transformMode == 'frame' then
+                local _, sourceRotation, frameRotation = getAttachmentFrameAxes()
+                drag.baseSourceRotation = cloneRotation(sourceRotation)
+                drag.baseFrameWorldRotation = cloneRotation(frameRotation)
+            end
+            S.gizmo.drag = drag
             S.cameraDrag = nil
             return
         end
@@ -1293,6 +1389,34 @@ local function updateViewportInteraction(screenX, screenY)
                 S.definition.targetPivot.x = drag.basePivot.x + localDelta.x
                 S.definition.targetPivot.y = drag.basePivot.y + localDelta.y
                 S.definition.targetPivot.z = drag.basePivot.z + localDelta.z
+                S.target.manualOverride = false
+                markModified()
+            end
+        elseif drag.mode == 'frame' then
+            local wx, wy, wz = rayPlaneHit(screenX, screenY, drag.origin, drag.axis)
+            local current = wx and normalizedDirection(wx - drag.origin.x, wy - drag.origin.y,
+                wz - drag.origin.z) or nil
+            if current then
+                local start = drag.startDirection
+                local cross = {x = start.y * current.z - start.z * current.y,
+                    y = start.z * current.x - start.x * current.z,
+                    z = start.x * current.y - start.y * current.x}
+                local sinAngle = dot(drag.axis.x, drag.axis.y, drag.axis.z, cross.x, cross.y, cross.z)
+                local cosAngle = math.max(-1, math.min(1, dot(start.x, start.y, start.z,
+                    current.x, current.y, current.z)))
+                local angle = math.atan(sinAngle, cosAngle)
+                local delta = angle - drag.lastAngle
+                if delta > math.pi then delta = delta - math.pi * 2
+                elseif delta < -math.pi then delta = delta + math.pi * 2 end
+                drag.accumulatedAngle = drag.accumulatedAngle + delta
+                drag.lastAngle = angle
+                local worldRotation = multiplyRotation(axisRotation(drag.axis, drag.accumulatedAngle),
+                    drag.baseFrameWorldRotation)
+                local localRotation = multiplyRotation(transposeRotation(drag.baseSourceRotation),
+                    worldRotation)
+                S.definition.offset.rotationMatrix = cloneRotation(localRotation)
+                local rx, ry, rz = matrixToEuler(localRotation)
+                S.definition.offset.rotation = vector(rx, ry, rz)
                 S.target.manualOverride = false
                 markModified()
             end
@@ -1936,17 +2060,21 @@ local function showObjects()
         tImGui.Separator()
         tImGui.Text(L('transform_mode'))
         local currentModeIndex = S.transformMode == 'rotate' and 2 or
-            (S.transformMode == 'pivot' and S.selectedRole == 'target' and 3 or 1)
+            (S.transformMode == 'pivot' and S.selectedRole == 'target' and 3 or
+            (S.transformMode == 'frame' and S.selectedRole == 'target' and 4 or 1))
         local modeIndex = tImGui.RadioButton(L('move'), currentModeIndex, 1)
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(L('rotate'), modeIndex, 2)
         if S.selectedRole == 'target' then
             tImGui.SameLine()
             modeIndex = tImGui.RadioButton(L('move_pivot'), modeIndex, 3)
+            tImGui.SameLine()
+            modeIndex = tImGui.RadioButton(L('orient_frame'), modeIndex, 4)
         end
         local nextMode
         if modeIndex == 2 then nextMode = 'rotate'
         elseif modeIndex == 3 and S.selectedRole == 'target' then nextMode = 'pivot'
+        elseif modeIndex == 4 and S.selectedRole == 'target' then nextMode = 'frame'
         else nextMode = 'move' end
         if nextMode ~= S.transformMode then
             S.transformMode = nextMode
@@ -1956,6 +2084,7 @@ local function showObjects()
         local help = L('move_gizmo_help')
         if S.transformMode == 'rotate' then help = L('rotate_gizmo_help')
         elseif S.transformMode == 'pivot' then help = L('move_pivot_gizmo_help') end
+        if S.transformMode == 'frame' then help = L('orient_frame_gizmo_help') end
         tImGui.TextWrapped(help)
     end
     tImGui.End()
@@ -1974,6 +2103,11 @@ local function showOffsetFields()
                 S.definition.offset[key][axis])
             if changed then
                 S.definition.offset[key][axis] = nextValue
+                if key == 'rotation' then
+                    S.definition.offset.rotationMatrix = eulerRotation(
+                        S.definition.offset.rotation.x, S.definition.offset.rotation.y,
+                        S.definition.offset.rotation.z)
+                end
                 S.target.manualOverride = false
                 markModified()
             end
@@ -2206,6 +2340,8 @@ function onFinalizeScene()
     for _, object in pairs(S.gizmo.axes) do object:destroy() end
     for _, object in pairs(S.gizmo.rings) do object:destroy() end
     S.gizmo.axes, S.gizmo.rings = {}, {}
+    for _, object in pairs(S.frameSourceAxes) do object:destroy() end
+    S.frameSourceAxes, S.frameSourceAxesSignature = {}, nil
     destroySourceSkeletonVisuals()
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
     if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
