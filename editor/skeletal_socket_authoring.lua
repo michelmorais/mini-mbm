@@ -71,7 +71,8 @@ end
 
 function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
     state.socketAuthoring = state.socketAuthoring or {
-        data = nil, sockets = {}, bones = {}, selected = 0, draft = newDraft(0)
+        data = nil, sockets = {}, bones = {}, selected = 0, draft = newDraft(0),
+        lastLoadedSelected = nil
     }
     local authoring = state.socketAuthoring
     if authoring.data ~= meshD then
@@ -80,6 +81,7 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
         authoring.bones = {}
         authoring.selected = 0
         authoring.lastObservedBoneIndex = nil
+        authoring.lastLoadedSelected = nil
         authoring.draft = newDraft(0)
         refresh(authoring, meshD, safeCall)
     end
@@ -92,9 +94,35 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
         authoring.draft.bone = selectedBoneIndex
     end
 
+    if authoring.lastLoadedSelected ~= authoring.selected then
+        loadDraft(authoring, authoring.selected)
+        authoring.lastLoadedSelected = authoring.selected
+    end
+
     imgui.TextDisabled(lang.L('swl_socket_authoring_help'))
+    local editInView=imgui.Checkbox(lang.L('swl_socket_view_edit') ..
+        '##swlSocketViewEdit-' .. index,state.socketEditMode)
+    if editInView ~= state.socketEditMode then
+        state.socketEditMode = editInView
+        state.socketGizmo.drag = nil
+        if editInView then
+            state.boneEditorSelection = nil
+            state.boneEditorSelectedIndex = nil
+            state.boneEditorPendingCycle = nil
+            state.socketGizmo.selectedIndex = authoring.selected > 0 and authoring.selected or nil
+        end
+        if callbacks.visuals then callbacks.visuals() end
+    end
+    if imgui.IsItemHovered() and imgui.BeginTooltip() then
+        imgui.Text(lang.L('swl_socket_view_edit_help'))
+        imgui.EndTooltip()
+    end
     if imgui.Button(lang.L('swl_socket_refresh') .. '##swlSocketRefresh-' .. index) then
         refresh(authoring, meshD, safeCall)
+        loadDraft(authoring, authoring.selected)
+        authoring.lastLoadedSelected = authoring.selected
+        state.socketGizmo.selectedIndex = authoring.selected > 0 and authoring.selected or nil
+        if callbacks.visuals then callbacks.visuals() end
     end
     if #authoring.bones == 0 then
         imgui.TextDisabled(lang.L('swl_socket_requires_skeleton'))
@@ -110,6 +138,9 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
     if changed and selected then
         authoring.selected = selected - 1
         loadDraft(authoring, authoring.selected)
+        authoring.lastLoadedSelected = authoring.selected
+        state.socketGizmo.selectedIndex = authoring.selected > 0 and authoring.selected or nil
+        if callbacks.visuals then callbacks.visuals() end
     end
 
     local draft = authoring.draft
@@ -157,6 +188,9 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
             refresh(authoring, meshD, safeCall)
             if isNew then authoring.selected = #authoring.sockets end
             loadDraft(authoring, authoring.selected)
+            authoring.lastLoadedSelected = authoring.selected
+            state.socketGizmo.selectedIndex = authoring.selected > 0 and authoring.selected or nil
+            if callbacks.visuals then callbacks.visuals() end
         end
     end
     if not isNew then
@@ -168,6 +202,9 @@ function M.draw(state, meshD, index, safeCall, callbacks, lang, imgui)
                 authoring.selected = 0
                 refresh(authoring, meshD, safeCall)
                 loadDraft(authoring, 0)
+                authoring.lastLoadedSelected = 0
+                state.socketGizmo.selectedIndex = nil
+                if callbacks.visuals then callbacks.visuals() end
             end
         end
     end
