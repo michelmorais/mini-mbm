@@ -2232,6 +2232,7 @@ operations below document their stronger validation contracts in detail.
 | Frame/subset editing | `addFrame()`, `removeFrame(frame)`, `addSubSet(frame)`, `removeSubset(frame, subset)`, `copyFrameFrom(target, source, frame)`, `copySubsetFrom(targetFrame, source, sourceFrame, sourceSubset)`, `moveSubsetUp(frame, subset)`, `mergeSubsets(frame, subsets)` |
 | Legacy animation editing | `addAnim(...)`, `removeAnim(...)`, `copyAnimationsFromMesh(mesh)`, `updateAnim(...)`, `getAnim(...)` |
 | Geometry transforms | `centralize(frame, subset)`, `centralizeItself(frame, subset)`, `rotateFrame(frame, subset, ax, ay, az)`, `scaleFrame(frame, sx, sy, sz [, subset])`, `translateFrame(frame, subset, dx, dy, dz)`, `scaleSkeletalAsset(scale)` |
+| Skeletal sockets | `getSkeletalSocketReport()`, `addSkeletalSocket(...)`, `updateSkeletalSocket(...)`, `removeSkeletalSocket(index)` |
 | Vertex layout | `getStride()`, `setStride(stride)`, `enableNormal(bool)`, `removeNormals()`, `addNormals()`, `enableUv(bool)` |
 
 Frame and subset indices follow the existing Mesh Debug conventions. Methods in this table that
@@ -2514,6 +2515,30 @@ it does not omit transforms, matrices, hierarchy, tails, or diagnostics.
 
 The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
 Skeletal Animation Editor use it for canonical bind inspection. Lua exposes only the canonical skeletal surface for bones and weights.
+
+`meshD:getSkeletalSocketReport()` returns a detached array of section-47 socket records with
+`socketId`, `boneId`, `name`, `boneName`, a row-major `localBindMatrix`, and local TRS fields
+`translationX/Y/Z`, `rotationX/Y/Z/W`, and `scaleX/Y/Z`. The following
+transactional methods author sockets in the selected bone's local bind space:
+
+```lua
+local socketIndex = meshD:addSkeletalSocket(
+    "hand_socket", oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz)
+meshD:updateSkeletalSocket(socketIndex, "hand_socket", oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz)
+meshD:removeSkeletalSocket(socketIndex)
+```
+
+The bone and socket indices are one-based. Names must be nonempty and unique; the bone must
+exist; all values must be finite; the quaternion must be unit length within the engine tolerance;
+and all scale components must be positive. Add/update validates a complete candidate before
+committing, so a failed call leaves the previous socket set unchanged. New socket IDs are opaque
+stable IDs allocated without colliding with existing IDs. Removing the last socket omits section
+47 on the next save. A bone referenced by a socket cannot be removed until the socket is removed
+or reassigned. Mesh Debug exposes these operations in its Skeletal panel; viewport picking and a
+socket gizmo are the next visual increment. The Blender roundtrip already preserves the records
+as Empty objects parented to their bones.
 
 ```lua
 meshD:renameSkeletalBone(oneBasedBoneIndex, newName)

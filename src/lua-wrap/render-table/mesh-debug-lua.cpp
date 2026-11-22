@@ -2786,6 +2786,110 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalSocketReportDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t count = meshDebug->mesh.getSkeletalSocketCount();
+        lua_createtable(lua, static_cast<int>(count), 0);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            SKELETAL_SOCKET_INFO info;
+            MATRIX localMatrix;
+            SKELETAL_KEY_INFO local;
+            if (!meshDebug->mesh.getSkeletalSocketInfo(index, info) ||
+                !meshDebug->mesh.getSkeletalSocketBindTransform(index, localMatrix) ||
+                !meshDebug->mesh.getSkeletalSocketLocalTransform(index, local))
+            {
+                lua_pop(lua, 1);
+                lua_pushnil(lua);
+                return 1;
+            }
+            lua_createtable(lua, 0, 10);
+            pushSkeletonBindId(lua, info.socketId, "socketId");
+            pushSkeletonBindId(lua, info.boneId, "boneId");
+            lua_pushstring(lua, info.name ? info.name : ""); lua_setfield(lua, -2, "name");
+            lua_pushstring(lua, info.boneName ? info.boneName : ""); lua_setfield(lua, -2, "boneName");
+            pushSkeletonBindMatrix(lua, localMatrix);
+            lua_setfield(lua, -2, "localBindMatrix");
+            lua_pushnumber(lua, local.localTranslation.x); lua_setfield(lua, -2, "translationX");
+            lua_pushnumber(lua, local.localTranslation.y); lua_setfield(lua, -2, "translationY");
+            lua_pushnumber(lua, local.localTranslation.z); lua_setfield(lua, -2, "translationZ");
+            lua_pushnumber(lua, local.localRotationX); lua_setfield(lua, -2, "rotationX");
+            lua_pushnumber(lua, local.localRotationY); lua_setfield(lua, -2, "rotationY");
+            lua_pushnumber(lua, local.localRotationZ); lua_setfield(lua, -2, "rotationZ");
+            lua_pushnumber(lua, local.localRotationW); lua_setfield(lua, -2, "rotationW");
+            lua_pushnumber(lua, local.localScale.x); lua_setfield(lua, -2, "scaleX");
+            lua_pushnumber(lua, local.localScale.y); lua_setfield(lua, -2, "scaleY");
+            lua_pushnumber(lua, local.localScale.z); lua_setfield(lua, -2, "scaleZ");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        return 1;
+    }
+
+    int onAddSkeletalSocketDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const char *name = luaL_checkstring(lua, 2);
+        const lua_Integer bone = luaL_checkinteger(lua, 3);
+        if (bone <= 0) return luaL_error(lua, "canonical socket bone index must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 4)),
+                               static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)));
+        const float rotationX = static_cast<float>(luaL_checknumber(lua, 7));
+        const float rotationY = static_cast<float>(luaL_checknumber(lua, 8));
+        const float rotationZ = static_cast<float>(luaL_checknumber(lua, 9));
+        const float rotationW = static_cast<float>(luaL_checknumber(lua, 10));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 11)),
+                         static_cast<float>(luaL_checknumber(lua, 12)),
+                         static_cast<float>(luaL_checknumber(lua, 13)));
+        uint32_t newIndex = 0;
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.addSkeletalSocket(name, static_cast<uint32_t>(bone - 1),
+                translation, rotationX, rotationY, rotationZ, rotationW, scale, &newIndex,
+                errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        lua_pushinteger(lua, static_cast<lua_Integer>(newIndex + 1));
+        return 1;
+    }
+
+    int onUpdateSkeletalSocketDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        const char *name = luaL_checkstring(lua, 3);
+        const lua_Integer bone = luaL_checkinteger(lua, 4);
+        if (index <= 0 || bone <= 0)
+            return luaL_error(lua, "canonical socket and bone indices must be one-based");
+        const VEC3 translation(static_cast<float>(luaL_checknumber(lua, 5)),
+                               static_cast<float>(luaL_checknumber(lua, 6)),
+                               static_cast<float>(luaL_checknumber(lua, 7)));
+        const float rotationX = static_cast<float>(luaL_checknumber(lua, 8));
+        const float rotationY = static_cast<float>(luaL_checknumber(lua, 9));
+        const float rotationZ = static_cast<float>(luaL_checknumber(lua, 10));
+        const float rotationW = static_cast<float>(luaL_checknumber(lua, 11));
+        const VEC3 scale(static_cast<float>(luaL_checknumber(lua, 12)),
+                         static_cast<float>(luaL_checknumber(lua, 13)),
+                         static_cast<float>(luaL_checknumber(lua, 14)));
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.updateSkeletalSocket(static_cast<uint32_t>(index - 1), name,
+                static_cast<uint32_t>(bone - 1), translation, rotationX, rotationY, rotationZ,
+                rotationW, scale, errorOut, static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
+    int onRemoveSkeletalSocketDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0) return luaL_error(lua, "canonical socket index must be one-based");
+        char errorOut[255] = "";
+        if (!meshDebug->mesh.removeSkeletalSocket(static_cast<uint32_t>(index - 1), errorOut,
+                static_cast<int>(sizeof(errorOut))))
+            return lua_error_debug(lua, errorOut);
+        return 0;
+    }
+
     int onRenameSkeletalBoneDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -4132,6 +4236,10 @@ namespace mbm
                                           {"updateAnim", onUpdateAnimationDebugLua},
                                           {"getAnim", onGetDetailAnimationDebugLua},
                                           {"getSkeletonBindReport", onGetSkeletonBindReportDebugLua},
+                                          {"getSkeletalSocketReport", onGetSkeletalSocketReportDebugLua},
+                                          {"addSkeletalSocket", onAddSkeletalSocketDebugLua},
+                                          {"updateSkeletalSocket", onUpdateSkeletalSocketDebugLua},
+                                          {"removeSkeletalSocket", onRemoveSkeletalSocketDebugLua},
                                           {"getFacialExportData", onGetFacialExportDataDebugLua},
                                           {"getTotalFacialTargets", onGetTotalFacialTargetsDebugLua},
                                           {"getTotalFacialClips", onGetTotalFacialClipsDebugLua},

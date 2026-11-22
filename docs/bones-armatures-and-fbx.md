@@ -130,8 +130,10 @@ Sockets do not alter weights or animation tracks. Runtime code can enumerate the
 `mesh:getSkeletalSocketReport()` and query an evaluated pose with
 `mesh:getSkeletalSocketTransform(name, "world")`; the attachments plugin accepts the same point as
 `sourceType = "socket"` and `sourceSocket = name`.
-The reverse MSH-to-FBX exporter still preserves the skeleton, weights, and clips but does not yet
-recreate section-47 sockets as Blender Empty objects; that is the next socket-authoring increment.
+The reverse MSH-to-FBX exporter recreates section-47 sockets as Blender Empty objects with the same
+bone parent and local bind transform. Mesh Debug also exposes socket creation/editing in its
+Skeletal panel using local bind-space TRS; direct viewport picking and a socket gizmo remain a
+separate editor increment.
 
 ## Runtime and editor boundaries
 

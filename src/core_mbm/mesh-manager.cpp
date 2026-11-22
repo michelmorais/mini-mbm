@@ -6758,6 +6758,177 @@ namespace mbm
         return report.bones[index].name.c_str();
     }
 
+    uint32_t MESH_MBM_DEBUG::getSkeletalSocketCount() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalSockets.sockets.size());
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketInfo(const uint32_t index,
+                                               SKELETAL_SOCKET_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::CANONICAL_SOCKET &socket = impl->canonicalSockets.sockets[index];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        out.socketId = socket.socketId;
+        out.boneId = socket.boneId;
+        out.name = socket.name.c_str();
+        out.boneName = impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketBindTransform(const uint32_t index,
+                                                        MATRIX &matrix) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        matrix = skeletal::buildTrsMatrix(impl->canonicalSockets.sockets[index].local);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketLocalTransform(const uint32_t index,
+                                                         SKELETAL_KEY_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::LOCAL_TRANSFORM &local = impl->canonicalSockets.sockets[index].local;
+        out = SKELETAL_KEY_INFO();
+        out.localTranslation = local.translation;
+        out.localRotationX = local.rotation.x;
+        out.localRotationY = local.rotation.y;
+        out.localRotationZ = local.rotation.z;
+        out.localRotationW = local.rotation.w;
+        out.localScale = local.scale;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalSocket(const char *name, const uint32_t boneIndex,
+                                           const VEC3 &translation, const float rotationX,
+                                           const float rotationY, const float rotationZ,
+                                           const float rotationW, const VEC3 &scale,
+                                           uint32_t *newIndexOut, char *errorOut,
+                                           const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalSkeleton.compiled.bones.empty())
+            return fail("mesh has no canonical skeleton");
+        if (!name || !name[0]) return fail("canonical socket name must not be empty");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical socket bone index is out of range");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(rotationX) ||
+            !std::isfinite(rotationY) || !std::isfinite(rotationZ) ||
+            !std::isfinite(rotationW) || !std::isfinite(scale.x) ||
+            !std::isfinite(scale.y) || !std::isfinite(scale.z))
+            return fail("canonical socket values must be finite");
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.name == name) return fail("canonical socket name must be unique");
+
+        uint64_t socketId = 1;
+        for (;;)
+        {
+            bool used = false;
+            for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+                if (socket.socketId == socketId) { used = true; break; }
+            if (!used) break;
+            if (socketId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical socket ID space is exhausted");
+            ++socketId;
+        }
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        skeletal::CANONICAL_SOCKET added;
+        added.socketId = socketId;
+        added.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        added.name = name;
+        added.local.translation = translation;
+        added.local.rotation.x = rotationX;
+        added.local.rotation.y = rotationY;
+        added.local.rotation.z = rotationZ;
+        added.local.rotation.w = rotationW;
+        added.local.scale = scale;
+        candidate.sockets.push_back(std::move(added));
+        if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("added canonical socket would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSockets.sockets.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalSocket(const uint32_t index, const char *name,
+                                              const uint32_t boneIndex, const VEC3 &translation,
+                                              const float rotationX, const float rotationY,
+                                              const float rotationZ, const float rotationW,
+                                              const VEC3 &scale, char *errorOut,
+                                              const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalSkeleton.compiled.bones.empty())
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSockets.sockets.size())
+            return fail("canonical socket index is out of range");
+        if (!name || !name[0]) return fail("canonical socket name must not be empty");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical socket bone index is out of range");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(rotationX) ||
+            !std::isfinite(rotationY) || !std::isfinite(rotationZ) ||
+            !std::isfinite(rotationW) || !std::isfinite(scale.x) ||
+            !std::isfinite(scale.y) || !std::isfinite(scale.z))
+            return fail("canonical socket values must be finite");
+        for (uint32_t other = 0; other < impl->canonicalSockets.sockets.size(); ++other)
+            if (other != index && impl->canonicalSockets.sockets[other].name == name)
+                return fail("canonical socket name must be unique");
+
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        skeletal::CANONICAL_SOCKET &edited = candidate.sockets[index];
+        edited.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        edited.name = name;
+        edited.local.translation = translation;
+        edited.local.rotation.x = rotationX;
+        edited.local.rotation.y = rotationY;
+        edited.local.rotation.z = rotationZ;
+        edited.local.rotation.w = rotationW;
+        edited.local.scale = scale;
+        if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical socket would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalSocket(const uint32_t index, char *errorOut,
+                                              const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (index >= impl->canonicalSockets.sockets.size())
+            return fail("canonical socket index is out of range");
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.sockets.erase(candidate.sockets.begin() + index);
+        if (candidate.sockets.empty())
+            candidate.skeletonId = 0;
+        else if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("removed canonical socket set would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        return true;
+    }
+
     namespace
     {
         bool getSkeletalSharingCompatibilityImpl(
@@ -9402,6 +9573,9 @@ namespace mbm
         if (index >= source.size()) return fail("canonical bone index is out of range");
         if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
         const uint64_t boneId = source[index].boneId;
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.boneId == boneId)
+                return fail("canonical bone is referenced by a socket; remove or reassign the socket first");
         for (const skeletal::CANONICAL_BONE &candidate : source)
             if (candidate.parentBoneId == boneId)
                 return fail("canonical bone has children; choose an explicit descendant policy first");
@@ -9455,6 +9629,9 @@ namespace mbm
         if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
         const uint64_t removedId = source[index].boneId;
         const uint64_t replacementId = source[replacementIndex].boneId;
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.boneId == removedId)
+                return fail("canonical bone is referenced by a socket; remove or reassign the socket first");
         bool hasChildren = false;
         for (const skeletal::CANONICAL_BONE &candidate : source)
             if (candidate.parentBoneId == removedId) hasChildren = true;

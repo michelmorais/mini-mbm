@@ -650,6 +650,44 @@ def apply_stored_vertex_weights_override(mesh_obj, verts_data: list[dict], debug
                         f"{len(vgroups)} bone(s) referenced")
 
 
+def build_skeletal_sockets(data: dict, armature_obj: Any | None,
+                           rotation_deg: tuple[float, float, float] | None,
+                           debug: bool) -> list[Any]:
+    """Recreate section-47 sockets as Blender Empty objects parented to their bones."""
+    import bpy
+    from mathutils import Matrix
+
+    if not armature_obj:
+        return []
+    sockets = data.get("sockets") or []
+    created = []
+    for socket in sockets:
+        name = str(socket.get("name") or "")
+        bone_name = str(socket.get("boneName") or "")
+        matrix_values = socket.get("localBindMatrix") or []
+        if not name or not bone_name or len(matrix_values) != 16:
+            raise RuntimeError("invalid skeletal socket record in Mesh Debug export data")
+        if armature_obj.data.bones.get(bone_name) is None:
+            raise RuntimeError(f"socket '{name}' references missing bone '{bone_name}'")
+        local_matrix = canonical_matrix_to_blender(
+            [float(value) for value in matrix_values], rotation_deg, True)
+        empty = bpy.data.objects.new(name, None)
+        bpy.context.collection.objects.link(empty)
+        empty.empty_display_type = 'ARROWS'
+        empty.empty_display_size = 0.1
+        empty.parent = armature_obj
+        empty.parent_type = 'BONE'
+        empty.parent_bone = bone_name
+        empty.matrix_parent_inverse = Matrix.Identity(4)
+        empty.matrix_basis = local_matrix
+        empty["mini_mbm_socket"] = True
+        empty["mini_mbm_socket_name"] = name
+        created.append(empty)
+    if created:
+        debug_print(debug, f"recreated canonical sockets: {len(created)}")
+    return created
+
+
 def bind_mesh_to_armature(mesh_obj, armature_obj, debug: bool) -> None:
     import bpy
 
@@ -971,7 +1009,7 @@ def _assign_nearest_bone_to_unweighted(mesh_obj, armature_obj, exclude_names=fro
     return filled
 
 
-def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count: int,
+def prepare_and_export(mesh_obj, armature_obj, sockets: list[Any], output_path: str, animation_count: int,
                        debug: bool) -> None:
     import bpy
     from mathutils import Vector
@@ -980,7 +1018,7 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count
         # A project intended for continued authoring must retain the mesh's authored placement.
         # FBX/Mixamo's centering below is intentionally not applied here. Pack available external
         # resources so moving the project does not silently discard its textures.
-        keep_objects = {mesh_obj}
+        keep_objects = {mesh_obj, *sockets}
         if armature_obj:
             keep_objects.add(armature_obj)
         for scene_object in list(bpy.data.objects):
@@ -1013,6 +1051,10 @@ def prepare_and_export(mesh_obj, armature_obj, output_path: str, animation_count
     if armature_obj:
         armature_obj.select_set(True)
         object_types.add('ARMATURE')
+    for socket in sockets:
+        socket.select_set(True)
+    if sockets:
+        object_types.add('EMPTY')
     bpy.context.view_layer.objects.active = armature_obj or mesh_obj
 
     bpy.ops.export_scene.fbx(
@@ -1063,6 +1105,7 @@ def main() -> int:
         data, mesh_obj, rotation_deg, args.debug_steps)
     check_cancel_requested(args.cancel_file)
     armature_obj = build_armature(data, args.debug_steps, rotation_deg)
+    sockets = build_skeletal_sockets(data, armature_obj, rotation_deg, args.debug_steps)
     if armature_obj:
         check_cancel_requested(args.cancel_file)
         verts_data = data["mesh"]["vertices"]
@@ -1090,7 +1133,7 @@ def main() -> int:
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    prepare_and_export(mesh_obj, armature_obj, out_path, animation_count, args.debug_steps)
+    prepare_and_export(mesh_obj, armature_obj, sockets, out_path, animation_count, args.debug_steps)
 
     debug_print(args.debug_steps, "done")
     return 0
