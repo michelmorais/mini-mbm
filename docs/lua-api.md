@@ -703,6 +703,8 @@ silently switching to LBS.
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
 | `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil`. If automatic root motion is enabled, this is the neutralized final pose, not the raw motion pose. |
 | `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. If automatic root motion is enabled, this reads the neutralized final pose. |
+| `obj:getSkeletalSocketReport` | `()` | table | Returns socket records `{socketId, boneId, name, boneName}`. An empty array means the mesh has no socket metadata. |
+| `obj:getSkeletalSocketTransform` | `(socketName, space?)` | table or nil | Reads a named socket from the final evaluated pose and returns the same pose fields as `getSkeletalBoneTransform`, plus `socketId` and `boneId`. |
 | `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's raw translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and continues to report the raw selected-bone delta even when automatic root motion is enabled. |
 | `obj:getSkeletalSharingCompatibility` | `(otherMesh)` | table | Read-only preflight for evaluated-pose/palette sharing between two loaded meshes. Returns `{compatible:boolean, reason:string, boneCount:int}` plus mismatch fields such as `boneIndex`, `boneName`, `boneId`, `otherBoneId`, parent IDs/indices, `observedError`, and `tolerance` when applicable. Strict compatibility requires both meshes to have canonical skeletons, equal bone count, exact ordered stable bone IDs and names, equal parent indices and parent IDs, and equivalent local/global bind matrices within the engine's scale-aware skeletal matrix tolerance. Clips, weights, geometry, and `skeletonId` do not need to match. Reason codes are `compatible`, `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and `bind_transform_mismatch`. |
 | `obj:enableSkeletalPoseSharing` | `(sourceMesh)` | bool | Make this loaded mesh a direct follower of another loaded compatible mesh. The follower keeps its own geometry, textures, render transform, and skin weights, but its skeletal draw uses the source mesh's already-evaluated per-instance palette. The call rejects self, unloaded source/follower, incompatible skeletons, follower chains, and converting a source that already has followers into a follower, without changing the existing sharing state. It does not start animation on the source and it does not copy palette data. |
@@ -2122,9 +2124,10 @@ Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
 `local attachments = require "attachments"`. This plugin is independent from
 `interaction_animation_runtime`.
 
-`attachments.attach(spec)` supports root transforms and evaluated skeletal-bone sources. The
-specification requires `source` and `target` renderizable objects and accepts `id`, `sourceType`
-(`"root"` or `"bone"`), `sourceBone` when using a bone, `inherit`, and `offset`. Position,
+`attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, and named
+skeletal sockets. The specification requires `source` and `target` renderizable objects and accepts
+`id`, `sourceType` (`"root"`, `"bone"`, or `"socket"`), `sourceBone` or `sourceSocket` when using
+the corresponding source, `inherit`, and `offset`. Position,
 rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
 offset is in the selected source's local space, and source scale affects offset position when
 scale inheritance is enabled. The optional `targetPivot` is a point in the target mesh's local
@@ -2134,14 +2137,14 @@ preserves the usual target-origin behavior. `offset.rotationMatrix` may contain 
 runtime derives it from `offset.rotation` for backward compatibility. The runtime composes this
 source-local rotation before the evaluated source frame, following the engine's row-vector matrix
 convention. Bone sources require a mesh
-with an active evaluated skeletal pose; sockets are not supported yet.
+with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47.
 
 ```lua
 local relation, err = attachments.attach {
     source = character,
     target = hat,
-    sourceType = "bone",
-    sourceBone = "mixamorig:RightHand",
+    sourceType = "socket",
+    sourceSocket = "RightHandGrip",
     inherit = {position = true, rotation = true, scale = false},
     offset = {
         position = {x = 0, y = 1.8, z = 0},
@@ -2169,8 +2172,8 @@ computes for the target, including the target's current values for non-inherited
 
 Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
 stable topological order for acyclic chains. Scene teardown deactivates relations and releases
-their Lua references. Bones, sockets, IK, aim, spring, damping, and physics
-constraints are not supported yet; see [Attachments and constraints](attachments-constraints.md).
+their Lua references. IK, aim, spring, damping, and physics constraints are not supported yet; see
+[Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions
 

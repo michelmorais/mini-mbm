@@ -600,6 +600,49 @@ namespace mbm
                                               rotation, angle, scale);
     }
 
+    uint32_t MESH::getSkeletalSocketCount() const noexcept
+    {
+        return mesh ? mesh->getSkeletalSocketCount() : 0;
+    }
+
+    bool MESH::getSkeletalSocketInfo(const uint32_t index, uint64_t *socketId, uint64_t *boneId,
+                                     const char **name, const char **boneName) const noexcept
+    {
+        if (!mesh || !socketId || !boneId || !name || !boneName)
+            return false;
+        SKELETAL_SOCKET_INFO out;
+        if (!mesh->getSkeletalSocketInfo(index, out))
+            return false;
+        *socketId = out.socketId;
+        *boneId = out.boneId;
+        *name = out.name;
+        *boneName = out.boneName;
+        return true;
+    }
+
+    bool MESH::getSkeletalSocketTransform(const char *socketName, const bool worldSpace,
+                                          uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+                                          VEC3 *position, float rotation[4], VEC3 *angle,
+                                          VEC3 *scale) const noexcept
+    {
+        if (!mesh)
+            return false;
+        MATRIX modelMatrix;
+        const MATRIX *modelMatrixPtr = nullptr;
+        if (worldSpace)
+        {
+            const VEC3 &objectPosition = getPosition();
+            const VEC3 &objectAngle = getAngle();
+            const VEC3 &objectScale = getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &objectPosition, &objectAngle,
+                                           &objectScale);
+            modelMatrixPtr = &modelMatrix;
+        }
+        return mesh->getSkeletalSocketTransform(getSkeletalAnimationPlayer(), socketName,
+                                                modelMatrixPtr, socketId, boneId, matrix,
+                                                position, rotation, angle, scale);
+    }
+
     bool MESH::getSkeletalRootMotionDelta(const char *boneName, const bool worldSpace,
                                            uint64_t *boneId, VEC3 *translation) const noexcept
     {

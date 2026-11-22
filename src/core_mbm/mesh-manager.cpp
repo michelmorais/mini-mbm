@@ -140,6 +140,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::CANONICAL_SOCKETS canonicalSockets;
         facial::ASSET facialAsset;
         normal_map::ASSET_FRAMES normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
@@ -185,6 +186,7 @@ namespace mbm
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
               canonicalWeights(std::move(other.canonicalWeights)),
               canonicalAnimations(std::move(other.canonicalAnimations)),
+              canonicalSockets(std::move(other.canonicalSockets)),
               facialAsset(std::move(other.facialAsset)),
               normalMapFrames(std::move(other.normalMapFrames)),
               normalMapMaterials(std::move(other.normalMapMaterials))
@@ -214,6 +216,7 @@ namespace mbm
             canonicalSkeleton = std::move(other.canonicalSkeleton);
             canonicalWeights = std::move(other.canonicalWeights);
             canonicalAnimations = std::move(other.canonicalAnimations);
+            canonicalSockets = std::move(other.canonicalSockets);
             facialAsset = std::move(other.facialAsset);
             normalMapFrames = std::move(other.normalMapFrames);
             normalMapMaterials = std::move(other.normalMapMaterials);
@@ -927,6 +930,39 @@ namespace
             mbm::skeletal::validateCanonicalWeights(skeleton, out, expectedVertexCount);
     }
 
+    bool parse_canonical_sockets_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                              const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                              mbm::skeletal::CANONICAL_SOCKETS &out)
+    {
+        if (sectionVersion != 1) return false;
+        out = {};
+        uint32_t socketCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, socketCount) || socketCount > (fp.size - fp.pos) / 56u)
+            return false;
+        out.sockets.reserve(socketCount);
+        for (uint32_t index = 0; index < socketCount; ++index)
+        {
+            mbm::skeletal::CANONICAL_SOCKET socket;
+            if (!util::le_io::readU64LE(fp, socket.socketId) ||
+                !util::le_io::readU64LE(fp, socket.boneId) ||
+                !util::readStringV11(fp, socket.name) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.x) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.y) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.z) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.x) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.y) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.z) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.w) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.x) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.y) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.z))
+                return false;
+            out.sockets.push_back(std::move(socket));
+        }
+        return fp.pos == fp.size && mbm::skeletal::validateCanonicalSockets(skeleton, out);
+    }
+
     bool read_zero_reserved3(util::MEM_CURSOR_V11 &fp)
     {
         uint8_t reserved[3] = {0, 0, 0};
@@ -1122,6 +1158,7 @@ namespace
         bool              sawCanonicalSkeleton = false;
         bool              sawCanonicalWeights = false;
         bool              sawCanonicalAnimations = false;
+        bool              sawCanonicalSockets = false;
         uint32_t          canonicalFrame0VertexCount = UINT32_MAX;
 
         // Canonical sections resolve by type, not file order. Pre-read the skeleton and frame-0
@@ -1145,6 +1182,18 @@ namespace
                 { errorOut = "failed to inspect SECTION_FRAME_STATIC"; return false; }
                 canonicalFrame0VertexCount = header.vertexCount;
             }
+        }
+
+        for (const auto &staged : sections)
+        {
+            if (staged.header.type != util::SECTION_SKELETAL_SOCKETS)
+                continue;
+            util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+            if (sawCanonicalSockets || !sawCanonicalSkeleton ||
+                !parse_canonical_sockets_section_v11(tmp, staged.header.sectionVersion,
+                    out.canonicalSkeleton, out.canonicalSockets))
+            { errorOut = "failed to parse SECTION_SKELETAL_SOCKETS"; return false; }
+            sawCanonicalSockets = true;
         }
 
         for (const auto &staged : sections)
@@ -1300,6 +1349,10 @@ namespace
                         out.canonicalSkeleton, out.canonicalAnimations))
                 { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
                 sawCanonicalAnimations = true;
+            }
+            else if (staged.header.type == util::SECTION_SKELETAL_SOCKETS)
+            {
+                // Parsed in the order-independent pre-pass above.
             }
             else if (staged.header.type == util::SECTION_FACIAL_TARGETS || staged.header.type == util::SECTION_FACIAL_CLIPS)
             {
@@ -4192,7 +4245,8 @@ namespace mbm
         const bool hasCanonicalSkeleton = impl->canonicalSkeleton.skeletonId != 0;
         const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
         const bool hasCanonicalAnimations = impl->canonicalAnimations.skeletonId != 0;
-        if (hasCanonicalWeights || hasCanonicalAnimations)
+        const bool hasCanonicalSockets = impl->canonicalSockets.skeletonId != 0;
+        if (hasCanonicalWeights || hasCanonicalAnimations || hasCanonicalSockets)
         {
             if (!hasCanonicalSkeleton)
                 return log_util::onFailed(file, __FILE__, __LINE__,
@@ -4220,6 +4274,9 @@ namespace mbm
             if (hasCanonicalAnimations &&
                 !skeletal::validateCanonicalAnimations(skeleton, impl->canonicalAnimations))
                 return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical animations [%s]", fileOut);
+            if (hasCanonicalSockets &&
+                !skeletal::validateCanonicalSockets(skeleton, impl->canonicalSockets))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical sockets [%s]", fileOut);
         }
 
         for (const auto &entry : impl->normalMapMaterials)
@@ -4311,6 +4368,7 @@ namespace mbm
                                      + (hasCanonicalSkeleton ? 1u : 0u)
                                      + (hasCanonicalWeights ? 1u : 0u)
                                      + (hasCanonicalAnimations ? 1u : 0u)
+                                     + (hasCanonicalSockets ? 1u : 0u)
                                      + (impl->facialAsset.meshId ? 1u : 0u)
                                      + (impl->facialAsset.clips.empty() ? 0u : 1u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
@@ -4492,6 +4550,41 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SKELETON [%s]", fileOut);
+        }
+
+        if (hasCanonicalSockets)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_SOCKETS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_SOCKETS &sockets = this->impl->canonicalSockets;
+                if (!util::le_io::writeU64LE(fp, sockets.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(sockets.sockets.size())))
+                    return false;
+                for (const skeletal::CANONICAL_SOCKET &socket : sockets.sockets)
+                {
+                    const skeletal::LOCAL_TRANSFORM &local = socket.local;
+                    if (!util::le_io::writeU64LE(fp, socket.socketId) ||
+                        !util::le_io::writeU64LE(fp, socket.boneId) ||
+                        !util::writeStringV11(fp, socket.name) ||
+                        !util::le_io::writeF32LE(fp, local.translation.x) ||
+                        !util::le_io::writeF32LE(fp, local.translation.y) ||
+                        !util::le_io::writeF32LE(fp, local.translation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                        !util::le_io::writeF32LE(fp, local.scale.x) ||
+                        !util::le_io::writeF32LE(fp, local.scale.y) ||
+                        !util::le_io::writeF32LE(fp, local.scale.z))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SOCKETS [%s]", fileOut);
         }
 
         if (hasCanonicalWeights)
@@ -5229,6 +5322,7 @@ namespace mbm
         bool    sawCanonicalSkeleton = false;
         bool    sawCanonicalWeights = false;
         bool    sawCanonicalAnimations = false;
+        bool    sawCanonicalSockets = false;
         uint32_t canonicalFrame0VertexCount = UINT32_MAX;
         util::BUFFER_MESH_DEBUG *frame0 = nullptr;
 
@@ -5261,6 +5355,19 @@ namespace mbm
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to inspect SECTION_FRAME_STATIC [%s]", fileNamePath);
                 canonicalFrame0VertexCount = header.vertexCount;
             }
+        }
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            if (staged.header.type != util::SECTION_SKELETAL_SOCKETS)
+                continue;
+            util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+            if (sawCanonicalSockets || !sawCanonicalSkeleton ||
+                !parse_canonical_sockets_section_v11(tmp, staged.header.sectionVersion,
+                    impl->canonicalSkeleton, impl->canonicalSockets))
+                return log_util::onFailed(fp, __FILE__, __LINE__,
+                                          "failed to parse SECTION_SKELETAL_SOCKETS [%s]", fileNamePath);
+            sawCanonicalSockets = true;
         }
 
         for (const DebugStagedSection &staged : sections)
@@ -5418,6 +5525,10 @@ namespace mbm
                         impl->canonicalSkeleton, impl->canonicalAnimations))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
                 sawCanonicalAnimations = true;
+            }
+            else if (sectionHeader.type == util::SECTION_SKELETAL_SOCKETS)
+            {
+                // Parsed in the order-independent pre-pass above.
             }
             else if (sectionHeader.type == util::SECTION_FACIAL_TARGETS || sectionHeader.type == util::SECTION_FACIAL_CLIPS)
             {
@@ -5990,6 +6101,7 @@ namespace mbm
 
         skeletal::CANONICAL_SKELETON scaledSkeleton;
         skeletal::CANONICAL_ANIMATIONS scaledAnimations;
+        skeletal::CANONICAL_SOCKETS scaledSockets = impl->canonicalSockets;
         if (hasSkeletalAsset && !skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
                                                                                 impl->canonicalAnimations,
                                                                                 scale,
@@ -6006,6 +6118,16 @@ namespace mbm
                 return false;
             }
             return fail("scaled canonical animation would be invalid");
+        }
+        for (skeletal::CANONICAL_SOCKET &socket : scaledSockets.sockets)
+        {
+            socket.local.translation.x *= scale;
+            socket.local.translation.y *= scale;
+            socket.local.translation.z *= scale;
+            if (!std::isfinite(socket.local.translation.x) ||
+                !std::isfinite(socket.local.translation.y) ||
+                !std::isfinite(socket.local.translation.z))
+                return fail("scaled canonical socket would not be finite");
         }
 
         facial::ASSET scaledFacial;
@@ -6143,6 +6265,7 @@ namespace mbm
         {
             impl->canonicalSkeleton = std::move(scaledSkeleton);
             impl->canonicalAnimations = std::move(scaledAnimations);
+            impl->canonicalSockets = std::move(scaledSockets);
         }
         return true;
     }
@@ -11524,6 +11647,84 @@ namespace mbm
         return true;
     }
 
+    uint32_t MESH_MBM::getSkeletalSocketCount() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalSockets.sockets.size());
+    }
+
+    bool MESH_MBM::getSkeletalSocketInfo(const uint32_t index, SKELETAL_SOCKET_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::CANONICAL_SOCKET &socket = impl->canonicalSockets.sockets[index];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        out.socketId = socket.socketId;
+        out.boneId = socket.boneId;
+        out.name = socket.name.c_str();
+        out.boneName = impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalSocketTransform(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *socketName,
+        const MATRIX *modelMatrix, uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+        VEC3 *position, float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+    {
+        if (!socketName || !socketId || !boneId || !matrix || !position || !rotation ||
+            !angle || !scale || getSkeletalAnimationPoseBoneCount(player) == 0)
+            return false;
+        const skeletal::CANONICAL_SOCKET *socket = nullptr;
+        for (const skeletal::CANONICAL_SOCKET &candidate : impl->canonicalSockets.sockets)
+        {
+            if (candidate.name == socketName)
+            {
+                socket = &candidate;
+                break;
+            }
+        }
+        if (!socket)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket->boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        MATRIX result = skeletal::buildTrsMatrix(socket->local);
+        MatrixMultiply(&result, &result, &player.impl->evaluatedGlobalTransforms[found->second]);
+        if (modelMatrix)
+            MatrixMultiply(&result, &result, modelMatrix);
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(result, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *socketId = socket->socketId;
+        *boneId = socket->boneId;
+        *matrix = result;
+        *position = transform.translation;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
+        *scale = transform.scale;
+        return true;
+    }
+
     bool MESH_MBM::getSkeletalRootMotionDelta(
         const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
         const MATRIX *modelMatrix, uint64_t *boneId, VEC3 *translation) const noexcept
@@ -13556,6 +13757,7 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        impl->canonicalSockets = std::move(in.canonicalSockets);
         impl->facialAsset = std::move(in.facialAsset);
         if (impl->facialAsset.meshId)
         {

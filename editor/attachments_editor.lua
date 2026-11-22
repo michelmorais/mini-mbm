@@ -52,6 +52,7 @@ local function newDefinition()
         target = 'target',
         sourceType = 'root',
         sourceBone = '',
+        sourceSocket = '',
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -88,6 +89,7 @@ local S = {
     source = {pose = pose(0, 0, 0), object = nil, kind = 'placeholder', path = '',
         previewSize = 70, meshLoaded = false, selectable = true, debugMesh = nil,
         skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0,
+        socketCatalog = {},
         animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
         selectionAnimation = nil},
     target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
@@ -339,6 +341,7 @@ local function destroyRoleObject(role)
     entry.skeletonReport = nil
     entry.meshBounds = nil
     entry.selectedBone = ''
+    entry.socketCatalog = {}
     if role == 'source' then
         entry.animationClips = {}
         entry.selectedAnimation = 1
@@ -361,6 +364,19 @@ local function refreshSourceAnimationCatalog()
         local okName, name = dpCall(function() return source.object:getSkeletalAnimationName(index) end)
         if okName and type(name) == 'string' and name ~= '' then
             source.animationClips[#source.animationClips + 1] = name
+        end
+    end
+end
+
+local function refreshSourceSocketCatalog()
+    local source = S.source
+    source.socketCatalog = {}
+    if not source.object or not source.meshLoaded then return end
+    local ok, report = dpCall(function() return source.object:getSkeletalSocketReport() end)
+    if not ok or type(report) ~= 'table' then return end
+    for _, item in ipairs(report) do
+        if type(item) == 'table' and type(item.name) == 'string' and item.name ~= '' then
+            source.socketCatalog[#source.socketCatalog + 1] = item.name
         end
     end
 end
@@ -500,6 +516,7 @@ local function loadRoleMesh(role, path)
     if role == 'source' then
         dpCall(function() return object:stopSkeletalAnimation() end)
         refreshSourceAnimationCatalog()
+        refreshSourceSocketCatalog()
         if S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
     end
     markModified()
@@ -981,6 +998,23 @@ local function applyMarker(role, value)
 end
 
 getPreviewSourcePose = function()
+    if S.definition.sourceType == 'socket' then
+        if not S.source.object or not S.source.meshLoaded or S.definition.sourceSocket == '' then return nil end
+        local ok, socket = dpCall(function()
+            return S.source.object:getSkeletalSocketTransform(S.definition.sourceSocket, 'world')
+        end)
+        if ok and type(socket) == 'table' and type(socket.position) == 'table' and
+                type(socket.angle) == 'table' and type(socket.scale) == 'table' then
+            local socketMatrixPose = matrixPose(socket.matrix)
+            return {
+                x = socket.position.x or 0, y = socket.position.y or 0, z = socket.position.z or 0,
+                rx = socket.angle.x or 0, ry = socket.angle.y or 0, rz = socket.angle.z or 0,
+                sx = socket.scale.x or 1, sy = socket.scale.y or 1, sz = socket.scale.z or 1,
+                rotation = socketMatrixPose and socketMatrixPose.rotation or nil,
+            }
+        end
+        return nil
+    end
     if S.definition.sourceType ~= 'bone' then return clonePose(S.source.pose) end
     if not S.source.object or not S.source.meshLoaded or S.definition.sourceBone == '' then return nil end
     if not S.boneSelectionMode and S.source.activeAnimation ~= '' then
@@ -1626,6 +1660,10 @@ function onLoop()
                 not source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
             return
         end
+        if definition.sourceType == 'socket' and
+                not source:getSkeletalSocketTransform(definition.sourceSocket, 'world') then
+            return
+        end
         local specification = {
             source = source,
             target = target,
@@ -1636,6 +1674,9 @@ function onLoop()
         }
         if definition.sourceBone and definition.sourceBone ~= '' then
             specification.sourceBone = definition.sourceBone
+        end
+        if definition.sourceSocket and definition.sourceSocket ~= '' then
+            specification.sourceSocket = definition.sourceSocket
         end
         local relation, errorMessage = attachments.attach(specification)
         assert(relation, errorMessage)
@@ -1671,7 +1712,7 @@ local function validatePreview()
         setStatus(L('run_preview_requires_source'), true)
         return false
     end
-    if S.definition.sourceType == 'bone' and
+    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket') and
             (S.source.activeAnimation == '' and S.source.animationClips[S.source.selectedAnimation] == nil) then
         setStatus(L('run_preview_requires_animation'), true)
         return false
@@ -1709,8 +1750,10 @@ local function normalizeDefinition(value)
     result.version = math.max(1, math.floor(tonumber(value.version) or 1))
     result.source = tostring(value.source or result.source)
     result.target = tostring(value.target or result.target)
-    result.sourceType = value.sourceType == 'bone' and 'bone' or 'root'
+    result.sourceType = value.sourceType == 'bone' and 'bone' or
+        (value.sourceType == 'socket' and 'socket' or 'root')
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
+    result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
         result.inherit.rotation = value.inherit.rotation ~= false
@@ -1754,6 +1797,7 @@ local function normalizeDefinition(value)
         result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
     end
     if result.sourceType == 'bone' and result.sourceBone == '' then return nil end
+    if result.sourceType == 'socket' and result.sourceSocket == '' then return nil end
     return result
 end
 
@@ -2031,16 +2075,23 @@ local function showAttachment()
         tImGui.Text(L('attachment'))
         tImGui.Text(string.format('%s -> %s', roleName('source'), roleName('target')))
         tImGui.SetNextItemWidth(210)
-        local sourceTypeIndex = S.definition.sourceType == 'bone' and 2 or 1
+        local sourceTypeIndex = S.definition.sourceType == 'bone' and 2 or
+            (S.definition.sourceType == 'socket' and 3 or 1)
         local sourceTypeChanged, nextSourceType = tImGui.Combo(L('source_type'), sourceTypeIndex,
-            {L('root_transform'), L('bone_transform')})
+            {L('root_transform'), L('bone_transform'), L('socket_transform')})
         if sourceTypeChanged then
-            S.definition.sourceType = nextSourceType == 2 and 'bone' or 'root'
+            S.definition.sourceType = nextSourceType == 2 and 'bone' or
+                (nextSourceType == 3 and 'socket' or 'root')
             if S.definition.sourceType == 'root' then
                 S.definition.sourceBone = ''
+                S.definition.sourceSocket = ''
                 setBoneSelectionMode(false)
-            else
+            elseif S.definition.sourceType == 'bone' then
+                S.definition.sourceSocket = ''
                 setBoneSelectionMode(true)
+            else
+                S.definition.sourceBone = ''
+                setBoneSelectionMode(false)
             end
             S.target.manualOverride = false
             markModified()
@@ -2054,6 +2105,24 @@ local function showAttachment()
             end
             tImGui.TextWrapped(L('bone_select_help'))
             tImGui.TextWrapped(L('source_bone_help'))
+        elseif S.definition.sourceType == 'socket' then
+            local socketNames = S.source.socketCatalog or {}
+            if #socketNames > 0 then
+                local selectedSocket = 1
+                for index, name in ipairs(socketNames) do
+                    if name == S.definition.sourceSocket then selectedSocket = index; break end
+                end
+                tImGui.SetNextItemWidth(210)
+                local socketChanged, nextSocket = tImGui.Combo(L('source_socket'), selectedSocket, socketNames)
+                if socketChanged and socketNames[nextSocket] then
+                    S.definition.sourceSocket = socketNames[nextSocket]
+                    S.target.manualOverride = false
+                    markModified()
+                end
+            else
+                tImGui.Text(L('no_sockets'))
+            end
+            tImGui.TextWrapped(L('source_socket_help'))
         end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
             {'scale', L('inherit_scale')}}

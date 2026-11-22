@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.9**
-Status: **Phase 4 runtime export and editor preview implemented and validated on Linux/macOS; virtual target pivots added; sockets pending**
+Document version: **2.0**
+Status: **Phase 5 socket contract, runtime query, attachment source, and editor selection implemented; FBX socket authoring pending**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -30,7 +30,7 @@ composition is consistent across the Linux and macOS runtime paths.
 ## Transform contract
 
 The source can be the `root` transform of a renderizable object or the evaluated world transform of
-a named skeletal bone on a mesh. An offset is stored in the selected source's local space:
+a named skeletal bone or socket on a mesh. An offset is stored in the selected source's local space:
 
 ```text
 attachment position = source position + (source scale * offset position) * source rotation
@@ -42,9 +42,10 @@ world scale    = source scale * offset scale
 The source scale in the position expression is used only when `inherit.scale` is enabled. The
 source rotation orients the position offset whenever position inheritance is enabled, even when
 rotation inheritance is disabled. Position, rotation, and scale are written independently; a
-component whose inheritance flag is false is left untouched. Bone sources require an active,
-evaluated skeletal pose; sockets are not supported because the mesh format has no socket contract
-yet. `targetPivot` is an optional point in the target mesh's local space. Its zero value preserves
+component whose inheritance flag is false is left untouched. Bone and socket sources require an
+active, evaluated skeletal pose. Sockets are named points stored in optional MSH V11 section 47;
+they do not change skinning weights or animation tracks. `targetPivot` is an optional point in the
+target mesh's local space. Its zero value preserves
 the original behavior, where the target renderizable origin is the attachment point. A non-zero
 value lets a base, socket-like point inside a mesh remain attached while the target origin moves
 around it.
@@ -71,8 +72,8 @@ local attachment, err = attachments.attach {
     id = "hat_on_character", -- optional; generated when omitted
     source = character,
     target = hat,
-    sourceType = "bone", -- "root" or "bone"; defaults to "root"
-    sourceBone = "mixamorig:RightHand", -- required when sourceType is "bone"
+    sourceType = "socket", -- "root", "bone", or "socket"; defaults to "root"
+    sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
     inherit = {
         position = true,
         rotation = true,
@@ -202,5 +203,6 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 
-Sockets, IK, aim constraints, spring/damping, physics integration, cross-scene attachments, and a
-general scene graph remain out of scope. Socket support requires a mesh-format/API contract.
+Socket authoring inside Mesh Debug, IK, aim constraints, spring/damping, physics integration,
+cross-scene attachments, and a general scene graph remain future work. Socket consumption already
+has the MSH/API/runtime contract described above.

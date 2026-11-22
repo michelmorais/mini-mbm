@@ -43,6 +43,7 @@ SECTION_EXTRA_PATHS = 30
 SECTION_SKELETAL_SKELETON = 41
 SECTION_SKELETAL_WEIGHTS = 42
 SECTION_SKELETAL_ANIMATION = 43
+SECTION_SKELETAL_SOCKETS = 47
 SECTION_FACIAL_TARGETS = 45
 SECTION_FACIAL_CLIPS = 46
 
@@ -2591,6 +2592,42 @@ def extract_canonical_skeleton(scene: Any,
         })
 
     identity = "|".join(paths[name] for name in ordered)
+    sockets: list[dict[str, Any]] = []
+    socket_names: set[str] = set()
+    for obj in scene.objects:
+        if getattr(obj, "type", None) != "EMPTY" or getattr(obj, "parent", None) != armature_obj:
+            continue
+        bone_name = str(getattr(obj, "parent_bone", "") or "")
+        if not bone_name or bone_name not in ids:
+            continue
+        marked = bool(obj.get("mini_mbm_socket", False)) if hasattr(obj, "get") else False
+        if not marked and not str(getattr(obj, "name", "")).startswith("MBM_SOCKET_"):
+            continue
+        socket_name = str(obj.get("mini_mbm_socket_name", "") or "") if hasattr(obj, "get") else ""
+        if not socket_name:
+            socket_name = str(getattr(obj, "name", ""))
+            if socket_name.startswith("MBM_SOCKET_"):
+                socket_name = socket_name[len("MBM_SOCKET_"):]
+        if not socket_name or socket_name in socket_names:
+            raise RuntimeError(f"duplicate or empty canonical socket name '{socket_name}'")
+        bone_world = coordinate_change @ armature_obj.matrix_world @ by_name[bone_name].matrix_local @ inverse_coordinate_change
+        socket_world = coordinate_change @ obj.matrix_world @ inverse_coordinate_change
+        local_socket = bone_world.inverted_safe() @ socket_world
+        translation, rotation, scale = local_socket.decompose()
+        if min(abs(float(scale.x)), abs(float(scale.y)), abs(float(scale.z))) <= 1.0e-8:
+            raise RuntimeError(f"canonical socket '{socket_name}' has singular bind scale")
+        if float(scale.x) < 0.0 or float(scale.y) < 0.0 or float(scale.z) < 0.0:
+            raise RuntimeError(f"canonical socket '{socket_name}' has unsupported negative bind scale")
+        rotation.normalize()
+        socket_names.add(socket_name)
+        sockets.append({
+            "socketId": stable_id("mini-mbm.skeleton.socket/", f"{identity}/{socket_name}"),
+            "boneId": ids[bone_name],
+            "name": socket_name,
+            "translation": (float(translation.x), float(translation.y), float(translation.z)),
+            "rotation": (float(rotation.x), float(rotation.y), float(rotation.z), float(rotation.w)),
+            "scale": (float(scale.x), float(scale.y), float(scale.z)),
+        })
     return {
         "skeletonId": stable_id("mini-mbm.skeleton/", identity),
         "bones": records,
@@ -2599,6 +2636,7 @@ def extract_canonical_skeleton(scene: Any,
         "coordinateChange": coordinate_change,
         "inverseCoordinateChange": inverse_coordinate_change,
         "armatureObject": armature_obj,
+        "sockets": sockets,
     }
 
 
@@ -2620,6 +2658,24 @@ def build_canonical_skeleton_payload_v11(skeleton: dict[str, Any]) -> bytes:
         write_vec3(buf, bone["tailOffset"])
         write_u8(buf, 1)
         write_u8(buf, 1 if bone["connectedToParent"] else 0)
+    return buf.getvalue()
+
+
+def build_canonical_sockets_payload_v11(skeleton: dict[str, Any]) -> bytes | None:
+    sockets = skeleton.get("sockets") or []
+    if not sockets:
+        return None
+    buf = io.BytesIO()
+    write_u64(buf, int(skeleton["skeletonId"]))
+    write_u32(buf, len(sockets))
+    for socket in sockets:
+        write_u64(buf, int(socket["socketId"]))
+        write_u64(buf, int(socket["boneId"]))
+        write_string_v11(buf, str(socket["name"]))
+        write_vec3(buf, socket["translation"])
+        for value in socket["rotation"]:
+            write_f32(buf, value)
+        write_vec3(buf, socket["scale"])
     return buf.getvalue()
 
 
@@ -2761,6 +2817,8 @@ def apply_uniform_scale_to_canonical_data(skeleton: dict[str, Any] | None,
             bone["radius"] = float(bone["radius"]) * factor
             bone["length"] = float(bone["length"]) * factor
             bone["tailOffset"] = tuple(float(value) * factor for value in bone["tailOffset"])
+        for socket in skeleton.get("sockets") or []:
+            socket["translation"] = tuple(float(value) * factor for value in socket["translation"])
     for clip in clips:
         for track in clip["tracks"]:
             for key in track["keys"]:
@@ -3217,6 +3275,11 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             canonical_skeleton["skeletonId"], canonical_clips) if canonical_clips else None)
         if canonical_animations_payload is not None:
             debug_print(args.debug_steps, f"captured canonical animation: {len(canonical_clips)} clip(s)")
+        canonical_sockets_payload = (build_canonical_sockets_payload_v11(canonical_skeleton)
+                                     if canonical_skeleton else None)
+        if canonical_sockets_payload is not None:
+            debug_print(args.debug_steps,
+                        f"captured canonical sockets: {len(canonical_skeleton.get('sockets') or [])} socket(s)")
 
         section_count = 1  # SECTION_MATERIAL_TRANSFORM
         if texture_path_list:
@@ -3230,6 +3293,8 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             section_count += 1  # SECTION_SKELETAL_WEIGHTS
         if canonical_animations_payload is not None:
             section_count += 1  # SECTION_SKELETAL_ANIMATION
+        if canonical_sockets_payload is not None:
+            section_count += 1  # SECTION_SKELETAL_SOCKETS
         if facial_asset is not None:
             section_count += 1  # SECTION_FACIAL_TARGETS
             if facial_asset["clips"]:
@@ -3261,6 +3326,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             if canonical_skeleton:
                 write_section_v11(fp, SECTION_SKELETAL_SKELETON, 3,
                                   build_canonical_skeleton_payload_v11(canonical_skeleton), False)
+
+            if canonical_sockets_payload is not None:
+                write_section_v11(fp, SECTION_SKELETAL_SOCKETS, 1,
+                                  canonical_sockets_payload, False)
 
             if canonical_weights_payload is not None:
                 write_section_v11(fp, SECTION_SKELETAL_WEIGHTS, 1, canonical_weights_payload, False)

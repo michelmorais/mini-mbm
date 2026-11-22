@@ -117,6 +117,22 @@ then imported back through the canonical Blender path with multiple skeletal cli
 Mini MBM loop metadata is not a standard FBX playback contract. On re-import, clip looping follows
 the importer/runtime default unless the resulting MSH is configured separately.
 
+## Skeletal sockets
+
+The direct FBX-to-MSH importer recognizes optional Blender Empty objects as named skeletal sockets.
+An Empty is exported when it is parented to the selected armature with `parent_type = "BONE"` and
+either has the custom property `mini_mbm_socket = true` or its name starts with `MBM_SOCKET_`.
+The socket name comes from `mini_mbm_socket_name` when present; otherwise the `MBM_SOCKET_` prefix
+is removed. Its transform is stored relative to the bind pose of the parent bone in optional MSH
+V11 section 47. Existing FBX files without these objects and existing MSH files are unchanged.
+
+Sockets do not alter weights or animation tracks. Runtime code can enumerate them with
+`mesh:getSkeletalSocketReport()` and query an evaluated pose with
+`mesh:getSkeletalSocketTransform(name, "world")`; the attachments plugin accepts the same point as
+`sourceType = "socket"` and `sourceSocket = name`.
+The reverse MSH-to-FBX exporter still preserves the skeleton, weights, and clips but does not yet
+recreate section-47 sockets as Blender Empty objects; that is the next socket-authoring increment.
+
 ## Runtime and editor boundaries
 
 Canonical skeletal data is consumed by the real-time runtime and the Skeletal Animation Editor.

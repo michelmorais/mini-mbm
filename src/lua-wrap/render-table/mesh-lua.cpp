@@ -842,6 +842,97 @@ namespace mbm
         return 1;
     }
 
+    int onGetSkeletalSocketReportLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const uint32_t count = mesh->getSkeletalSocketCount();
+        lua_createtable(lua, static_cast<int>(count), 0);
+        for (uint32_t index = 0; index < count; ++index)
+        {
+            uint64_t socketId = 0;
+            uint64_t boneId = 0;
+            const char *name = nullptr;
+            const char *boneName = nullptr;
+            if (!mesh->getSkeletalSocketInfo(index, &socketId, &boneId, &name, &boneName))
+            {
+                lua_pop(lua, 1);
+                lua_pushnil(lua);
+                return 1;
+            }
+            lua_createtable(lua, 0, 4);
+            char id[17] = "";
+            snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(socketId));
+            lua_pushstring(lua, id); lua_setfield(lua, -2, "socketId");
+            snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(boneId));
+            lua_pushstring(lua, id); lua_setfield(lua, -2, "boneId");
+            lua_pushstring(lua, name ? name : ""); lua_setfield(lua, -2, "name");
+            lua_pushstring(lua, boneName ? boneName : ""); lua_setfield(lua, -2, "boneName");
+            lua_rawseti(lua, -2, index + 1);
+        }
+        return 1;
+    }
+
+    int onGetSkeletalSocketTransformLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *socketName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+
+        uint64_t socketId = 0;
+        uint64_t boneId = 0;
+        MATRIX matrix;
+        VEC3 position;
+        float rotation[4] = {};
+        VEC3 angle;
+        VEC3 scale;
+        if (!mesh->getSkeletalSocketTransform(socketName, worldSpace, &socketId, &boneId, &matrix,
+                                              &position, rotation, &angle, &scale))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 8);
+        char id[17] = "";
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(socketId));
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "socketId");
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(boneId));
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "boneId");
+        lua_pushstring(lua, socketName); lua_setfield(lua, -2, "name");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, position.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, position.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, position.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "position");
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, rotation[0]); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, rotation[1]); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, rotation[2]); lua_setfield(lua, -2, "z");
+        lua_pushnumber(lua, rotation[3]); lua_setfield(lua, -2, "w");
+        lua_setfield(lua, -2, "rotation");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, angle.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, angle.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, angle.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "angle");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, scale.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, scale.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, scale.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "scale");
+        lua_createtable(lua, 16, 0);
+        for (int index = 0; index < 16; ++index)
+        {
+            lua_pushnumber(lua, matrix.p[index]);
+            lua_rawseti(lua, -2, index + 1);
+        }
+        lua_setfield(lua, -2, "matrix");
+        return 1;
+    }
+
     int onGetSkeletalRootMotionDeltaLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -1139,6 +1230,8 @@ namespace mbm
                                                      {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                      {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                      {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                     {"getSkeletalSocketReport", onGetSkeletalSocketReportLua},
+                                                     {"getSkeletalSocketTransform", onGetSkeletalSocketTransformLua},
                                                      {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                      {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
                                                      {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},
@@ -1253,6 +1346,8 @@ namespace mbm
                                                          {"clearSkeletalAnimationLayerMask", onClearSkeletalAnimationLayerMaskLua},
                                                          {"getSkeletalAnimationPose", onGetSkeletalAnimationPoseLua},
                                                          {"getSkeletalBoneTransform", onGetSkeletalBoneTransformLua},
+                                                         {"getSkeletalSocketReport", onGetSkeletalSocketReportLua},
+                                                         {"getSkeletalSocketTransform", onGetSkeletalSocketTransformLua},
                                                          {"getSkeletalRootMotionDelta", onGetSkeletalRootMotionDeltaLua},
                                                          {"getSkeletalSharingCompatibility", onGetSkeletalSharingCompatibilityLua},
                                                          {"enableSkeletalPoseSharing", onEnableSkeletalPoseSharingLua},

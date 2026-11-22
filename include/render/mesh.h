@@ -159,6 +159,13 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL bool getSkeletalBoneTransform(const char *boneName, bool worldSpace,
                                            uint64_t *boneId, MATRIX *matrix, VEC3 *position,
                                            float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+    API_IMPL uint32_t getSkeletalSocketCount() const noexcept;
+    API_IMPL bool getSkeletalSocketInfo(uint32_t index, uint64_t *socketId, uint64_t *boneId,
+                                        const char **name, const char **boneName) const noexcept;
+    API_IMPL bool getSkeletalSocketTransform(const char *socketName, bool worldSpace,
+                                             uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+                                             VEC3 *position, float rotation[4], VEC3 *angle,
+                                             VEC3 *scale) const noexcept;
     API_IMPL bool getSkeletalRootMotionDelta(const char *boneName, bool worldSpace,
                                              uint64_t *boneId,
                                              VEC3 *translation) const noexcept;

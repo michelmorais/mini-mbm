@@ -560,6 +560,29 @@ namespace mbm::skeletal
         return true;
     }
 
+    bool validateCanonicalSockets(const CANONICAL_SKELETON &skeleton,
+                                  const CANONICAL_SOCKETS &sockets) noexcept
+    {
+        if (sockets.skeletonId == 0 || sockets.skeletonId != skeleton.skeletonId)
+            return false;
+        std::unordered_set<uint64_t> socketIds;
+        std::unordered_set<std::string> socketNames;
+        for (const CANONICAL_SOCKET &socket : sockets.sockets)
+        {
+            if (socket.socketId == 0 || socket.boneId == 0 || socket.name.empty() ||
+                !socketIds.insert(socket.socketId).second ||
+                !socketNames.insert(socket.name).second ||
+                skeleton.compiled.indexById.find(socket.boneId) == skeleton.compiled.indexById.end() ||
+                !isFinite(socket.local) || quaternionNorm(socket.local.rotation) <= QUATERNION_ZERO_EPSILON ||
+                std::fabs(quaternionNorm(socket.local.rotation) - 1.0f) > MATRIX_TOLERANCE ||
+                socket.local.scale.x <= SINGULAR_TOLERANCE ||
+                socket.local.scale.y <= SINGULAR_TOLERANCE ||
+                socket.local.scale.z <= SINGULAR_TOLERANCE)
+                return false;
+        }
+        return true;
+    }
+
     bool buildUniformlyScaledCanonicalAsset(const CANONICAL_SKELETON &skeleton,
                                             const CANONICAL_ANIMATIONS &animations,
                                             const float scale,

@@ -222,6 +222,22 @@ namespace mbm::skeletal
         std::vector<SKELETAL_CLIP> clips;
     };
 
+    // A socket is a named bind-local transform attached to one canonical bone. It is optional
+    // metadata; it does not participate in skinning or animation tracks.
+    struct CANONICAL_SOCKET
+    {
+        uint64_t socketId = 0;
+        uint64_t boneId = 0;
+        std::string name;
+        LOCAL_TRANSFORM local;
+    };
+
+    struct CANONICAL_SOCKETS
+    {
+        uint64_t skeletonId = 0;
+        std::vector<CANONICAL_SOCKET> sockets;
+    };
+
     struct SKELETAL_POSE
     {
         std::vector<LOCAL_TRANSFORM> localTransforms;
@@ -248,6 +264,8 @@ namespace mbm::skeletal
                                   uint32_t expectedVertexCount) noexcept;
     bool validateCanonicalAnimations(const CANONICAL_SKELETON &skeleton,
                                      const CANONICAL_ANIMATIONS &animations) noexcept;
+    bool validateCanonicalSockets(const CANONICAL_SKELETON &skeleton,
+                                  const CANONICAL_SOCKETS &sockets) noexcept;
     bool buildUniformlyScaledCanonicalAsset(const CANONICAL_SKELETON &skeleton,
                                             const CANONICAL_ANIMATIONS &animations,
                                             float scale,

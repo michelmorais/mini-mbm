@@ -7,9 +7,10 @@ origens em ossos, editor visual, preview com timeline e exportacao para runtime.
 O fluxo atual foi validado manualmente no Linux e no macOS com o projeto do
 rato e da Helice.
 
-O proximo milestone e **Sockets**. Ele deve comecar pela definicao do contrato
-de sockets no formato/API da mesh, antes de adicionar a selecao de sockets no
-editor ou a resolucao deles no runtime.
+O milestone **Sockets** ja possui a primeira entrega: a secao opcional 47 do MSH
+V11, as consultas Lua/C++ no runtime, a origem `sourceType = "socket"` no plugin
+e a selecao por combo no editor. A proxima etapa deste milestone e criar sockets
+visualmente no fluxo FBX/Blender e exporta-los para a secao 47.
 
 A extensao `follow_actor` foi retirada do escopo do editor e do runtime de
 interacao de animacao. O comportamento de seguir outro ator deve pertencer a

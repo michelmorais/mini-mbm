@@ -65,12 +65,17 @@ function M.validate(definition)
     if definition.source == definition.target then
         return false, 'source and target binding names must be different'
     end
-    if definition.sourceType ~= 'root' and definition.sourceType ~= 'bone' then
-        return false, "sourceType must be 'root' or 'bone'"
+    if definition.sourceType ~= 'root' and definition.sourceType ~= 'bone' and
+            definition.sourceType ~= 'socket' then
+        return false, "sourceType must be 'root', 'bone' or 'socket'"
     end
     if definition.sourceType == 'bone' and
             (type(definition.sourceBone) ~= 'string' or definition.sourceBone == '') then
         return false, "sourceBone must not be empty when sourceType is 'bone'"
+    end
+    if definition.sourceType == 'socket' and
+            (type(definition.sourceSocket) ~= 'string' or definition.sourceSocket == '') then
+        return false, "sourceSocket must not be empty when sourceType is 'socket'"
     end
     local inherit = definition.inherit
     if type(inherit) ~= 'table' then return false, 'inherit must be a table' end
@@ -103,6 +108,8 @@ local function appendDefinition(output, definition)
     output[#output + 1] = '    sourceType = ' .. quote(definition.sourceType) .. ','
     if definition.sourceType == 'bone' then
         output[#output + 1] = '    sourceBone = ' .. quote(definition.sourceBone) .. ','
+    elseif definition.sourceType == 'socket' then
+        output[#output + 1] = '    sourceSocket = ' .. quote(definition.sourceSocket) .. ','
     end
     output[#output + 1] = '    inherit = {'
     output[#output + 1] = '        position = ' .. tostring(inherit.position == true) .. ','
@@ -156,6 +163,7 @@ function M.build(definition)
     output[#output + 1] = '        targetPivot = definition.targetPivot,'
     output[#output + 1] = '    }'
     output[#output + 1] = '    if definition.sourceBone then specification.sourceBone = definition.sourceBone end'
+    output[#output + 1] = '    if definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
     output[#output + 1] = '    return attachments.attach(specification)'
     output[#output + 1] = 'end'
     output[#output + 1] = ''

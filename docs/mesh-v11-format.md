@@ -134,7 +134,7 @@ representation.
 
 ### Canonical skeletal-runtime section types
 
-The following values are present in `SECTION_TYPE`; all three have explicit read/validate support
+The following values are present in `SECTION_TYPE`; all four have explicit read/validate support
 in both real loaders, `MESH_MBM_DEBUG::saveV11` round-trips canonical data, and the FBX importer
 produces them:
 
@@ -142,10 +142,13 @@ produces them:
 SECTION_SKELETAL_SKELETON  = 41,
 SECTION_SKELETAL_WEIGHTS   = 42,
 SECTION_SKELETAL_ANIMATION = 43,
+SECTION_SKELETAL_SOCKETS   = 47,
 ```
 
 The skeleton section currently writes version 3 (versions 1 and 2 remain explicitly readable);
-weights and animation remain version 1. They form the skeletal family consumed by runtime animation.
+weights and animation remain version 1. Sockets are an optional version-1 section consumed by
+attachment queries. Older meshes without type 47 remain unchanged; a runtime that does not know
+type 47 rejects a new socket-bearing file.
 
 ## 5. Variable-length strings — replacing fixed char buffers
 
@@ -581,8 +584,9 @@ Each payload is protected by its ordinary `SECTION_HEADER_V11` CRC over uncompre
 - The three sections carry the same `skeletonId`; a mismatch is a fatal asset error.
 - At most one section of each of the three types may occur in a file.
 - Weights or animation require the skeleton section. A skeleton may exist without either.
-- If present, canonical order is skeleton, weights, animation. Readers must resolve by type rather
-  than relying on order because the current loader stages all payloads before dispatch.
+- If present, canonical sections are skeleton, optional sockets, weights, and animation. Readers
+  must resolve by type rather than relying on order because the current loader stages all payloads
+  before dispatch.
 - Unknown section versions are fatal. A future version must receive explicit reader support.
 - `FILE_HEADER_V11.sectionCount` includes each emitted section normally; the V11 file magic and
   `formatVersion` remain unchanged because section type/version provide the compatibility boundary.
@@ -679,6 +683,24 @@ strictly increasing by more than `1e-6`, and within `[0,duration]`. Only channel
 mask affect sampling; absent channels/tracks use bind-local values. Quaternions are the functional
 rotation representation and use antipodal sign correction during interpolation. No Euler intent,
 player state, blend priority, fade, timeline selection, or backend data is persisted in version 1.
+
+### `SECTION_SKELETAL_SOCKETS = 47`, version 1
+
+```text
+uint64 skeletonId
+uint32 socketCount
+repeat socketCount times:
+    uint64 socketId
+    uint64 boneId
+    string name
+    float32 translation[3]       // bone-local bind transform
+    float32 rotation[4]          // normalized quaternion x,y,z,w
+    float32 scale[3]
+```
+
+Socket IDs and names are unique within the section. `boneId` must identify a bone in the same
+skeleton. The local transform is evaluated as `socketLocal * boneGlobal` using the engine's
+row-vector convention. Sockets do not add skinning weights or animation tracks.
 
 ### `SECTION_AUTOPLAY_ANIMATION = 44`, version 1
 

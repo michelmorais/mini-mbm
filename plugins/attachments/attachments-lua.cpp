@@ -46,6 +46,7 @@ constexpr uint8_t INHERIT_ROTATION = 2u;
 constexpr uint8_t INHERIT_SCALE = 4u;
 constexpr uint8_t SOURCE_ROOT = 0u;
 constexpr uint8_t SOURCE_BONE = 1u;
+constexpr uint8_t SOURCE_SOCKET = 2u;
 
 int PLUGIN_IDENTIFIER = 1;
 
@@ -344,6 +345,7 @@ struct ATTACHMENT
     int targetReference = LUA_NOREF;
     std::string id;
     std::string sourceBone;
+    std::string sourceSocket;
     uint8_t sourceType = SOURCE_ROOT;
     POSE offset;
     VEC3D targetPivot;
@@ -380,6 +382,32 @@ bool readBonePose(mbm::RENDERIZABLE *source, const std::string &boneName, POSE &
     return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
 }
 
+bool readSocketPose(mbm::RENDERIZABLE *source, const std::string &socketName, POSE &pose)
+{
+    if (!source || source->getTypeClass() != mbm::TYPE_CLASS_MESH || socketName.empty()) return false;
+    auto *mesh = dynamic_cast<mbm::MESH *>(source);
+    if (!mesh) return false;
+    uint64_t socketId = 0;
+    uint64_t boneId = 0;
+    mbm::MATRIX matrix;
+    mbm::VEC3 position;
+    mbm::VEC3 angle;
+    mbm::VEC3 scale;
+    float rotation[4] = {};
+    if (!mesh->getSkeletalSocketTransform(socketName.c_str(), true, &socketId, &boneId, &matrix,
+                                          &position, rotation, &angle, &scale))
+        return false;
+    pose.position = {position.x, position.y, position.z};
+    pose.angle = {angle.x, angle.y, angle.z};
+    pose.scale = {scale.x, scale.y, scale.z};
+    if (std::abs(pose.scale.x) <= 0.000001 || std::abs(pose.scale.y) <= 0.000001 ||
+        std::abs(pose.scale.z) <= 0.000001)
+        return false;
+    pose.rotationMatrix = normalizedRotation(matrix, pose.scale);
+    pose.hasRotationMatrix = true;
+    return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
+}
+
 bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POSE &pose)
 {
     if (!attachment || !source) return false;
@@ -390,6 +418,8 @@ bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POS
     }
     if (attachment->sourceType == SOURCE_BONE)
         return readBonePose(source, attachment->sourceBone, pose);
+    if (attachment->sourceType == SOURCE_SOCKET)
+        return readSocketPose(source, attachment->sourceSocket, pose);
     return false;
 }
 
@@ -481,6 +511,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
     std::shared_ptr<ATTACHMENT> createAttachment(const std::string &id,
                                                   const uint8_t sourceType,
                                                   const std::string &sourceBone,
+                                                  const std::string &sourceSocket,
                                                   const POSE &offset,
                                                   const VEC3D &targetPivot,
                                                   const POSE &before,
@@ -633,6 +664,7 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
+    const std::string &sourceSocket,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const int sourceReference, const int targetReference)
 {
@@ -644,6 +676,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->id = id;
     attachment->sourceType = sourceType;
     attachment->sourceBone = sourceBone;
+    attachment->sourceSocket = sourceSocket;
     attachment->offset = offset;
     attachment->targetPivot = targetPivot;
     attachment->poseBeforeAttach = before;
@@ -1045,12 +1078,18 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritRotation");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_SCALE) != 0u);
     lua_setfield(lua, -2, "inheritScale");
-    lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" : "root");
+    lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
+                   (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
     lua_setfield(lua, -2, "sourceType");
     if (attachment->sourceType == SOURCE_BONE)
     {
         lua_pushlstring(lua, attachment->sourceBone.c_str(), attachment->sourceBone.size());
         lua_setfield(lua, -2, "sourceBone");
+    }
+    else if (attachment->sourceType == SOURCE_SOCKET)
+    {
+        lua_pushlstring(lua, attachment->sourceSocket.c_str(), attachment->sourceSocket.size());
+        lua_setfield(lua, -2, "sourceSocket");
     }
     pushAttachmentData(lua, attachment);
     lua_setfield(lua, -2, "offset");
@@ -1094,6 +1133,7 @@ int onAttach(lua_State *lua)
     }
     uint8_t sourceType = SOURCE_ROOT;
     std::string sourceBone;
+    std::string sourceSocket;
     lua_getfield(lua, 1, "sourceType");
     if (!lua_isnil(lua, -1))
     {
@@ -1102,16 +1142,17 @@ int onAttach(lua_State *lua)
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root' or 'bone'");
+            return fail(lua, "sourceType must be 'root', 'bone' or 'socket'");
         }
         const std::string sourceTypeName = lua_tostring(lua, -1);
         if (sourceTypeName == "bone") sourceType = SOURCE_BONE;
+        else if (sourceTypeName == "socket") sourceType = SOURCE_SOCKET;
         else if (sourceTypeName != "root")
         {
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root' or 'bone'; sockets are not supported yet");
+            return fail(lua, "sourceType must be 'root', 'bone' or 'socket'");
         }
     }
     lua_pop(lua, 1);
@@ -1139,6 +1180,32 @@ int onAttach(lua_State *lua)
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
             return fail(lua, "source bone is invalid or has no evaluated pose");
+        }
+    }
+    else if (sourceType == SOURCE_SOCKET)
+    {
+        lua_getfield(lua, 1, "sourceSocket");
+        if (!lua_isstring(lua, -1) || lua_tostring(lua, -1)[0] == '\0')
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceSocket must be a non-empty socket name for sourceType='socket'");
+        }
+        sourceSocket = lua_tostring(lua, -1);
+        lua_pop(lua, 1);
+        if (source->getTypeClass() != mbm::TYPE_CLASS_MESH)
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType='socket' requires a mesh source");
+        }
+        POSE sourcePose;
+        if (!readSocketPose(source, sourceSocket, sourcePose))
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "source socket is invalid or has no evaluated pose");
         }
     }
     const uint8_t inherit = parseInheritance(lua, 1);
@@ -1181,7 +1248,7 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, offset, targetPivot, before, inherit, sourceReference,
+        id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, sourceReference,
         targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");

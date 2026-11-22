@@ -264,6 +264,14 @@ namespace mbm
         MATRIX globalMatrix;
     };
 
+    struct SKELETAL_SOCKET_INFO
+    {
+        uint64_t socketId = 0;
+        uint64_t boneId = 0;
+        const char *name = nullptr;
+        const char *boneName = nullptr;
+    };
+
     struct SKELETAL_SHARING_COMPATIBILITY
     {
         bool compatible = false;
@@ -961,6 +969,13 @@ namespace mbm
                                       const char *boneName, const MATRIX *modelMatrix,
                                       uint64_t *boneId, MATRIX *matrix, VEC3 *position,
                                       float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+        uint32_t getSkeletalSocketCount() const noexcept;
+        bool getSkeletalSocketInfo(uint32_t index, SKELETAL_SOCKET_INFO &out) const noexcept;
+        bool getSkeletalSocketTransform(const SKELETAL_ANIMATION_PLAYER &player,
+                                        const char *socketName, const MATRIX *modelMatrix,
+                                        uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+                                        VEC3 *position, float rotation[4], VEC3 *angle,
+                                        VEC3 *scale) const noexcept;
         bool getSkeletalRootMotionDelta(const SKELETAL_ANIMATION_PLAYER &player,
                                         const char *boneName, const MATRIX *modelMatrix,
                                         uint64_t *boneId, VEC3 *translation) const noexcept;

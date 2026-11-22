@@ -579,6 +579,7 @@ namespace util
         SECTION_AUTOPLAY_ANIMATION = 44, // optional animation selected for new runtime instances
         SECTION_FACIAL_TARGETS     = 45, // dense frame-0 morph targets, section version 1
         SECTION_FACIAL_CLIPS       = 46, // dense sampled facial weights, section version 1
+        SECTION_SKELETAL_SOCKETS   = 47, // optional named skeletal attachment points
     };
 
     enum AUTOPLAY_ANIMATION_KIND_V11 : uint8_t
