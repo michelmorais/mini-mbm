@@ -171,10 +171,6 @@ and is saved with the definition. Leaving the mode restores the previous camera 
 There is no free-text bone authoring field.
 The Attachment panel also exposes a target-local virtual pivot. The viewport draws that point and
 the relation line ends there; zero keeps the mesh origin as the target point.
-When the target is selected, `Orient frame` displays the source and target frame axes and lets the
-user rotate the source-local attachment frame with the gizmo. The resulting 3x3 matrix is stored in
-`offset.rotationMatrix` and is used by both the editor preview and runtime export.
-
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
 preview`. The preview is a standalone Lua driver containing the saved source and target asset
 references, transform setup, selected skeletal animation, and the same attachment specification.
