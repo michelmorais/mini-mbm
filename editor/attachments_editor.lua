@@ -1395,9 +1395,9 @@ local function previewDriverSource(projectPath)
 local project = dofile(]] .. projectLiteral .. [[)
 local definition = project.definition
 local attachments = require 'attachments'
-local previewObjects = {}
+local source
+local target
 local previewRelation = nil
-local previewSpecification = nil
 
 local function cubeVertices()
     return {
@@ -1442,10 +1442,8 @@ function onInitScene()
     mbm.setAmbientLight('3d', {r = 0.25, g = 0.25, b = 0.25, a = 1})
     mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5},
         {r = 1, g = 0.98, b = 0.9, a = 1})
-    local source = loadRole('source', definition.editor)
-    local target = loadRole('target', definition.editor)
-    previewObjects.source = source
-    previewObjects.target = target
+    source = loadRole('source', definition.editor)
+    target = loadRole('target', definition.editor)
     local camera = mbm.getCamera('3d')
     local orbit = project.camera or {azimuth = 0.3, elevation = 0.3, distance = 700,
         fx = 50, fy = 30, fz = 0}
@@ -1459,25 +1457,25 @@ function onInitScene()
     if definition.editor.sourceAnimationPaused and clip and clip ~= '' then
         assert(source:pauseSkeletalAnimation())
     end
-    previewSpecification = {
-        source = source,
-        target = target,
-        sourceType = definition.sourceType,
-        inherit = definition.inherit,
-        offset = definition.offset,
-    }
-    if definition.sourceBone and definition.sourceBone ~= '' then
-        previewSpecification.sourceBone = definition.sourceBone
-    end
 end
 
 function onLoop()
     if not previewRelation then
         if definition.sourceType == 'bone' and
-                not previewObjects.source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
+                not source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
             return
         end
-        local relation, errorMessage = attachments.attach(previewSpecification)
+        local specification = {
+            source = source,
+            target = target,
+            sourceType = definition.sourceType,
+            inherit = definition.inherit,
+            offset = definition.offset,
+        }
+        if definition.sourceBone and definition.sourceBone ~= '' then
+            specification.sourceBone = definition.sourceBone
+        end
+        local relation, errorMessage = attachments.attach(specification)
         assert(relation, errorMessage)
         previewRelation = relation
     end

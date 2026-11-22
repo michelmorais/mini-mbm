@@ -20,7 +20,6 @@
 #include "attachments-lua.h"
 
 #include <plugin-helper/plugin-helper.h>
-#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/plugin-callback.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/util-interface.h>
@@ -192,12 +191,11 @@ void writeScale(mbm::RENDERIZABLE *renderizable, const VEC3D &scale)
                             static_cast<float>(scale.z)});
 }
 
-bool isLiveLuaRenderizable(mbm::RENDERIZABLE *object)
+bool isValidLuaRenderizable(mbm::RENDERIZABLE *object)
 {
-    if (!object) return false;
-    const auto *userData = static_cast<const mbm::USER_DATA_RENDER_LUA *>(
-        object->getUserData());
-    return userData && userData->ref_MeAsTable != LUA_NOREF;
+    // The attachment owns the Lua table reference. ref_MeAsTable is optional
+    // userdata state used by callback paths, not a general lifetime marker.
+    return object != nullptr;
 }
 
 void pushVec3(lua_State *lua, const VEC3D &value)
@@ -457,7 +455,7 @@ bool ATTACHMENTS_PLUGIN::resolve(ATTACHMENT *attachment, mbm::RENDERIZABLE **sou
     mbm::RENDERIZABLE *targetObject = lua_istable(lua, targetTable)
         ? mbm::getRenderizableNoThrowFromRawTable(lua, 1, targetTable) : nullptr;
     lua_pop(lua, 1);
-    if (!isLiveLuaRenderizable(sourceObject) || !isLiveLuaRenderizable(targetObject))
+    if (!isValidLuaRenderizable(sourceObject) || !isValidLuaRenderizable(targetObject))
         return false;
     *source = sourceObject;
     *target = targetObject;
@@ -738,12 +736,13 @@ bool getRenderizableField(lua_State *lua, const int spec, const char *field,
         return false;
     }
     *renderizable = mbm::getRenderizableNoThrowFromRawTable(lua, 1, objectTable);
-    if (!isLiveLuaRenderizable(*renderizable))
+    if (!isValidLuaRenderizable(*renderizable))
     {
         lua_pop(lua, 1);
         error = std::string(field) + " is invalid or destroyed";
         return false;
     }
+    // Keep the renderizable table alive for the attachment lifetime.
     *reference = luaL_ref(lua, LUA_REGISTRYINDEX);
     return true;
 }
