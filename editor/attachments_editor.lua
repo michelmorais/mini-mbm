@@ -116,6 +116,15 @@ local function setStatus(message, warning)
     if warning then tUtil.showMessageWarn(S.status, 6) else tUtil.showMessage(S.status, 6) end
 end
 
+local function showTooltip(message)
+    if not message or message == '' or not tImGui.IsItemHovered(0) then return end
+    if not tImGui.BeginTooltip() then return end
+    tImGui.PushTextWrapPos(420)
+    tImGui.Text(message)
+    tImGui.PopTextWrapPos()
+    tImGui.EndTooltip()
+end
+
 local function dpCall(fn, ...)
     local result = table.pack(pcall(fn, ...))
     if not result[1] then
@@ -1681,8 +1690,6 @@ end
 local function showSourceAnimationControls()
     local source = S.source
     if not source.meshLoaded then return end
-    tImGui.Separator()
-    tImGui.Text(L('source_animation'))
     if #source.animationClips == 0 then
         tImGui.TextWrapped(L('no_source_animations'))
         return
@@ -1691,28 +1698,26 @@ local function showSourceAnimationControls()
     tImGui.SetNextItemWidth(210)
     local changed, selected = tImGui.Combo(L('animation_clip'), source.selectedAnimation, source.animationClips)
     if changed then source.selectedAnimation = selected end
-    local active = source.activeAnimation ~= ''
+    showTooltip(L('animation_clip_tooltip'))
     if tImGui.Button(L('play_animation') .. '##att_source_animation_play') then
         playSourceAnimation()
     end
+    showTooltip(L('play_animation_tooltip'))
     tImGui.SameLine()
     if tImGui.Button(L('pause_animation') .. '##att_source_animation_pause') then
         pauseSourceAnimation()
     end
+    showTooltip(L('pause_animation_tooltip'))
     tImGui.SameLine()
     if tImGui.Button(L('resume_animation') .. '##att_source_animation_resume') then
         resumeSourceAnimation()
     end
+    showTooltip(L('resume_animation_tooltip'))
     tImGui.SameLine()
     if tImGui.Button(L('stop_animation') .. '##att_source_animation_stop') then
         stopSourceAnimation()
     end
-    if active then
-        local state = source.animationPaused and L('animation_paused') or L('animation_playing')
-        tImGui.Text(string.format(L('animation_status'), source.activeAnimation, state))
-    else
-        tImGui.Text(L('animation_stopped'))
-    end
+    showTooltip(L('stop_animation_tooltip'))
     local duration = sourceAnimationDuration()
     local currentTime = 0
     if source.activeAnimation ~= '' then
@@ -1722,18 +1727,17 @@ local function showSourceAnimationControls()
     if duration > 0 then
         local timelineChanged, timelineValue = tImGui.SliderFloat(L('animation_time'), currentTime, 0, duration)
         if timelineChanged then seekSourceAnimation(timelineValue) end
-        tImGui.SameLine()
-        tImGui.Text(string.format(L('animation_timeline_status'), currentTime, duration))
+        showTooltip(L('animation_time_tooltip'))
         if tImGui.Button(L('step_back') .. '##att_source_animation_step_back') then
             seekSourceAnimation(math.max(0, currentTime - 1 / 30))
         end
+        showTooltip(L('step_back_tooltip'))
         tImGui.SameLine()
         if tImGui.Button(L('step_forward') .. '##att_source_animation_step_forward') then
             seekSourceAnimation(math.min(duration, currentTime + 1 / 30))
         end
+        showTooltip(L('step_forward_tooltip'))
     end
-    tImGui.TextWrapped(L('animation_timeline_help'))
-    if S.definition.sourceType == 'bone' then tImGui.TextWrapped(L('animation_bone_note')) end
 end
 
 local function showObjects()
@@ -1887,11 +1891,10 @@ local function showCameraPanel()
 end
 
 local function showTimelinePanel()
-    tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.32, 350)
+    tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.20, 390)
     local opened = tImGui.Begin(S.windows.timeline, true, 0)
     if opened then
         tImGui.Text(L('timeline'))
-        tImGui.TextWrapped(L('preview_help'))
         showSourceAnimationControls()
         tImGui.Text(string.format(L('relation_status'), roleName('source'), roleName('target')))
     end
