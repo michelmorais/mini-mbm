@@ -2,7 +2,14 @@
 
 ## Status
 
-Proposta de roadmap.
+As Fases 0 a 4 do attachment foram implementadas: contrato, ciclo do engine,
+origens em ossos, editor visual, preview com timeline e exportacao para runtime.
+O fluxo atual foi validado manualmente no Linux e no macOS com o projeto do
+rato e da Helice.
+
+O proximo milestone e **Sockets**. Ele deve comecar pela definicao do contrato
+de sockets no formato/API da mesh, antes de adicionar a selecao de sockets no
+editor ou a resolucao deles no runtime.
 
 A extensao `follow_actor` foi retirada do escopo do editor e do runtime de
 interacao de animacao. O comportamento de seguir outro ator deve pertencer a

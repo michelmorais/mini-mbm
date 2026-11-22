@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **1.8**
-Status: **Phase 4 runtime export and editor preview implemented; virtual target pivots added; sockets pending**
+Document version: **1.9**
+Status: **Phase 4 runtime export and editor preview implemented and validated on Linux/macOS; virtual target pivots added; sockets pending**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -19,6 +19,13 @@ local attachments = require "attachments"
 The CMake option is `USE_ATTACHMENTS=1`. `USE_ALL=1` enables it. The iOS and macOS App Store
 profiles link the plugin statically; desktop builds load `attachments.so`, `attachments.dylib`, or
 `attachments.dll` from the normal Lua C module path.
+
+## Validation status
+
+The current editor and `attachments` plugin were manually validated on macOS with the rat and
+propeller project. The skeletal-bone attachment, target pivot, animation preview, and target
+rotation follow the source correctly during playback. This confirms that the current row-matrix
+composition is consistent across the Linux and macOS runtime paths.
 
 ## Transform contract
 
