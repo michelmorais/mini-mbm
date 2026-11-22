@@ -6006,7 +6006,8 @@ local function showSkeletalSocketAuthoring(tEntry, meshD, index, onEdit)
     local changed, selected = tImGui.Combo('Socket##socketSelect-' .. index, state.selected + 1, socketOptions)
     if changed and selected then state.selected = selected - 1 loadDraft(state.selected) end
     local draft = state.draft
-    local nameChanged, name = tImGui.InputText('Name##socketName-' .. index, draft.name or '', 128, 0)
+    local noInputFlags = tImGui.Flags('ImGuiInputTextFlags_None')
+    local nameChanged, name = tImGui.InputText('Name##socketName-' .. index, draft.name or '', noInputFlags)
     if nameChanged then draft.name = name end
     local boneOptions = {}
     for _, bone in ipairs(state.bones) do boneOptions[#boneOptions + 1] = bone.name or '<unnamed>' end
@@ -6015,7 +6016,7 @@ local function showSkeletalSocketAuthoring(tEntry, meshD, index, onEdit)
     local function socketFloat(label, key)
         tImGui.PushItemWidth(90)
         local valueChanged, value = tImGui.InputFloat(label .. '##socket-' .. key .. '-' .. index,
-            draft[key] or 0, 0.01, 0.1, '%.4f', 0)
+            draft[key] or 0, 0.01, 0.1, '%.4f', noInputFlags)
         tImGui.PopItemWidth()
         if valueChanged and value then draft[key] = value end
     end
