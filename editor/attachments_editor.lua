@@ -93,6 +93,8 @@ local S = {
         path = '', previewSize = 50, meshLoaded = false, selectable = true},
     relationLine = nil,
     targetPivotMarker = nil,
+    targetPivotMarkerRadius = nil,
+    targetPivotMarkerSignature = nil,
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
     xzPlaneSize = nil,
@@ -228,6 +230,9 @@ local prepareSourceSkeleton
 local updateSourceSkeletonVisuals
 local setBoneSelectionMode
 local hideGizmo
+local targetPivotWorldPosition
+local updateTargetPivotMarker
+local showTargetPivotFields
 
 local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
@@ -573,6 +578,48 @@ local function unitSphereVertices()
         end
     end
     return vertices
+end
+
+local function createPivotMarker()
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(unitSphereVertices(), nil, 'attachments_target_pivot_marker') then
+        object:destroy()
+        return nil
+    end
+    object:setColor(1.0, 0.9, 0.15, 1.0)
+    object.alwaysOnTop = true
+    object.alwaysOnTopPriority = 25
+    object.alwaysRender = true
+    return object
+end
+
+local function getTargetPivotMarkerRadius()
+    local entry = S.target
+    local signature = table.concat({
+        entry.path or '', entry.meshLoaded and 'mesh' or 'placeholder',
+        tostring(entry.previewSize or 0), tostring(entry.pose.sx or 1),
+        tostring(entry.pose.sy or 1), tostring(entry.pose.sz or 1),
+    }, ':')
+    if S.targetPivotMarkerRadius and S.targetPivotMarkerSignature == signature then
+        return S.targetPivotMarkerRadius
+    end
+
+    local extent
+    if entry.object then
+        local ok, width, height, depth = dpCall(function()
+            return entry.object:getAABB(true)
+        end)
+        if ok then
+            extent = math.max(tonumber(width) or 0, tonumber(height) or 0, tonumber(depth) or 0)
+        end
+    end
+    if not extent or extent <= 1e-6 then
+        extent = entry.meshLoaded and 1 or math.max(1, entry.previewSize or 1)
+    end
+
+    S.targetPivotMarkerRadius = math.max(extent * 0.012, 0.25)
+    S.targetPivotMarkerSignature = signature
+    return S.targetPivotMarkerRadius
 end
 
 local function getSourceMeshBounds()
@@ -1010,12 +1057,21 @@ hideGizmo = function()
 end
 
 local function updateGizmo()
-    if S.boneSelectionMode then hideGizmo(); return end
+    if S.boneSelectionMode then
+        if S.targetPivotMarker then S.targetPivotMarker.visible = false end
+        hideGizmo()
+        return
+    end
+    updateTargetPivotMarker()
     if not S.selectedRole then hideGizmo(); return end
+    if S.transformMode == 'pivot' and S.selectedRole ~= 'target' then hideGizmo(); return end
     local entry = roleEntry(S.selectedRole)
     if entry.selectable == false then hideGizmo(); return end
     if not entry.object then hideGizmo(); return end
     local origin = {x = entry.pose.x, y = entry.pose.y, z = entry.pose.z}
+    if S.transformMode == 'pivot' then
+        origin = targetPivotWorldPosition(entry.pose)
+    end
     local length = math.max(entry.previewSize * 1.6, 45)
     local radius = math.max(entry.previewSize * 0.9, 30)
     local originChanged = not S.gizmo.origin or S.gizmo.origin.x ~= origin.x or
@@ -1040,7 +1096,7 @@ local function updateGizmo()
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(axis.color))
         object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 10, true
-        object.visible = S.transformMode == 'move'
+        object.visible = S.transformMode == 'move' or S.transformMode == 'pivot'
     end
     local rings = {
         x = {u = axes.y, v = axes.z}, y = {u = axes.z, v = axes.x}, z = {u = axes.x, v = axes.y},
@@ -1070,7 +1126,8 @@ local function updateGizmo()
 end
 
 local function pickGizmoAxis(screenX, screenY)
-    if not S.selectedRole or S.transformMode ~= 'move' or not S.gizmo.origin or
+    if not S.selectedRole or (S.transformMode ~= 'move' and S.transformMode ~= 'pivot') or
+            not S.gizmo.origin or
             roleEntry(S.selectedRole).selectable == false then
         return nil
     end
@@ -1150,9 +1207,14 @@ local function beginViewportInteraction(key, screenX, screenY)
                 z = {x = 0, y = 0, z = 1}})[axisName]
             local parameter = rayAxisParameter(screenX, screenY, S.gizmo.origin, axis)
             if parameter then
-                S.gizmo.drag = {mode = 'move', axis = axis,
+                local drag = {mode = S.transformMode, axis = axis,
                     origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y, z = S.gizmo.origin.z},
                     startParameter = parameter, base = clonePose(roleEntry(S.selectedRole).pose)}
+                if S.transformMode == 'pivot' then
+                    drag.basePivot = vector(S.definition.targetPivot.x, S.definition.targetPivot.y,
+                        S.definition.targetPivot.z)
+                end
+                S.gizmo.drag = drag
                 S.cameraDrag = nil
                 return
             end
@@ -1192,6 +1254,22 @@ local function updateViewportInteraction(screenX, screenY)
                 entry.pose.z = drag.base.z + drag.axis.z * amount
                 if S.selectedRole == 'target' then S.target.manualOverride = true
                 else S.target.manualOverride = false end
+                markModified()
+            end
+        elseif drag.mode == 'pivot' then
+            local parameter = rayAxisParameter(screenX, screenY, drag.origin, drag.axis)
+            if parameter then
+                local amount = parameter - drag.startParameter
+                local targetRotation = eulerRotation(drag.base.rx, drag.base.ry, drag.base.rz)
+                local localDelta = rotateVector(transposeRotation(targetRotation), vector(
+                    drag.axis.x * amount, drag.axis.y * amount, drag.axis.z * amount))
+                if math.abs(drag.base.sx) > 1e-6 then localDelta.x = localDelta.x / drag.base.sx end
+                if math.abs(drag.base.sy) > 1e-6 then localDelta.y = localDelta.y / drag.base.sy end
+                if math.abs(drag.base.sz) > 1e-6 then localDelta.z = localDelta.z / drag.base.sz end
+                S.definition.targetPivot.x = drag.basePivot.x + localDelta.x
+                S.definition.targetPivot.y = drag.basePivot.y + localDelta.y
+                S.definition.targetPivot.z = drag.basePivot.z + localDelta.z
+                S.target.manualOverride = false
                 markModified()
             end
         else
@@ -1286,12 +1364,25 @@ local function calculateTargetPose()
     return result
 end
 
-local function targetPivotWorldPosition(target)
+targetPivotWorldPosition = function(target)
     local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
     local localPivot = vector(S.definition.targetPivot.x * target.sx,
         S.definition.targetPivot.y * target.sy, S.definition.targetPivot.z * target.sz)
     local worldPivot = rotateVector(targetRotation, localPivot)
     return vector(target.x + worldPivot.x, target.y + worldPivot.y, target.z + worldPivot.z)
+end
+
+updateTargetPivotMarker = function()
+    if not S.targetPivotMarker then return end
+    local targetPivot = targetPivotWorldPosition(S.target.pose)
+    S.targetPivotMarker:setPos(targetPivot.x, targetPivot.y, targetPivot.z)
+    local radius = getTargetPivotMarkerRadius()
+    S.targetPivotMarker:setScale(radius, radius, radius)
+    S.targetPivotMarker.visible = not S.boneSelectionMode and
+        (S.selectedRole == 'target' or S.transformMode == 'pivot' or
+         math.abs(S.definition.targetPivot.x) > 1e-6 or
+         math.abs(S.definition.targetPivot.y) > 1e-6 or
+         math.abs(S.definition.targetPivot.z) > 1e-6)
 end
 
 local function rebuildPreview()
@@ -1305,14 +1396,7 @@ local function rebuildPreview()
         S.relationLine:set({source.x, source.y, source.z,
             targetPivot.x, targetPivot.y, targetPivot.z}, 1)
     end
-    if S.targetPivotMarker then
-        local targetPivot = targetPivotWorldPosition(S.target.pose)
-        S.targetPivotMarker:setPos(targetPivot.x, targetPivot.y, targetPivot.z)
-        S.targetPivotMarker.visible = not S.boneSelectionMode and
-            (math.abs(S.definition.targetPivot.x) > 1e-6 or
-             math.abs(S.definition.targetPivot.y) > 1e-6 or
-             math.abs(S.definition.targetPivot.z) > 1e-6)
-    end
+    updateTargetPivotMarker()
     S.dirtyPreview = false
 end
 
@@ -1686,6 +1770,7 @@ local function showPoseFields(role)
             markModified()
         end
     end
+    if role == 'target' then showTargetPivotFields() end
 end
 
 local function showRoleAsset(role)
@@ -1816,15 +1901,28 @@ local function showObjects()
         end
         tImGui.Separator()
         tImGui.Text(L('transform_mode'))
-        local modeIndex = tImGui.RadioButton(L('move'), S.transformMode == 'move' and 1 or 2, 1)
+        local currentModeIndex = S.transformMode == 'rotate' and 2 or
+            (S.transformMode == 'pivot' and S.selectedRole == 'target' and 3 or 1)
+        local modeIndex = tImGui.RadioButton(L('move'), currentModeIndex, 1)
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(L('rotate'), modeIndex, 2)
-        local nextMode = modeIndex == 2 and 'rotate' or 'move'
+        if S.selectedRole == 'target' then
+            tImGui.SameLine()
+            modeIndex = tImGui.RadioButton(L('move_pivot'), modeIndex, 3)
+        end
+        local nextMode
+        if modeIndex == 2 then nextMode = 'rotate'
+        elseif modeIndex == 3 and S.selectedRole == 'target' then nextMode = 'pivot'
+        else nextMode = 'move' end
         if nextMode ~= S.transformMode then
             S.transformMode = nextMode
             S.gizmo.drag = nil
+            S.dirtyPreview = true
         end
-        tImGui.TextWrapped(S.transformMode == 'move' and L('move_gizmo_help') or L('rotate_gizmo_help'))
+        local help = L('move_gizmo_help')
+        if S.transformMode == 'rotate' then help = L('rotate_gizmo_help')
+        elseif S.transformMode == 'pivot' then help = L('move_pivot_gizmo_help') end
+        tImGui.TextWrapped(help)
     end
     tImGui.End()
 end
@@ -1850,11 +1948,11 @@ local function showOffsetFields()
     end
 end
 
-local function showTargetPivotFields()
+showTargetPivotFields = function()
     tImGui.Text(L('target_pivot'))
     for _, axis in ipairs({'x', 'y', 'z'}) do
         tImGui.SetNextItemWidth(105)
-        local changed, nextValue = tImGui.InputFloat(string.upper(axis) .. '##att_target_pivot_' .. axis,
+        local changed, nextValue = tImGui.InputFloat(L('pivot_' .. axis) .. '##att_target_pivot_' .. axis,
             S.definition.targetPivot[axis])
         if changed then
             S.definition.targetPivot[axis] = nextValue
@@ -1867,7 +1965,7 @@ local function showTargetPivotFields()
 end
 
 local function showAttachment()
-    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 360, 430)
+    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 380, 560)
     local opened = tImGui.Begin(S.windows.attachment, true, 0)
     if opened then
         tImGui.Text(L('attachment'))
@@ -1911,14 +2009,13 @@ local function showAttachment()
         end
         tImGui.Separator()
         showOffsetFields()
-        showTargetPivotFields()
         tImGui.TextWrapped(L('offset_help'))
     end
     tImGui.End()
 end
 
 local function showCameraPanel()
-    tUtil.setInitialWindowPositionRight(S.windows.camera, 0, 460, 350, 360, 300)
+    tUtil.setInitialWindowPositionRight(S.windows.camera, 0, 600, 350, 380, 380)
     local opened = tImGui.Begin(S.windows.camera, true, 0)
     if opened then
         tImGui.Text(L('camera'))
@@ -2000,9 +2097,8 @@ function onInitScene()
     applyCamera()
     S.source.object = createMarker('source', {0.15, 0.75, 1.0, 0.42})
     S.target.object = createMarker('target', {1.0, 0.65, 0.15, 0.42})
-    S.targetPivotMarker = createMarker('target_pivot', {1.0, 0.9, 0.15, 1.0})
+    S.targetPivotMarker = createPivotMarker()
     if S.targetPivotMarker then
-        S.targetPivotMarker:setScale(8, 8, 8)
         S.targetPivotMarker.visible = false
     end
     S.relationLine = line:new('3d', 0, 0, 0)
