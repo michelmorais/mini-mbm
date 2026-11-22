@@ -69,6 +69,8 @@ local function newDefinition()
             language = nil,
             sourceSelectable = true,
             targetSelectable = true,
+            sourceAnimation = '',
+            sourceAnimationPaused = false,
         },
     }
 end
@@ -83,7 +85,9 @@ local S = {
     transformMode = 'move',
     source = {pose = pose(0, 0, 0), object = nil, kind = 'placeholder', path = '',
         previewSize = 70, meshLoaded = false, selectable = true, debugMesh = nil,
-        skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0},
+        skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0,
+        animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
+        selectionAnimation = nil},
     target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
         path = '', previewSize = 50, meshLoaded = false, selectable = true},
     relationLine = nil,
@@ -291,6 +295,87 @@ local function destroyRoleObject(role)
     entry.skeletonReport = nil
     entry.meshBounds = nil
     entry.selectedBone = ''
+    if role == 'source' then
+        entry.animationClips = {}
+        entry.selectedAnimation = 1
+        entry.activeAnimation = ''
+        entry.animationPaused = false
+        entry.selectionAnimation = nil
+    end
+end
+
+local function refreshSourceAnimationCatalog()
+    local source = S.source
+    source.animationClips = {}
+    source.selectedAnimation = 1
+    source.activeAnimation = ''
+    source.animationPaused = false
+    if not source.object or not source.meshLoaded then return end
+    local okTotal, total = dpCall(function() return source.object:getTotalSkeletalAnimations() end)
+    if not okTotal then return end
+    for index = 1, tonumber(total) or 0 do
+        local okName, name = dpCall(function() return source.object:getSkeletalAnimationName(index) end)
+        if okName and type(name) == 'string' and name ~= '' then
+            source.animationClips[#source.animationClips + 1] = name
+        end
+    end
+end
+
+local function restoreSourceAnimation()
+    local source = S.source
+    local saved = source.selectionAnimation
+    source.selectionAnimation = nil
+    if not saved or saved.name == '' or not source.object then return end
+    local ok, played = dpCall(function() return source.object:playSkeletalAnimation(saved.name) end)
+    if not ok or played == false then return end
+    source.activeAnimation = saved.name
+    source.animationPaused = saved.paused == true
+    if source.animationPaused then dpCall(function() return source.object:pauseSkeletalAnimation() end) end
+    S.dirtyPreview = true
+end
+
+local function playSourceAnimation()
+    local source = S.source
+    if S.boneSelectionMode then
+        setStatus(L('animation_unavailable_in_bone_mode'), true)
+        return
+    end
+    local name = source.animationClips[source.selectedAnimation]
+    if not source.object or not name then return end
+    local ok, played = dpCall(function() return source.object:playSkeletalAnimation(name) end)
+    if not ok or played == false then
+        setStatus(L('animation_play_failed'), true)
+        return
+    end
+    source.activeAnimation = name
+    source.animationPaused = false
+    S.dirtyPreview = true
+end
+
+local function pauseSourceAnimation()
+    if not S.source.object or S.source.activeAnimation == '' then return end
+    local ok, paused = dpCall(function() return S.source.object:pauseSkeletalAnimation() end)
+    if ok and paused ~= false then
+        S.source.animationPaused = true
+        S.dirtyPreview = true
+    end
+end
+
+local function resumeSourceAnimation()
+    if not S.source.object or S.source.activeAnimation == '' then return end
+    local ok, resumed = dpCall(function() return S.source.object:resumeSkeletalAnimation() end)
+    if ok and resumed ~= false then
+        S.source.animationPaused = false
+        S.dirtyPreview = true
+    end
+end
+
+local function stopSourceAnimation()
+    if not S.source.object then return end
+    dpCall(function() return S.source.object:stopSkeletalAnimation() end)
+    S.source.activeAnimation = ''
+    S.source.animationPaused = false
+    S.dirtyPreview = true
 end
 
 local function ensureRolePlaceholder(role)
@@ -339,7 +424,11 @@ local function loadRoleMesh(role, path)
     entry.meshLoaded = true
     object.alwaysRender = true
     object.visible = true
-    if role == 'source' and S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
+    if role == 'source' then
+        dpCall(function() return object:stopSkeletalAnimation() end)
+        refreshSourceAnimationCatalog()
+        if S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
+    end
     markModified()
     setStatus(string.format(L('mesh_loaded'), roleName(role), path))
     return true
@@ -651,6 +740,9 @@ setBoneSelectionMode = function(enabled)
             setStatus(L('bone_select_requires_mesh'), true)
             return false
         end
+        S.source.selectionAnimation = S.source.activeAnimation ~= '' and {
+            name = S.source.activeAnimation, paused = S.source.animationPaused == true,
+        } or nil
         if not prepareSourceSkeleton() then return false end
         S.boneSelectionCamera = {
             azimuth = S.cameraOrbit.azimuth, elevation = S.cameraOrbit.elevation,
@@ -677,6 +769,7 @@ setBoneSelectionMode = function(enabled)
     end
     S.boneSelectionTargetVisible = nil
     updateSourceSkeletonVisibility()
+    restoreSourceAnimation()
     S.dirtyPreview = true
     return true
 end
@@ -772,20 +865,20 @@ end
 local function getPreviewSourcePose()
     if S.definition.sourceType ~= 'bone' then return clonePose(S.source.pose) end
     if not S.source.object or not S.source.meshLoaded or S.definition.sourceBone == '' then return nil end
-    local bindPose = getSourceBonePose(S.definition.sourceBone)
-    if bindPose then return bindPose end
-    local ok, bone = dpCall(function()
-        return S.source.object:getSkeletalBoneTransform(S.definition.sourceBone, 'world')
-    end)
-    if not ok or type(bone) ~= 'table' or type(bone.position) ~= 'table' or
-            type(bone.angle) ~= 'table' or type(bone.scale) ~= 'table' then
-        return nil
+    if not S.boneSelectionMode and S.source.activeAnimation ~= '' then
+        local ok, bone = dpCall(function()
+            return S.source.object:getSkeletalBoneTransform(S.definition.sourceBone, 'world')
+        end)
+        if ok and type(bone) == 'table' and type(bone.position) == 'table' and
+                type(bone.angle) == 'table' and type(bone.scale) == 'table' then
+            return {
+                x = bone.position.x or 0, y = bone.position.y or 0, z = bone.position.z or 0,
+                rx = bone.angle.x or 0, ry = bone.angle.y or 0, rz = bone.angle.z or 0,
+                sx = bone.scale.x or 1, sy = bone.scale.y or 1, sz = bone.scale.z or 1,
+            }
+        end
     end
-    return {
-        x = bone.position.x or 0, y = bone.position.y or 0, z = bone.position.z or 0,
-        rx = bone.angle.x or 0, ry = bone.angle.y or 0, rz = bone.angle.z or 0,
-        sx = bone.scale.x or 1, sy = bone.scale.y or 1, sz = bone.scale.z or 1,
-    }
+    return getSourceBonePose(S.definition.sourceBone)
 end
 
 local function dot(ax, ay, az, bx, by, bz)
@@ -1207,6 +1300,9 @@ local function syncEditorDefinition()
         language = tLang.getLanguage(),
         sourceSelectable = S.source.selectable ~= false,
         targetSelectable = S.target.selectable ~= false,
+        sourceAnimation = S.source.activeAnimation ~= '' and S.source.activeAnimation or
+            (S.source.animationClips[S.source.selectedAnimation] or ''),
+        sourceAnimationPaused = S.source.animationPaused == true,
     }
 end
 
@@ -1247,6 +1343,152 @@ local function exportRuntimeDefinition()
     setStatus(string.format(L('runtime_exported'), path))
 end
 
+local function previewDefaultPath()
+    if not S.projectPath or S.projectPath == '' then return 'attachment-preview.lua' end
+    local base = S.projectPath:gsub('%.att%.lua$', '')
+    if base == S.projectPath then base = S.projectPath:gsub('%.lua$', '') end
+    return base .. '-preview.lua'
+end
+
+local function previewDriverSource(projectPath)
+    local projectLiteral = string.format('%q', projectPath)
+    return [[
+local project = dofile(]] .. projectLiteral .. [[)
+local definition = project.definition
+local attachments = require 'attachments'
+
+local function cubeVertices()
+    return {
+        -0.5, -0.5, 0.5,  -0.5, 0.5, 0.5,  0.5, 0.5, 0.5,
+        -0.5, -0.5, 0.5,   0.5, 0.5, 0.5,  0.5, -0.5, 0.5,
+        0.5, -0.5, -0.5,   0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
+        0.5, -0.5, -0.5,  -0.5, 0.5, -0.5, -0.5, -0.5, -0.5,
+        -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5,
+        -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5,
+        0.5, -0.5, 0.5,   0.5, 0.5, 0.5,  0.5, 0.5, -0.5,
+        0.5, -0.5, 0.5,   0.5, 0.5, -0.5, 0.5, -0.5, -0.5,
+        -0.5, 0.5, 0.5,  -0.5, 0.5, -0.5, 0.5, 0.5, -0.5,
+        -0.5, 0.5, 0.5,   0.5, 0.5, -0.5, 0.5, 0.5, 0.5,
+        -0.5, -0.5, -0.5,  0.5, -0.5, -0.5, 0.5, -0.5, 0.5,
+        -0.5, -0.5, -0.5,  0.5, -0.5, 0.5, -0.5, -0.5, 0.5,
+    }
+end
+
+local function loadRole(role, editor)
+    local pose = editor[role .. 'Pose'] or {}
+    local object
+    if editor[role .. 'Kind'] == 'mesh' and editor[role .. 'Mesh'] and editor[role .. 'Mesh'] ~= '' then
+        local path = editor[role .. 'Mesh']
+        local folder = path:match('^(.*)[/\\][^/\\]+$')
+        if folder then mbm.addPath(folder) end
+        object = mesh:new('3d')
+        assert(object:load(path), 'Could not load attachment preview mesh: ' .. tostring(path))
+    else
+        object = shape:new('3d', 0, 0, 0)
+        assert(object:create(cubeVertices(), nil, 'attachment_preview_' .. role))
+        if role == 'source' then object:setColor(0.15, 0.75, 1.0, 0.42)
+        else object:setColor(1.0, 0.65, 0.15, 0.42) end
+    end
+    object.alwaysRender = true
+    object:setPos(pose.x or 0, pose.y or 0, pose.z or 0)
+    object:setAngle(pose.rx or 0, pose.ry or 0, pose.rz or 0)
+    object:setScale(pose.sx or 1, pose.sy or 1, pose.sz or 1)
+    return object
+end
+
+function onInitScene()
+    mbm.setAmbientLight('3d', {r = 0.25, g = 0.25, b = 0.25, a = 1})
+    mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5},
+        {r = 1, g = 0.98, b = 0.9, a = 1})
+    local source = loadRole('source', definition.editor)
+    local target = loadRole('target', definition.editor)
+    local camera = mbm.getCamera('3d')
+    local orbit = project.camera or {azimuth = 0.3, elevation = 0.3, distance = 700,
+        fx = 50, fy = 30, fz = 0}
+    local cameraX = orbit.fx + orbit.distance * math.cos(orbit.elevation) * math.sin(orbit.azimuth)
+    local cameraY = orbit.fy + orbit.distance * math.sin(orbit.elevation)
+    local cameraZ = orbit.fz + orbit.distance * math.cos(orbit.elevation) * math.cos(orbit.azimuth)
+    camera:setPos(cameraX, cameraY, cameraZ)
+    camera:setFocus(orbit.fx, orbit.fy, orbit.fz)
+    local clip = definition.editor.sourceAnimation
+    if clip and clip ~= '' then assert(source:playSkeletalAnimation(clip)) end
+    if definition.editor.sourceAnimationPaused and clip and clip ~= '' then
+        assert(source:pauseSkeletalAnimation())
+    end
+    local specification = {
+        source = source,
+        target = target,
+        sourceType = definition.sourceType,
+        inherit = definition.inherit,
+        offset = definition.offset,
+    }
+    if definition.sourceBone and definition.sourceBone ~= '' then
+        specification.sourceBone = definition.sourceBone
+    end
+    local relation, errorMessage = attachments.attach(specification)
+    assert(relation, errorMessage)
+end
+
+function onKeyDown(key)
+    if key == mbm.getKeyCode('ESC') then mbm.quit() end
+end
+]]
+end
+
+local function writePreviewFiles(projectPath, driverPath)
+    syncEditorDefinition()
+    local output = {'local attachmentPreview = {}'}
+    tUtil.save('attachmentPreview', {definition = S.definition,
+        camera = tUtil.deepCopyTable(S.cameraOrbit)}, output)
+    output[#output + 1] = 'return attachmentPreview'
+    local project, projectError = io.open(projectPath, 'w')
+    if not project then setStatus(tostring(projectError), true); return false end
+    for _, line in ipairs(output) do project:write(line .. '\n') end
+    project:close()
+    local driver, driverError = io.open(driverPath, 'w')
+    if not driver then setStatus(tostring(driverError), true); return false end
+    driver:write(previewDriverSource(projectPath))
+    driver:close()
+    return true
+end
+
+local function validatePreview()
+    if S.source.kind ~= 'mesh' or not S.source.meshLoaded then
+        setStatus(L('run_preview_requires_source'), true)
+        return false
+    end
+    if S.definition.sourceType == 'bone' and
+            (S.source.activeAnimation == '' and S.source.animationClips[S.source.selectedAnimation] == nil) then
+        setStatus(L('run_preview_requires_animation'), true)
+        return false
+    end
+    return true
+end
+
+local function startPreview(driverPath)
+    local width, height = mbm.getSizeScreen()
+    width, height = math.max(320, math.floor(width or 1280)), math.max(240, math.floor(height or 720))
+    tUtil.newInstance(width, height, width, height, driverPath)
+end
+
+local function runPreview()
+    if not validatePreview() then return end
+    local projectPath = tUtil.getTemporaryFilePath('_attachments_preview_project.lua')
+    local driverPath = tUtil.getTemporaryFilePath('_attachments_preview_main.lua')
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    startPreview(driverPath)
+    setStatus(L('run_preview_started'))
+end
+
+local function savePreviewAs()
+    if not validatePreview() then return end
+    local driverPath = mbm.saveFile(previewDefaultPath(), 'lua')
+    if not driverPath then return end
+    local projectPath = driverPath:gsub('%.lua$', '') .. '.att.lua'
+    if not writePreviewFiles(projectPath, driverPath) then return end
+    setStatus(string.format(L('preview_saved'), driverPath, projectPath))
+end
+
 local function normalizeDefinition(value)
     if type(value) ~= 'table' then return nil end
     local result = newDefinition()
@@ -1281,6 +1523,8 @@ local function normalizeDefinition(value)
         end
         result.editor.sourceSelectable = editor.sourceSelectable ~= false
         result.editor.targetSelectable = editor.targetSelectable ~= false
+        result.editor.sourceAnimation = type(editor.sourceAnimation) == 'string' and editor.sourceAnimation or ''
+        result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
     end
     if result.sourceType == 'bone' and result.sourceBone == '' then return nil end
     return result
@@ -1313,6 +1557,14 @@ local function loadDefinition(path)
     S.target.pose = clonePose(definition.editor.targetPose)
     restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
     restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
+    if definition.editor.sourceAnimation ~= '' then
+        for index, name in ipairs(S.source.animationClips) do
+            if name == definition.editor.sourceAnimation then
+                S.source.selectedAnimation = index
+                break
+            end
+        end
+    end
     S.source.selectable = definition.editor.sourceSelectable ~= false
     S.target.selectable = definition.editor.targetSelectable ~= false
     if definition.editor.language == 'pt_br' or definition.editor.language == 'en' then
@@ -1376,6 +1628,44 @@ local function showViewSelectable(role)
     end
 end
 
+local function showSourceAnimationControls()
+    local source = S.source
+    if not source.meshLoaded then return end
+    tImGui.Separator()
+    tImGui.Text(L('source_animation'))
+    if #source.animationClips == 0 then
+        tImGui.TextWrapped(L('no_source_animations'))
+        return
+    end
+    source.selectedAnimation = math.max(1, math.min(source.selectedAnimation, #source.animationClips))
+    tImGui.SetNextItemWidth(210)
+    local changed, selected = tImGui.Combo(L('animation_clip'), source.selectedAnimation, source.animationClips)
+    if changed then source.selectedAnimation = selected end
+    local active = source.activeAnimation ~= ''
+    if tImGui.Button(L('play_animation') .. '##att_source_animation_play') then
+        playSourceAnimation()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(L('pause_animation') .. '##att_source_animation_pause') then
+        pauseSourceAnimation()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(L('resume_animation') .. '##att_source_animation_resume') then
+        resumeSourceAnimation()
+    end
+    tImGui.SameLine()
+    if tImGui.Button(L('stop_animation') .. '##att_source_animation_stop') then
+        stopSourceAnimation()
+    end
+    if active then
+        local state = source.animationPaused and L('animation_paused') or L('animation_playing')
+        tImGui.Text(string.format(L('animation_status'), source.activeAnimation, state))
+    else
+        tImGui.Text(L('animation_stopped'))
+    end
+    if S.definition.sourceType == 'bone' then tImGui.TextWrapped(L('animation_bone_note')) end
+end
+
 local function showObjects()
     tUtil.setInitialWindowPositionLeft(S.windows.objects, 0, 20, 380)
     local opened = tImGui.Begin(S.windows.objects, true, 0)
@@ -1391,6 +1681,7 @@ local function showObjects()
         if sourceChanged then S.definition.source = sourceName; markModified() end
         showViewSelectable('source')
         showRoleAsset('source')
+        showSourceAnimationControls()
         if tImGui.Selectable(L('target') .. ': ' .. roleName('target'), S.selectedRole == 'target') then
             S.selectedRole = 'target'
         end
@@ -1552,6 +1843,11 @@ local function showMainMenu()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()
     end
+    if tImGui.BeginMenu(L('run')) then
+        if tImGui.MenuItem(L('run_preview'), 'F5') then runPreview() end
+        if tImGui.MenuItem(L('save_preview_as')) then savePreviewAs() end
+        tImGui.EndMenu()
+    end
     if tImGui.BeginMenu(L('options')) then
         if tImGui.MenuItem(L('english')) then
             tLang.setLanguage('en')
@@ -1599,6 +1895,10 @@ function onInitScene()
 end
 
 function onLoop(delta)
+    if S.definition.sourceType == 'bone' and S.source.activeAnimation ~= '' and
+            not S.source.animationPaused and not S.boneSelectionMode then
+        S.dirtyPreview = true
+    end
     if S.dirtyPreview then rebuildPreview() end
     showMainMenu()
     showObjects()
@@ -1611,6 +1911,10 @@ function onLoop(delta)
 end
 
 function onKeyDown(key)
+    if key == mbm.getKeyCode('F5') then
+        runPreview()
+        return
+    end
     if key == mbm.getKeyCode('ESC') then
         if S.boneSelectionMode then setBoneSelectionMode(false) end
         S.selectedRole = nil

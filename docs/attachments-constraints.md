@@ -1,8 +1,8 @@
 # Attachments and constraints
 
-Document version: **1.5**
-Status: **Phase 4 runtime export and binding bridge implemented; sockets pending**
-Last updated: **2026-11-21**
+Document version: **1.6**
+Status: **Phase 4 runtime export and editor preview implemented; sockets pending**
+Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
 from `interaction_animation_runtime`; the interaction plugin does not create, update, or own
@@ -154,6 +154,14 @@ bind/T-pose, and draws large joint spheres and bone segments over the mesh. The 
 source bone directly in the viewport; the selected bone name is displayed as read-only editor state
 and is saved with the definition. Leaving the mode restores the previous camera and target preview.
 There is no free-text bone authoring field.
+
+The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
+preview`. The preview is a standalone Lua driver containing the saved source and target asset
+references, transform setup, selected skeletal animation, and the same attachment specification.
+For a bone source, a selected skeletal clip is required because the runtime contract requires an
+active evaluated pose. The objects panel provides the clip selector and Play, Pause, Resume, and
+Stop controls; while a clip is playing, the attached target is refreshed from the evaluated source
+bone each frame.
 
 ## Phase 2 lifecycle guarantees
 
