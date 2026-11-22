@@ -159,9 +159,11 @@ The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `
 preview`. The preview is a standalone Lua driver containing the saved source and target asset
 references, transform setup, selected skeletal animation, and the same attachment specification.
 For a bone source, a selected skeletal clip is required because the runtime contract requires an
-active evaluated pose. The preview panel provides the clip selector, Play, Pause, Resume, and Stop
-controls; while a clip is playing, the attached target is refreshed from the evaluated source bone
-each frame. It also includes a timeline slider and one-frame step controls.
+active evaluated pose. The `Timeline` panel provides the clip selector, Play, Pause, Resume, and
+Stop controls; while a clip is playing, the attached target is refreshed from the evaluated source
+bone each frame. It also includes a timeline slider and one-frame step controls. Capture and reset
+actions are available in the Objects panel when the target is selected; save and export remain in
+the File menu.
 Definition version 2 uses the same row-major bind-matrix orientation as the runtime. Loading a
 version 1 bone definition migrates its captured offset from the corrected bind pose before the
 next save, avoiding a legacy 180-degree orientation error.

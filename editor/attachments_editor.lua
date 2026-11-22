@@ -105,7 +105,7 @@ local S = {
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0},
     cameraDrag = nil,
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil, drag = nil},
-    windows = {objects = '', attachment = '', camera = '', preview = ''},
+    windows = {objects = '', attachment = '', camera = '', timeline = ''},
 }
 
 local L
@@ -244,6 +244,7 @@ end
 local function resetCamera()
     S.cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0}
     applyCamera()
+    setStatus(L('camera_reset'))
 end
 
 local function cubeVertices()
@@ -1763,8 +1764,15 @@ local function showObjects()
         if S.selectedRole then
             tImGui.Text(string.format(L('selected_object'), roleName(S.selectedRole)))
             showPoseFields(S.selectedRole)
-            if S.selectedRole == 'target' then tImGui.TextWrapped(L('target_pose_help'))
-            else tImGui.TextWrapped(L('source_pose_help')) end
+            if S.selectedRole == 'target' then
+                tImGui.TextWrapped(L('target_pose_help'))
+                tImGui.Separator()
+                if tImGui.Button(L('capture') .. '##att_objects_capture') then captureOffset() end
+                tImGui.SameLine()
+                if tImGui.Button(L('reset_preview') .. '##att_objects_reset') then resetTargetPreview() end
+            else
+                tImGui.TextWrapped(L('source_pose_help'))
+            end
         else
             tImGui.Text(string.format(L('selected_object'), L('none_selected')))
             tImGui.TextWrapped(L('select_actor_hint'))
@@ -1806,7 +1814,7 @@ local function showOffsetFields()
 end
 
 local function showAttachment()
-    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 360, 560)
+    tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 350, 360, 430)
     local opened = tImGui.Begin(S.windows.attachment, true, 0)
     if opened then
         tImGui.Text(L('attachment'))
@@ -1850,18 +1858,13 @@ local function showAttachment()
         end
         tImGui.Separator()
         showOffsetFields()
-        tImGui.Separator()
-        if tImGui.Button(L('capture')) then captureOffset() end
-        tImGui.SameLine()
-        if tImGui.Button(L('reset_preview')) then resetTargetPreview() end
         tImGui.TextWrapped(L('offset_help'))
-        tImGui.Text(S.status .. (S.modified and ' *' or ''))
     end
     tImGui.End()
 end
 
 local function showCameraPanel()
-    tUtil.setInitialWindowPositionRight(S.windows.camera, 0, 390, 350, 360, 430)
+    tUtil.setInitialWindowPositionRight(S.windows.camera, 0, 460, 350, 360, 300)
     local opened = tImGui.Begin(S.windows.camera, true, 0)
     if opened then
         tImGui.Text(L('camera'))
@@ -1883,20 +1886,13 @@ local function showCameraPanel()
     tImGui.End()
 end
 
-local function showPreviewPanel()
-    tUtil.setInitialWindowPositionDown(S.windows.preview, 390, 0.32, 350)
-    local opened = tImGui.Begin(S.windows.preview, true, 0)
+local function showTimelinePanel()
+    tUtil.setInitialWindowPositionDown(S.windows.timeline, 390, 0.32, 350)
+    local opened = tImGui.Begin(S.windows.timeline, true, 0)
     if opened then
-        tImGui.Text(L('preview'))
+        tImGui.Text(L('timeline'))
         tImGui.TextWrapped(L('preview_help'))
         showSourceAnimationControls()
-        tImGui.Separator()
-        if tImGui.Button(L('capture')) then captureOffset() end
-        tImGui.SameLine()
-        if tImGui.Button(L('reset_preview')) then resetTargetPreview() end
-        tImGui.SameLine()
-        if tImGui.Button(L('save')) then saveDefinition(S.projectPath) end
-        if tImGui.Button(L('export_runtime')) then exportRuntimeDefinition() end
         tImGui.Text(string.format(L('relation_status'), roleName('source'), roleName('target')))
     end
     tImGui.End()
@@ -1938,7 +1934,7 @@ refreshWindowTitles = function()
     S.windows.objects = L('objects')
     S.windows.attachment = L('attachment')
     S.windows.camera = L('camera')
-    S.windows.preview = L('preview')
+    S.windows.timeline = L('timeline')
 end
 
 function onInitScene()
@@ -1974,7 +1970,7 @@ function onLoop(delta)
     showObjects()
     showAttachment()
     showCameraPanel()
-    showPreviewPanel()
+    showTimelinePanel()
     updateGizmo()
     updateXZPlane()
     tUtil.showOverlayMessage()
