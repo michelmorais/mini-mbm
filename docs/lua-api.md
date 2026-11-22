@@ -2131,7 +2131,9 @@ scale inheritance is enabled. The optional `targetPivot` is a point in the targe
 space; the target origin is moved so this point remains at the attachment position. Its zero value
 preserves the usual target-origin behavior. `offset.rotationMatrix` may contain the authoritative
 3x3 source-local rotation captured by the editor or `relation:captureOffset()`; when omitted, the
-runtime derives it from `offset.rotation` for backward compatibility. Bone sources require a mesh
+runtime derives it from `offset.rotation` for backward compatibility. The runtime composes this
+source-local rotation before the evaluated source frame, following the engine's row-vector matrix
+convention. Bone sources require a mesh
 with an active evaluated skeletal pose; sockets are not supported yet.
 
 ```lua

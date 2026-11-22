@@ -1,6 +1,6 @@
 # Attachments and constraints
 
-Document version: **1.7**
+Document version: **1.8**
 Status: **Phase 4 runtime export and editor preview implemented; virtual target pivots added; sockets pending**
 Last updated: **2026-11-22**
 
@@ -26,9 +26,9 @@ The source can be the `root` transform of a renderizable object or the evaluated
 a named skeletal bone on a mesh. An offset is stored in the selected source's local space:
 
 ```text
-attachment position = source position + source rotation * (source scale * offset position)
-target origin = attachment position - target rotation * (target scale * targetPivot)
-world rotation = source rotation * offset rotationMatrix
+attachment position = source position + (source scale * offset position) * source rotation
+target origin = attachment position - (target scale * targetPivot) * target rotation
+world rotation = offset rotationMatrix * source rotation
 world scale    = source scale * offset scale
 ```
 
@@ -51,6 +51,11 @@ its evaluated scale before composition, avoiding an intermediate Euler reconstru
 animation. Non-uniform
 scale is supported because the offset position is scaled before source rotation. Sheared transforms
 are not part of this contract.
+
+The composition follows the engine's row-vector convention. Capturing an offset therefore stores
+`target rotation * inverse(source rotation)`, and applying it composes the source-local frame before
+the evaluated source frame. Reversing this order can make a rotation appear on a different axis
+once a skeletal animation changes the bone pose, even when the bind/T-pose looks correct.
 
 ## Lua API
 

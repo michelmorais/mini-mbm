@@ -407,7 +407,9 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     MATRIX3 targetRotation = eulerRotation(currentTargetPose.angle);
     if ((attachment->inherit & INHERIT_ROTATION) != 0u)
     {
-        targetRotation = multiply(sourceRotation, poseRotation(attachment->offset));
+        // The engine uses row-vector matrices. Compose a source-local target
+        // frame as offset * source, not source * offset.
+        targetRotation = multiply(poseRotation(attachment->offset), sourceRotation);
         result.angle = rotationToEuler(targetRotation);
     }
     if ((attachment->inherit & INHERIT_SCALE) != 0u)
@@ -1000,7 +1002,7 @@ int onAttachmentCaptureOffset(lua_State *lua)
                 localDelta.y / sourcePose.scale.y,
                 localDelta.z / sourcePose.scale.z}
         : localDelta;
-    attachment->offset.rotationMatrix = multiply(transpose(sourceRotation), targetRotation);
+    attachment->offset.rotationMatrix = multiply(targetRotation, transpose(sourceRotation));
     attachment->offset.hasRotationMatrix = true;
     attachment->offset.angle = rotationToEuler(attachment->offset.rotationMatrix);
     attachment->offset.scale = scaleIsInherited

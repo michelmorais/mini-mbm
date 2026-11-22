@@ -1010,7 +1010,9 @@ getAttachmentFrameAxes = function()
     local offsetRotation = S.definition.offset.rotationMatrix or
         eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
             S.definition.offset.rotation.z)
-    local frameRotation = multiplyRotation(sourceRotation, offsetRotation)
+    -- The engine uses row-vector matrices: compose a source-local frame as
+    -- local * source, not source * local.
+    local frameRotation = multiplyRotation(offsetRotation, sourceRotation)
     return {
         x = rotateVector(frameRotation, vector(1, 0, 0)),
         y = rotateVector(frameRotation, vector(0, 1, 0)),
@@ -1413,10 +1415,10 @@ local function updateViewportInteraction(screenX, screenY)
                 elseif delta < -math.pi then delta = delta + math.pi * 2 end
                 drag.accumulatedAngle = drag.accumulatedAngle + delta
                 drag.lastAngle = angle
-                local worldRotation = multiplyRotation(axisRotation(drag.axis, drag.accumulatedAngle),
-                    drag.baseFrameWorldRotation)
-                local localRotation = multiplyRotation(transposeRotation(drag.baseSourceRotation),
-                    worldRotation)
+                local worldRotation = multiplyRotation(drag.baseFrameWorldRotation,
+                    axisRotation(drag.axis, drag.accumulatedAngle))
+                local localRotation = multiplyRotation(worldRotation,
+                    transposeRotation(drag.baseSourceRotation))
                 S.definition.offset.rotationMatrix = cloneRotation(localRotation)
                 local rx, ry, rz = matrixToEuler(localRotation)
                 S.definition.offset.rotation = vector(rx, ry, rz)
@@ -1487,8 +1489,8 @@ local function calculateTargetPose()
     if inherit.rotation then
         local offsetRotation = S.definition.offset.rotationMatrix or
             eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z)
-        targetRotation = multiplyRotation(sourceRotation,
-            offsetRotation)
+        targetRotation = multiplyRotation(offsetRotation,
+            sourceRotation)
         result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
     end
     if inherit.scale then
@@ -1573,7 +1575,7 @@ captureOffset = function(targetPoseOverride)
         localPosition.z = localPosition.z / source.sz
     end
     local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
-    local relativeRotation = multiplyRotation(inverseSource, targetRotation)
+    local relativeRotation = multiplyRotation(targetRotation, inverseSource)
     local rx, ry, rz = matrixToEuler(relativeRotation)
     S.definition.offset.position = localPosition
     S.definition.offset.rotation = vector(rx, ry, rz)
