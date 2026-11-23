@@ -143,6 +143,7 @@ local S = {
     showOrigins = true,
     showXZPlane = true,
     showAimLimits = false,
+    showStates = false,
     boneSelectionMode = false,
     boneSelectionCamera = nil,
     boneSelectionTargetVisible = nil,
@@ -151,7 +152,8 @@ local S = {
     cameraDrag = nil,
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil,
         axesSignature = nil, drag = nil},
-    windows = {objects = '', attachment = '', camera = '', timeline = ''},
+    windows = {objects = '', attachment = '', camera = '', timeline = '', states = ''},
+    stateDraft = '',
 }
 
 local L
@@ -394,6 +396,55 @@ end
 local function blendAngle(current, target, weight)
     local difference = math.atan(math.sin(target - current), math.cos(target - current))
     return current + difference * weight
+end
+
+local function cloneBlend(value)
+    value = value or {}
+    return {
+        enabled = value.enabled == true,
+        position = value.position ~= false,
+        rotation = value.rotation ~= false,
+        scale = value.scale ~= false,
+        weight = math.min(1, math.max(0, tonumber(value.weight) or 1)),
+    }
+end
+
+local function activeStateProfile()
+    local name = S.definition.initialState
+    if type(name) ~= 'string' or name == '' or type(S.definition.states) ~= 'table' then return nil end
+    return S.definition.states[name]
+end
+
+local function previewBlend()
+    local profile = activeStateProfile()
+    return profile and profile.blend or S.definition.blend
+end
+
+local function previewInfluenceEnabled()
+    local profile = activeStateProfile()
+    return profile and profile.influenceEnabled ~= false or S.definition.influenceEnabled ~= false
+end
+
+local function ensureStateBlend(profile)
+    if not profile.blend then profile.blend = cloneBlend(S.definition.blend) end
+    return profile.blend
+end
+
+local function stateNames()
+    local names = {}
+    for name in pairs(S.definition.states or {}) do names[#names + 1] = name end
+    table.sort(names)
+    return names
+end
+
+local function selectAttachmentState(name)
+    if name ~= '' and not S.definition.states[name] then return false end
+    S.definition.initialState = name
+    S.stateDraft = name
+    S.target.manualOverride = false
+    resetSpringState()
+    markModified()
+    return true
 end
 
 local function cameraPosition()
@@ -1800,6 +1851,7 @@ end
 local function calculateTargetPose(delta)
     local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
     local result = clonePose(target)
+    if not previewInfluenceEnabled() then return result end
     local inherit = S.definition.inherit
     local offset = S.definition.offset
     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
@@ -1847,7 +1899,7 @@ local function calculateTargetPose(delta)
         result.y = result.y - worldPivot.y
         result.z = result.z - worldPivot.z
     end
-    local blend = S.definition.blend
+    local blend = previewBlend()
     if blend and blend.enabled then
         local weight = math.min(math.max(tonumber(blend.weight) or 1, 0), 1)
         if blend.position and inherit.position then
@@ -2307,6 +2359,9 @@ local function normalizeDefinition(value)
             end
         end
     end
+    if result.initialState ~= '' and not result.states[result.initialState] then
+        result.initialState = ''
+    end
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
         result.inherit.rotation = value.inherit.rotation ~= false
@@ -2377,6 +2432,7 @@ local function loadDefinition(path)
     local repairedSocket = false
     if S.boneSelectionMode then setBoneSelectionMode(false) end
     S.definition = definition
+    S.stateDraft = definition.initialState
     S.source.pose = clonePose(definition.editor.sourcePose)
     S.target.pose = clonePose(definition.editor.targetPose)
     restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
@@ -2840,7 +2896,8 @@ local function showAttachment()
         end
         tImGui.Separator()
         tImGui.Text(L('blend'))
-        local blend = S.definition.blend
+        local profile = activeStateProfile()
+        local blend = profile and ensureStateBlend(profile) or S.definition.blend
         local previousBlendEnabled = blend.enabled == true
         local nextBlendEnabled = tImGui.Checkbox(L('blend_enabled'), previousBlendEnabled)
         if nextBlendEnabled ~= previousBlendEnabled then
@@ -2875,6 +2932,101 @@ local function showAttachment()
         tImGui.Separator()
         showOffsetFields()
         tImGui.TextWrapped(L('offset_help'))
+    end
+    tImGui.End()
+end
+
+local function showStatePanel()
+    if not S.showStates then return end
+    tUtil.setInitialWindowPositionLeft(S.windows.states, 380, 20, 380, 380, 380)
+    local opened, closed = tImGui.Begin(S.windows.states, true, 0)
+    if closed then S.showStates = false end
+    if opened then
+        tImGui.Text(L('states'))
+        tImGui.TextWrapped(L('states_help'))
+        local names = stateNames()
+        for _, name in ipairs(names) do
+            if tImGui.Selectable(name, S.definition.initialState == name) then
+                selectAttachmentState(name)
+            end
+        end
+        if #names == 0 then tImGui.Text(L('no_states')) end
+        if tImGui.Button(L('add_state')) then
+            local index = 1
+            local name = 'state_' .. index
+            while S.definition.states[name] do
+                index = index + 1
+                name = 'state_' .. index
+            end
+            S.definition.states[name] = {
+                influenceEnabled = S.definition.influenceEnabled ~= false,
+                blend = cloneBlend(S.definition.blend),
+            }
+            selectAttachmentState(name)
+        end
+        if S.definition.initialState ~= '' and S.definition.states[S.definition.initialState] then
+            local profile = S.definition.states[S.definition.initialState]
+            S.stateDraft = S.stateDraft ~= '' and S.stateDraft or S.definition.initialState
+            tImGui.SetNextItemWidth(210)
+            local nameChanged, nextName = tImGui.InputText(L('state_name') .. '##att_state_name', S.stateDraft)
+            if nameChanged then S.stateDraft = nextName end
+            if tImGui.Button(L('rename_state')) then
+                local oldName = S.definition.initialState
+                local newName = S.stateDraft:gsub('^%s*(.-)%s*$', '%1')
+                if newName == '' or (newName ~= oldName and S.definition.states[newName]) then
+                    setStatus(L('state_invalid_name'), true)
+                else
+                    S.definition.states[newName] = S.definition.states[oldName]
+                    if newName ~= oldName then S.definition.states[oldName] = nil end
+                    S.definition.initialState = newName
+                    S.stateDraft = newName
+                    markModified()
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(L('remove_state')) then
+                S.definition.states[S.definition.initialState] = nil
+                local nextStates = stateNames()
+                selectAttachmentState(nextStates[1] or '')
+            end
+            local previousInfluence = profile.influenceEnabled ~= false
+            local nextInfluence = tImGui.Checkbox(L('state_influence'), previousInfluence)
+            if nextInfluence ~= previousInfluence then
+                profile.influenceEnabled = nextInfluence == true
+                S.target.manualOverride = false
+                resetSpringState()
+                markModified()
+            end
+            local blend = ensureStateBlend(profile)
+            local previousBlendEnabled = blend.enabled == true
+            local nextBlendEnabled = tImGui.Checkbox(L('blend_enabled'), previousBlendEnabled)
+            if nextBlendEnabled ~= previousBlendEnabled then
+                blend.enabled = nextBlendEnabled == true
+                S.target.manualOverride = false
+                markModified()
+            end
+            tImGui.SetNextItemWidth(210)
+            local changed, value = tImGui.InputFloat(L('blend_weight'), blend.weight, 0.05, 0.05, '%.2f')
+            if changed then
+                blend.weight = math.min(1, math.max(0, value))
+                S.target.manualOverride = false
+                markModified()
+            end
+            local components = {
+                {'position', L('blend_position')}, {'rotation', L('blend_rotation')},
+                {'scale', L('blend_scale')},
+            }
+            for _, component in ipairs(components) do
+                local key, label = component[1], component[2]
+                local previousValue = blend[key] == true
+                local nextValue = tImGui.Checkbox(label, previousValue)
+                if nextValue ~= previousValue then
+                    blend[key] = nextValue == true
+                    S.target.manualOverride = false
+                    markModified()
+                end
+            end
+        end
     end
     tImGui.End()
 end
@@ -2920,6 +3072,9 @@ local function showMainMenu()
         if tImGui.MenuItem(L('save')) then saveDefinition(S.projectPath) end
         if tImGui.MenuItem(L('save_as')) then saveDefinitionAs() end
         if tImGui.MenuItem(L('export_runtime')) then exportRuntimeDefinition() end
+        local showStatesPressed, showStatesValue =
+            tImGui.MenuItem(L('show_states_in_attachment'), nil, S.showStates)
+        if showStatesPressed then S.showStates = showStatesValue end
         tImGui.Separator()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()
@@ -2950,6 +3105,7 @@ refreshWindowTitles = function()
     S.windows.attachment = L('attachment')
     S.windows.camera = L('camera')
     S.windows.timeline = L('timeline')
+    S.windows.states = L('states')
 end
 
 function onInitScene()
@@ -2994,6 +3150,7 @@ function onLoop(delta)
     showMainMenu()
     showObjects()
     showAttachment()
+    showStatePanel()
     showCameraPanel()
     showTimelinePanel()
     updateGizmo()
