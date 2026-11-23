@@ -1,10 +1,10 @@
 # Attachments and constraints
 
-Document version: **2.9**
-Status: **Phase 13 attachment graph visualization and chain validation implemented on top of multi-target authoring and runtime export**
+Document version: **3.0**
+Status: **Phase 14 articulated-mesh part sources implemented on top of multi-target authoring and runtime export**
 Last updated: **2026-11-23**
 
-This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
+This document defines the runtime contract for root-transform, skeletal, and articulated-part attachments. It is independent
 from `interaction_animation_runtime`; the interaction plugin does not create, update, or own
 attachments.
 
@@ -30,12 +30,14 @@ FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation
 authored sockets remained available after that round-trip. Multi-target authoring and runtime
 export are implemented in Phase 11. Phase 13 adds an editor graph view with clickable target
 nodes, selected-chain highlighting, missing-source/cycle validation, and the same validation gate
-before F5 or runtime export.
+before F5 or runtime export. Phase 14 adds articulated part selection, articulated clip preview,
+runtime part-pose evaluation, and runtime export for an articulated part as the source.
 
 ## Transform contract
 
-The source can be the `root` transform of a renderizable object or the evaluated world transform of
-a named skeletal bone or socket on a mesh. An offset is stored in the selected source's local space:
+The source can be the `root` transform of a renderizable object, the evaluated world transform of
+a named skeletal bone or socket on a mesh, or the evaluated world transform of a named articulated
+mesh part. An offset is stored in the selected source's local space:
 
 ```text
 attachment position = source position + (source scale * offset position) * source rotation
@@ -70,6 +72,10 @@ animation. Non-uniform
 scale is supported because the offset position is scaled before source rotation. Sheared transforms
 are not part of this contract.
 
+Sockets are named points stored in optional MSH V11 section 47; they do not change skinning weights
+or animation tracks. Articulated parts are named rigid mesh subsets evaluated by articulated clips;
+they do not change skeletal weights or skeletal animation tracks.
+
 The composition follows the engine's row-vector convention. Capturing an offset therefore stores
 `target rotation * inverse(source rotation)`, and applying it composes the source-local frame before
 the evaluated source frame. Reversing this order can make a rotation appear on a different axis
@@ -81,8 +87,9 @@ once a skeletal animation changes the bone pose, even when the bind/T-pose looks
 -- Saved .att.lua / runtime definition format used by the editor and exporter.
 local attachmentDefinition = {
     source = "character",
-    sourceType = "socket", -- "root", "bone", or "socket"; defaults to "root"
+    sourceType = "socket", -- "root", "bone", "socket", or "articulated_part"; defaults to "root"
     sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
+    -- sourcePart = "propeller_hub", -- required when sourceType is "articulated_part"
     influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
     initialState = "equipped", -- optional; selects one entry from states
     states = {
@@ -120,8 +127,8 @@ local attachmentDefinition = {
 The direct `attachments.attach` API still creates one relation at a time. The generated runtime
 module creates one relation for each entry in `targets`, using the same source. Each direct relation
 rejects invalid or destroyed renderizables, cross-scene references, self-attachments,
-cycles, duplicate component ownership on one target, missing or unevaluated bones, and unsupported
-source types. It returns
+cycles, duplicate component ownership on one target, missing or unevaluated bones or articulated
+parts, and unsupported source types. It returns
 `nil, errorMessage` for those validation failures.
 
 An attachment object provides:
@@ -212,8 +219,9 @@ The generated module validates the binding names, builds one `attachments.attach
 per entry in `targets`, and returns a table of relations or an error. It contains only runtime fields; editor-only mesh
 paths, preview poses, selection state, and language settings are not exported.
 Each target may name the root source or another target as its `source`, enabling chains such as
-`character -> sword -> effect`. The exporter validates missing sources and cycles before runtime
-relations are created.
+`character -> sword -> effect`. An articulated-part source applies to relations directly driven by
+the root mesh; derived target-to-target relations use root transform inheritance. The exporter
+validates missing sources and cycles before runtime relations are created.
 
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
@@ -240,13 +248,13 @@ The Attachment panel also exposes a target-local virtual pivot. The viewport dra
 the relation line ends there; zero keeps the mesh origin as the target point.
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
 preview`. The preview is a standalone Lua driver containing the saved source and target asset
-references, transform setup, selected skeletal animation, and the same attachment specification.
-For a bone source, a selected skeletal clip is required because the runtime contract requires an
-active evaluated pose. The `Timeline` panel provides the clip selector, Play, Pause, Resume, and
-Stop controls; while a clip is playing, the attached target is refreshed from the evaluated source
-bone each frame. It also includes a timeline slider and one-frame step controls. Capture and reset
-actions are available in the Objects panel when the target is selected; save and export remain in
-the File menu.
+references, transform setup, selected skeletal or articulated animation, and the same attachment
+specification. For bone, socket, and articulated-part sources, a selected clip is required when
+the source asset needs an evaluated animated pose. The `Timeline` panel provides the clip selector,
+Play, Pause, Resume, and Stop controls; while a clip is playing, the attached target is refreshed
+from the evaluated source frame each update. It also includes a timeline slider and one-frame step
+controls. Capture and reset actions are available in the Objects panel when the target is selected;
+save and export remain in the File menu.
 Definition version 4 stores the target collection and uses the same row-major bind-matrix
 orientation as the runtime. Each target entry is serialized independently.
 
@@ -295,6 +303,23 @@ a named, art-directed point and orientation on or near a bone.
 Both choices are evaluated from the same animated source mesh and use the same attachment offset,
 inheritance flags, and target pivot. A socket is therefore not a replacement for a bone: it is a
 stable, editable attachment frame layered on top of the skeleton.
+
+### Articulated-part workflow
+
+An articulated mesh is a rigid mesh assembled from named subsets and animated by articulated clips.
+It is not a skeletal mesh and does not require bones or skin weights. To attach another object to one
+of its moving parts:
+
+1. Author the part names and articulated clips in the Articulated Animation Editor.
+2. Load the articulated `.msh` as the source actor in the Attachment Editor.
+3. Select **Articulated part transform** and choose the named part.
+4. Select an articulated clip in the Timeline, then configure inheritance and capture the target
+   offset as usual.
+
+The editor queries `getArticulatedPartInfo()` for the part list and
+`getArticulatedPartTransform(name, "world")` for the preview. The runtime plugin evaluates the
+same part hierarchy and clip every frame. The source part is not copied into the attachment file;
+the game must bind the same mesh asset, including the part name and its articulated animation data.
 
 ### Look-at constraint
 
@@ -346,7 +371,7 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 
-Socket authoring inside Mesh Debug, IK, multi-source blending, physics integration,
+IK, multi-source blending, physics integration,
 cross-scene attachments, and a general scene graph remain future work. Socket consumption already
 has the MSH/API/runtime contract described above, and socket authoring is implemented in the
 Skeletal Animation Editor.

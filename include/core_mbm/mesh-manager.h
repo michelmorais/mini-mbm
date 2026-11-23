@@ -869,6 +869,13 @@ namespace mbm
                                                const char *name, const float time) const noexcept;
         API_IMPL bool getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
                                                   const char *name, float *time) const noexcept;
+        API_IMPL bool getArticulatedAnimationDuration(const char *name, float *duration) const noexcept;
+        API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
+        API_IMPL const util::ARTICULATED_PART_V11 *getArticulatedPart(const uint32_t index) const noexcept;
+        API_IMPL bool getArticulatedPartTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *partName, const MATRIX *modelMatrix,
+                                                  uint64_t *partId, MATRIX *matrix, VEC3 *position,
+                                                  float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
         API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
                                                   const float delta, RENDERIZABLE *owner,
                                                   OnEndAnimation onEndAnimation) const;

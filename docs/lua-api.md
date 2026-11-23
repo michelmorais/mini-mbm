@@ -634,6 +634,10 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:playArticulatedAnimation` | `(name, priority?, blendDuration?, weight?)` | bool | Start/restart a clip. Defaults: priority `0`, immediate blend, weight `1` |
 | `obj:getTotalArticulatedAnimations` | `()` | int | Number of articulated clips in the loaded asset |
 | `obj:getArticulatedAnimationName` | `(index: int)` | string or nil | Name of the 1-based articulated clip, or `nil` when out of range |
+| `obj:getArticulatedAnimationDuration` | `(name)` | number or nil | Duration in seconds for a named articulated clip |
+| `obj:getTotalArticulatedParts` | `()` | int | Number of named rigid articulated parts in the loaded mesh |
+| `obj:getArticulatedPartInfo` | `(index: int)` | table or nil | 1-based part metadata: `partId`, `frame`, `subset`, `name`, and `parentPartId` |
+| `obj:getArticulatedPartTransform` | `(name, space?)` | table or nil | Evaluated part pose with `position`, quaternion `rotation`, Euler `angle`, `scale`, and `matrix`; `space` is `world` or `model` (default `model`) |
 | `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
 | `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
 | `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
@@ -3038,6 +3042,21 @@ controls; X is restricted to `0..1`, while Y may leave that range for overshoot.
 key controls the transition to the next key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
+Part names may repeat in the authoring API, but an attachment source must use a unique part name;
+the runtime returns `nil` for an ambiguous articulated-part name.
+
+Loaded `mesh` objects also expose evaluated articulated-part inspection:
+
+```lua
+local partCount = character:getTotalArticulatedParts()
+local part = character:getArticulatedPartInfo(1)
+local pose = character:getArticulatedPartTransform(part.name, "world")
+-- pose.position, pose.rotation (quaternion), pose.angle (radians), pose.scale, pose.matrix
+```
+
+The Attachment Editor uses these methods to list articulated parts, preview their clips, and export
+`sourceType = "articulated_part"` with the selected `sourcePart`. The attachments plugin evaluates
+that part every frame; it does not convert the part into a skeletal bone or alter the mesh asset.
 
 Clip composition modes are `0` for Absolute and `1` for Additive. `getArticulatedAnimation(index)`
 returns this mode as its sixth result, after `loop`. Absolute is the default. Additive keys represent

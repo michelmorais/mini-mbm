@@ -70,6 +70,7 @@ local function newDefinition()
         sourceType = 'root',
         sourceBone = '',
         sourceSocket = '',
+        sourcePart = '',
         aimPoint = vector(0, 0, 0),
         aimAtSource = false,
         influenceEnabled = true,
@@ -136,6 +137,7 @@ local S = {
         previewSize = 70, meshLoaded = false, selectable = true, debugMesh = nil,
         skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0,
         socketCatalog = {},
+        articulatedPartCatalog = {},
         animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
         selectionAnimation = nil},
     targets = {newTargetState()},
@@ -834,6 +836,7 @@ local function destroyRoleObject(role)
     entry.meshBounds = nil
     entry.selectedBone = ''
     entry.socketCatalog = {}
+    entry.articulatedPartCatalog = {}
     if role == 'source' then
         entry.animationClips = {}
         entry.selectedAnimation = 1
@@ -850,14 +853,42 @@ local function refreshSourceAnimationCatalog()
     source.activeAnimation = ''
     source.animationPaused = false
     if not source.object or not source.meshLoaded then return end
-    local okTotal, total = dpCall(function() return source.object:getTotalSkeletalAnimations() end)
+    local articulated = S.definition.sourceType == 'articulated_part'
+    local okTotal, total = dpCall(function()
+        return articulated and source.object:getTotalArticulatedAnimations() or
+            source.object:getTotalSkeletalAnimations()
+    end)
     if not okTotal then return end
     for index = 1, tonumber(total) or 0 do
-        local okName, name = dpCall(function() return source.object:getSkeletalAnimationName(index) end)
+        local okName, name = dpCall(function()
+            return articulated and source.object:getArticulatedAnimationName(index) or
+                source.object:getSkeletalAnimationName(index)
+        end)
         if okName and type(name) == 'string' and name ~= '' then
             source.animationClips[#source.animationClips + 1] = name
         end
     end
+end
+
+local function refreshSourceArticulatedPartCatalog()
+    local source = S.source
+    source.articulatedPartCatalog = {}
+    if not source.object or not source.meshLoaded then return end
+    local okTotal, total = dpCall(function() return source.object:getTotalArticulatedParts() end)
+    if not okTotal then return end
+    local seen = {}
+    for index = 1, tonumber(total) or 0 do
+        local okInfo, info = dpCall(function() return source.object:getArticulatedPartInfo(index) end)
+        if okInfo and type(info) == 'table' and type(info.name) == 'string' and info.name ~= '' and
+                not seen[info.name] then
+            seen[info.name] = true
+            source.articulatedPartCatalog[#source.articulatedPartCatalog + 1] = info.name
+        end
+    end
+end
+
+local function sourceUsesArticulatedAnimation()
+    return S.definition.sourceType == 'articulated_part'
 end
 
 local function refreshSourceSocketCatalog()
@@ -878,11 +909,19 @@ local function restoreSourceAnimation()
     local saved = source.selectionAnimation
     source.selectionAnimation = nil
     if not saved or saved.name == '' or not source.object then return end
-    local ok, played = dpCall(function() return source.object:playSkeletalAnimation(saved.name) end)
+    local ok, played = dpCall(function()
+        return sourceUsesArticulatedAnimation() and source.object:playArticulatedAnimation(saved.name) or
+            source.object:playSkeletalAnimation(saved.name)
+    end)
     if not ok or played == false then return end
     source.activeAnimation = saved.name
     source.animationPaused = saved.paused == true
-    if source.animationPaused then dpCall(function() return source.object:pauseSkeletalAnimation() end) end
+    if source.animationPaused then
+        dpCall(function()
+            return sourceUsesArticulatedAnimation() and source.object:pauseArticulatedAnimation(saved.name) or
+                source.object:pauseSkeletalAnimation()
+        end)
+    end
     S.dirtyPreview = true
 end
 
@@ -898,7 +937,10 @@ local function playSourceAnimation()
         resumeSourceAnimation()
         return
     end
-    local ok, played = dpCall(function() return source.object:playSkeletalAnimation(name) end)
+    local ok, played = dpCall(function()
+        return sourceUsesArticulatedAnimation() and source.object:playArticulatedAnimation(name) or
+            source.object:playSkeletalAnimation(name)
+    end)
     if not ok or played == false then
         setStatus(L('animation_play_failed'), true)
         return
@@ -910,7 +952,11 @@ end
 
 local function pauseSourceAnimation()
     if not S.source.object or S.source.activeAnimation == '' then return end
-    local ok, paused = dpCall(function() return S.source.object:pauseSkeletalAnimation() end)
+    local name = S.source.activeAnimation
+    local ok, paused = dpCall(function()
+        return sourceUsesArticulatedAnimation() and S.source.object:pauseArticulatedAnimation(name) or
+            S.source.object:pauseSkeletalAnimation()
+    end)
     if ok and paused ~= false then
         S.source.animationPaused = true
         S.dirtyPreview = true
@@ -919,7 +965,11 @@ end
 
 local function resumeSourceAnimation()
     if not S.source.object or S.source.activeAnimation == '' then return end
-    local ok, resumed = dpCall(function() return S.source.object:resumeSkeletalAnimation() end)
+    local name = S.source.activeAnimation
+    local ok, resumed = dpCall(function()
+        return sourceUsesArticulatedAnimation() and S.source.object:resumeArticulatedAnimation(name) or
+            S.source.object:resumeSkeletalAnimation()
+    end)
     if ok and resumed ~= false then
         S.source.animationPaused = false
         S.dirtyPreview = true
@@ -928,7 +978,11 @@ end
 
 local function stopSourceAnimation()
     if not S.source.object then return end
-    dpCall(function() return S.source.object:stopSkeletalAnimation() end)
+    if sourceUsesArticulatedAnimation() then
+        dpCall(function() return S.source.object:disableArticulatedAnimation(S.source.activeAnimation) end)
+    else
+        dpCall(function() return S.source.object:stopSkeletalAnimation() end)
+    end
     S.source.activeAnimation = ''
     S.source.animationPaused = false
     S.dirtyPreview = true
@@ -938,6 +992,10 @@ local function sourceAnimationDuration()
     local source = S.source
     if not source.object or #source.animationClips == 0 then return 0 end
     local ok, duration = dpCall(function()
+        if sourceUsesArticulatedAnimation() then
+            local name = source.animationClips[source.selectedAnimation]
+            return name and source.object:getArticulatedAnimationDuration(name) or 0
+        end
         return source.object:getSkeletalAnimationDuration(source.selectedAnimation)
     end)
     return ok and math.max(0, tonumber(duration) or 0) or 0
@@ -951,8 +1009,16 @@ local function seekSourceAnimation(time)
         playSourceAnimation()
         if source.activeAnimation ~= name then return end
     end
-    dpCall(function() return source.object:pauseSkeletalAnimation() end)
-    local ok, seeked = dpCall(function() return source.object:seekSkeletalAnimation(math.max(0, time or 0)) end)
+    local name = source.activeAnimation
+    dpCall(function()
+        return sourceUsesArticulatedAnimation() and source.object:pauseArticulatedAnimation(name) or
+            source.object:pauseSkeletalAnimation()
+    end)
+    local ok, seeked = dpCall(function()
+        return sourceUsesArticulatedAnimation() and source.object:seekArticulatedAnimation(
+            name, math.max(0, time or 0)) or
+            source.object:seekSkeletalAnimation(math.max(0, time or 0))
+    end)
     if ok and seeked ~= false then
         source.animationPaused = true
         S.dirtyPreview = true
@@ -1007,8 +1073,16 @@ local function loadRoleMesh(role, path)
     object.visible = true
     if role == 'source' then
         dpCall(function() return object:stopSkeletalAnimation() end)
+        local okTotal, total = dpCall(function() return object:getTotalArticulatedAnimations() end)
+        for index = 1, (okTotal and tonumber(total) or 0) do
+            local okName, name = dpCall(function() return object:getArticulatedAnimationName(index) end)
+            if okName and name and name ~= '' then
+                dpCall(function() return object:disableArticulatedAnimation(name) end)
+            end
+        end
         refreshSourceAnimationCatalog()
         refreshSourceSocketCatalog()
+        refreshSourceArticulatedPartCatalog()
         if S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
     end
     markModified()
@@ -1518,6 +1592,23 @@ local function applyMarker(role, value)
 end
 
 getPreviewSourcePose = function()
+    if S.definition.sourceType == 'articulated_part' then
+        if not S.source.object or not S.source.meshLoaded or S.definition.sourcePart == '' then return nil end
+        local ok, part = dpCall(function()
+            return S.source.object:getArticulatedPartTransform(S.definition.sourcePart, 'world')
+        end)
+        if ok and type(part) == 'table' and type(part.position) == 'table' and
+                type(part.angle) == 'table' and type(part.scale) == 'table' then
+            local partMatrixPose = matrixPose(part.matrix)
+            return {
+                x = part.position.x or 0, y = part.position.y or 0, z = part.position.z or 0,
+                rx = part.angle.x or 0, ry = part.angle.y or 0, rz = part.angle.z or 0,
+                sx = part.scale.x or 1, sy = part.scale.y or 1, sz = part.scale.z or 1,
+                rotation = partMatrixPose and partMatrixPose.rotation or nil,
+            }
+        end
+        return nil
+    end
     if S.definition.sourceType == 'socket' then
         if not S.source.object or not S.source.meshLoaded or S.definition.sourceSocket == '' then return nil end
         local ok, socket = dpCall(function()
@@ -2573,9 +2664,19 @@ function onInitScene()
     camera:setPos(cameraX, cameraY, cameraZ)
     camera:setFocus(orbit.fx, orbit.fy, orbit.fz)
     local clip = definition.editor.sourceAnimation
-    if clip and clip ~= '' then assert(source:playSkeletalAnimation(clip)) end
+    if clip and clip ~= '' then
+        if definition.sourceType == 'articulated_part' then
+            assert(source:playArticulatedAnimation(clip))
+        else
+            assert(source:playSkeletalAnimation(clip))
+        end
+    end
     if definition.editor.sourceAnimationPaused and clip and clip ~= '' then
-        assert(source:pauseSkeletalAnimation())
+        if definition.sourceType == 'articulated_part' then
+            assert(source:pauseArticulatedAnimation(clip))
+        else
+            assert(source:pauseSkeletalAnimation())
+        end
     end
 end
 
@@ -2589,16 +2690,21 @@ function onLoop()
                 not source:getSkeletalSocketTransform(definition.sourceSocket, 'world') then
             return
         end
+        if definition.sourceType == 'articulated_part' and
+                not source:getArticulatedPartTransform(definition.sourcePart, 'world') then
+            return
+        end
         previewRelations = {}
         for index, targetDefinition in ipairs(definition.targets or {}) do
-            local relationSource = targetDefinition.source == definition.source and source or
-                targetsByName[targetDefinition.source]
+            local sourceName = targetDefinition.source or definition.source
+            local relationSource = sourceName == definition.source and source or targetsByName[sourceName]
             assert(relationSource, 'Could not resolve attachment source: ' ..
-                tostring(targetDefinition.source))
+                tostring(sourceName))
+            local usesOriginalSource = sourceName == definition.source
             local specification = {
                 source = relationSource,
                 target = targets[index],
-                sourceType = definition.sourceType,
+                sourceType = usesOriginalSource and definition.sourceType or 'root',
                 inherit = targetDefinition.inherit,
                 aimAtSource = targetDefinition.aimAtSource == true,
                 aimPoint = targetDefinition.aimPoint,
@@ -2611,11 +2717,14 @@ function onLoop()
                 offset = targetDefinition.offset,
                 targetPivot = targetDefinition.targetPivot,
             }
-            if definition.sourceBone and definition.sourceBone ~= '' then
+            if usesOriginalSource and definition.sourceBone and definition.sourceBone ~= '' then
                 specification.sourceBone = definition.sourceBone
             end
-            if definition.sourceSocket and definition.sourceSocket ~= '' then
+            if usesOriginalSource and definition.sourceSocket and definition.sourceSocket ~= '' then
                 specification.sourceSocket = definition.sourceSocket
+            end
+            if usesOriginalSource and definition.sourcePart and definition.sourcePart ~= '' then
+                specification.sourcePart = definition.sourcePart
             end
             local relation, errorMessage = attachments.attach(specification)
             assert(relation, errorMessage)
@@ -2657,7 +2766,8 @@ local function validatePreview()
         setStatus(L('run_preview_requires_source'), true)
         return false
     end
-    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket') and
+    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket' or
+            S.definition.sourceType == 'articulated_part') and
             (S.source.activeAnimation == '' and S.source.animationClips[S.source.selectedAnimation] == nil) then
         setStatus(L('run_preview_requires_animation'), true)
         return false
@@ -2696,9 +2806,11 @@ local function normalizeDefinition(value)
     result.source = tostring(value.source or result.source)
     result.target = tostring(value.target or result.target)
     result.sourceType = value.sourceType == 'bone' and 'bone' or
-        (value.sourceType == 'socket' and 'socket' or 'root')
+        (value.sourceType == 'socket' and 'socket' or
+            (value.sourceType == 'articulated_part' and 'articulated_part' or 'root'))
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
+    result.sourcePart = type(value.sourcePart) == 'string' and value.sourcePart or ''
     result.aimAtSource = value.aimAtSource == true
     result.influenceEnabled = value.influenceEnabled ~= false
     result.initialState = type(value.initialState) == 'string' and value.initialState or ''
@@ -2930,7 +3042,7 @@ local function loadDefinition(path)
     if not ok then return end
     local definition = normalizeDefinition(attachmentDefinition)
     if not definition then setStatus(L('invalid_definition'), true); return end
-    local repairedSocket = false
+    local repairedSource = false
     if S.boneSelectionMode then setBoneSelectionMode(false) end
     for _, targetState in ipairs(S.targets) do
         if targetState.object then targetState.object:destroy() end
@@ -2958,7 +3070,16 @@ local function loadDefinition(path)
             return
         end
         definition.sourceSocket = firstSocket
-        repairedSocket = true
+        repairedSource = true
+    end
+    if definition.sourceType == 'articulated_part' and definition.sourcePart == '' then
+        local firstPart = S.source.articulatedPartCatalog and S.source.articulatedPartCatalog[1] or nil
+        if not firstPart then
+            setStatus(L('invalid_definition'), true)
+            return
+        end
+        definition.sourcePart = firstPart
+        repairedSource = true
     end
     if definition.editor.sourceAnimation ~= '' then
         for index, name in ipairs(S.source.animationClips) do
@@ -2978,7 +3099,7 @@ local function loadDefinition(path)
         tLang.setLanguage(definition.editor.language)
         refreshWindowTitles()
     end
-    S.projectPath, S.modified = path, repairedSocket
+    S.projectPath, S.modified = path, repairedSource
     S.target.manualOverride = definition.editor.targetManualOverride == true
     S.dirtyPreview = true
     setStatus(string.format(L('loaded'), path))
@@ -3070,7 +3191,14 @@ local function showSourceAnimationControls()
     local duration = sourceAnimationDuration()
     local currentTime = 0
     if source.activeAnimation ~= '' then
-        local ok, time = dpCall(function() return source.object:getSkeletalAnimationTime() end)
+        local ok, time
+        if sourceUsesArticulatedAnimation() then
+            ok, time = dpCall(function()
+                return source.object:getArticulatedAnimationTime(source.activeAnimation)
+            end)
+        else
+            ok, time = dpCall(function() return source.object:getSkeletalAnimationTime() end)
+        end
         if ok then currentTime = math.max(0, tonumber(time) or 0) end
     end
     if duration > 0 then
@@ -3259,24 +3387,37 @@ local function showAttachment()
         tImGui.Text(string.format('%s -> %s', roleName('source'), roleName('target')))
         tImGui.SetNextItemWidth(210)
         local sourceTypeIndex = S.definition.sourceType == 'bone' and 2 or
-            (S.definition.sourceType == 'socket' and 3 or 1)
+            (S.definition.sourceType == 'socket' and 3 or
+                (S.definition.sourceType == 'articulated_part' and 4 or 1))
         local sourceTypeChanged, nextSourceType = tImGui.Combo(L('source_type'), sourceTypeIndex,
-            {L('root_transform'), L('bone_transform'), L('socket_transform')})
+            {L('root_transform'), L('bone_transform'), L('socket_transform'),
+             L('articulated_part_transform')})
         if sourceTypeChanged then
+            stopSourceAnimation()
             S.definition.sourceType = nextSourceType == 2 and 'bone' or
-                (nextSourceType == 3 and 'socket' or 'root')
+                (nextSourceType == 3 and 'socket' or
+                    (nextSourceType == 4 and 'articulated_part' or 'root'))
             if S.definition.sourceType == 'root' then
                 S.definition.sourceBone = ''
                 S.definition.sourceSocket = ''
+                S.definition.sourcePart = ''
                 setBoneSelectionMode(false)
             elseif S.definition.sourceType == 'bone' then
                 S.definition.sourceSocket = ''
+                S.definition.sourcePart = ''
                 setBoneSelectionMode(true)
-            else
+            elseif S.definition.sourceType == 'socket' then
                 S.definition.sourceBone = ''
+                S.definition.sourcePart = ''
                 S.definition.sourceSocket = S.source.socketCatalog[1] or ''
                 setBoneSelectionMode(false)
+            else
+                S.definition.sourceBone = ''
+                S.definition.sourceSocket = ''
+                S.definition.sourcePart = S.source.articulatedPartCatalog[1] or ''
+                setBoneSelectionMode(false)
             end
+            refreshSourceAnimationCatalog()
             -- Changing the source frame must not apply the previous offset to the
             -- target immediately. Keep the current target pose until the user
             -- explicitly captures an offset for the new source.
@@ -3314,6 +3455,28 @@ local function showAttachment()
                 tImGui.Text(L('no_sockets'))
             end
             tImGui.TextWrapped(L('source_socket_help'))
+        elseif S.definition.sourceType == 'articulated_part' then
+            local partNames = S.source.articulatedPartCatalog or {}
+            if #partNames > 0 then
+                if S.definition.sourcePart == '' then
+                    S.definition.sourcePart = partNames[1]
+                    markModified()
+                end
+                local selectedPart = 1
+                for index, name in ipairs(partNames) do
+                    if name == S.definition.sourcePart then selectedPart = index; break end
+                end
+                tImGui.SetNextItemWidth(210)
+                local partChanged, nextPart = tImGui.Combo(L('source_part'), selectedPart, partNames)
+                if partChanged and partNames[nextPart] then
+                    S.definition.sourcePart = partNames[nextPart]
+                    S.target.manualOverride = true
+                    markModified()
+                end
+            else
+                tImGui.Text(L('no_articulated_parts'))
+            end
+            tImGui.TextWrapped(L('source_part_help'))
         end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
             {'scale', L('inherit_scale')}}
@@ -3833,7 +3996,8 @@ end
 
 function onLoop(delta)
     if S.definition.spring and S.definition.spring.enabled then S.dirtyPreview = true end
-    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket') and
+    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket' or
+            S.definition.sourceType == 'articulated_part') and
             S.source.activeAnimation ~= '' and
             not S.source.animationPaused and not S.boneSelectionMode then
         S.dirtyPreview = true

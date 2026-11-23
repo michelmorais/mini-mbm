@@ -12380,6 +12380,30 @@ namespace mbm
         return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
     }
 
+    bool MESH_MBM::getArticulatedAnimationDuration(const char *name, float *duration) const noexcept
+    {
+        if (!name || !duration) return false;
+        for (const auto &clip : impl->articulatedClips)
+        {
+            if (clip.header.name == name)
+            {
+                *duration = std::max(0.0f, clip.header.duration);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uint32_t MESH_MBM::getTotalArticulatedParts() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedParts.size());
+    }
+
+    const util::ARTICULATED_PART_V11 *MESH_MBM::getArticulatedPart(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedParts.size() ? &impl->articulatedParts[index] : nullptr;
+    }
+
     bool MESH_MBM::hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept
     {
         return !player.impl->activeClips.empty();
@@ -13077,6 +13101,63 @@ namespace mbm
             return true;
         };
         return buildRecursive(buildRecursive, part, out);
+    }
+
+    bool MESH_MBM::getArticulatedPartTransform(
+        const ARTICULATED_ANIMATION_PLAYER &player, const char *partName,
+        const MATRIX *modelMatrix, uint64_t *partId, MATRIX *matrix, VEC3 *position,
+        float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+    {
+        if (!partName || !partName[0] || !partId || !matrix || !position || !rotation ||
+            !angle || !scale)
+            return false;
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.name == partName)
+            {
+                if (part)
+                    return false;
+                part = &candidate;
+                continue;
+            }
+        }
+        if (!part || !buildArticulatedTransformMatrix(player, part->frameIndex, part->subsetIndex, matrix))
+            return false;
+        if (modelMatrix)
+        {
+            MATRIX composed;
+            MatrixMultiply(&composed, matrix, modelMatrix);
+            *matrix = composed;
+        }
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(*matrix, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *partId = part->partId;
+        *position = transform.translation;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        const MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
+        *scale = transform.scale;
+        return true;
     }
 
     bool MESH_MBM::renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,

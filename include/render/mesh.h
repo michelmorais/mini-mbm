@@ -103,11 +103,20 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                            const float weight = 1.0f);
     API_IMPL uint32_t getTotalArticulatedAnimations() const noexcept;
     API_IMPL const char *getArticulatedAnimationName(const uint32_t index) const noexcept;
+    API_IMPL bool getArticulatedAnimationDuration(const char *name, float *duration) const noexcept;
     API_IMPL bool pauseArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool resumeArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool disableArticulatedAnimation(const char *name) noexcept;
     API_IMPL bool seekArticulatedAnimation(const char *name, const float time) noexcept;
     API_IMPL bool getArticulatedAnimationTime(const char *name, float *time) const noexcept;
+    API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
+    API_IMPL bool getArticulatedPartInfo(uint32_t index, uint64_t *partId,
+                                         uint32_t *frameIndex, uint32_t *subsetIndex,
+                                         const char **name, uint64_t *parentPartId) const noexcept;
+    API_IMPL bool getArticulatedPartTransform(const char *partName, bool worldSpace,
+                                              uint64_t *partId, MATRIX *matrix,
+                                              VEC3 *position, float rotation[4],
+                                              VEC3 *angle, VEC3 *scale) const noexcept;
     API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
     API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;
     API_IMPL bool getSkeletalAnimationDuration(uint32_t index, float *duration) const noexcept;

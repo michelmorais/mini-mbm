@@ -144,6 +144,17 @@ namespace mbm
         return 1;
     }
 
+    int onGetArticulatedAnimationDurationLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        float duration = 0.0f;
+        if (mesh->getArticulatedAnimationDuration(luaL_checkstring(lua, 2), &duration))
+            lua_pushnumber(lua, duration);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onPauseArticulatedAnimationLua(lua_State *lua)
     {
         MESH *mesh = getMeshFromRawTable(lua, 1, 1);
@@ -183,6 +194,102 @@ namespace mbm
             lua_pushnumber(lua, time);
         else
             lua_pushnil(lua);
+        return 1;
+    }
+
+    int onGetTotalArticulatedPartsLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, static_cast<lua_Integer>(mesh->getTotalArticulatedParts()));
+        return 1;
+    }
+
+    int onGetArticulatedPartInfoLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const lua_Integer index = luaL_checkinteger(lua, 2);
+        if (index <= 0)
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        uint64_t partId = 0;
+        uint32_t frameIndex = 0;
+        uint32_t subsetIndex = 0;
+        uint64_t parentPartId = 0;
+        const char *name = nullptr;
+        if (!mesh->getArticulatedPartInfo(static_cast<uint32_t>(index - 1), &partId,
+                                          &frameIndex, &subsetIndex, &name, &parentPartId))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 6);
+        char id[17] = "";
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(partId));
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "partId");
+        lua_pushinteger(lua, static_cast<lua_Integer>(frameIndex + 1)); lua_setfield(lua, -2, "frame");
+        lua_pushinteger(lua, static_cast<lua_Integer>(subsetIndex + 1)); lua_setfield(lua, -2, "subset");
+        lua_pushstring(lua, name ? name : ""); lua_setfield(lua, -2, "name");
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(parentPartId));
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "parentPartId");
+        return 1;
+    }
+
+    int onGetArticulatedPartTransformLua(lua_State *lua)
+    {
+        MESH *mesh = getMeshFromRawTable(lua, 1, 1);
+        const char *partName = luaL_checkstring(lua, 2);
+        const char *space = luaL_optstring(lua, 3, "model");
+        const bool worldSpace = strcmp(space, "world") == 0;
+        if (!worldSpace && strcmp(space, "model") != 0)
+            return luaL_error(lua, "space must be 'model' or 'world'");
+        uint64_t partId = 0;
+        MATRIX matrix;
+        VEC3 position;
+        float rotation[4] = {};
+        VEC3 angle;
+        VEC3 scale;
+        if (!mesh->getArticulatedPartTransform(partName, worldSpace, &partId, &matrix,
+                                               &position, rotation, &angle, &scale))
+        {
+            lua_pushnil(lua);
+            return 1;
+        }
+        lua_createtable(lua, 0, 7);
+        char id[17] = "";
+        snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(partId));
+        lua_pushstring(lua, id); lua_setfield(lua, -2, "partId");
+        lua_pushstring(lua, partName); lua_setfield(lua, -2, "name");
+        lua_pushstring(lua, space); lua_setfield(lua, -2, "space");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, position.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, position.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, position.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "position");
+        lua_createtable(lua, 0, 4);
+        lua_pushnumber(lua, rotation[0]); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, rotation[1]); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, rotation[2]); lua_setfield(lua, -2, "z");
+        lua_pushnumber(lua, rotation[3]); lua_setfield(lua, -2, "w");
+        lua_setfield(lua, -2, "rotation");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, angle.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, angle.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, angle.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "angle");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, scale.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, scale.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, scale.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "scale");
+        lua_createtable(lua, 16, 0);
+        for (int matrixIndex = 0; matrixIndex < 16; ++matrixIndex)
+        {
+            lua_pushnumber(lua, matrix.p[matrixIndex]);
+            lua_rawseti(lua, -2, matrixIndex + 1);
+        }
+        lua_setfield(lua, -2, "matrix");
         return 1;
     }
 
@@ -1170,11 +1277,15 @@ namespace mbm
                                                      {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
                                                      {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsLua},
                                                      {"getArticulatedAnimationName", onGetArticulatedAnimationNameLua},
+                                                     {"getArticulatedAnimationDuration", onGetArticulatedAnimationDurationLua},
                                                      {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                      {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                      {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                      {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                      {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                     {"getTotalArticulatedParts", onGetTotalArticulatedPartsLua},
+                                                     {"getArticulatedPartInfo", onGetArticulatedPartInfoLua},
+                                                     {"getArticulatedPartTransform", onGetArticulatedPartTransformLua},
                                                      {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                      {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                      {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},
@@ -1286,11 +1397,15 @@ namespace mbm
                                                          {"playArticulatedAnimation", onPlayArticulatedAnimationLua},
                                                          {"getTotalArticulatedAnimations", onGetTotalArticulatedAnimationsLua},
                                                          {"getArticulatedAnimationName", onGetArticulatedAnimationNameLua},
+                                                         {"getArticulatedAnimationDuration", onGetArticulatedAnimationDurationLua},
                                                          {"pauseArticulatedAnimation", onPauseArticulatedAnimationLua},
                                                          {"resumeArticulatedAnimation", onResumeArticulatedAnimationLua},
                                                          {"disableArticulatedAnimation", onDisableArticulatedAnimationLua},
                                                          {"seekArticulatedAnimation", onSeekArticulatedAnimationLua},
                                                          {"getArticulatedAnimationTime", onGetArticulatedAnimationTimeLua},
+                                                         {"getTotalArticulatedParts", onGetTotalArticulatedPartsLua},
+                                                         {"getArticulatedPartInfo", onGetArticulatedPartInfoLua},
+                                                         {"getArticulatedPartTransform", onGetArticulatedPartTransformLua},
                                                          {"getTotalSkeletalAnimations", onGetTotalSkeletalAnimationsLua},
                                                          {"getSkeletalAnimationName", onGetSkeletalAnimationNameLua},
                                                          {"getSkeletalAnimationDuration", onGetSkeletalAnimationDurationLua},

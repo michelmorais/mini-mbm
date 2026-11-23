@@ -114,8 +114,8 @@ function M.validate(definition)
         return false, 'source binding name must not be empty'
     end
     if definition.sourceType ~= 'root' and definition.sourceType ~= 'bone' and
-            definition.sourceType ~= 'socket' then
-        return false, "sourceType must be 'root', 'bone' or 'socket'"
+            definition.sourceType ~= 'socket' and definition.sourceType ~= 'articulated_part' then
+        return false, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'"
     end
     if definition.sourceType == 'bone' and
             (type(definition.sourceBone) ~= 'string' or definition.sourceBone == '') then
@@ -124,6 +124,10 @@ function M.validate(definition)
     if definition.sourceType == 'socket' and
             (type(definition.sourceSocket) ~= 'string' or definition.sourceSocket == '') then
         return false, "sourceSocket must not be empty when sourceType is 'socket'"
+    end
+    if definition.sourceType == 'articulated_part' and
+            (type(definition.sourcePart) ~= 'string' or definition.sourcePart == '') then
+        return false, "sourcePart must not be empty when sourceType is 'articulated_part'"
     end
     if type(definition.targets) ~= 'table' or #definition.targets == 0 then
         return false, 'at least one target is required'
@@ -264,6 +268,8 @@ local function appendDefinition(output, definition)
         output[#output + 1] = '    sourceBone = ' .. quote(definition.sourceBone) .. ','
     elseif definition.sourceType == 'socket' then
         output[#output + 1] = '    sourceSocket = ' .. quote(definition.sourceSocket) .. ','
+    elseif definition.sourceType == 'articulated_part' then
+        output[#output + 1] = '    sourcePart = ' .. quote(definition.sourcePart) .. ','
     end
     output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
     if type(definition.initialState) == 'string' and definition.initialState ~= '' then
@@ -312,7 +318,7 @@ function M.build(definition)
     output[#output + 1] = '        local specification = {'
     output[#output + 1] = '            source = relationSource,'
     output[#output + 1] = '            target = target,'
-    output[#output + 1] = '            sourceType = definition.sourceType,'
+    output[#output + 1] = '            sourceType = sourceName == definition.source and definition.sourceType or "root",'
     output[#output + 1] = '            inherit = targetDefinition.inherit,'
     output[#output + 1] = '            aimAtSource = targetDefinition.aimAtSource,'
     output[#output + 1] = '            aimPoint = targetDefinition.aimPoint,'
@@ -325,8 +331,9 @@ function M.build(definition)
     output[#output + 1] = '            offset = targetDefinition.offset,'
     output[#output + 1] = '            targetPivot = targetDefinition.targetPivot,'
     output[#output + 1] = '        }'
-    output[#output + 1] = '        if definition.sourceBone then specification.sourceBone = definition.sourceBone end'
-    output[#output + 1] = '        if definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
+    output[#output + 1] = '        if sourceName == definition.source and definition.sourceBone then specification.sourceBone = definition.sourceBone end'
+    output[#output + 1] = '        if sourceName == definition.source and definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
+    output[#output + 1] = '        if sourceName == definition.source and definition.sourcePart then specification.sourcePart = definition.sourcePart end'
     output[#output + 1] = '        local relation, errorMessage = attachments.attach(specification)'
     output[#output + 1] = '        if not relation then'
     output[#output + 1] = '            for _, created in ipairs(relations) do created:detach() end'

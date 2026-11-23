@@ -47,6 +47,7 @@ constexpr uint8_t INHERIT_SCALE = 4u;
 constexpr uint8_t SOURCE_ROOT = 0u;
 constexpr uint8_t SOURCE_BONE = 1u;
 constexpr uint8_t SOURCE_SOCKET = 2u;
+constexpr uint8_t SOURCE_ARTICULATED_PART = 3u;
 constexpr double PI = 3.14159265358979323846;
 
 int PLUGIN_IDENTIFIER = 1;
@@ -692,6 +693,7 @@ struct ATTACHMENT
     std::string id;
     std::string sourceBone;
     std::string sourceSocket;
+    std::string sourcePart;
     uint8_t sourceType = SOURCE_ROOT;
     VEC3D aimPoint;
     POSE offset;
@@ -767,6 +769,31 @@ bool readSocketPose(mbm::RENDERIZABLE *source, const std::string &socketName, PO
     return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
 }
 
+bool readArticulatedPartPose(mbm::RENDERIZABLE *source, const std::string &partName, POSE &pose)
+{
+    if (!source || source->getTypeClass() != mbm::TYPE_CLASS_MESH || partName.empty()) return false;
+    auto *mesh = dynamic_cast<mbm::MESH *>(source);
+    if (!mesh) return false;
+    uint64_t partId = 0;
+    mbm::MATRIX matrix;
+    mbm::VEC3 position;
+    mbm::VEC3 angle;
+    mbm::VEC3 scale;
+    float rotation[4] = {};
+    if (!mesh->getArticulatedPartTransform(partName.c_str(), true, &partId, &matrix,
+                                           &position, rotation, &angle, &scale))
+        return false;
+    pose.position = {position.x, position.y, position.z};
+    pose.angle = {angle.x, angle.y, angle.z};
+    pose.scale = {scale.x, scale.y, scale.z};
+    if (std::abs(pose.scale.x) <= 0.000001 || std::abs(pose.scale.y) <= 0.000001 ||
+        std::abs(pose.scale.z) <= 0.000001)
+        return false;
+    pose.rotationMatrix = normalizedRotation(matrix, pose.scale);
+    pose.hasRotationMatrix = true;
+    return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
+}
+
 bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POSE &pose)
 {
     if (!attachment || !source) return false;
@@ -779,6 +806,8 @@ bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POS
         return readBonePose(source, attachment->sourceBone, pose);
     if (attachment->sourceType == SOURCE_SOCKET)
         return readSocketPose(source, attachment->sourceSocket, pose);
+    if (attachment->sourceType == SOURCE_ARTICULATED_PART)
+        return readArticulatedPartPose(source, attachment->sourcePart, pose);
     return false;
 }
 
@@ -989,6 +1018,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const uint8_t sourceType,
                                                   const std::string &sourceBone,
                                                   const std::string &sourceSocket,
+                                                  const std::string &sourcePart,
                                                   const VEC3D &aimPoint,
                                                   const POSE &offset,
                                                   const VEC3D &targetPivot,
@@ -1157,7 +1187,7 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
-    const std::string &sourceSocket,
+    const std::string &sourceSocket, const std::string &sourcePart,
     const VEC3D &aimPoint,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
@@ -1178,6 +1208,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->sourceType = sourceType;
     attachment->sourceBone = sourceBone;
     attachment->sourceSocket = sourceSocket;
+    attachment->sourcePart = sourcePart;
     attachment->aimPoint = aimPoint;
     attachment->offset = offset;
     attachment->targetPivot = targetPivot;
@@ -1768,7 +1799,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "weight");
     lua_setfield(lua, -2, "blend");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
-                   (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
+                   (attachment->sourceType == SOURCE_SOCKET ? "socket" :
+                    (attachment->sourceType == SOURCE_ARTICULATED_PART ? "articulated_part" : "root")));
     lua_setfield(lua, -2, "sourceType");
     if (attachment->sourceType == SOURCE_BONE)
     {
@@ -1779,6 +1811,11 @@ int onAttachmentGetState(lua_State *lua)
     {
         lua_pushlstring(lua, attachment->sourceSocket.c_str(), attachment->sourceSocket.size());
         lua_setfield(lua, -2, "sourceSocket");
+    }
+    else if (attachment->sourceType == SOURCE_ARTICULATED_PART)
+    {
+        lua_pushlstring(lua, attachment->sourcePart.c_str(), attachment->sourcePart.size());
+        lua_setfield(lua, -2, "sourcePart");
     }
     pushAttachmentData(lua, attachment);
     lua_setfield(lua, -2, "offset");
@@ -1823,6 +1860,7 @@ int onAttach(lua_State *lua)
     uint8_t sourceType = SOURCE_ROOT;
     std::string sourceBone;
     std::string sourceSocket;
+    std::string sourcePart;
     lua_getfield(lua, 1, "sourceType");
     if (!lua_isnil(lua, -1))
     {
@@ -1831,17 +1869,18 @@ int onAttach(lua_State *lua)
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root', 'bone' or 'socket'");
+            return fail(lua, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'");
         }
         const std::string sourceTypeName = lua_tostring(lua, -1);
         if (sourceTypeName == "bone") sourceType = SOURCE_BONE;
         else if (sourceTypeName == "socket") sourceType = SOURCE_SOCKET;
+        else if (sourceTypeName == "articulated_part") sourceType = SOURCE_ARTICULATED_PART;
         else if (sourceTypeName != "root")
         {
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root', 'bone' or 'socket'");
+            return fail(lua, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'");
         }
     }
     lua_pop(lua, 1);
@@ -1895,6 +1934,32 @@ int onAttach(lua_State *lua)
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
             return fail(lua, "source socket is invalid or has no evaluated pose");
+        }
+    }
+    else if (sourceType == SOURCE_ARTICULATED_PART)
+    {
+        lua_getfield(lua, 1, "sourcePart");
+        if (!lua_isstring(lua, -1) || lua_tostring(lua, -1)[0] == '\0')
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourcePart must be a non-empty part name for sourceType='articulated_part'");
+        }
+        sourcePart = lua_tostring(lua, -1);
+        lua_pop(lua, 1);
+        if (source->getTypeClass() != mbm::TYPE_CLASS_MESH)
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType='articulated_part' requires a mesh source");
+        }
+        POSE sourcePose;
+        if (!readArticulatedPartPose(source, sourcePart, sourcePose))
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "source articulated part is invalid or has no evaluated pose");
         }
     }
     const uint8_t inherit = parseInheritance(lua, 1);
@@ -1981,7 +2046,7 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, sourceSocket, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
+        id, sourceType, sourceBone, sourceSocket, sourcePart, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
         aimLimits, spring, blend, influenceEnabled, stateProfiles, initialState,
         sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
