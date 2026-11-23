@@ -122,6 +122,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::CANONICAL_SOCKETS canonicalSockets;
         facial::ASSET facialAsset;
         // Immutable runtime preparation; pending uploads share its lifetime.
         std::shared_ptr<const normal_map::ASSET_FRAMES> normalMapFrames;
@@ -163,6 +164,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::CANONICAL_SOCKETS canonicalSockets;
         facial::ASSET facialAsset;
         normal_map::ASSET_FRAMES normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;

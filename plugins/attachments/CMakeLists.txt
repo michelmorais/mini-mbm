@@ -1,0 +1,32 @@
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
+cmake_policy(SET CMP0054 NEW)
+project(${ATTACHMENTS_LIBRARY})
+
+set(CORE_MBM_INCLUDES ${CMAKE_SOURCE_DIR}/include)
+set(PLUGIN_HELPER_INC ${CMAKE_SOURCE_DIR}/plugins)
+set(THIRD_PARTY ${CMAKE_SOURCE_DIR}/third-party)
+set(LUA_INCLUDE ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
+
+set(CMAKE_SHARED_LIBRARY_PREFIX "")
+
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
+    add_library(${ATTACHMENTS_LIBRARY} STATIC attachments-lua.cpp)
+else()
+    add_library(${ATTACHMENTS_LIBRARY} SHARED attachments-lua.cpp)
+endif()
+
+target_include_directories(${ATTACHMENTS_LIBRARY} PRIVATE
+    ${CORE_MBM_INCLUDES}
+    ${PLUGIN_HELPER_INC}
+    ${LUA_INCLUDE})
+
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    target_compile_definitions(${ATTACHMENTS_LIBRARY} PRIVATE ATTACHMENTS_BUILD_DLL)
+endif()
+
+if (NOT (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY))
+    target_link_libraries(${ATTACHMENTS_LIBRARY} PRIVATE
+        ${LUA_LIBRARY}
+        ${CORE_MBM_LIBRARY}
+        ${PLUGIN_HELPER_LIBRARY})
+endif()

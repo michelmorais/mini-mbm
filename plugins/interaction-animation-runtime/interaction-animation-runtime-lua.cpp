@@ -316,7 +316,7 @@ const char *actionName(const ACTION action)
 
 void setTransform(mbm::MESH *mesh, const TRANSFORM &transform)
 {
-    if (!mesh) return;
+    if (!mesh || !mbm::RENDERIZABLE::isAlive(mesh)) return;
     mesh->setPosition({static_cast<float>(transform.position.x),
                        static_cast<float>(transform.position.y),
                        static_cast<float>(transform.position.z)});
@@ -327,6 +327,11 @@ void setTransform(mbm::MESH *mesh, const TRANSFORM &transform)
                     static_cast<float>(transform.scale.y),
                     static_cast<float>(transform.scale.z)});
     mesh->setEnableRender(transform.visible);
+}
+
+bool isLiveMesh(const mbm::MESH *mesh) noexcept
+{
+    return mesh != nullptr && mbm::RENDERIZABLE::isAlive(mesh);
 }
 
 TRANSFORM readTransform(const mbm::MESH *mesh)
@@ -399,7 +404,25 @@ class INTERACTION_INSTANCE
     void pushInstanceTable();
     void shutdownForScene();
     void releaseLuaReferences();
+    bool invalidateDeadActors();
 };
+
+bool INTERACTION_INSTANCE::invalidateDeadActors()
+{
+    bool invalidated = false;
+    for (ACTOR_INSTANCE &actor : actors)
+    {
+        if (!actor.mesh || isLiveMesh(actor.mesh)) continue;
+        actor.mesh = nullptr;
+        if (lua && actor.luaReference != LUA_NOREF)
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, actor.luaReference);
+            actor.luaReference = LUA_NOREF;
+        }
+        invalidated = true;
+    }
+    return invalidated;
+}
 
 void INTERACTION_INSTANCE::initializeAxes()
 {
@@ -413,7 +436,7 @@ void INTERACTION_INSTANCE::initializeAxes()
 void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &key,
                                     const std::string &playAs, const double layerWeight)
 {
-    if (!actor.mesh) return;
+    if (!isLiveMesh(actor.mesh)) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -484,7 +507,7 @@ void INTERACTION_INSTANCE::playClip(ACTOR_INSTANCE &actor, const std::string &ke
 void INTERACTION_INSTANCE::stopClip(ACTOR_INSTANCE &actor, const std::string &key,
                                     const std::string &playAs)
 {
-    if (!actor.mesh) return;
+    if (!isLiveMesh(actor.mesh)) return;
     const auto active = std::find_if(actor.activeClips.begin(), actor.activeClips.end(),
         [&key, &playAs](const ACTIVE_CLIP &candidate)
         {
@@ -538,7 +561,7 @@ void INTERACTION_INSTANCE::pauseAllClips(ACTOR_INSTANCE &actor)
 void INTERACTION_INSTANCE::pauseClip(ACTOR_INSTANCE &actor, const std::string &key,
                                      const std::string &playAs)
 {
-    if (!actor.mesh) return;
+    if (!isLiveMesh(actor.mesh)) return;
     const std::size_t separator = key.find(':');
     if (separator == std::string::npos || separator + 1 >= key.size()) return;
     const std::string kind = key.substr(0, separator);
@@ -612,7 +635,7 @@ void INTERACTION_INSTANCE::applyVisibility()
     for (ACTOR_INSTANCE &actor : actors)
     {
         actor.current.visible = actor.base.visible;
-        if (actor.mesh) actor.mesh->setEnableRender(actor.current.visible);
+        if (isLiveMesh(actor.mesh)) actor.mesh->setEnableRender(actor.current.visible);
     }
     for (const EVENT &event : definition.events)
     {
@@ -622,7 +645,7 @@ void INTERACTION_INSTANCE::applyVisibility()
         {
             ACTOR_INSTANCE &actor = actors[found->second];
             actor.current.visible = event.visible;
-            if (actor.mesh) actor.mesh->setEnableRender(actor.current.visible);
+            if (isLiveMesh(actor.mesh)) actor.mesh->setEnableRender(actor.current.visible);
         }
     }
 }
@@ -839,6 +862,12 @@ void INTERACTION_INSTANCE::finish()
 void INTERACTION_INSTANCE::update(const double delta)
 {
     if (!running || finished) return;
+    if (invalidateDeadActors())
+    {
+        running = false;
+        finished = true;
+        return;
+    }
     const double previousTime = time;
     const double amount = std::max(0.0, delta);
     time = std::min(definition.duration, previousTime + amount);
@@ -1333,7 +1362,8 @@ bool getBinding(lua_State *lua, const int bindingsTable, const std::string &name
         }
         const int objectTable = lua_absindex(lua, -1);
         mbm::RENDERIZABLE *renderizable = mbm::getRenderizableFromRawTable(lua, 1, objectTable);
-        if (!renderizable || renderizable->getTypeClass() != mbm::TYPE_CLASS_MESH)
+        if (!mbm::RENDERIZABLE::isAlive(renderizable) ||
+            renderizable->getTypeClass() != mbm::TYPE_CLASS_MESH)
             luaL_error(lua, "Interaction actor '%s' must be a mesh", name.c_str());
         mesh = static_cast<mbm::MESH *>(renderizable);
         lua_pushvalue(lua, objectTable);

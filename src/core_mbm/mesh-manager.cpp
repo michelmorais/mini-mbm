@@ -140,6 +140,7 @@ namespace mbm
         skeletal::CANONICAL_SKELETON canonicalSkeleton;
         skeletal::CANONICAL_WEIGHTS canonicalWeights;
         skeletal::CANONICAL_ANIMATIONS canonicalAnimations;
+        skeletal::CANONICAL_SOCKETS canonicalSockets;
         facial::ASSET facialAsset;
         normal_map::ASSET_FRAMES normalMapFrames;
         normal_map::MATERIAL_SETTINGS_MAP normalMapMaterials;
@@ -185,6 +186,7 @@ namespace mbm
               canonicalSkeleton(std::move(other.canonicalSkeleton)),
               canonicalWeights(std::move(other.canonicalWeights)),
               canonicalAnimations(std::move(other.canonicalAnimations)),
+              canonicalSockets(std::move(other.canonicalSockets)),
               facialAsset(std::move(other.facialAsset)),
               normalMapFrames(std::move(other.normalMapFrames)),
               normalMapMaterials(std::move(other.normalMapMaterials))
@@ -214,6 +216,7 @@ namespace mbm
             canonicalSkeleton = std::move(other.canonicalSkeleton);
             canonicalWeights = std::move(other.canonicalWeights);
             canonicalAnimations = std::move(other.canonicalAnimations);
+            canonicalSockets = std::move(other.canonicalSockets);
             facialAsset = std::move(other.facialAsset);
             normalMapFrames = std::move(other.normalMapFrames);
             normalMapMaterials = std::move(other.normalMapMaterials);
@@ -927,6 +930,39 @@ namespace
             mbm::skeletal::validateCanonicalWeights(skeleton, out, expectedVertexCount);
     }
 
+    bool parse_canonical_sockets_section_v11(util::MEM_CURSOR_V11 &fp, const uint16_t sectionVersion,
+                                              const mbm::skeletal::CANONICAL_SKELETON &skeleton,
+                                              mbm::skeletal::CANONICAL_SOCKETS &out)
+    {
+        if (sectionVersion != 1) return false;
+        out = {};
+        uint32_t socketCount = 0;
+        if (!util::le_io::readU64LE(fp, out.skeletonId) ||
+            !util::le_io::readU32LE(fp, socketCount) || socketCount > (fp.size - fp.pos) / 56u)
+            return false;
+        out.sockets.reserve(socketCount);
+        for (uint32_t index = 0; index < socketCount; ++index)
+        {
+            mbm::skeletal::CANONICAL_SOCKET socket;
+            if (!util::le_io::readU64LE(fp, socket.socketId) ||
+                !util::le_io::readU64LE(fp, socket.boneId) ||
+                !util::readStringV11(fp, socket.name) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.x) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.y) ||
+                !util::le_io::readF32LE(fp, socket.local.translation.z) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.x) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.y) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.z) ||
+                !util::le_io::readF32LE(fp, socket.local.rotation.w) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.x) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.y) ||
+                !util::le_io::readF32LE(fp, socket.local.scale.z))
+                return false;
+            out.sockets.push_back(std::move(socket));
+        }
+        return fp.pos == fp.size && mbm::skeletal::validateCanonicalSockets(skeleton, out);
+    }
+
     bool read_zero_reserved3(util::MEM_CURSOR_V11 &fp)
     {
         uint8_t reserved[3] = {0, 0, 0};
@@ -1122,6 +1158,7 @@ namespace
         bool              sawCanonicalSkeleton = false;
         bool              sawCanonicalWeights = false;
         bool              sawCanonicalAnimations = false;
+        bool              sawCanonicalSockets = false;
         uint32_t          canonicalFrame0VertexCount = UINT32_MAX;
 
         // Canonical sections resolve by type, not file order. Pre-read the skeleton and frame-0
@@ -1145,6 +1182,18 @@ namespace
                 { errorOut = "failed to inspect SECTION_FRAME_STATIC"; return false; }
                 canonicalFrame0VertexCount = header.vertexCount;
             }
+        }
+
+        for (const auto &staged : sections)
+        {
+            if (staged.header.type != util::SECTION_SKELETAL_SOCKETS)
+                continue;
+            util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+            if (sawCanonicalSockets || !sawCanonicalSkeleton ||
+                !parse_canonical_sockets_section_v11(tmp, staged.header.sectionVersion,
+                    out.canonicalSkeleton, out.canonicalSockets))
+            { errorOut = "failed to parse SECTION_SKELETAL_SOCKETS"; return false; }
+            sawCanonicalSockets = true;
         }
 
         for (const auto &staged : sections)
@@ -1300,6 +1349,10 @@ namespace
                         out.canonicalSkeleton, out.canonicalAnimations))
                 { errorOut = "failed to parse SECTION_SKELETAL_ANIMATION"; return false; }
                 sawCanonicalAnimations = true;
+            }
+            else if (staged.header.type == util::SECTION_SKELETAL_SOCKETS)
+            {
+                // Parsed in the order-independent pre-pass above.
             }
             else if (staged.header.type == util::SECTION_FACIAL_TARGETS || staged.header.type == util::SECTION_FACIAL_CLIPS)
             {
@@ -4192,7 +4245,8 @@ namespace mbm
         const bool hasCanonicalSkeleton = impl->canonicalSkeleton.skeletonId != 0;
         const bool hasCanonicalWeights = impl->canonicalWeights.skeletonId != 0;
         const bool hasCanonicalAnimations = impl->canonicalAnimations.skeletonId != 0;
-        if (hasCanonicalWeights || hasCanonicalAnimations)
+        const bool hasCanonicalSockets = impl->canonicalSockets.skeletonId != 0;
+        if (hasCanonicalWeights || hasCanonicalAnimations || hasCanonicalSockets)
         {
             if (!hasCanonicalSkeleton)
                 return log_util::onFailed(file, __FILE__, __LINE__,
@@ -4220,6 +4274,9 @@ namespace mbm
             if (hasCanonicalAnimations &&
                 !skeletal::validateCanonicalAnimations(skeleton, impl->canonicalAnimations))
                 return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical animations [%s]", fileOut);
+            if (hasCanonicalSockets &&
+                !skeletal::validateCanonicalSockets(skeleton, impl->canonicalSockets))
+                return log_util::onFailed(file, __FILE__, __LINE__, "invalid canonical sockets [%s]", fileOut);
         }
 
         for (const auto &entry : impl->normalMapMaterials)
@@ -4311,6 +4368,7 @@ namespace mbm
                                      + (hasCanonicalSkeleton ? 1u : 0u)
                                      + (hasCanonicalWeights ? 1u : 0u)
                                      + (hasCanonicalAnimations ? 1u : 0u)
+                                     + (hasCanonicalSockets ? 1u : 0u)
                                      + (impl->facialAsset.meshId ? 1u : 0u)
                                      + (impl->facialAsset.clips.empty() ? 0u : 1u)
                                      + (impl->articulatedParts.empty() ? 0u : 1u)
@@ -4492,6 +4550,41 @@ namespace mbm
             });
             if (!ok)
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SKELETON [%s]", fileOut);
+        }
+
+        if (hasCanonicalSockets)
+        {
+            util::SECTION_HEADER_V11 sectionHeader;
+            sectionHeader.type = util::SECTION_SKELETAL_SOCKETS;
+            sectionHeader.sectionVersion = 1;
+            const bool ok = util::writeSectionV11Streamed(file, sectionHeader, [this](FILE *fp)
+            {
+                const skeletal::CANONICAL_SOCKETS &sockets = this->impl->canonicalSockets;
+                if (!util::le_io::writeU64LE(fp, sockets.skeletonId) ||
+                    !util::le_io::writeU32LE(fp, static_cast<uint32_t>(sockets.sockets.size())))
+                    return false;
+                for (const skeletal::CANONICAL_SOCKET &socket : sockets.sockets)
+                {
+                    const skeletal::LOCAL_TRANSFORM &local = socket.local;
+                    if (!util::le_io::writeU64LE(fp, socket.socketId) ||
+                        !util::le_io::writeU64LE(fp, socket.boneId) ||
+                        !util::writeStringV11(fp, socket.name) ||
+                        !util::le_io::writeF32LE(fp, local.translation.x) ||
+                        !util::le_io::writeF32LE(fp, local.translation.y) ||
+                        !util::le_io::writeF32LE(fp, local.translation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.x) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.y) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.z) ||
+                        !util::le_io::writeF32LE(fp, local.rotation.w) ||
+                        !util::le_io::writeF32LE(fp, local.scale.x) ||
+                        !util::le_io::writeF32LE(fp, local.scale.y) ||
+                        !util::le_io::writeF32LE(fp, local.scale.z))
+                        return false;
+                }
+                return true;
+            });
+            if (!ok)
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to write SECTION_SKELETAL_SOCKETS [%s]", fileOut);
         }
 
         if (hasCanonicalWeights)
@@ -5229,6 +5322,7 @@ namespace mbm
         bool    sawCanonicalSkeleton = false;
         bool    sawCanonicalWeights = false;
         bool    sawCanonicalAnimations = false;
+        bool    sawCanonicalSockets = false;
         uint32_t canonicalFrame0VertexCount = UINT32_MAX;
         util::BUFFER_MESH_DEBUG *frame0 = nullptr;
 
@@ -5261,6 +5355,19 @@ namespace mbm
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to inspect SECTION_FRAME_STATIC [%s]", fileNamePath);
                 canonicalFrame0VertexCount = header.vertexCount;
             }
+        }
+
+        for (const DebugStagedSection &staged : sections)
+        {
+            if (staged.header.type != util::SECTION_SKELETAL_SOCKETS)
+                continue;
+            util::MEM_CURSOR_V11 tmp = stage_payload_as_cursor(staged.payload);
+            if (sawCanonicalSockets || !sawCanonicalSkeleton ||
+                !parse_canonical_sockets_section_v11(tmp, staged.header.sectionVersion,
+                    impl->canonicalSkeleton, impl->canonicalSockets))
+                return log_util::onFailed(fp, __FILE__, __LINE__,
+                                          "failed to parse SECTION_SKELETAL_SOCKETS [%s]", fileNamePath);
+            sawCanonicalSockets = true;
         }
 
         for (const DebugStagedSection &staged : sections)
@@ -5418,6 +5525,10 @@ namespace mbm
                         impl->canonicalSkeleton, impl->canonicalAnimations))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to parse SECTION_SKELETAL_ANIMATION [%s]", fileNamePath);
                 sawCanonicalAnimations = true;
+            }
+            else if (sectionHeader.type == util::SECTION_SKELETAL_SOCKETS)
+            {
+                // Parsed in the order-independent pre-pass above.
             }
             else if (sectionHeader.type == util::SECTION_FACIAL_TARGETS || sectionHeader.type == util::SECTION_FACIAL_CLIPS)
             {
@@ -5990,6 +6101,7 @@ namespace mbm
 
         skeletal::CANONICAL_SKELETON scaledSkeleton;
         skeletal::CANONICAL_ANIMATIONS scaledAnimations;
+        skeletal::CANONICAL_SOCKETS scaledSockets = impl->canonicalSockets;
         if (hasSkeletalAsset && !skeletal::buildUniformlyScaledCanonicalAsset(impl->canonicalSkeleton,
                                                                                 impl->canonicalAnimations,
                                                                                 scale,
@@ -6006,6 +6118,16 @@ namespace mbm
                 return false;
             }
             return fail("scaled canonical animation would be invalid");
+        }
+        for (skeletal::CANONICAL_SOCKET &socket : scaledSockets.sockets)
+        {
+            socket.local.translation.x *= scale;
+            socket.local.translation.y *= scale;
+            socket.local.translation.z *= scale;
+            if (!std::isfinite(socket.local.translation.x) ||
+                !std::isfinite(socket.local.translation.y) ||
+                !std::isfinite(socket.local.translation.z))
+                return fail("scaled canonical socket would not be finite");
         }
 
         facial::ASSET scaledFacial;
@@ -6143,6 +6265,7 @@ namespace mbm
         {
             impl->canonicalSkeleton = std::move(scaledSkeleton);
             impl->canonicalAnimations = std::move(scaledAnimations);
+            impl->canonicalSockets = std::move(scaledSockets);
         }
         return true;
     }
@@ -6633,6 +6756,177 @@ namespace mbm
         if (impl->canonicalSkeleton.skeletonId == 0 || index >= report.bones.size())
             return nullptr;
         return report.bones[index].name.c_str();
+    }
+
+    uint32_t MESH_MBM_DEBUG::getSkeletalSocketCount() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalSockets.sockets.size());
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketInfo(const uint32_t index,
+                                               SKELETAL_SOCKET_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::CANONICAL_SOCKET &socket = impl->canonicalSockets.sockets[index];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        out.socketId = socket.socketId;
+        out.boneId = socket.boneId;
+        out.name = socket.name.c_str();
+        out.boneName = impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketBindTransform(const uint32_t index,
+                                                        MATRIX &matrix) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        matrix = skeletal::buildTrsMatrix(impl->canonicalSockets.sockets[index].local);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::getSkeletalSocketLocalTransform(const uint32_t index,
+                                                         SKELETAL_KEY_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::LOCAL_TRANSFORM &local = impl->canonicalSockets.sockets[index].local;
+        out = SKELETAL_KEY_INFO();
+        out.localTranslation = local.translation;
+        out.localRotationX = local.rotation.x;
+        out.localRotationY = local.rotation.y;
+        out.localRotationZ = local.rotation.z;
+        out.localRotationW = local.rotation.w;
+        out.localScale = local.scale;
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::addSkeletalSocket(const char *name, const uint32_t boneIndex,
+                                           const VEC3 &translation, const float rotationX,
+                                           const float rotationY, const float rotationZ,
+                                           const float rotationW, const VEC3 &scale,
+                                           uint32_t *newIndexOut, char *errorOut,
+                                           const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalSkeleton.compiled.bones.empty())
+            return fail("mesh has no canonical skeleton");
+        if (!name || !name[0]) return fail("canonical socket name must not be empty");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical socket bone index is out of range");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(rotationX) ||
+            !std::isfinite(rotationY) || !std::isfinite(rotationZ) ||
+            !std::isfinite(rotationW) || !std::isfinite(scale.x) ||
+            !std::isfinite(scale.y) || !std::isfinite(scale.z))
+            return fail("canonical socket values must be finite");
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.name == name) return fail("canonical socket name must be unique");
+
+        uint64_t socketId = 1;
+        for (;;)
+        {
+            bool used = false;
+            for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+                if (socket.socketId == socketId) { used = true; break; }
+            if (!used) break;
+            if (socketId == std::numeric_limits<uint64_t>::max())
+                return fail("canonical socket ID space is exhausted");
+            ++socketId;
+        }
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        skeletal::CANONICAL_SOCKET added;
+        added.socketId = socketId;
+        added.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        added.name = name;
+        added.local.translation = translation;
+        added.local.rotation.x = rotationX;
+        added.local.rotation.y = rotationY;
+        added.local.rotation.z = rotationZ;
+        added.local.rotation.w = rotationW;
+        added.local.scale = scale;
+        candidate.sockets.push_back(std::move(added));
+        if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("added canonical socket would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        if (newIndexOut) *newIndexOut = static_cast<uint32_t>(impl->canonicalSockets.sockets.size() - 1);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::updateSkeletalSocket(const uint32_t index, const char *name,
+                                              const uint32_t boneIndex, const VEC3 &translation,
+                                              const float rotationX, const float rotationY,
+                                              const float rotationZ, const float rotationW,
+                                              const VEC3 &scale, char *errorOut,
+                                              const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (impl->canonicalSkeleton.skeletonId == 0 ||
+            impl->canonicalSkeleton.compiled.bones.empty())
+            return fail("mesh has no canonical skeleton");
+        if (index >= impl->canonicalSockets.sockets.size())
+            return fail("canonical socket index is out of range");
+        if (!name || !name[0]) return fail("canonical socket name must not be empty");
+        if (boneIndex >= impl->canonicalSkeleton.compiled.bones.size())
+            return fail("canonical socket bone index is out of range");
+        if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+            !std::isfinite(translation.z) || !std::isfinite(rotationX) ||
+            !std::isfinite(rotationY) || !std::isfinite(rotationZ) ||
+            !std::isfinite(rotationW) || !std::isfinite(scale.x) ||
+            !std::isfinite(scale.y) || !std::isfinite(scale.z))
+            return fail("canonical socket values must be finite");
+        for (uint32_t other = 0; other < impl->canonicalSockets.sockets.size(); ++other)
+            if (other != index && impl->canonicalSockets.sockets[other].name == name)
+                return fail("canonical socket name must be unique");
+
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.skeletonId = impl->canonicalSkeleton.skeletonId;
+        skeletal::CANONICAL_SOCKET &edited = candidate.sockets[index];
+        edited.boneId = impl->canonicalSkeleton.compiled.bones[boneIndex].boneId;
+        edited.name = name;
+        edited.local.translation = translation;
+        edited.local.rotation.x = rotationX;
+        edited.local.rotation.y = rotationY;
+        edited.local.rotation.z = rotationZ;
+        edited.local.rotation.w = rotationW;
+        edited.local.scale = scale;
+        if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("updated canonical socket would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        return true;
+    }
+
+    bool MESH_MBM_DEBUG::removeSkeletalSocket(const uint32_t index, char *errorOut,
+                                              const int errorOutLen)
+    {
+        const auto fail = [errorOut, errorOutLen](const char *message)
+        {
+            if (errorOut && errorOutLen > 0) snprintf(errorOut, errorOutLen, "%s", message);
+            return false;
+        };
+        if (index >= impl->canonicalSockets.sockets.size())
+            return fail("canonical socket index is out of range");
+        skeletal::CANONICAL_SOCKETS candidate = impl->canonicalSockets;
+        candidate.sockets.erase(candidate.sockets.begin() + index);
+        if (candidate.sockets.empty())
+            candidate.skeletonId = 0;
+        else if (!skeletal::validateCanonicalSockets(impl->canonicalSkeleton, candidate))
+            return fail("removed canonical socket set would be invalid");
+        impl->canonicalSockets = std::move(candidate);
+        return true;
     }
 
     namespace
@@ -9279,6 +9573,9 @@ namespace mbm
         if (index >= source.size()) return fail("canonical bone index is out of range");
         if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
         const uint64_t boneId = source[index].boneId;
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.boneId == boneId)
+                return fail("canonical bone is referenced by a socket; remove or reassign the socket first");
         for (const skeletal::CANONICAL_BONE &candidate : source)
             if (candidate.parentBoneId == boneId)
                 return fail("canonical bone has children; choose an explicit descendant policy first");
@@ -9332,6 +9629,9 @@ namespace mbm
         if (source.size() <= 1) return fail("canonical skeleton must retain at least one bone");
         const uint64_t removedId = source[index].boneId;
         const uint64_t replacementId = source[replacementIndex].boneId;
+        for (const skeletal::CANONICAL_SOCKET &socket : impl->canonicalSockets.sockets)
+            if (socket.boneId == removedId)
+                return fail("canonical bone is referenced by a socket; remove or reassign the socket first");
         bool hasChildren = false;
         for (const skeletal::CANONICAL_BONE &candidate : source)
             if (candidate.parentBoneId == removedId) hasChildren = true;
@@ -11524,6 +11824,89 @@ namespace mbm
         return true;
     }
 
+    uint32_t MESH_MBM::getSkeletalSocketCount() const noexcept
+    {
+        return static_cast<uint32_t>(impl->canonicalSockets.sockets.size());
+    }
+
+    bool MESH_MBM::getSkeletalSocketInfo(const uint32_t index, SKELETAL_SOCKET_INFO &out) const noexcept
+    {
+        if (index >= impl->canonicalSockets.sockets.size())
+            return false;
+        const skeletal::CANONICAL_SOCKET &socket = impl->canonicalSockets.sockets[index];
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket.boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        out.socketId = socket.socketId;
+        out.boneId = socket.boneId;
+        out.name = socket.name.c_str();
+        out.boneName = impl->canonicalSkeleton.compiled.bones[found->second].name.c_str();
+        return true;
+    }
+
+    bool MESH_MBM::getSkeletalSocketTransform(
+        const SKELETAL_ANIMATION_PLAYER &player, const char *socketName,
+        const MATRIX *modelMatrix, uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+        VEC3 *position, float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+    {
+        if (!socketName || !socketId || !boneId || !matrix || !position || !rotation ||
+            !angle || !scale)
+            return false;
+        const skeletal::CANONICAL_SOCKET *socket = nullptr;
+        for (const skeletal::CANONICAL_SOCKET &candidate : impl->canonicalSockets.sockets)
+        {
+            if (candidate.name == socketName)
+            {
+                socket = &candidate;
+                break;
+            }
+        }
+        if (!socket)
+            return false;
+        const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket->boneId);
+        if (found == impl->canonicalSkeleton.compiled.indexById.end())
+            return false;
+        MATRIX boneGlobal;
+        if (getSkeletalAnimationPoseBoneCount(player) > 0)
+            boneGlobal = player.impl->evaluatedGlobalTransforms[found->second];
+        else
+            boneGlobal = impl->canonicalSkeleton.compiled.bones[found->second].globalBindMatrix;
+        MATRIX result = skeletal::buildTrsMatrix(socket->local);
+        MatrixMultiply(&result, &result, &boneGlobal);
+        if (modelMatrix)
+            MatrixMultiply(&result, &result, modelMatrix);
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(result, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *socketId = socket->socketId;
+        *boneId = socket->boneId;
+        *matrix = result;
+        *position = transform.translation;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
+        *scale = transform.scale;
+        return true;
+    }
+
     bool MESH_MBM::getSkeletalRootMotionDelta(
         const SKELETAL_ANIMATION_PLAYER &player, const char *boneName,
         const MATRIX *modelMatrix, uint64_t *boneId, VEC3 *translation) const noexcept
@@ -11995,6 +12378,30 @@ namespace mbm
     const char *MESH_MBM::getArticulatedAnimationName(const uint32_t index) const noexcept
     {
         return index < impl->articulatedClips.size() ? impl->articulatedClips[index].header.name.c_str() : nullptr;
+    }
+
+    bool MESH_MBM::getArticulatedAnimationDuration(const char *name, float *duration) const noexcept
+    {
+        if (!name || !duration) return false;
+        for (const auto &clip : impl->articulatedClips)
+        {
+            if (clip.header.name == name)
+            {
+                *duration = std::max(0.0f, clip.header.duration);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uint32_t MESH_MBM::getTotalArticulatedParts() const noexcept
+    {
+        return static_cast<uint32_t>(impl->articulatedParts.size());
+    }
+
+    const util::ARTICULATED_PART_V11 *MESH_MBM::getArticulatedPart(const uint32_t index) const noexcept
+    {
+        return index < impl->articulatedParts.size() ? &impl->articulatedParts[index] : nullptr;
     }
 
     bool MESH_MBM::hasActiveArticulatedAnimations(const ARTICULATED_ANIMATION_PLAYER &player) const noexcept
@@ -12694,6 +13101,69 @@ namespace mbm
             return true;
         };
         return buildRecursive(buildRecursive, part, out);
+    }
+
+    bool MESH_MBM::getArticulatedPartTransform(
+        const ARTICULATED_ANIMATION_PLAYER &player, const char *partName,
+        const MATRIX *modelMatrix, uint64_t *partId, MATRIX *matrix, VEC3 *position,
+        VEC3 *pivotPosition, float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+    {
+        if (!partName || !partName[0] || !partId || !matrix || !position || !rotation ||
+            !pivotPosition || !angle || !scale)
+            return false;
+        const util::ARTICULATED_PART_V11 *part = nullptr;
+        for (const auto &candidate : impl->articulatedParts)
+        {
+            if (candidate.name == partName)
+            {
+                if (part)
+                    return false;
+                part = &candidate;
+                continue;
+            }
+        }
+        if (!part || !buildArticulatedTransformMatrix(player, part->frameIndex, part->subsetIndex, matrix))
+            return false;
+        if (modelMatrix)
+        {
+            MATRIX composed;
+            MatrixMultiply(&composed, matrix, modelMatrix);
+            *matrix = composed;
+        }
+        skeletal::LOCAL_TRANSFORM transform;
+        bool hasNegativeScale = false;
+        bool hasShear = false;
+        if (!skeletal::decomposeTrsMatrix(*matrix, transform, hasNegativeScale, hasShear) || hasShear)
+            return false;
+        *partId = part->partId;
+        *position = transform.translation;
+        pivotPosition->x = part->pivotX * matrix->_11 + part->pivotY * matrix->_21 +
+            part->pivotZ * matrix->_31 + matrix->_41;
+        pivotPosition->y = part->pivotX * matrix->_12 + part->pivotY * matrix->_22 +
+            part->pivotZ * matrix->_32 + matrix->_42;
+        pivotPosition->z = part->pivotX * matrix->_13 + part->pivotY * matrix->_23 +
+            part->pivotZ * matrix->_33 + matrix->_43;
+        rotation[0] = transform.rotation.x;
+        rotation[1] = transform.rotation.y;
+        rotation[2] = transform.rotation.z;
+        rotation[3] = transform.rotation.w;
+        skeletal::LOCAL_TRANSFORM rotationOnly;
+        rotationOnly.rotation = transform.rotation;
+        const MATRIX rotationMatrix = skeletal::buildTrsMatrix(rotationOnly);
+        const float clamped = std::max(-1.0f, std::min(1.0f, -rotationMatrix._13));
+        angle->y = std::asin(clamped);
+        if (std::fabs(rotationMatrix._13) > 0.999999f)
+        {
+            angle->x = 0.0f;
+            angle->z = std::atan2(-rotationMatrix._21, rotationMatrix._22);
+        }
+        else
+        {
+            angle->x = std::atan2(rotationMatrix._23, rotationMatrix._33);
+            angle->z = std::atan2(rotationMatrix._12, rotationMatrix._11);
+        }
+        *scale = transform.scale;
+        return true;
     }
 
     bool MESH_MBM::renderArticulatedStatic(const ARTICULATED_ANIMATION_PLAYER &player,
@@ -13556,6 +14026,7 @@ namespace mbm
         impl->canonicalSkeleton = std::move(in.canonicalSkeleton);
         impl->canonicalWeights = std::move(in.canonicalWeights);
         impl->canonicalAnimations = std::move(in.canonicalAnimations);
+        impl->canonicalSockets = std::move(in.canonicalSockets);
         impl->facialAsset = std::move(in.facialAsset);
         if (impl->facialAsset.meshId)
         {

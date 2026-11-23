@@ -46,6 +46,10 @@ keys may use the exported slot name, such as `actor1`, or its underscore alias,
 such as `actor_1`. Placeholders used by the editor are virtual and do not need a
 runtime mesh object.
 
+The runtime validates that each bound mesh is still alive before using it. If an
+actor is destroyed while the interaction is running, the instance stops safely
+and no longer accesses that actor.
+
 ## Instance control
 
 ```lua

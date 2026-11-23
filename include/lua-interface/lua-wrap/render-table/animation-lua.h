@@ -48,6 +48,7 @@ namespace mbm
     int onAddAnimationsManagerLua(lua_State *lua);
 	int onForceEndAnimFxRenderizable(lua_State *lua);
     int onGetTotalFrameAnimationsManagerLua(lua_State *lua);
+    int onGetAnimationFrameRangeLua(lua_State *lua);
     int onGetTotalAnimationsManagerLua(lua_State *lua);
     int onSetRenderRenderizableState(lua_State *lua);
     int onGetRenderRenderizableState(lua_State *lua);

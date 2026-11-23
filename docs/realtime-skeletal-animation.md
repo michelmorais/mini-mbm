@@ -37,6 +37,7 @@ Mesh V11 stores the runtime contract in three linked sections:
 | `SECTION_SKELETAL_SKELETON` (41) | Parent-first bind hierarchy, stable nonzero bone IDs, local translation, normalized quaternion rotation, scale, and authoring tail/connectivity metadata |
 | `SECTION_SKELETAL_WEIGHTS` (42) | One record per rest-pose vertex, up to four positive normalized influences, referencing stable bone IDs through a palette |
 | `SECTION_SKELETAL_ANIMATION` (43) | Named clips containing bone-ID-targeted local translation, quaternion rotation, and scale tracks |
+| `SECTION_SKELETAL_SOCKETS` (47) | Optional named attachment frames: stable socket ID, referenced bone ID, local translation, normalized quaternion rotation, and positive scale |
 
 The loader validates section relationships, hierarchy ordering, stable identities, weights, tracks,
 finite values, and bind transforms before making the asset available to the runtime. Global bind and
@@ -166,6 +167,11 @@ Mesh V11 can also name one autoplay clip in optional `SECTION_AUTOPLAY_ANIMATION
 loaded `MESH` starts the selected skeletal clip after its animation data is ready. Frame and
 articulated clips use the same selection section and can be selected from Mesh Debug; autoplay
 selection is asset metadata, while player time remains per instance.
+
+An optional socket is a named local TRS frame evaluated from one canonical bone. It does not add
+weights or animation tracks and does not deform the mesh by itself. `getSkeletalSocketTransform`
+composes the socket's local frame with the evaluated bone global transform, so gameplay systems
+such as the attachments plugin can follow a precise authored point while the bone animates.
 
 The complete Lua signatures and return values are documented in
 [Lua API - Canonical skeletal playback](lua-api.md#canonical-skeletal-playback-mesh-gpucpu-lbsdqs-profile).

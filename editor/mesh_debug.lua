@@ -5472,6 +5472,19 @@ local function writeMeshDebugJson(meshD, jsonPath)
             bone.radius or 0, bone.length or 0, table.concat(matrixValues, ', ')))
         f:write(i < nBones and ',\n' or '\n')
     end
+    f:write('  ],\n  "sockets": [\n')
+    local okSockets, socketReport = dpCall(function() return meshD:getSkeletalSocketReport() end)
+    socketReport = okSockets and type(socketReport) == 'table' and socketReport or {}
+    for socketIndex, socket in ipairs(socketReport) do
+        local matrix = socket.localBindMatrix or {}
+        local matrixValues = {}
+        for m = 1, 16 do matrixValues[m] = string.format('%.9g', matrix[m] or 0) end
+        f:write(string.format(
+            '    { "name": %s, "boneName": %s, "localBindMatrix": [%s] }',
+            jsonStr(socket.name or ''), jsonStr(socket.boneName or ''),
+            table.concat(matrixValues, ', ')))
+        f:write(socketIndex < #socketReport and ',\n' or '\n')
+    end
     f:write('  ],\n')
 
     local okAnimations, animations = dpCall(function() return meshD:getSkeletalAnimationReport() end)

@@ -27,6 +27,7 @@ Engine version: see `mbm.get("mbm")` at runtime.
 13c. [Plugin: tilemap](#13c-plugin-tilemap-tiled-editor)
 13d. [Plugin: steam](#13d-plugin-steam)
 13e. [Plugin: interaction_animation_runtime](#13e-plugin-interaction_animation_runtime)
+13f. [Plugin: attachments](#13f-plugin-attachments)
 14. [print() extensions](#14-print-extensions)
 
 [Complete plugin method index](lua-plugin-symbols.md)
@@ -606,6 +607,7 @@ renderizable; optional `x`, `y`, `z` or `center` fields can offset the complete 
 | `obj:addAnim` | `(name?, type?, startFrame?, finalFrame?, intervalSeconds?)` | name, index | Define a frame animation; frames and returned index are 1-based. Defaults: generated name, paused type, first frame, first frame, 1 second. A non-positive interval keeps the default. |
 | `obj:getTotalAnim` | `()` | int | Number of animations defined |
 | `obj:getTotalFrame` | `()` | int | Total frames in current animation |
+| `obj:getAnimationFrameRange` | `()` | initialFrame, finalFrame | Absolute 1-based frame interval of the selected animation |
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:setIndexFrame` | `(frame: int)` | — | Select an absolute 1-based frame inside the current static animation interval and pause that frame animation. Raises an error outside the interval. Does not pause or seek articulated/skeletal players, nor shader FX. |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
@@ -633,6 +635,10 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:playArticulatedAnimation` | `(name, priority?, blendDuration?, weight?)` | bool | Start/restart a clip. Defaults: priority `0`, immediate blend, weight `1` |
 | `obj:getTotalArticulatedAnimations` | `()` | int | Number of articulated clips in the loaded asset |
 | `obj:getArticulatedAnimationName` | `(index: int)` | string or nil | Name of the 1-based articulated clip, or `nil` when out of range |
+| `obj:getArticulatedAnimationDuration` | `(name)` | number or nil | Duration in seconds for a named articulated clip |
+| `obj:getTotalArticulatedParts` | `()` | int | Number of named rigid articulated parts in the loaded mesh |
+| `obj:getArticulatedPartInfo` | `(index: int)` | table or nil | 1-based part metadata: `partId`, `frame`, `subset`, `name`, and `parentPartId` |
+| `obj:getArticulatedPartTransform` | `(name, space?)` | table or nil | Evaluated part pose with `position`, `pivotPosition`, quaternion `rotation`, Euler `angle`, `scale`, and `matrix`; `space` is `world` or `model` (default `model`) |
 | `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
 | `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
 | `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
@@ -702,6 +708,8 @@ silently switching to LBS.
 | `obj:clearSkeletalAnimationLayerMask` | `()` | bool | Atomically restore every active layer-mask multiplier to the all-ones compatibility default |
 | `obj:getSkeletalAnimationPose` | `()` | table or nil | Copy the active player's final evaluated global pose as ordered `{boneId, parentIndex, globalMatrix}` records; `parentIndex` is one-based with `0` for a root, and inactive/authoring-palette players return `nil`. If automatic root motion is enabled, this is the neutralized final pose, not the raw motion pose. |
 | `obj:getSkeletalBoneTransform` | `(boneName, space?)` | table or nil | Read one named bone from the final evaluated pose in `"model"` (default) or `"world"` space. Returns `{boneId, space, position={x,y,z}, angle={x,y,z}, rotation={x,y,z,w}, scale={x,y,z}, matrix={...16 values...}}`; `angle` is Euler XYZ in radians for `setAngle`, while `rotation` preserves the normalized quaternion. Unknown bones, inactive poses, singular transforms, and sheared transforms return `nil`. If automatic root motion is enabled, this reads the neutralized final pose. |
+| `obj:getSkeletalSocketReport` | `()` | table | Returns socket records `{socketId, boneId, name, boneName}`. An empty array means the mesh has no socket metadata. |
+| `obj:getSkeletalSocketTransform` | `(socketName, space?)` | table or nil | Reads a named socket from the final evaluated pose, or from the canonical bind pose when skeletal playback is inactive, and returns the same pose fields as `getSkeletalBoneTransform`, plus `socketId` and `boneId`. |
 | `obj:getSkeletalRootMotionDelta` | `(boneName, space?)` | table or nil | Copy the named bone's raw translation delta between the two latest continuous evaluated poses as `{boneId, space, translation={x,y,z}}`. Space is `"model"` by default or `"world"`, where the current mesh rotation/scale is applied. Returns `nil` before the first advancing update and after pause, seek, direct play/stop, authoring-pose installation, or a loop wrap. The query does not consume the delta and continues to report the raw selected-bone delta even when automatic root motion is enabled. |
 | `obj:getSkeletalSharingCompatibility` | `(otherMesh)` | table | Read-only preflight for evaluated-pose/palette sharing between two loaded meshes. Returns `{compatible:boolean, reason:string, boneCount:int}` plus mismatch fields such as `boneIndex`, `boneName`, `boneId`, `otherBoneId`, parent IDs/indices, `observedError`, and `tolerance` when applicable. Strict compatibility requires both meshes to have canonical skeletons, equal bone count, exact ordered stable bone IDs and names, equal parent indices and parent IDs, and equivalent local/global bind matrices within the engine's scale-aware skeletal matrix tolerance. Clips, weights, geometry, and `skeletonId` do not need to match. Reason codes are `compatible`, `missing_skeleton`, `bone_count_mismatch`, `bone_identity_mismatch`, `hierarchy_mismatch`, and `bind_transform_mismatch`. |
 | `obj:enableSkeletalPoseSharing` | `(sourceMesh)` | bool | Make this loaded mesh a direct follower of another loaded compatible mesh. The follower keeps its own geometry, textures, render transform, and skin weights, but its skeletal draw uses the source mesh's already-evaluated per-instance palette. The call rejects self, unloaded source/follower, incompatible skeletons, follower chains, and converting a source that already has followers into a follower, without changing the existing sharing state. It does not start animation on the source and it does not copy palette data. |
@@ -2111,9 +2119,116 @@ advances it once per engine frame. The game must not call an update method for
 the interaction. Callbacks are optional. `onEvent(instance,event,index)` is called when an event is
 reached; `event` is a table containing the exported event fields and `index` is
 one-based. The runtime calls callbacks only at lifecycle or event boundaries, not
-for every internal interpolation step.
+for every internal interpolation step. The runtime also validates bound mesh
+lifetime before each update; if an actor is destroyed, that instance stops
+safely without accessing the destroyed object.
 
 ---
+
+## 13f. Plugin: attachments
+
+Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
+`local attachments = require "attachments"`. This plugin is independent from
+`interaction_animation_runtime`.
+
+`attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, named
+skeletal sockets, named articulated-part sources, and static frame animation sources. The specification requires `source` and `target` renderizable objects and accepts
+`id`, `sourceType` (`"root"`, `"bone"`, `"socket"`, `"articulated_part"`, or `"frame"`), `sourceBone`, `sourceSocket`, `sourcePart`, `sourceAnimation`, or `frameOffsets` when using
+the corresponding source, `inherit`, `offset`, `aimPoint`, `aimLimits`, `spring`, and `blend`. Position,
+rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
+offset is in the selected source's local space, and source scale affects offset position when
+scale inheritance is enabled. The optional `targetPivot` is a point in the target mesh's local
+space; the target origin is moved so this point remains at the attachment position. Its zero value
+preserves the usual target-origin behavior. `offset.rotationMatrix` may contain the authoritative
+3x3 source-local rotation captured by the editor or `relation:captureOffset()`; when omitted, the
+runtime derives it from `offset.rotation` for backward compatibility. The runtime composes this
+source-local rotation before the evaluated source frame, following the engine's row-vector matrix
+convention. Bone sources require a mesh
+with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
+socket query also resolves to the canonical bind pose while playback is inactive. Articulated-part
+sources require a named part in the MSH articulated-parts section; their anchor is the evaluated
+part pivot and their orientation/scale come from the part transform. Frame sources require a mesh
+whose current generic animation name matches `sourceAnimation`; `frameOffsets[frame]` overrides
+the base offset for that absolute frame and missing entries use the base offset. `aimAtSource = true`
+requires rotation inheritance and makes the target's local +Z axis point toward the current source
+aim point, using world Y as the up reference. `aimPoint` is expressed in source-local coordinates;
+its zero value aims at the source origin. The optional `aimLimits` table enables angular limits
+for this constraint: `yawMin`, `yawMax`, `pitchMin`, and `pitchMax` are radians relative to the
+attachment frame. `reference = "dynamic"` follows the current source frame; `reference =
+"captured"` uses the persisted frame captured by the editor. Its `enabled` field must be true
+together with `aimAtSource = true`; when it is false, the existing unrestricted look-at behavior is
+preserved. The optional `spring` table smooths inherited position and rotation. It is disabled by
+default; `stiffness` and `damping` are non-negative engine-time coefficients, and `position` and
+`rotation` select which inherited components are smoothed. The optional `blend` table is disabled
+by default. Its `weight` is clamped to the range 0..1; zero keeps the target's current pose and one
+applies the full constraint. Position, rotation, and scale can be blended independently, with
+shortest-path interpolation for rotation.
+`influenceEnabled = false` suspends target writes without detaching the relation. The returned
+attachment exposes `getBlend()`, `setBlend(blend)`, `setInfluenceEnabled(enabled)`, and
+`isInfluenceEnabled()` for runtime transitions. `setBlend()` accepts a partial table and preserves
+omitted settings.
+Optional `states` entries can group these settings under names such as `equipped` and `released`;
+`initialState` selects the starting profile and `setState(name)` switches profiles atomically.
+
+```lua
+local relation, err = attachments.attach {
+    source = character,
+    target = hat,
+    sourceType = "socket",
+    sourceSocket = "RightHandGrip",
+    inherit = {position = true, rotation = true, scale = false},
+    aimAtSource = false,
+    aimPoint = {x = 0, y = 0, z = 0},
+    influenceEnabled = true,
+    initialState = "equipped",
+    states = {
+        equipped = {influenceEnabled = true, blend = {enabled = true, weight = 1}},
+        released = {influenceEnabled = false},
+    },
+    aimLimits = {
+        enabled = false,
+        reference = "dynamic", -- or "captured"
+        yawMin = -math.pi, yawMax = math.pi,
+        pitchMin = -math.pi / 2, pitchMax = math.pi / 2,
+    },
+    spring = {
+        enabled = false,
+        position = true, rotation = true,
+        stiffness = 120, damping = 24,
+    },
+    blend = {
+        enabled = false,
+        position = true, rotation = true, scale = true,
+        weight = 1,
+    },
+    offset = {
+        position = {x = 0, y = 1.8, z = 0},
+        rotation = {x = 0, y = 0, z = 0},
+        scale = {x = 1, y = 1, z = 1},
+    },
+    targetPivot = {x = 0, y = -2, z = 0},
+}
+assert(relation, err)
+relation:captureOffset()
+local offset = relation:getOffset()
+local effectivePose = relation:getEffectivePose()
+relation:setOffset(offset)
+relation:setInherit({position = true, rotation = false, scale = true})
+relation:detach() -- preserves the current target pose by default
+-- relation:detach({preserveWorldPose = false}) restores the pre-attach pose
+```
+
+The call returns `nil, errorMessage` when the source or target is invalid, belongs to another
+scene, is the same object, uses an unsupported source type, introduces a cycle, or conflicts with
+another active attachment writing the same target component. The returned object provides
+`detach`, `isActive`, `getId`, `getOffset`, `setOffset`, `setInherit`, `captureOffset`,
+`getEffectivePose`, and `getState`. `getEffectivePose()` returns the pose the relation currently
+computes for the target, including the target's current values for non-inherited components.
+
+Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
+stable topological order for acyclic chains. Scene teardown deactivates relations and releases
+their Lua references. IK and physics constraints are not supported yet; see
+[Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions
 
@@ -2172,6 +2287,7 @@ operations below document their stronger validation contracts in detail.
 | Frame/subset editing | `addFrame()`, `removeFrame(frame)`, `addSubSet(frame)`, `removeSubset(frame, subset)`, `copyFrameFrom(target, source, frame)`, `copySubsetFrom(targetFrame, source, sourceFrame, sourceSubset)`, `moveSubsetUp(frame, subset)`, `mergeSubsets(frame, subsets)` |
 | Legacy animation editing | `addAnim(...)`, `removeAnim(...)`, `copyAnimationsFromMesh(mesh)`, `updateAnim(...)`, `getAnim(...)` |
 | Geometry transforms | `centralize(frame, subset)`, `centralizeItself(frame, subset)`, `rotateFrame(frame, subset, ax, ay, az)`, `scaleFrame(frame, sx, sy, sz [, subset])`, `translateFrame(frame, subset, dx, dy, dz)`, `scaleSkeletalAsset(scale)` |
+| Skeletal sockets | `getSkeletalSocketReport()`, `addSkeletalSocket(...)`, `updateSkeletalSocket(...)`, `removeSkeletalSocket(index)` |
 | Vertex layout | `getStride()`, `setStride(stride)`, `enableNormal(bool)`, `removeNormals()`, `addNormals()`, `enableUv(bool)` |
 
 Frame and subset indices follow the existing Mesh Debug conventions. Methods in this table that
@@ -2454,6 +2570,31 @@ it does not omit transforms, matrices, hierarchy, tails, or diagnostics.
 
 The call never edits the skeleton and the report is a detached Lua snapshot. Mesh Debug and the
 Skeletal Animation Editor use it for canonical bind inspection. Lua exposes only the canonical skeletal surface for bones and weights.
+
+`meshD:getSkeletalSocketReport()` returns a detached array of section-47 socket records with
+`socketId`, `boneId`, `name`, `boneName`, a row-major `localBindMatrix`, and local TRS fields
+`translationX/Y/Z`, `rotationX/Y/Z/W`, and `scaleX/Y/Z`. The following
+transactional methods author sockets in the selected bone's local bind space:
+
+```lua
+local socketIndex = meshD:addSkeletalSocket(
+    "hand_socket", oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz)
+meshD:updateSkeletalSocket(socketIndex, "hand_socket", oneBasedBoneIndex,
+    tx, ty, tz, qx, qy, qz, qw, sx, sy, sz)
+meshD:removeSkeletalSocket(socketIndex)
+```
+
+The bone and socket indices are one-based. Names must be nonempty and unique; the bone must
+exist; all values must be finite; the quaternion must be unit length within the engine tolerance;
+and all scale components must be positive. Add/update validates a complete candidate before
+committing, so a failed call leaves the previous socket set unchanged. New socket IDs are opaque
+stable IDs allocated without colliding with existing IDs. Removing the last socket omits section
+47 on the next save. A bone referenced by a socket cannot be removed until the socket is removed
+or reassigned. The Skeletal Animation Editor exposes these operations in its Bone Editor worktree.
+Its viewport supports socket picking and a socket gizmo for translation and rotation, with an
+explicit socket selection mode that prevents bone selection conflicts. The Blender roundtrip
+already preserves the records as Empty objects parented to their bones.
 
 ```lua
 meshD:renameSkeletalBone(oneBasedBoneIndex, newName)
@@ -2909,6 +3050,22 @@ controls; X is restricted to `0..1`, while Y may leave that range for overshoot.
 key controls the transition to the next key; the final key has no outgoing segment.
 `parentPartId` establishes a same-frame parent relationship. A child inherits the parent's complete
 transform and keeps its own local transform; self-parenting, missing parents, and cycles are rejected.
+Part names may repeat in the authoring API, but an attachment source must use a unique part name;
+the runtime returns `nil` for an ambiguous articulated-part name.
+
+Loaded `mesh` objects also expose evaluated articulated-part inspection:
+
+```lua
+local partCount = character:getTotalArticulatedParts()
+local part = character:getArticulatedPartInfo(1)
+local pose = character:getArticulatedPartTransform(part.name, "world")
+-- pose.position is the transformed mesh origin; pivotPosition is the transformed part pivot.
+-- pose.rotation (quaternion), pose.angle (radians), pose.scale and pose.matrix are also returned.
+```
+
+The Attachment Editor uses these methods to list articulated parts, preview their clips, and export
+`sourceType = "articulated_part"` with the selected `sourcePart`. The attachments plugin evaluates
+that part every frame; it does not convert the part into a skeletal bone or alter the mesh asset.
 
 Clip composition modes are `0` for Absolute and `1` for Additive. `getArticulatedAnimation(index)`
 returns this mode as its sixth result, after `loop`. Absolute is the default. Additive keys represent

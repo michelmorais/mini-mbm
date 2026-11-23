@@ -1,7 +1,7 @@
 # Skeletal Animation Editor
 
-Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation and offline same-topology clip import, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
-Last updated: **2026-08-20**
+Status: **Armature Templates, Bind, Bone Editor, canonical weight repair, sockets, OpenGL ES/DirectX 9/Metal GPU runtime preview, explicit CPU LBS/DQS preview, local animation and offline same-topology clip import, Paint Weights, transient composition, per-bone layer masks, and multiple wearable follower previews implemented**
+Last updated: **2026-11-22**
 
 ## 1. Purpose
 
@@ -25,6 +25,25 @@ Animations and direct brush-based weight authoring are active.
 No worktree is selected initially. Loading or replacing an asset returns to this neutral state,
 enables the ordinary textured mesh, and keeps skeletons, heatmaps, cursors, capture volumes, and
 diagnostic overlays hidden until the user explicitly opens a worktree.
+
+### Socket authoring
+
+The **Bone Editor** contains the socket authoring surface for canonical skeletal meshes. A socket
+is a named local transform attached to a bone, stored in optional Mesh V11 section 47. It has its
+own translation, quaternion rotation, and scale, but does not change skin weights, bind bone
+transforms, or animation tracks.
+
+After selecting a bone, the user can add, update, or remove sockets by name. **Edit sockets in
+viewport** enables exclusive socket picking: bones are not selected, socket markers can be clicked,
+and the translation gizmo moves the socket in the bone's local bind space. The rotation rings use
+the same red/green/blue ring behavior as **Create / Edit Animations**. The marker also displays
+colored local axes, making the socket orientation visible even when its center is spherical.
+
+Socket records are saved with the `.msh`. Mesh Debug's FBX bridge serializes them as bone-parented
+Blender Empty objects and reconstructs them on import. The validated workflow is Mesh Debug export
+to FBX, Mixamo animation, FBX download, Mesh Debug import, and reopening this editor; socket names
+and transforms remain available after the round-trip. To use one in an attachment, select
+**Socket transform** in the Attachment Editor and choose the socket from the source mesh catalog.
 
 ### Armature Template worktree
 

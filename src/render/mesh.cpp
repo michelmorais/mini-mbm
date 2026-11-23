@@ -240,6 +240,11 @@ namespace mbm
         return this->mesh ? this->mesh->getArticulatedAnimationName(index) : nullptr;
     }
 
+    bool MESH::getArticulatedAnimationDuration(const char *name, float *duration) const noexcept
+    {
+        return this->mesh ? this->mesh->getArticulatedAnimationDuration(name, duration) : false;
+    }
+
     bool MESH::pauseArticulatedAnimation(const char *name) noexcept
     {
         return this->mesh ? this->mesh->pauseArticulatedAnimation(this->getArticulatedAnimationPlayer(), name) : false;
@@ -263,6 +268,48 @@ namespace mbm
     bool MESH::getArticulatedAnimationTime(const char *name, float *time) const noexcept
     {
         return this->mesh ? this->mesh->getArticulatedAnimationTime(this->getArticulatedAnimationPlayer(), name, time) : false;
+    }
+
+    uint32_t MESH::getTotalArticulatedParts() const noexcept
+    {
+        return this->mesh ? this->mesh->getTotalArticulatedParts() : 0;
+    }
+
+    bool MESH::getArticulatedPartInfo(const uint32_t index, uint64_t *partId,
+                                      uint32_t *frameIndex, uint32_t *subsetIndex,
+                                      const char **name, uint64_t *parentPartId) const noexcept
+    {
+        if (!this->mesh || !partId || !frameIndex || !subsetIndex || !name || !parentPartId)
+            return false;
+        const util::ARTICULATED_PART_V11 *part = this->mesh->getArticulatedPart(index);
+        if (!part) return false;
+        *partId = part->partId;
+        *frameIndex = part->frameIndex;
+        *subsetIndex = part->subsetIndex;
+        *name = part->name.c_str();
+        *parentPartId = part->parentPartId;
+        return true;
+    }
+
+    bool MESH::getArticulatedPartTransform(const char *partName, const bool worldSpace,
+                                           uint64_t *partId, MATRIX *matrix, VEC3 *position,
+                                           VEC3 *pivotPosition, float rotation[4], VEC3 *angle,
+                                           VEC3 *scale) const noexcept
+    {
+        if (!this->mesh) return false;
+        MATRIX modelMatrix;
+        const MATRIX *modelMatrixPtr = nullptr;
+        if (worldSpace)
+        {
+            const VEC3 &objectPosition = getPosition();
+            const VEC3 &objectAngle = getAngle();
+            const VEC3 &objectScale = getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &objectPosition, &objectAngle, &objectScale);
+            modelMatrixPtr = &modelMatrix;
+        }
+        return this->mesh->getArticulatedPartTransform(
+            this->getArticulatedAnimationPlayer(), partName, modelMatrixPtr,
+            partId, matrix, position, pivotPosition, rotation, angle, scale);
     }
 
     uint32_t MESH::getTotalSkeletalAnimations() const noexcept
@@ -598,6 +645,49 @@ namespace mbm
         return mesh->getSkeletalBoneTransform(getSkeletalAnimationPlayer(), boneName,
                                               modelMatrixPtr, boneId, matrix, position,
                                               rotation, angle, scale);
+    }
+
+    uint32_t MESH::getSkeletalSocketCount() const noexcept
+    {
+        return mesh ? mesh->getSkeletalSocketCount() : 0;
+    }
+
+    bool MESH::getSkeletalSocketInfo(const uint32_t index, uint64_t *socketId, uint64_t *boneId,
+                                     const char **name, const char **boneName) const noexcept
+    {
+        if (!mesh || !socketId || !boneId || !name || !boneName)
+            return false;
+        SKELETAL_SOCKET_INFO out;
+        if (!mesh->getSkeletalSocketInfo(index, out))
+            return false;
+        *socketId = out.socketId;
+        *boneId = out.boneId;
+        *name = out.name;
+        *boneName = out.boneName;
+        return true;
+    }
+
+    bool MESH::getSkeletalSocketTransform(const char *socketName, const bool worldSpace,
+                                          uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+                                          VEC3 *position, float rotation[4], VEC3 *angle,
+                                          VEC3 *scale) const noexcept
+    {
+        if (!mesh)
+            return false;
+        MATRIX modelMatrix;
+        const MATRIX *modelMatrixPtr = nullptr;
+        if (worldSpace)
+        {
+            const VEC3 &objectPosition = getPosition();
+            const VEC3 &objectAngle = getAngle();
+            const VEC3 &objectScale = getScale();
+            MatrixTranslationRotationScale(&modelMatrix, &objectPosition, &objectAngle,
+                                           &objectScale);
+            modelMatrixPtr = &modelMatrix;
+        }
+        return mesh->getSkeletalSocketTransform(getSkeletalAnimationPlayer(), socketName,
+                                                modelMatrixPtr, socketId, boneId, matrix,
+                                                position, rotation, angle, scale);
     }
 
     bool MESH::getSkeletalRootMotionDelta(const char *boneName, const bool worldSpace,

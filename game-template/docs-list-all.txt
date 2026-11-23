@@ -17,3 +17,4 @@ image-mesh-editor.md
 mesh-simplification.md
 interaction-animation-runtime.md
 interaction-animation-editor.md
+attachments-constraints.md

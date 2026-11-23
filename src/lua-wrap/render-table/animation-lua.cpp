@@ -535,6 +535,21 @@ namespace mbm
         return 1;
     }
 
+    int onGetAnimationFrameRangeLua(lua_State *lua)
+    {
+        ANIMATION_MANAGER *animations = getAnimationManagerFromRawTable(lua, 1, 1, nullptr);
+        ANIMATION *animation = animations ? animations->getAnimation() : nullptr;
+        if (!animation)
+        {
+            lua_pushinteger(lua, 0);
+            lua_pushinteger(lua, 0);
+            return 2;
+        }
+        lua_pushinteger(lua, animation->getIndexInitialFrame() + 1);
+        lua_pushinteger(lua, animation->getIndexFinalFrame() + 1);
+        return 2;
+    }
+
     int onGetTotalAnimationsManagerLua(lua_State *lua)
     {
         RENDERIZABLE *          renderizable = nullptr;

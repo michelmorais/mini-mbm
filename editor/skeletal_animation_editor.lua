@@ -29,6 +29,7 @@ tAnimationImport = require "skeletal_animation_import"
 tTutorials = require "skeletal_animation_tutorials"
 tTutorialAssets = require "skeletal_animation_tutorial_assets"
 tSkeletalVisual = require "skeletal_animation_visual"
+tSocketAuthoring = require "skeletal_socket_authoring"
 
 local function getTemporaryMeshPath()
     return tUtil.getTemporaryFilePath('.msh')
@@ -113,6 +114,8 @@ local state = {
     boneEditorSnapAxes = {x=false,y=false,z=false},
     boneEditorSnapStep = 0,
     boneEditorAxisGizmo = {axes={},origin=nil,length=nil},
+    socketGizmo = {axes={},origin=nil,length=nil,selectedIndex=nil,positions={},records={},drag=nil},
+    socketEditMode = false,
     boneEditorSegmentTool = 1,
     boneEditorSelectedIndex = nil,
     boneEditorSelection = nil,
@@ -141,7 +144,8 @@ local state = {
     workspace = 'none',
     meshVisible = true,
     skeletonAlwaysOnTop = true,
-    skeletonGizmo = {spheres={}, bones={}, referenceTails={}, referenceSegments={}},
+    skeletonGizmo = {spheres={}, bones={}, referenceTails={}, referenceSegments={},
+        sockets={}, socketAxes={}},
     skeletonGizmoGeneration = 0,
     markersAlwaysOnTop = true,
     info = nil,
@@ -755,7 +759,14 @@ local function destroySkeletonVisuals(preserveTranslationGizmo)
     for _,object in pairs(state.skeletonGizmo.bones) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.referenceTails) do destroyObject(object) end
     for _,object in pairs(state.skeletonGizmo.referenceSegments) do destroyObject(object) end
-    state.skeletonGizmo={spheres={},bones={},referenceTails={},referenceSegments={}}
+    for _,object in pairs(state.skeletonGizmo.sockets) do destroyObject(object) end
+    for _,axes in pairs(state.skeletonGizmo.socketAxes or {}) do
+        for _,object in pairs(axes) do destroyObject(object) end
+    end
+    state.skeletonGizmo={spheres={},bones={},referenceTails={},referenceSegments={},
+        sockets={},socketAxes={}}
+    for _,object in pairs(state.socketGizmo.axes) do destroyObject(object) end
+    state.socketGizmo={axes={},origin=nil,length=nil,selectedIndex=nil,positions={},records={},drag=nil}
     if not preserveTranslationGizmo then
         for _,object in pairs(state.translationGizmo.axes) do destroyObject(object) end
         state.translationGizmo={axes={},boneIndex=nil,poseKey=nil,drag=nil}
@@ -827,7 +838,7 @@ end
 
 local function rebuildBoneEditorAxisGizmo()
     local gizmo=state.boneEditorAxisGizmo
-    if state.workspace~='bone_editor' or not state.boneEditorSelection then
+    if state.workspace~='bone_editor' or state.socketEditMode or not state.boneEditorSelection then
         for _,object in pairs(gizmo.axes) do object.visible=false end
         gizmo.origin=nil
         return
@@ -865,10 +876,51 @@ local function rebuildBoneEditorAxisGizmo()
     gizmo.length=length
 end
 
+state.rebuildSocketGizmo=function()
+    local gizmo=state.socketGizmo
+    if state.workspace~='bone_editor' or not state.socketEditMode then
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.origin=nil
+        gizmo.length=nil
+        return
+    end
+    local selectedIndex=gizmo.selectedIndex or
+        state.socketAuthoring and state.socketAuthoring.selected or nil
+    local position=selectedIndex and gizmo.positions[selectedIndex] or nil
+    if not position then
+        for _,object in pairs(gizmo.axes) do object.visible=false end
+        gizmo.origin=nil
+        gizmo.length=nil
+        return
+    end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,
+        bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ) or 1
+    local length=math.max(extent*0.1,0.05)
+    local definitions={x={1,0,0,1,0.15,0.15},y={0,1,0,0.15,1,0.2},z={0,0,1,0.2,0.45,1}}
+    for name,definition in pairs(definitions) do
+        local object=gizmo.axes[name]
+        local points={0,0,0,definition[1]*length,definition[2]*length,
+            definition[3]*length}
+        if object then object:set(points,1) else
+            object=line:new('3d',0,0,0)
+            object:add(points)
+            object.alwaysOnTop=true
+            object.alwaysOnTopPriority=3
+            gizmo.axes[name]=object
+        end
+        object:setPos(position.x,position.y,position.z)
+        object:setColor(definition[4],definition[5],definition[6],1)
+        object.visible=shouldShowSkeleton()
+    end
+    gizmo.origin={x=position.x,y=position.y,z=position.z}
+    gizmo.length=length
+end
+
 local function rebuildBoneEditorRotationGuide()
     local guide=state.boneEditorRotationGuide
     local selection=state.boneEditorSelection
-    if state.workspace~='bone_editor' or state.boneEditorSegmentTool~=2 or
+    if state.workspace~='bone_editor' or state.socketEditMode or state.boneEditorSegmentTool~=2 or
             not selection or selection.kind~='segment' then
         if guide then guide.visible=false end
         return
@@ -974,13 +1026,42 @@ end
 
 local function rebuildRotationGizmo()
     local gizmo=state.rotationGizmo
-    if state.workspace~='animation' or not state.authoringPose then
+    local animationMode=state.workspace=='animation' and state.authoringPose and
+        state.animationTransformTool==2
+    local boneEditorMode=state.workspace=='bone_editor' and not state.socketEditMode and
+        state.boneEditorSegmentTool==2 and state.boneEditorSelection and
+        state.boneEditorSelection.kind=='segment'
+    local socketMode=state.workspace=='bone_editor' and state.socketEditMode and
+        (state.socketGizmo.selectedIndex or state.socketAuthoring and
+            state.socketAuthoring.selected or nil)
+    if not animationMode and not boneEditorMode and not socketMode then
         for _,object in pairs(gizmo.rings) do object.visible=false end
         gizmo.origin=nil; gizmo.radius=nil; gizmo.axes=nil; gizmo.drag=nil
         return
     end
-    local bone=getVisualBones()[state.boneIndex]
-    if not bone then
+    local bone=nil
+    local origin=nil
+    if animationMode then
+        bone=getVisualBones()[state.boneIndex]
+        origin=bone and {x=bone.x,y=bone.y,z=bone.z} or nil
+    elseif boneEditorMode then
+        bone=getBones()[state.boneEditorSelection.boneIndex]
+        if bone then
+            local head=getBoneEditorEndpoints(bone,1)
+            origin={x=head.x,y=head.y,z=head.z}
+        end
+    else
+        local socketIndex=socketMode
+        local record=state.socketGizmo.records[socketIndex]
+        local position=state.socketGizmo.positions[socketIndex]
+        if record and position then
+            for _,candidate in ipairs(getBones()) do
+                if candidate.name==record.boneName then bone=candidate break end
+            end
+            origin={x=position.x,y=position.y,z=position.z}
+        end
+    end
+    if not bone or not origin then
         for _,object in pairs(gizmo.rings) do object.visible=false end
         gizmo.origin=nil; gizmo.radius=nil; gizmo.axes=nil
         return
@@ -1014,11 +1095,11 @@ local function rebuildRotationGizmo()
             object=line:new('3d',0,0,0); object:add(points); object.alwaysOnTop=true
             gizmo.rings[name]=object
         end
-        object:setPos(bone.x,bone.y,bone.z)
         object:setColor(table.unpack(definition.color))
-        object.visible=state.animationTransformTool==2
+        object:setPos(origin.x,origin.y,origin.z)
+        object.visible=shouldShowSkeleton()
     end
-    gizmo.origin={x=bone.x,y=bone.y,z=bone.z}
+    gizmo.origin=origin
     gizmo.radius=radius
     gizmo.axes=axes
 end
@@ -1097,6 +1178,12 @@ local function updateSkeletonVisibility()
     for _,object in pairs(state.skeletonGizmo.referenceSegments) do
         object.visible=shouldShowSkeleton()
     end
+    for _,object in pairs(state.skeletonGizmo.sockets) do
+        object.visible=shouldShowSkeleton()
+    end
+    for _,axes in pairs(state.skeletonGizmo.socketAxes or {}) do
+        for _,object in pairs(axes) do object.visible=shouldShowSkeleton() end
+    end
 end
 
 function applyWorkspaceVisibility()
@@ -1104,6 +1191,8 @@ function applyWorkspaceVisibility()
     local runtimeWorkspace=state.workspace=='runtime'
     rebuildBoneEditorOrientationIndicator()
     rebuildBoneEditorAxisGizmo()
+    state.rebuildSocketGizmo()
+    rebuildRotationGizmo()
     rebuildBoneEditorRotationGuide()
 
     if state.preview then
@@ -1422,6 +1511,81 @@ rebuildSkeletonVisuals=function()
             end
         end
     end
+    if state.workspace=='bone_editor' and state.meshD then
+        state.socketGizmo.positions={}
+        state.socketGizmo.records={}
+        local okSockets, sockets=safeCall(function()
+            return state.meshD:getSkeletalSocketReport()
+        end)
+        if okSockets and type(sockets)=='table' then
+            for socketIndex,socket in ipairs(sockets) do
+                local bone=byName[socket.boneName]
+                local matrix=bone and bone.globalMatrix or nil
+                if matrix and #matrix>=16 then
+                    local lx,ly,lz=socket.translationX or 0,socket.translationY or 0,
+                        socket.translationZ or 0
+                    local x=(matrix[1] or 1)*lx+(matrix[5] or 0)*ly+(matrix[9] or 0)*lz+(matrix[13] or 0)
+                    local y=(matrix[2] or 0)*lx+(matrix[6] or 1)*ly+(matrix[10] or 0)*lz+(matrix[14] or 0)
+                    local z=(matrix[3] or 0)*lx+(matrix[7] or 0)*ly+(matrix[11] or 1)*lz+(matrix[15] or 0)
+                    local marker=createBoneShape(x,y,z,unitSphereVerts(),
+                        'swl_socket_marker_'..socketIndex,1,0.55,0.05,1)
+                    marker:setScale(math.max(extent*0.012,0.002),math.max(extent*0.012,0.002),
+                        math.max(extent*0.012,0.002))
+                    marker.alwaysOnTop=true
+                    marker.alwaysOnTopPriority=2
+                    local socketKey=socket.name or tostring(socketIndex)
+                    state.skeletonGizmo.sockets[socketKey]=marker
+                    local qx,qy,qz,qw=socket.rotationX or 0,socket.rotationY or 0,
+                        socket.rotationZ or 0,socket.rotationW or 1
+                    local qLength=math.sqrt(qx*qx+qy*qy+qz*qz+qw*qw)
+                    if qLength>1e-8 then
+                        qx,qy,qz,qw=qx/qLength,qy/qLength,qz/qLength,qw/qLength
+                    else
+                        qx,qy,qz,qw=0,0,0,1
+                    end
+                    local xx,yy,zz=qx*qx,qy*qy,qz*qz
+                    local xy,xz,yz=qx*qy,qx*qz,qy*qz
+                    local xw,yw,zw=qx*qw,qy*qw,qz*qw
+                    local r11,r21,r31=1-2*(yy+zz),2*(xy+zw),2*(xz-yw)
+                    local r12,r22,r32=2*(xy-zw),1-2*(xx+zz),2*(yz+xw)
+                    local r13,r23,r33=2*(xz+yw),2*(yz-xw),1-2*(xx+yy)
+                    local function transformedAxis(a,b,c)
+                        local ax=(matrix[1] or 1)*a+(matrix[5] or 0)*b+(matrix[9] or 0)*c
+                        local ay=(matrix[2] or 0)*a+(matrix[6] or 1)*b+(matrix[10] or 0)*c
+                        local az=(matrix[3] or 0)*a+(matrix[7] or 0)*b+(matrix[11] or 1)*c
+                        local length=math.sqrt(ax*ax+ay*ay+az*az)
+                        if length<=1e-8 then return 0,0,0 end
+                        return ax/length,ay/length,az/length
+                    end
+                    local axisX,axisY,axisZ=transformedAxis(r11,r21,r31)
+                    local axis2X,axis2Y,axis2Z=transformedAxis(r12,r22,r32)
+                    local axis3X,axis3Y,axis3Z=transformedAxis(r13,r23,r33)
+                    local axisLength=math.max(extent*0.055,0.01)
+                    local axisDefinitions={
+                        {axisX,axisY,axisZ,1,0.15,0.15},
+                        {axis2X,axis2Y,axis2Z,0.15,1,0.2},
+                        {axis3X,axis3Y,axis3Z,0.2,0.45,1},
+                    }
+                    local socketAxes={}
+                    for axisIndex,definition in ipairs(axisDefinitions) do
+                        local axisObject=line:new('3d',0,0,0)
+                        axisObject:add({0,0,0,definition[1]*axisLength,
+                            definition[2]*axisLength,definition[3]*axisLength})
+                        axisObject:setColor(definition[4],definition[5],definition[6],1)
+                        axisObject:setPos(x,y,z)
+                        axisObject.alwaysOnTop=true
+                        axisObject.alwaysOnTopPriority=3
+                        socketAxes[axisIndex]=axisObject
+                    end
+                    state.skeletonGizmo.socketAxes[socketKey]=socketAxes
+                    state.socketGizmo.positions[socketIndex]={x=x,y=y,z=z,
+                        name=socketKey}
+                    state.socketGizmo.records[socketIndex]=socket
+                end
+            end
+        end
+        state.rebuildSocketGizmo()
+    end
     rebuildTranslationGizmo()
     rebuildRotationGizmo()
     rebuildScaleGizmo()
@@ -1718,8 +1882,12 @@ end
 
 local function hitTestRotationRing(sx,sy)
     local gizmo=state.rotationGizmo
-    if state.workspace~='animation' or state.animationTransformTool~=2 or
-            not gizmo.origin or not gizmo.radius or not gizmo.axes then return nil end
+    local animationMode=state.workspace=='animation' and state.animationTransformTool==2
+    local boneEditorMode=state.workspace=='bone_editor' and not state.socketEditMode and
+        state.boneEditorSegmentTool==2
+    local socketMode=state.workspace=='bone_editor' and state.socketEditMode
+    if not animationMode and not boneEditorMode and not socketMode then return nil end
+    if not gizmo.origin or not gizmo.radius or not gizmo.axes then return nil end
     local tolerance=math.max(gizmo.radius*0.12,0.003)
     local best,bestDistance=nil,math.huge
     for name,axis in pairs(gizmo.axes) do
@@ -1779,6 +1947,42 @@ end
 local function hitTestBoneEditorAxis(sx,sy)
     local gizmo=state.boneEditorAxisGizmo
     if state.workspace~='bone_editor' or not gizmo.origin or not gizmo.length then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.014,0.002)
+    local best,bestDistance=nil,math.huge
+    for name,axis in pairs({x={x=1,y=0,z=0},y={x=0,y=1,z=0},z={x=0,y=0,z=1}}) do
+        local endpoint={x=gizmo.origin.x+axis.x*gizmo.length,
+            y=gizmo.origin.y+axis.y*gizmo.length,z=gizmo.origin.z+axis.z*gizmo.length}
+        local distance=raySegmentDistance(ox,oy,oz,dx,dy,dz,gizmo.origin,endpoint,radius)
+        if distance and distance<bestDistance then best,bestDistance=name,distance end
+    end
+    return best
+end
+
+state.hitTestSocketMarker=function(sx,sy)
+    if state.workspace~='bone_editor' or not state.socketEditMode then return nil end
+    local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
+    if not ok then return nil end
+    local bounds=state.meshBounds
+    local extent=bounds and math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,
+        bounds.maxZ-bounds.minZ) or 1
+    local radius=math.max(extent*0.02,0.003)
+    local best,bestDistance=nil,math.huge
+    for index,position in pairs(state.socketGizmo.positions) do
+        local distance=raySphereDistance(ox,oy,oz,dx,dy,dz,position.x,position.y,position.z,radius)
+        if distance and distance<bestDistance then best,bestDistance=index,distance end
+    end
+    return best
+end
+
+state.hitTestSocketAxis=function(sx,sy)
+    local gizmo=state.socketGizmo
+    if state.workspace~='bone_editor' or not state.socketEditMode or
+            not gizmo.origin or not gizmo.length then return nil end
     local ok,ox,oy,oz,dx,dy,dz=pcall(mbm.getPickRay,sx,sy)
     if not ok then return nil end
     local bounds=state.meshBounds
@@ -3705,6 +3909,15 @@ local function loadMesh(path)
         bounds.maxZ-bounds.minZ) or 1
     state.paint.radius=math.max(extent*0.05,0.001)
     rebuildPreview()
+    -- A skeletal editor opens a loaded asset in bind/T-pose. Autoplay belongs to runtime
+    -- instances; do not let an asset's saved autoplay selection move the authoring viewport.
+    if state.preview then safeCall(function() return state.preview:stopSkeletalAnimation() end) end
+    if state.comparisonPreview then
+        safeCall(function() return state.comparisonPreview:stopSkeletalAnimation() end)
+    end
+    state.skeletalPreview.playing=false
+    state.skeletalPreview.paused=false
+    state.skeletalPreview.runtimePose=nil
     rebuildSkeletonVisuals()
     buildPaintGeometryCache()
     if state.workspace=='paint' then rebuildPaintHeatmap() end
@@ -6306,6 +6519,17 @@ local function saveTo(path)
         state.fileName = path
         state.modified = false
         rebuildPreview()
+        -- Loading a preview mesh can honor the asset's autoplay flag. The skeletal
+        -- editor always returns to bind/T-pose after save, just like after load.
+        if state.preview then safeCall(function() return state.preview:stopSkeletalAnimation() end) end
+        if state.comparisonPreview then
+            safeCall(function() return state.comparisonPreview:stopSkeletalAnimation() end)
+        end
+        state.skeletalPreview.playing=false
+        state.skeletalPreview.paused=false
+        state.skeletalPreview.runtimePose=nil
+        rebuildSkeletonVisuals()
+        applyWorkspaceVisibility()
         setStatus(string.format(tLang.L('swl_saved_fmt'), shortName(path)), false)
         return true
     end
@@ -10064,6 +10288,37 @@ local function showBoneEditor()
     state.boneEditorRemovePreviewIndex=nil
     tImGui.TextWrapped(tLang.L('swl_bone_editor_help'))
     tImGui.Separator()
+    state.socketAuthoringCallbacks = state.socketAuthoringCallbacks or {
+        stage = stageRollbackSnapshot,
+        commit = commitRollbackSnapshot,
+        discard = discardRollbackSnapshot,
+        refresh = refreshBindReport,
+        rebuild = function()
+            rebuildPreview()
+            if state.preview then safeCall(function() return state.preview:stopSkeletalAnimation() end) end
+            if state.comparisonPreview then
+                safeCall(function() return state.comparisonPreview:stopSkeletalAnimation() end)
+            end
+            state.skeletalPreview.playing=false
+            state.skeletalPreview.paused=false
+            state.skeletalPreview.runtimePose=nil
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+        end,
+        status = function(key, isError)
+            setStatus(tLang.L(key), isError)
+        end,
+        visuals = function()
+            rebuildSkeletonVisuals()
+            applyWorkspaceVisibility()
+        end
+    }
+    if tImGui.TreeNode(tLang.L('swl_socket_authoring') .. '##swlSocketAuthoring') then
+        tSocketAuthoring.draw(state, state.meshD, 'bone-editor', safeCall,
+            state.socketAuthoringCallbacks, tLang, tImGui)
+        tImGui.TreePop()
+    end
+    tImGui.Separator()
     if tImGui.TreeNode(tLang.L('swl_bone_editor_reorient_tails_section')..
             '##swlBoneEditorReorientTails') then
         tImGui.TextWrapped(tLang.L('swl_bone_editor_reorient_tails_help'))
@@ -10899,7 +11154,99 @@ function onTouchDown(key, x, y)
                 return
             end
         end
-        if state.workspace=='bone_editor' then
+        if state.workspace=='bone_editor' and state.socketEditMode then
+            local ring=hitTestRotationRing(x,y)
+            local selectedSocket=state.socketGizmo.selectedIndex or
+                state.socketAuthoring and state.socketAuthoring.selected or nil
+            if ring and selectedSocket then
+                local record=state.socketGizmo.records[selectedSocket]
+                local position=state.socketGizmo.positions[selectedSocket]
+                local boneIndex,bone=nil,nil
+                if record then
+                    for candidateIndex,candidate in ipairs(getBones()) do
+                        if candidate.name==record.boneName then
+                            boneIndex,bone=candidateIndex,candidate
+                            break
+                        end
+                    end
+                end
+                if record and position and bone then
+                    local snapshot=stageRollbackSnapshot()
+                    if snapshot then
+                        state.rotationGizmo.drag={kind='socket',socketIndex=selectedSocket,
+                            record=record,boneIndex=boneIndex,axisName=ring.name,
+                            axis=ring.axis,startDirection=ring.direction,
+                            origin={x=position.x,y=position.y,z=position.z},
+                            baseRotation={x=record.rotationX or 0,y=record.rotationY or 0,
+                                z=record.rotationZ or 0,w=record.rotationW or 1},
+                            translation={x=record.translationX or 0,y=record.translationY or 0,
+                                z=record.translationZ or 0},
+                            scale={x=record.scaleX or 1,y=record.scaleY or 1,
+                                z=record.scaleZ or 1},snapshot=snapshot,moved=false}
+                        return
+                    end
+                end
+            end
+            local axisOverride=state.hitTestSocketAxis(x,y)
+            if axisOverride and selectedSocket then
+                local record=state.socketGizmo.records[selectedSocket]
+                local position=state.socketGizmo.positions[selectedSocket]
+                local boneIndex,bone=nil,nil
+                if record then
+                    for candidateIndex,candidate in ipairs(getBones()) do
+                        if candidate.name==record.boneName then
+                            boneIndex,bone=candidateIndex,candidate
+                            break
+                        end
+                    end
+                end
+                local axis=axisOverride=='x' and {x=1,y=0,z=0} or
+                    axisOverride=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+                local parameter=position and rayAxisParameter(x,y,position,axis) or nil
+                local snapshot=parameter and record and bone and stageRollbackSnapshot() or nil
+                if snapshot then
+                    state.socketGizmo.drag={socketIndex=selectedSocket,record=record,
+                        boneIndex=boneIndex,boneMatrix=bone.globalMatrix,
+                        origin={x=position.x,y=position.y,z=position.z},
+                        baseLocal={x=record.translationX or 0,y=record.translationY or 0,
+                            z=record.translationZ or 0},axis=axis,
+                        startParameter=parameter,snapshot=snapshot,moved=false}
+                    return
+                end
+            end
+            local hit=state.hitTestSocketMarker(x,y)
+            if hit then
+                state.socketGizmo.selectedIndex=hit
+                if state.socketAuthoring then
+                    state.socketAuthoring.selected=hit
+                    state.socketAuthoring.lastLoadedSelected=nil
+                end
+                applyWorkspaceVisibility()
+                return
+            end
+        elseif state.workspace=='bone_editor' then
+            local ring=hitTestRotationRing(x,y)
+            local selected=state.boneEditorSelection
+            if ring and selected and selected.kind=='segment' then
+                local bone=getBones()[selected.boneIndex]
+                if bone and bone.hasExplicitTail then
+                    local head,tail=getBoneEditorEndpoints(bone,1)
+                    local snapshot=stageRollbackSnapshot()
+                    if snapshot then
+                        state.boneEditorDrag={mode='rotate_ring',boneIndex=selected.boneIndex,
+                            boneId=selected.boneId,boneName=selected.boneName,
+                            head={x=head.x,y=head.y,z=head.z},
+                            tail={x=tail.x,y=tail.y,z=tail.z},
+                            baseVector={x=tail.x-head.x,y=tail.y-head.y,z=tail.z-head.z},
+                            globalMatrix=bone.globalMatrix,axis=ring.axis,
+                            startDirection=ring.direction,
+                            origin={x=state.rotationGizmo.origin.x,y=state.rotationGizmo.origin.y,
+                                z=state.rotationGizmo.origin.z},
+                            snapshot=snapshot,moved=false,lastVisualTime=0}
+                        return
+                    end
+                end
+            end
             local selection=applyBoneEditorToolIntent(hitTestBoneEditor(x,y))
             local axisOverride=not selection and hitTestBoneEditorAxis(x,y) or nil
             if axisOverride then selection=state.boneEditorSelection end
@@ -11090,8 +11437,151 @@ function onTouchMove(key, x, y)
     local drag=state.translationGizmo.drag
     local rotationDrag=state.rotationGizmo.drag
     local scaleDrag=state.scaleGizmo.drag
+    local socketDrag=state.socketGizmo.drag
     local boneDrag=state.boneEditorDrag
-    if state.workspace=='bone_editor' and boneDrag then
+    if state.workspace=='bone_editor' and boneDrag and boneDrag.mode=='rotate_ring' then
+        local wx,wy,wz=rayPlaneHit(x,y,boneDrag.origin,boneDrag.axis)
+        if wx then
+            local current=normalizedDirection(wx-boneDrag.origin.x,
+                wy-boneDrag.origin.y,wz-boneDrag.origin.z)
+            if current then
+                local start=boneDrag.startDirection
+                local cx=start.y*current.z-start.z*current.y
+                local cy=start.z*current.x-start.x*current.z
+                local cz=start.x*current.y-start.y*current.x
+                local sinAngle=boneDrag.axis.x*cx+boneDrag.axis.y*cy+
+                    boneDrag.axis.z*cz
+                local cosAngle=math.max(-1,math.min(1,start.x*current.x+
+                    start.y*current.y+start.z*current.z))
+                local half=math.atan(sinAngle,cosAngle)*0.5
+                local sine=math.sin(half)
+                local qx,qy,qz=boneDrag.axis.x*sine,boneDrag.axis.y*sine,
+                    boneDrag.axis.z*sine
+                local qw=math.cos(half)
+                local tx=2*(qy*boneDrag.baseVector.z-qz*boneDrag.baseVector.y)
+                local ty=2*(qz*boneDrag.baseVector.x-qx*boneDrag.baseVector.z)
+                local tz=2*(qx*boneDrag.baseVector.y-qy*boneDrag.baseVector.x)
+                local crossX=qy*tz-qz*ty
+                local crossY=qz*tx-qx*tz
+                local crossZ=qx*ty-qy*tx
+                local rotatedX=boneDrag.baseVector.x+qw*tx+crossX
+                local rotatedY=boneDrag.baseVector.y+qw*ty+crossY
+                local rotatedZ=boneDrag.baseVector.z+qw*tz+crossZ
+                local lx,ly,lz=worldDeltaToLocal(rotatedX,rotatedY,rotatedZ,
+                    boneDrag.globalMatrix)
+                if lx then
+                    local ok=safeCall(function()
+                        return state.meshD:setSkeletalBoneTail(boneDrag.boneIndex,
+                            lx,ly,lz,true,state.boneEditorPreserveOtherJoints)
+                    end)
+                    if ok then
+                        boneDrag.moved=true
+                        state.modified=true
+                        local now=mbm.getTimeRun()
+                        if now-boneDrag.lastVisualTime>=0.033 then
+                            boneDrag.lastVisualTime=now
+                            refreshBindReport(false)
+                            rebuildSkeletonVisuals()
+                            applyWorkspaceVisibility()
+                        end
+                    end
+                end
+            end
+        end
+    elseif state.workspace=='bone_editor' and rotationDrag and rotationDrag.kind=='socket' then
+        local wx,wy,wz=rayPlaneHit(x,y,rotationDrag.origin,rotationDrag.axis)
+        if wx then
+            local current=normalizedDirection(wx-rotationDrag.origin.x,
+                wy-rotationDrag.origin.y,wz-rotationDrag.origin.z)
+            if current then
+                local start=rotationDrag.startDirection
+                local cx=start.y*current.z-start.z*current.y
+                local cy=start.z*current.x-start.x*current.z
+                local cz=start.x*current.y-start.y*current.x
+                local sinAngle=rotationDrag.axis.x*cx+rotationDrag.axis.y*cy+
+                    rotationDrag.axis.z*cz
+                local cosAngle=math.max(-1,math.min(1,start.x*current.x+
+                    start.y*current.y+start.z*current.z))
+                local half=math.atan(sinAngle,cosAngle)*0.5
+                local localAxis=rotationDrag.axisName=='x' and {x=1,y=0,z=0} or
+                    rotationDrag.axisName=='y' and {x=0,y=1,z=0} or {x=0,y=0,z=1}
+                local sine=math.sin(half)
+                local delta={x=localAxis.x*sine,y=localAxis.y*sine,
+                    z=localAxis.z*sine,w=math.cos(half)}
+                local q=normalizedQuaternion(quaternionMultiply(rotationDrag.baseRotation,delta))
+                if q then
+                    local ok=safeCall(function()
+                        return state.meshD:updateSkeletalSocket(rotationDrag.socketIndex,
+                            rotationDrag.record.name,rotationDrag.boneIndex,
+                            rotationDrag.translation.x,rotationDrag.translation.y,
+                            rotationDrag.translation.z,q.x,q.y,q.z,q.w,
+                            rotationDrag.scale.x,rotationDrag.scale.y,rotationDrag.scale.z)
+                    end)
+                    if ok then
+                        rotationDrag.moved=true
+                        state.modified=true
+                        rotationDrag.record.rotationX=q.x
+                        rotationDrag.record.rotationY=q.y
+                        rotationDrag.record.rotationZ=q.z
+                        rotationDrag.record.rotationW=q.w
+                        if state.socketAuthoring and state.socketAuthoring.draft then
+                            state.socketAuthoring.draft.rx=q.x
+                            state.socketAuthoring.draft.ry=q.y
+                            state.socketAuthoring.draft.rz=q.z
+                            state.socketAuthoring.draft.rw=q.w
+                        end
+                    end
+                end
+            end
+        end
+    elseif state.workspace=='bone_editor' and socketDrag then
+        local parameter=rayAxisParameter(x,y,state.socketGizmo.origin,socketDrag.axis)
+        if parameter then
+            local amount=parameter-socketDrag.startParameter
+            local wx,wy,wz=socketDrag.axis.x*amount,socketDrag.axis.y*amount,
+                socketDrag.axis.z*amount
+            local lx,ly,lz=worldDeltaToLocal(wx,wy,wz,socketDrag.boneMatrix)
+            if lx then
+                local newX,newY,newZ=socketDrag.baseLocal.x+lx,
+                    socketDrag.baseLocal.y+ly,socketDrag.baseLocal.z+lz
+                local ok=safeCall(function()
+                    return state.meshD:updateSkeletalSocket(socketDrag.socketIndex,
+                        socketDrag.record.name,socketDrag.boneIndex,newX,newY,newZ,
+                        socketDrag.record.rotationX or 0,socketDrag.record.rotationY or 0,
+                        socketDrag.record.rotationZ or 0,socketDrag.record.rotationW or 1,
+                        socketDrag.record.scaleX or 1,socketDrag.record.scaleY or 1,
+                        socketDrag.record.scaleZ or 1)
+                end)
+                if ok then
+                    socketDrag.moved=true
+                    state.modified=true
+                    local position=state.socketGizmo.positions[socketDrag.socketIndex]
+                    if position then
+                        position.x=socketDrag.origin.x+wx
+                        position.y=socketDrag.origin.y+wy
+                        position.z=socketDrag.origin.z+wz
+                        local marker=state.skeletonGizmo.sockets[socketDrag.record.name or
+                            tostring(socketDrag.socketIndex)]
+                        if marker then marker:setPos(position.x,position.y,position.z) end
+                        local axisObjects=state.skeletonGizmo.socketAxes[socketDrag.record.name or
+                            tostring(socketDrag.socketIndex)]
+                        if axisObjects then
+                            for _,axisObject in pairs(axisObjects) do
+                                axisObject:setPos(position.x,position.y,position.z)
+                            end
+                        end
+                    end
+                    if state.socketAuthoring and state.socketAuthoring.draft then
+                        state.socketAuthoring.draft.tx=newX
+                        state.socketAuthoring.draft.ty=newY
+                        state.socketAuthoring.draft.tz=newZ
+                    end
+                    state.rebuildSocketGizmo()
+                    rebuildRotationGizmo()
+                end
+            end
+        end
+    elseif state.workspace=='bone_editor' and boneDrag then
         local screenDx,screenDy=x-boneDrag.startX,y-boneDrag.startY
         local wx,wy,wz=nil,nil,nil
         if screenDx*screenDx+screenDy*screenDy>9 then
@@ -11316,13 +11806,42 @@ function onTouchUp(key, x, y)
             end
         end
         state.paint.inspectorClick=nil
+        local socketRotationDrag=state.rotationGizmo.drag and
+            state.rotationGizmo.drag.kind=='socket' and state.rotationGizmo.drag or nil
+        local socketDrag=state.socketGizmo.drag
         local boneDrag=state.boneEditorDrag
         local completedAuthoringDrag=(state.translationGizmo.drag and
             state.translationGizmo.drag.moved) or (state.rotationGizmo.drag and
             state.rotationGizmo.drag.moved) or (state.scaleGizmo.drag and
             state.scaleGizmo.drag.moved)
         local completedBoneDrag=boneDrag and boneDrag.moved
-        if boneDrag then
+        if socketRotationDrag then
+            if socketRotationDrag.moved then
+                commitRollbackSnapshot(socketRotationDrag.snapshot,'swl_socket_rotated')
+                refreshBindReport()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_socket_rotated'),false)
+            else
+                discardRollbackSnapshot(socketRotationDrag.snapshot)
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+            end
+            state.rotationGizmo.drag=nil
+        elseif socketDrag then
+            if socketDrag.moved then
+                commitRollbackSnapshot(socketDrag.snapshot,'swl_socket_moved')
+                refreshBindReport()
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+                setStatus(tLang.L('swl_socket_moved'),false)
+            else
+                discardRollbackSnapshot(socketDrag.snapshot)
+                rebuildSkeletonVisuals()
+                applyWorkspaceVisibility()
+            end
+            state.socketGizmo.drag=nil
+        elseif boneDrag then
             if boneDrag.moved then
                 commitRollbackSnapshot(boneDrag.snapshot,'swl_history_bone_drag')
                 rebuildPreview()
@@ -11331,7 +11850,8 @@ function onTouchUp(key, x, y)
                 applyWorkspaceVisibility()
                 setStatus(tLang.L(boneDrag.mode=='head' and 'swl_bone_editor_head_moved' or
                     boneDrag.mode=='segment' and 'swl_bone_editor_segment_moved' or
-                    boneDrag.mode=='rotate_segment' and 'swl_bone_editor_segment_rotated' or
+                    (boneDrag.mode=='rotate_segment' or boneDrag.mode=='rotate_ring') and
+                        'swl_bone_editor_segment_rotated' or
                     'swl_bone_editor_tail_moved'),false)
             else discardRollbackSnapshot(boneDrag.snapshot) end
             state.boneEditorDrag=nil

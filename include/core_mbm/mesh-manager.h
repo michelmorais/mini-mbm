@@ -264,6 +264,14 @@ namespace mbm
         MATRIX globalMatrix;
     };
 
+    struct SKELETAL_SOCKET_INFO
+    {
+        uint64_t socketId = 0;
+        uint64_t boneId = 0;
+        const char *name = nullptr;
+        const char *boneName = nullptr;
+    };
+
     struct SKELETAL_SHARING_COMPATIBILITY
     {
         bool compatible = false;
@@ -476,6 +484,27 @@ namespace mbm
         API_IMPL const char *getSkeletonBindBoneName(const uint32_t index) const noexcept;
         API_IMPL bool getSkeletonBindDiagnostic(const uint32_t index,
                                                 SKELETON_BIND_DIAGNOSTIC_INFO &out) const noexcept;
+        API_IMPL uint32_t getSkeletalSocketCount() const noexcept;
+        API_IMPL bool getSkeletalSocketInfo(uint32_t index, SKELETAL_SOCKET_INFO &out) const noexcept;
+        API_IMPL bool getSkeletalSocketBindTransform(uint32_t index, MATRIX &matrix) const noexcept;
+        API_IMPL bool getSkeletalSocketLocalTransform(uint32_t index,
+                                                       SKELETAL_KEY_INFO &out) const noexcept;
+        // Socket transforms are authored in the selected bone's local bind space. Mutations are
+        // transactional and keep SECTION_SKELETAL_SOCKETS valid at every committed state.
+        API_IMPL bool addSkeletalSocket(const char *name, const uint32_t boneIndex,
+                                        const VEC3 &translation, const float rotationX,
+                                        const float rotationY, const float rotationZ,
+                                        const float rotationW, const VEC3 &scale,
+                                        uint32_t *newIndexOut, char *errorOut,
+                                        const int errorOutLen);
+        API_IMPL bool updateSkeletalSocket(const uint32_t index, const char *name,
+                                           const uint32_t boneIndex, const VEC3 &translation,
+                                           const float rotationX, const float rotationY,
+                                           const float rotationZ, const float rotationW,
+                                           const VEC3 &scale, char *errorOut,
+                                           const int errorOutLen);
+        API_IMPL bool removeSkeletalSocket(const uint32_t index, char *errorOut,
+                                           const int errorOutLen);
         API_IMPL uint32_t getTotalSkeletalClips() const noexcept;
         API_IMPL bool getSkeletalClip(const uint32_t clipIndex, SKELETAL_CLIP_INFO &out) const noexcept;
         API_IMPL const char *getSkeletalClipName(const uint32_t clipIndex) const noexcept;
@@ -840,6 +869,14 @@ namespace mbm
                                                const char *name, const float time) const noexcept;
         API_IMPL bool getArticulatedAnimationTime(const ARTICULATED_ANIMATION_PLAYER &player,
                                                   const char *name, float *time) const noexcept;
+        API_IMPL bool getArticulatedAnimationDuration(const char *name, float *duration) const noexcept;
+        API_IMPL uint32_t getTotalArticulatedParts() const noexcept;
+        API_IMPL const util::ARTICULATED_PART_V11 *getArticulatedPart(const uint32_t index) const noexcept;
+        API_IMPL bool getArticulatedPartTransform(const ARTICULATED_ANIMATION_PLAYER &player,
+                                                  const char *partName, const MATRIX *modelMatrix,
+                                                  uint64_t *partId, MATRIX *matrix, VEC3 *position,
+                                                  VEC3 *pivotPosition, float rotation[4],
+                                                  VEC3 *angle, VEC3 *scale) const noexcept;
         API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
                                                   const float delta, RENDERIZABLE *owner,
                                                   OnEndAnimation onEndAnimation) const;
@@ -961,6 +998,13 @@ namespace mbm
                                       const char *boneName, const MATRIX *modelMatrix,
                                       uint64_t *boneId, MATRIX *matrix, VEC3 *position,
                                       float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+        uint32_t getSkeletalSocketCount() const noexcept;
+        bool getSkeletalSocketInfo(uint32_t index, SKELETAL_SOCKET_INFO &out) const noexcept;
+        bool getSkeletalSocketTransform(const SKELETAL_ANIMATION_PLAYER &player,
+                                        const char *socketName, const MATRIX *modelMatrix,
+                                        uint64_t *socketId, uint64_t *boneId, MATRIX *matrix,
+                                        VEC3 *position, float rotation[4], VEC3 *angle,
+                                        VEC3 *scale) const noexcept;
         bool getSkeletalRootMotionDelta(const SKELETAL_ANIMATION_PLAYER &player,
                                         const char *boneName, const MATRIX *modelMatrix,
                                         uint64_t *boneId, VEC3 *translation) const noexcept;
