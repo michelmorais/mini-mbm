@@ -11850,7 +11850,7 @@ namespace mbm
         VEC3 *position, float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
     {
         if (!socketName || !socketId || !boneId || !matrix || !position || !rotation ||
-            !angle || !scale || getSkeletalAnimationPoseBoneCount(player) == 0)
+            !angle || !scale)
             return false;
         const skeletal::CANONICAL_SOCKET *socket = nullptr;
         for (const skeletal::CANONICAL_SOCKET &candidate : impl->canonicalSockets.sockets)
@@ -11866,8 +11866,13 @@ namespace mbm
         const auto found = impl->canonicalSkeleton.compiled.indexById.find(socket->boneId);
         if (found == impl->canonicalSkeleton.compiled.indexById.end())
             return false;
+        MATRIX boneGlobal;
+        if (getSkeletalAnimationPoseBoneCount(player) > 0)
+            boneGlobal = player.impl->evaluatedGlobalTransforms[found->second];
+        else
+            boneGlobal = impl->canonicalSkeleton.compiled.bones[found->second].globalBindMatrix;
         MATRIX result = skeletal::buildTrsMatrix(socket->local);
-        MatrixMultiply(&result, &result, &player.impl->evaluatedGlobalTransforms[found->second]);
+        MatrixMultiply(&result, &result, &boneGlobal);
         if (modelMatrix)
             MatrixMultiply(&result, &result, modelMatrix);
         skeletal::LOCAL_TRANSFORM transform;

@@ -2107,7 +2107,10 @@ local function showAttachment()
                 S.definition.sourceSocket = S.source.socketCatalog[1] or ''
                 setBoneSelectionMode(false)
             end
-            S.target.manualOverride = false
+            -- Changing the source frame must not apply the previous offset to the
+            -- target immediately. Keep the current target pose until the user
+            -- explicitly captures an offset for the new source.
+            S.target.manualOverride = true
             markModified()
         end
         if S.definition.sourceType == 'bone' then
@@ -2134,7 +2137,7 @@ local function showAttachment()
                 local socketChanged, nextSocket = tImGui.Combo(L('source_socket'), selectedSocket, socketNames)
                 if socketChanged and socketNames[nextSocket] then
                     S.definition.sourceSocket = socketNames[nextSocket]
-                    S.target.manualOverride = false
+                    S.target.manualOverride = true
                     markModified()
                 end
             else

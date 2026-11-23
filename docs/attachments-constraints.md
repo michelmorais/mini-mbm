@@ -44,8 +44,9 @@ world scale    = source scale * offset scale
 The source scale in the position expression is used only when `inherit.scale` is enabled. The
 source rotation orients the position offset whenever position inheritance is enabled, even when
 rotation inheritance is disabled. Position, rotation, and scale are written independently; a
-component whose inheritance flag is false is left untouched. Bone and socket sources require an
-active, evaluated skeletal pose. Sockets are named points stored in optional MSH V11 section 47;
+component whose inheritance flag is false is left untouched. Bone sources require an active,
+evaluated skeletal pose; socket queries resolve to the evaluated pose or to the canonical bind
+pose when playback is inactive. Sockets are named points stored in optional MSH V11 section 47;
 they do not change skinning weights or animation tracks. `targetPivot` is an optional point in the
 target mesh's local space. Its zero value preserves
 the original behavior, where the target renderizable origin is the attachment point. A non-zero
