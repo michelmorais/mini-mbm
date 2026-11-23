@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.2**
-Status: **Phase 7 look-at limits and spring smoothing implemented on top of the validated socket pipeline**
+Document version: **2.3**
+Status: **Phase 7 look-at limits, explicit aim points, and spring smoothing implemented on top of the validated socket pipeline**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -82,7 +82,8 @@ local attachment, err = attachments.attach {
         rotation = true,
         scale = false,
     },
-    aimAtSource = false, -- optional; target +Z points toward the source
+    aimAtSource = false, -- optional; target +Z points toward the source aim point
+    aimPoint = {x = 0, y = 0, z = 0}, -- optional source-local point used by Look at
     aimLimits = { -- optional; only used when aimAtSource is true
         enabled = false,
         reference = "dynamic", -- "dynamic" or "captured"
@@ -279,8 +280,13 @@ disabled by default. `stiffness` controls how quickly the target follows the eff
 `damping` reduces oscillation; both values are non-negative and use engine time units. Position
 and rotation can be enabled independently.
 
+`aimPoint` is an optional point in the source's local space. When `aimAtSource` is enabled, the
+target points toward this point after the source rotation and scale are applied. The default zero
+vector preserves the original behavior of aiming at the source origin. This point changes only the
+look-at direction; attachment position continues to use the normal source offset and target pivot.
+
 This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
-The next constraint stages can add an explicit aim point and blending without changing the basic
+The next constraint stages can add blending without changing the basic
 attachment contract.
 
 ## Phase 2 lifecycle guarantees
@@ -294,7 +300,7 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 
-Socket authoring inside Mesh Debug, explicit aim points, IK, blending, physics integration,
+Socket authoring inside Mesh Debug, IK, blending, physics integration,
 cross-scene attachments, and a general scene graph remain future work. Socket consumption already
 has the MSH/API/runtime contract described above, and socket authoring is implemented in the
 Skeletal Animation Editor.

@@ -92,6 +92,9 @@ function M.validate(definition)
     if definition.targetPivot ~= nil and not validateVector(definition.targetPivot, 0) then
         return false, 'targetPivot must be a vector'
     end
+    if definition.aimPoint ~= nil and not validateVector(definition.aimPoint, 0) then
+        return false, 'aimPoint must be a vector'
+    end
     if definition.aimLimits ~= nil then
         if type(definition.aimLimits) ~= 'table' then
             return false, 'aimLimits must be a table'
@@ -151,6 +154,9 @@ local function appendDefinition(output, definition)
     output[#output + 1] = '        scale = ' .. tostring(inherit.scale == true) .. ','
     output[#output + 1] = '    },'
     output[#output + 1] = '    aimAtSource = ' .. tostring(definition.aimAtSource == true) .. ','
+    local aimPoint = definition.aimPoint or {x = 0, y = 0, z = 0}
+    output[#output + 1] = string.format('    aimPoint = {x = %.17g, y = %.17g, z = %.17g},',
+        number(aimPoint.x, 0), number(aimPoint.y, 0), number(aimPoint.z, 0))
     local aimLimits = definition.aimLimits
     if type(aimLimits) == 'table' then
         output[#output + 1] = '    aimLimits = {'
@@ -225,6 +231,7 @@ function M.build(definition)
     output[#output + 1] = '        sourceType = definition.sourceType,'
     output[#output + 1] = '        inherit = definition.inherit,'
     output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
+    output[#output + 1] = '        aimPoint = definition.aimPoint,'
     output[#output + 1] = '        aimLimits = definition.aimLimits,'
     output[#output + 1] = '        spring = definition.spring,'
     output[#output + 1] = '        offset = definition.offset,'

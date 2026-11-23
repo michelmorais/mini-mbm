@@ -554,6 +554,7 @@ struct ATTACHMENT
     std::string sourceBone;
     std::string sourceSocket;
     uint8_t sourceType = SOURCE_ROOT;
+    VEC3D aimPoint;
     POSE offset;
     VEC3D targetPivot;
     POSE poseBeforeAttach;
@@ -678,13 +679,23 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     }
     if (attachment->aimAtSource)
     {
+        VEC3D aimPosition = sourcePose.position;
+        const VEC3D localAimPoint = {
+            attachment->aimPoint.x * sourcePose.scale.x,
+            attachment->aimPoint.y * sourcePose.scale.y,
+            attachment->aimPoint.z * sourcePose.scale.z,
+        };
+        const VEC3D rotatedAimPoint = transformVector(sourceRotation, localAimPoint);
+        aimPosition.x += rotatedAimPoint.x;
+        aimPosition.y += rotatedAimPoint.y;
+        aimPosition.z += rotatedAimPoint.z;
         MATRIX3 referenceRotation = targetRotation;
         if (attachment->aimLimits.enabled && attachment->aimLimits.capturedFrame)
             referenceRotation = attachment->aimLimits.referenceRotation;
         targetRotation = attachment->aimLimits.enabled
-            ? limitedLookAtRotation(result.position, sourcePose.position, referenceRotation,
+            ? limitedLookAtRotation(result.position, aimPosition, referenceRotation,
                                     targetRotation, attachment->aimLimits)
-            : lookAtRotation(result.position, sourcePose.position, targetRotation);
+            : lookAtRotation(result.position, aimPosition, targetRotation);
     }
     if ((attachment->inherit & INHERIT_ROTATION) != 0u || attachment->aimAtSource)
         result.angle = rotationToEuler(targetRotation);
@@ -798,6 +809,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const uint8_t sourceType,
                                                   const std::string &sourceBone,
                                                   const std::string &sourceSocket,
+                                                  const VEC3D &aimPoint,
                                                   const POSE &offset,
                                                   const VEC3D &targetPivot,
                                                   const POSE &before,
@@ -957,6 +969,7 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
     const std::string &sourceSocket,
+    const VEC3D &aimPoint,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
     const SPRING_SETTINGS &spring,
@@ -972,6 +985,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->sourceType = sourceType;
     attachment->sourceBone = sourceBone;
     attachment->sourceSocket = sourceSocket;
+    attachment->aimPoint = aimPoint;
     attachment->offset = offset;
     attachment->targetPivot = targetPivot;
     attachment->poseBeforeAttach = before;
@@ -1390,6 +1404,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritScale");
     lua_pushboolean(lua, attachment->aimAtSource);
     lua_setfield(lua, -2, "aimAtSource");
+    pushVec3(lua, attachment->aimPoint);
+    lua_setfield(lua, -2, "aimPoint");
     lua_createtable(lua, 0, 5);
     lua_pushboolean(lua, attachment->aimLimits.enabled);
     lua_setfield(lua, -2, "enabled");
@@ -1580,9 +1596,10 @@ int onAttach(lua_State *lua)
         return fail(lua, error.c_str());
     }
     const POSE offset = parseOffset(lua, 1);
+    const VEC3D aimPoint = vec3Field(lua, 1, "aimPoint", {});
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
     if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale) ||
-        !isFinite(targetPivot))
+        !isFinite(aimPoint) || !isFinite(targetPivot))
     {
         luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
@@ -1618,7 +1635,7 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, aimAtSource,
+        id, sourceType, sourceBone, sourceSocket, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
         aimLimits, spring, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");

@@ -2140,7 +2140,8 @@ convention. Bone sources require a mesh
 with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
 socket query also resolves to the canonical bind pose while playback is inactive. `aimAtSource = true`
 requires rotation inheritance and makes the target's local +Z axis point toward the current source
-position, using world Y as the up reference. The optional `aimLimits` table enables angular limits
+aim point, using world Y as the up reference. `aimPoint` is expressed in source-local coordinates;
+its zero value aims at the source origin. The optional `aimLimits` table enables angular limits
 for this constraint: `yawMin`, `yawMax`, `pitchMin`, and `pitchMax` are radians relative to the
 attachment frame. `reference = "dynamic"` follows the current source frame; `reference =
 "captured"` uses the persisted frame captured by the editor. Its `enabled` field must be true
@@ -2157,6 +2158,7 @@ local relation, err = attachments.attach {
     sourceSocket = "RightHandGrip",
     inherit = {position = true, rotation = true, scale = false},
     aimAtSource = false,
+    aimPoint = {x = 0, y = 0, z = 0},
     aimLimits = {
         enabled = false,
         reference = "dynamic", -- or "captured"

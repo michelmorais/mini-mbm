@@ -53,6 +53,7 @@ local function newDefinition()
         sourceType = 'root',
         sourceBone = '',
         sourceSocket = '',
+        aimPoint = vector(0, 0, 0),
         aimAtSource = false,
         aimLimits = {
             enabled = false,
@@ -115,6 +116,7 @@ local S = {
     targetPivotMarker = nil,
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
+    aimPointMarker = nil,
     aimLimitsVisual = {objects = {}, signature = nil},
     springState = {
         initialized = false,
@@ -338,8 +340,11 @@ local updateSourceSkeletonVisuals
 local setBoneSelectionMode
 local hideGizmo
 local targetPivotWorldPosition
+local sourceAimPointWorldPosition
+local updateAimPointMarker
 local updateTargetPivotMarker
 local showTargetPivotFields
+local showAimPointFields
 local getPreviewSourcePose
 local captureOffset
 local captureAimReference
@@ -733,6 +738,19 @@ local function createPivotMarker()
     object:setColor(1.0, 0.9, 0.15, 1.0)
     object.alwaysOnTop = true
     object.alwaysOnTopPriority = 25
+    object.alwaysRender = true
+    return object
+end
+
+local function createAimPointMarker()
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(unitSphereVertices(), nil, 'attachments_source_aim_point_marker') then
+        object:destroy()
+        return nil
+    end
+    object:setColor(1.0, 0.25, 0.85, 1.0)
+    object.alwaysOnTop = true
+    object.alwaysOnTopPriority = 24
     object.alwaysRender = true
     return object
 end
@@ -1744,12 +1762,13 @@ local function calculateTargetPose(delta)
         result.z = source.z + worldPosition.z
     end
     if S.definition.aimAtSource then
+        local aimPoint = sourceAimPointWorldPosition(source)
         local limits = S.definition.aimLimits
         local referenceRotation = limits and limits.enabled and aimBaseRotation(source) or targetRotation
         targetRotation = limits and limits.enabled
-            and limitedLookAtRotation(result, vector(source.x, source.y, source.z), referenceRotation,
+            and limitedLookAtRotation(result, aimPoint, referenceRotation,
                 targetRotation, limits)
-            or lookAtRotation(result, vector(source.x, source.y, source.z), targetRotation)
+            or lookAtRotation(result, aimPoint, targetRotation)
     end
     if inherit.rotation or S.definition.aimAtSource then
         result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
@@ -1810,6 +1829,24 @@ targetPivotWorldPosition = function(target)
     return vector(target.x + worldPivot.x, target.y + worldPivot.y, target.z + worldPivot.z)
 end
 
+sourceAimPointWorldPosition = function(source)
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local localPoint = vector(S.definition.aimPoint.x * source.sx,
+        S.definition.aimPoint.y * source.sy, S.definition.aimPoint.z * source.sz)
+    local worldPoint = rotateVector(sourceRotation, localPoint)
+    return vector(source.x + worldPoint.x, source.y + worldPoint.y, source.z + worldPoint.z)
+end
+
+updateAimPointMarker = function()
+    if not S.aimPointMarker then return end
+    local source = getPreviewSourcePose() or S.source.pose
+    local point = sourceAimPointWorldPosition(source)
+    local radius = math.max(getTargetPivotMarkerRadius() * 0.9, 0.1)
+    S.aimPointMarker:setPos(point.x, point.y, point.z)
+    S.aimPointMarker:setScale(radius, radius, radius)
+    S.aimPointMarker.visible = not S.boneSelectionMode and S.definition.aimAtSource
+end
+
 updateTargetPivotMarker = function()
     if not S.targetPivotMarker then return end
     local targetPivot = targetPivotWorldPosition(S.target.pose)
@@ -1835,6 +1872,7 @@ local function rebuildPreview(delta)
             targetPivot.x, targetPivot.y, targetPivot.z}, 1)
     end
     updateTargetPivotMarker()
+    updateAimPointMarker()
     S.dirtyPreview = false
 end
 
@@ -2033,6 +2071,7 @@ function onLoop()
             sourceType = definition.sourceType,
             inherit = definition.inherit,
             aimAtSource = definition.aimAtSource == true,
+            aimPoint = definition.aimPoint,
             aimLimits = definition.aimLimits,
             offset = definition.offset,
             targetPivot = definition.targetPivot,
@@ -2120,6 +2159,11 @@ local function normalizeDefinition(value)
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     result.aimAtSource = value.aimAtSource == true
+    if type(value.aimPoint) == 'table' then
+        for _, axis in ipairs({'x', 'y', 'z'}) do
+            result.aimPoint[axis] = tonumber(value.aimPoint[axis]) or 0
+        end
+    end
     if type(value.aimLimits) == 'table' then
         result.aimLimits.enabled = result.aimAtSource and value.aimLimits.enabled == true
         result.aimLimits.reference = value.aimLimits.reference == 'captured' and 'captured' or 'dynamic'
@@ -2470,6 +2514,21 @@ showTargetPivotFields = function()
     tImGui.TextWrapped(L('target_pivot_help'))
 end
 
+showAimPointFields = function()
+    tImGui.Text(L('aim_point'))
+    for _, axis in ipairs({'x', 'y', 'z'}) do
+        tImGui.SetNextItemWidth(105)
+        local changed, nextValue = tImGui.InputFloat(L('aim_point_' .. axis) ..
+            '##att_aim_point_' .. axis, S.definition.aimPoint[axis])
+        if changed then
+            S.definition.aimPoint[axis] = nextValue
+            S.target.manualOverride = false
+            markModified()
+        end
+    end
+    showTooltip(L('aim_point_help'))
+end
+
 local function showAttachment()
     tUtil.setInitialWindowPositionRight(S.windows.attachment, 0, 20, 400, 430, 560)
     local opened = tImGui.Begin(S.windows.attachment, true, 0)
@@ -2560,6 +2619,7 @@ local function showAttachment()
         end
         tImGui.TextWrapped(L('aim_at_source_help'))
         if S.definition.aimAtSource then
+            showAimPointFields()
             tImGui.Separator()
             tImGui.Text(L('aim_limits'))
             local limits = S.definition.aimLimits
@@ -2746,8 +2806,12 @@ function onInitScene()
     S.source.object = createMarker('source', {0.15, 0.75, 1.0, 0.42})
     S.target.object = createMarker('target', {1.0, 0.65, 0.15, 0.42})
     S.targetPivotMarker = createPivotMarker()
+    S.aimPointMarker = createAimPointMarker()
     if S.targetPivotMarker then
         S.targetPivotMarker.visible = false
+    end
+    if S.aimPointMarker then
+        S.aimPointMarker.visible = false
     end
     S.relationLine = line:new('3d', 0, 0, 0)
     S.relationLine:add({0, 0, 0, 100, 0, 0})
@@ -2832,6 +2896,7 @@ function onFinalizeScene()
     if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
     if S.target.object then S.target.object:destroy(); S.target.object = nil end
     if S.targetPivotMarker then S.targetPivotMarker:destroy(); S.targetPivotMarker = nil end
+    if S.aimPointMarker then S.aimPointMarker:destroy(); S.aimPointMarker = nil end
     if S.relationLine then S.relationLine:destroy(); S.relationLine = nil end
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for key, object in pairs(S.originLines) do
