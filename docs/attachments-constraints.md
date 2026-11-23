@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.0**
-Status: **Phase 5 socket contract, runtime query, attachment source, editor selection, FBX round-trip, and Skeletal Animation Editor TRS authoring implemented; viewport gizmo pending**
+Document version: **2.1**
+Status: **Phase 5 socket contract, runtime query, attachment source, editor selection, viewport gizmos, FBX round-trip, and Skeletal Animation Editor TRS authoring implemented**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -22,10 +22,12 @@ profiles link the plugin statically; desktop builds load `attachments.so`, `atta
 
 ## Validation status
 
-The current editor and `attachments` plugin were manually validated on macOS with the rat and
-propeller project. The skeletal-bone attachment, target pivot, animation preview, and target
-rotation follow the source correctly during playback. This confirms that the current row-matrix
-composition is consistent across the Linux and macOS runtime paths.
+The current editor and `attachments` plugin were manually validated with the rat and propeller
+project. The skeletal-bone attachment, target pivot, animation preview, target rotation follow,
+socket authoring, and socket viewport gizmos were exercised. The complete interchange path was
+also validated: open the mesh in Mesh Debug, export to FBX, apply an animation in Mixamo, download
+the FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation Editor. The
+authored sockets remained available after that round-trip.
 
 ## Transform contract
 
@@ -192,6 +194,52 @@ Definition version 2 uses the same row-major bind-matrix orientation as the runt
 version 1 bone definition migrates its captured offset from the corrected bind pose before the
 next save, avoiding a legacy 180-degree orientation error.
 
+### Socket workflow and source choice
+
+Sockets are authored in the **Skeletal Animation Editor**, not in the Attachment Editor. Open the
+source `.msh` in the Skeletal Animation Editor, enter **Bone Editor**, open **Sockets**, select the
+bone, and add or edit a named socket. The viewport can be put into **Edit sockets in viewport**
+mode: bone picking is disabled, socket markers are selectable, and the XYZ gizmo moves the socket
+in the bone's local bind space. The rotation rings edit the socket's local quaternion; the socket
+marker displays its effective local orientation with colored X/Y/Z axes. Save the mesh before
+using it as an attachment source.
+
+The socket is persisted in optional Mesh V11 section 47 (`SECTION_SKELETAL_SOCKETS`). Each record
+contains a stable socket ID, a unique name, the referenced bone ID, and local translation,
+quaternion rotation, and scale. Socket data is independent of vertex weights and animation tracks.
+Mesh Debug's FBX exporter writes sockets as bone-parented Blender Empty objects, and the importer
+reconstructs them as canonical sockets. This is why the validated MSH -> FBX -> Mixamo -> FBX ->
+MSH workflow preserves sockets.
+
+To consume the socket in the Attachment Editor:
+
+1. Load the mesh containing the socket as the source actor.
+2. In the Attachment panel, select **Socket transform**.
+3. Choose the socket name from the source socket combo box.
+4. Configure position, rotation, and scale inheritance, then capture or edit the attachment
+   offset and target pivot as usual.
+5. Save the `.att.lua` definition or export the runtime module.
+
+The editor obtains the socket catalog from `getSkeletalSocketReport()` and previews the evaluated
+socket with `getSkeletalSocketTransform(name, "world")`. The exported runtime definition stores
+`sourceType = "socket"` and `sourceSocket = "Name"`; it does not copy the socket into the
+attachment file. The game must therefore bind a mesh that still contains that named socket. At
+runtime the attachments plugin reads the evaluated socket pose every frame, exactly as it reads an
+evaluated bone pose, and applies the configured inheritance mask and local offset to the target.
+
+Use a **bone source** when the attachment should follow the structural joint itself and the bone
+origin/orientation is already the desired anchor. Use a **socket source** when the attachment needs
+a named, art-directed point and orientation on or near a bone.
+
+| Source | Advantages | Tradeoffs |
+|---|---|---|
+| Bone | No extra anchor metadata; every canonical skeleton bone is immediately available; follows the rig's structural joint directly | The bone origin may be inside the mesh or have an inconvenient orientation; each prop needs its own attachment offset; rig edits can change the meaning of the anchor; moving the bone changes the skeleton and can affect deformation |
+| Socket | Dedicated local translation, rotation, and scale; can sit at a hand grip, muzzle, hat base, weapon mount, or other art-directed point; multiple sockets can share one bone; moving the socket does not alter weights, bone bind transforms, or animation tracks | Must be authored and kept under a stable name; a missing or renamed socket invalidates the attachment; it still requires a skeletal mesh with an evaluated pose; it is unnecessary for static or articulated meshes that only need a root transform |
+
+Both choices are evaluated from the same animated source mesh and use the same attachment offset,
+inheritance flags, and target pivot. A socket is therefore not a replacement for a bone: it is a
+stable, editable attachment frame layered on top of the skeleton.
+
 ## Phase 2 lifecycle guarantees
 
 The engine invokes plugin `onLoop` after scene logic, deferred main-thread work, physics, and audio,
@@ -205,4 +253,5 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 Socket authoring inside Mesh Debug, IK, aim constraints, spring/damping, physics integration,
 cross-scene attachments, and a general scene graph remain future work. Socket consumption already
-has the MSH/API/runtime contract described above.
+has the MSH/API/runtime contract described above, and socket authoring is implemented in the
+Skeletal Animation Editor.
