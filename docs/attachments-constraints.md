@@ -1,405 +1,349 @@
-# Attachments and constraints
+# Attachments
 
-Document version: **3.1**
-Status: **Phase 15 static frame attachment sources implemented on top of multi-target authoring and runtime export**
-Last updated: **2026-11-23**
+This document describes the attachment editor, the `attachments` Lua plugin, the
+definition exported by the editor, and the runtime transform contract.
 
-This document defines the runtime contract for root-transform, skeletal, articulated-part, and static-frame attachments. It is independent
-from `interaction_animation_runtime`; the interaction plugin does not create, update, or own
-attachments.
+## Runtime plugin
 
-## Runtime and Lua module
-
-The optional C++ plugin is named `attachments` and is loaded with:
+The plugin is loaded from Lua with:
 
 ```lua
 local attachments = require "attachments"
 ```
 
-The CMake option is `USE_ATTACHMENTS=1`. `USE_ALL=1` enables it. The iOS and macOS App Store
-profiles link the plugin statically; desktop builds load `attachments.so`, `attachments.dylib`, or
-`attachments.dll` from the normal Lua C module path.
+It is enabled with `USE_ATTACHMENTS=1`. `USE_ALL=1` enables it together with the
+other optional Lua features. Desktop builds load the shared plugin; static
+platform builds link the same module into the application.
 
-## Validation status
+The plugin reads the source pose and writes the inherited components of the
+target during `PLUGIN::onLoop`. It does not load assets, discover scene objects,
+or require a Lua callback every frame. The game supplies the source and target
+objects explicitly.
 
-The single-source attachment pipeline was manually validated with the rat and propeller project.
-The skeletal-bone attachment, target pivot, animation preview, target rotation follow, socket
-authoring, and socket viewport gizmos were exercised. The complete interchange path was also
-validated: open the mesh in Mesh Debug, export to FBX, apply an animation in Mixamo, download the
-FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation Editor. The
-authored sockets remained available after that round-trip. Multi-target authoring and runtime
-export are implemented in Phase 11. Phase 13 adds an editor graph view with clickable target
-nodes, selected-chain highlighting, missing-source/cycle validation, and the same validation gate
-before F5 or runtime export. Phase 14 adds articulated part selection, articulated clip preview,
-runtime part-pose evaluation, and runtime export for an articulated part as the source. Phase 15
-adds static frame animation selection, per-frame offset capture, and runtime frame lookup.
+## Editor
 
-## Transform contract
+The authoring tool is `editor/attachments_editor.lua`. It is independent from
+`interaction_animation_editor.lua`, although it follows the same general editor
+workflow.
 
-The source can be the `root` transform of a renderizable object, the evaluated world transform of
-a named skeletal bone or socket on a mesh, the evaluated world transform of a named articulated
-mesh part, or the root transform of a mesh using a selected static frame animation. An offset is
-stored in the selected source's local space. A static-frame attachment can override that offset
-for individual absolute animation frames:
+An editor project is saved as a `.att.lua` file. It contains the runtime
+definition and an `editor` table with preview-only data such as mesh paths,
+preview poses, selection flags, the selected language, and timeline state. The
+runtime exporter omits the `editor` table.
+
+The editor provides:
+
+- source and multiple target objects;
+- root, skeletal bone, skeletal socket, articulated-part, and static-frame
+  source modes;
+- independent position, rotation, and scale inheritance per target;
+- local offsets and a target-local virtual pivot;
+- look-at, yaw/pitch limits, spring, blend, influence, and state profiles;
+- viewport selection, move/rotate gizmos, relation lines, origin markers, and
+  an XZ reference plane;
+- attachment graph validation and visualization;
+- a Timeline panel for animated source previews and static-frame offsets;
+- `Run -> Run attachment preview` and `Run -> Save preview as...`;
+- `File -> Export require` for the runtime module.
+
+The editor uses runtime labels for source and target names. These names are not
+mesh filenames and are resolved by the game binding table.
+
+### Multiple targets and chains
+
+One project has one root source and one or more targets. Every target stores its
+own source label, offset, target pivot, inheritance mask, and constraint
+settings. A target may use the root source or another target as its source.
+Chains such as the following are supported:
 
 ```text
-attachment position = source position + (source scale * offset position) * source rotation
-target origin = attachment position - (target scale * targetPivot) * target rotation
-world rotation = offset rotationMatrix * source rotation
-world scale    = source scale * offset scale
+character -> hand_attachment -> sword -> effect
 ```
 
-For `sourceType = "frame"`, the runtime selects `frameOffsets[currentFrame]` when present and
-falls back to the base `offset` otherwise. The source mesh must already be playing or paused on
-the named static frame animation; the attachment does not change the mesh animation itself.
+When a target follows another target, the runtime relation uses the target's
+root transform. Bone, socket, articulated-part, and static-frame source modes
+apply to relations driven directly by the root source mesh.
 
-For a multi-target definition, the source mesh is evaluated for each target's selected bone,
-socket, or articulated part, and the transform contract is applied independently to every entry in
-`targets`. Each target keeps its own source anchor, local offset, pivot, inheritance mask, and
-optional look-at, spring, and blend settings.
+The graph panel reports empty or duplicate names, missing sources, self-links,
+and cycles. These errors block preview execution and require correction before
+runtime export.
 
-The source scale in the position expression is used only when `inherit.scale` is enabled. The
-source rotation orients the position offset whenever position inheritance is enabled, even when
-rotation inheritance is disabled. Position, rotation, and scale are written independently; a
-component whose inheritance flag is false is left untouched. Bone sources require an active,
-evaluated skeletal pose; socket queries resolve to the evaluated pose or to the canonical bind
-pose when playback is inactive. Sockets are named points stored in optional MSH V11 section 47;
-they do not change skinning weights or animation tracks. `targetPivot` is an optional point in the
-target mesh's local space. Its zero value preserves
-the original behavior, where the target renderizable origin is the attachment point. A non-zero
-value lets a base, socket-like point inside a mesh remain attached while the target origin moves
-around it.
+### Skeletal bones and sockets
 
-Angles use radians, matching `RENDERIZABLE::getAngle()` and the regular Lua renderizable API.
-Composition uses matrices internally and converts back to Euler XYZ radians only when writing the
-engine transform. The optional `offset.rotationMatrix` is the authoritative 3x3 source-local
-rotation captured by the editor and runtime capture API; older definitions without it derive the
-same matrix from `offset.rotation`. For bone sources, the evaluated bone matrix is normalized by
-its evaluated scale before composition, avoiding an intermediate Euler reconstruction during
-animation. Non-uniform
-scale is supported because the offset position is scaled before source rotation. Sheared transforms
-are not part of this contract.
+For a skeletal bone source, the editor provides a `Select bone` viewport mode.
+It frames the source mesh, hides the other preview actor, loads the bind/T-pose
+skeleton, and allows the user to select the bone directly in the viewport.
 
-Sockets are named points stored in optional MSH V11 section 47; they do not change skinning weights
-or animation tracks. Articulated parts are named rigid mesh subsets evaluated by articulated clips;
-they do not change skeletal weights or skeletal animation tracks.
+Sockets are authored in the Skeletal Animation Editor, in the Bone Editor
+worktree. A socket has a name, a parent bone, and local translation, rotation,
+and scale. The socket viewport mode displays socket markers and allows their
+local position and rotation to be edited with the XYZ gizmo and rotation rings.
+The socket marker also displays its local orientation with colored axes.
 
-The composition follows the engine's row-vector convention. Capturing an offset therefore stores
-`target rotation * inverse(source rotation)`, and applying it composes the source-local frame before
-the evaluated source frame. Reversing this order can make a rotation appear on a different axis
-once a skeletal animation changes the bone pose, even when the bind/T-pose looks correct.
+Sockets are stored in optional Mesh V11 section 47. They do not modify skinning
+weights or animation tracks. Mesh Debug FBX export writes sockets as
+bone-parented Blender Empty objects, and FBX import reconstructs them as
+sockets.
 
-## Lua API
+To use a socket in an attachment:
 
-```lua
--- Saved .att.lua / runtime definition format used by the editor and exporter.
-local attachmentDefinition = {
-    source = "character",
-    sourceType = "socket", -- "root", "bone", "socket", "articulated_part", or "frame"
-    sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
-    -- frameAnimation = "blink", -- required when sourceType is "frame"
-    influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
-    initialState = "equipped", -- optional; selects one entry from states
-    states = {
-        equipped = {influenceEnabled = true, blend = {enabled = true, weight = 1}},
-        released = {influenceEnabled = false},
-    },
-    targets = {
-        {
-            name = "hat",
-            -- sourceBone = "Head", -- per-target when sourceType is "bone"
-            -- sourceSocket = "HatMount", -- per-target when sourceType is "socket"
-            -- sourcePart = "hat_mount", -- per-target when sourceType is "articulated_part"
-            inherit = {position = true, rotation = true, scale = false},
-            aimAtSource = false,
-            aimPoint = {x = 0, y = 0, z = 0},
-            offset = {
-                position = {x = 0, y = 1.8, z = 0},
-                rotation = {x = 0, y = 0, z = 0}, -- radians
-                scale = {x = 1, y = 1, z = 1},
-            },
-            targetPivot = {x = 0, y = 0, z = 0},
-            -- frameOffsets = { -- only for sourceType = "frame"
-            --     [1] = {position = {x = 0, y = 0, z = 0}, rotation = {x = 0, y = 0, z = 0}, scale = {x = 1, y = 1, z = 1}},
-            -- },
-        },
-        {
-            name = "propeller",
-            inherit = {position = true, rotation = true, scale = false},
-            offset = {
-                position = {x = 0, y = 2.2, z = 0},
-                rotation = {x = 0, y = 0, z = 0},
-                scale = {x = 1, y = 1, z = 1},
-            },
-            targetPivot = {x = 0, y = 0, z = 0},
-        },
-    },
-}
--- The exported module resolves these names from the game's binding table.
+1. Save the socket in the Skeletal Animation Editor.
+2. Load the mesh as the attachment source.
+3. Select `Socket transform` in the Attachment panel.
+4. Select the socket name.
+5. Configure the target offset and inheritance, then capture the offset.
+
+At runtime, the plugin evaluates the named socket from the current skeletal
+pose. A bone is the structural joint itself; a socket is an art-directed local
+frame that can be placed and oriented without changing the skeleton.
+
+### Articulated parts
+
+An articulated source is a mesh composed of named rigid subsets and articulated
+clips. It does not use skeletal bones or skin weights. The editor provides a
+`Select part` viewport mode that frames the source mesh and selects the subset
+under the cursor. The selected subset pivot is used as the attachment anchor.
+
+Each target can select a different articulated subset of the same source mesh.
+The source mesh must contain the selected part and the active articulated clip
+when the runtime relation is created.
+
+### Static-frame animation
+
+For `sourceType = "frame"`, the source mesh plays a static-frame animation and
+the target has an offset for each authored frame. The Timeline can select,
+pause, play, and step through the frames. `Capture offset` stores the current
+target pose for the current frame.
+
+The editor option `Preserve target transform on uncaptured frames` carries the
+previous target pose into a newly selected frame and creates its offset. This
+is an authoring convenience. The exported runtime module only contains the
+resulting `frameOffsets` table.
+
+## Exported `require` module
+
+`File -> Export require` writes a flat Lua module in the same directory as the
+project. For a project named `character.att.lua`, the default output is:
+
+```text
+character-attachment.lua
 ```
 
-The direct `attachments.attach` API still creates one relation at a time. The generated runtime
-module creates one relation for each entry in `targets`, using the same source. Each direct relation
-rejects invalid or destroyed renderizables, cross-scene references, self-attachments,
-cycles, duplicate component ownership on one target, missing or unevaluated bones or articulated
-parts, and unsupported source types. It returns
-`nil, errorMessage` for those validation failures.
-
-An attachment object provides:
-
-| Method | Result | Meaning |
-|---|---|---|
-| `detach(options?)` | boolean | Deactivates the relation. `preserveWorldPose` defaults to `true`. |
-| `isActive()` | boolean | Whether the relation is active in the current scene. |
-| `getId()` | string | Stable attachment identifier. |
-| `getOffset()` | table | Returns `position`, `rotation`, and `scale` tables. |
-| `setOffset(offset)` | boolean | Changes the local offset without changing ownership. |
-| `setInherit(inherit)` | boolean or `nil,error` | Changes the component mask after conflict/cycle validation. |
-| `getBlend()` | table | Returns the current blend settings. |
-| `setBlend(blend)` | boolean or `nil,error` | Updates blend settings without recreating the relation. |
-| `setInfluenceEnabled(enabled)` | boolean or `nil,error` | Enables or suspends target writes while keeping the relation alive. |
-| `isInfluenceEnabled()` | boolean | Reports whether the relation currently writes the target. |
-| `setState(name)` | boolean or `nil,error` | Applies a named runtime state profile. |
-| `getStateName()` | string | Returns the active configured state name. |
-| `getStates()` | table | Returns the configured state names. |
-| `captureOffset()` | boolean or `nil,error` | Captures the current target pose relative to the current source pose. |
-| `getEffectivePose()` | table or `nil,error` | Returns the target pose currently computed by the attachment. |
-| `getState()` | table | Returns active/invalid status, source type/name, inheritance flags, and offset. |
-
-`detach()` preserves the target's current pose by default. Passing
-`{preserveWorldPose = false}` restores the target pose captured immediately before `attach`.
-`getEffectivePose()` and `getState().effectivePose` expose `position`, `rotation` (radians), and
-`scale` after applying the inheritance mask; components that are not inherited retain the target's
-current values. `getState()` also exposes the configured `blend` and `spring` tables. Destroying a
-source, target, or scene deactivates the relation and releases its Lua
-references.
-
-`influenceEnabled = false` suspends writes to the target but does not detach the relation. Calling
-`setInfluenceEnabled(true)` resumes it using the current source and target poses. `setBlend()`
-accepts a partial table, so omitted fields retain their current values; its weight must remain in
-the range 0..1.
-
-`states` contains named profiles with optional `influenceEnabled` and partial `blend` settings.
-`initialState` selects the profile at attach time; when omitted, a `default` profile is preferred,
-or the only configured profile is selected. `setState()` changes the active profile atomically and
-resets spring integration so a state transition starts from the current target pose.
-
-## Frame order and ownership
-
-The plugin resolves attachments in `PLUGIN::onLoop`, after scene logic, deferred main-thread work,
-physics, and audio, and before rendering. It therefore reads externally controlled source poses in
-the same frame and writes the target before the render pass. It does not use a Lua callback to apply
-the essential transform.
-
-Attachments form a directed graph from source to target. Active relations are resolved with a
-stable topological order so chains such as `character -> hand -> sword -> effect` work. A relation
-that would introduce a cycle is rejected. Two active attachments cannot own the same position,
-rotation, or scale component of one target. The first implementation cannot observe arbitrary
-gameplay or physics writes made outside the attachment plugin; it guarantees only that attachment
-relations do not conflict with one another and that unowned components are not overwritten.
-
-Lua references to the source and target tables keep them alive while an attachment is active. The
-attachment keeps these references itself; `USER_DATA_RENDER_LUA::ref_MeAsTable` is not required for
-ordinary renderizable construction. Scene teardown disables all relations and releases their
-references.
-
-## Authoring boundary
-
-`editor/attachments_editor.lua` is an independent, definition-only authoring tool. Its saved
-`.att.lua` file contains one source label and a collection of target labels, each with its own
-inheritance flags, offsets, and target-local settings. It may also
-contain an `editor` block with mesh paths, actor kinds, and preview poses; that block is ignored by
-the runtime plugin. The editor has its own state and does not require or modify
-`interaction_animation_editor.lua` or `interaction_animation_runtime`.
-
-The source and target strings are runtime binding labels, not mesh filenames. The editor does not
-discover actors from a runtime scene. Instead, its `Export require` action writes a self-contained
-Lua module that keeps these labels and resolves them against an explicit binding table supplied by
-the game.
-
-For example, if the editor exports `character_weapon-attachment.lua`, the game can use:
+The game loads the module with:
 
 ```lua
-local runtime = require "character_weapon-attachment"
+local runtime = require "character-attachment"
+
 local relations, errorMessage = runtime.attach {
     character = characterMesh,
     hat = hatMesh,
     propeller = propellerMesh,
 }
-assert(relations, errorMessage) -- relations[1], relations[2], ...
+assert(relations, errorMessage)
 ```
 
-The generated module validates the binding names, builds one `attachments.attach` specification
-per entry in `targets`, and returns a table of relations or an error. It contains only runtime fields; editor-only mesh
-paths, preview poses, selection state, and language settings are not exported.
-Each target may name the root source or another target as its `source`, enabling chains such as
-`character -> sword -> effect`. An articulated-part source applies to relations directly driven by
-the root mesh; derived target-to-target relations use root transform inheritance. The exporter
-validates missing sources and cycles before runtime relations are created.
+The exported module contains only runtime data and an `attach(bindings)`
+function. The binding keys must match the source and target names authored in
+the editor. It returns one attachment object per target, or `nil, errorMessage`
+if a binding or runtime relation is invalid. If creation of a later relation
+fails, relations already created by that call are detached before the error is
+returned.
 
-Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
-attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
-source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
-controls, editable source and multiple target authoring poses, mesh loading through the standard file picker,
-offset capture, and interaction-style move/rotate gizmos for the selected actor. Bone source mode
-adds a read-only selected-bone display and evaluates the selected bind-pose bone through the loaded
-source mesh preview. Loading a runtime scene and discovering renderizables remains outside the
-editor; the exported module receives those objects through the game's binding table. Each preview actor also has an editor-only
-viewport-selection toggle to avoid ambiguous picking when the source and target overlap. When the
-source type is `bone`, the editor provides a `Select bone` mode. That mode frames the complete source
-mesh in the viewport, hides the target and relation helpers, loads the canonical bind skeleton in
-bind/T-pose, and draws large joint spheres and bone segments over the mesh. The user selects the
-source bone directly in the viewport; the selected bone name is displayed as read-only editor state
-and is saved with the definition. Leaving the mode restores the previous camera and target preview.
-For `articulated_part`, the Attachment panel provides a `Select part` mode with the same dedicated
-viewport behavior: the source mesh is framed, targets and relation helpers are hidden, and a
-viewport click resolves the hit subset and updates the active target's source part. Leaving the
-mode restores the previous camera and target preview.
-There is no free-text bone authoring field. The Objects panel can add, remove, select, and rename
-targets. Each target has its own mesh, preview pose, selection flag, offset, inheritance mask,
-target pivot, look-at settings, spring, and blend configuration; the source and state profiles are
-shared by all targets. The Attachment graph panel shows the source and target nodes with directed
-edges. Clicking a target node selects it in the Objects panel, and the active dependency chain is
-highlighted. Empty or duplicate target names, missing sources, self-links, and cycles are shown as
-graph errors and block preview execution and runtime export.
-The Attachment panel also exposes a target-local virtual pivot. The viewport draws that point and
-the relation line ends there; zero keeps the mesh origin as the target point.
-The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
-preview`. The preview is a standalone Lua driver containing the saved source and target asset
-references, transform setup, selected skeletal, articulated, or static-frame animation, and the same attachment
-specification. For bone, socket, articulated-part, and static-frame sources, a selected clip is required when
-the source asset needs an evaluated animated pose. The `Timeline` panel provides the clip selector,
-Play, Pause, Resume, and Stop controls; while a clip is playing, the attached target is refreshed
-from the evaluated source frame each update. It also includes a timeline slider and one-frame step
-controls. Capture and reset actions are available in the Objects panel when the target is selected;
-save and export remain in the File menu.
-Definition version 5 stores the target collection and uses the same row-major bind-matrix
-orientation as the runtime. Each target entry is serialized independently. It adds
-`sourceType = "frame"`, `frameAnimation`, and per-target `frameOffsets`; the Timeline selects
-and pauses a static frame animation, and capture/manual offset editing affects the current frame.
-The Timeline option `Preserve target transform on uncaptured frames` automatically captures the
-previous target pose as the offset for a newly selected frame. When disabled, uncaptured frames
-fall back to the base offset.
+The generated module requires the plugin itself:
 
-### Socket workflow and source choice
+```lua
+local attachments = require "attachments"
+```
 
-Sockets are authored in the **Skeletal Animation Editor**, not in the Attachment Editor. Open the
-source `.msh` in the Skeletal Animation Editor, enter **Bone Editor**, open **Sockets**, select the
-bone, and add or edit a named socket. The viewport can be put into **Edit sockets in viewport**
-mode: bone picking is disabled, socket markers are selectable, and the XYZ gizmo moves the socket
-in the bone's local bind space. The rotation rings edit the socket's local quaternion; the socket
-marker displays its effective local orientation with colored X/Y/Z axes. Save the mesh before
-using it as an attachment source.
+The editor preview uses the same exported definition and plugin API in a
+separate engine instance.
 
-The socket is persisted in optional Mesh V11 section 47 (`SECTION_SKELETAL_SOCKETS`). Each record
-contains a stable socket ID, a unique name, the referenced bone ID, and local translation,
-quaternion rotation, and scale. Socket data is independent of vertex weights and animation tracks.
-Mesh Debug's FBX exporter writes sockets as bone-parented Blender Empty objects, and the importer
-reconstructs them as canonical sockets. This is why the validated MSH -> FBX -> Mixamo -> FBX ->
-MSH workflow preserves sockets.
+## Definition format
 
-To consume the socket in the Attachment Editor:
+The exported definition has one root source and a target collection:
 
-1. Load the mesh containing the socket as the source actor.
-2. In the Attachment panel, select **Socket transform**.
-3. Choose the socket name from the source socket combo box.
-4. Configure position, rotation, and scale inheritance, then capture or edit the attachment
-   offset and target pivot as usual.
-5. Save the `.att.lua` definition or export the runtime module.
+```lua
+{
+    source = "character",
+    sourceType = "root", -- root, bone, socket, articulated_part, or frame
+    frameAnimation = "run", -- required only for sourceType = "frame"
+    influenceEnabled = true,
+    initialState = "equipped",
+    states = {
+        equipped = {
+            influenceEnabled = true,
+            blend = {enabled = true, weight = 1},
+        },
+        released = {influenceEnabled = false},
+    },
+    targets = {
+        {
+            name = "hat",
+            source = "character",
+            sourceBone = "Head",       -- bone source
+            sourceSocket = "HatMount", -- socket source
+            sourcePart = "hat_mount",  -- articulated-part source
+            inherit = {position = true, rotation = true, scale = false},
+            aimAtSource = false,
+            aimPoint = {x = 0, y = 0, z = 0},
+            aimLimits = {
+                enabled = false,
+                reference = "dynamic", -- dynamic or captured
+                yawMin = -math.pi,
+                yawMax = math.pi,
+                pitchMin = -math.pi * 0.5,
+                pitchMax = math.pi * 0.5,
+            },
+            spring = {
+                enabled = false,
+                position = true,
+                rotation = true,
+                stiffness = 120,
+                damping = 24,
+            },
+            blend = {
+                enabled = false,
+                position = true,
+                rotation = true,
+                scale = true,
+                weight = 1,
+            },
+            offset = {
+                position = {x = 0, y = 1.8, z = 0},
+                rotation = {x = 0, y = 0, z = 0},
+                scale = {x = 1, y = 1, z = 1},
+                rotationMatrix = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
+            },
+            targetPivot = {x = 0, y = 0, z = 0},
+            frameOffsets = {}, -- only for sourceType = "frame"
+        },
+    },
+}
+```
 
-The editor obtains the socket catalog from `getSkeletalSocketReport()` and previews the evaluated
-socket with `getSkeletalSocketTransform(name, "world")`. The exported runtime definition stores
-`sourceType = "socket"` and `sourceSocket = "Name"`; it does not copy the socket into the
-attachment file. The game must therefore bind a mesh that still contains that named socket. At
-runtime the attachments plugin reads the evaluated socket pose every frame, exactly as it reads an
-evaluated bone pose, and applies the configured inheritance mask and local offset to the target.
+The editor writes `frameAnimation` at the definition level. The generated
+module passes that value to the direct plugin API as `sourceAnimation`.
+`frameOffsets` uses positive, one-based animation frame numbers. A frame without
+an entry uses the target's base `offset`.
 
-Use a **bone source** when the attachment should follow the structural joint itself and the bone
-origin/orientation is already the desired anchor. Use a **socket source** when the attachment needs
-a named, art-directed point and orientation on or near a bone. Each target may select a different
-bone or socket from the same source mesh.
+## Transform contract
 
-| Source | Advantages | Tradeoffs |
+Offsets are stored in the local coordinate frame of the selected source. The
+runtime applies the relation as follows:
+
+- inherited position uses the source position plus the source rotation applied
+  to the local offset;
+- inherited source scale also scales the local position offset;
+- inherited rotation composes the local offset rotation with the source
+  rotation;
+- inherited scale multiplies source scale by offset scale;
+- the target pivot is a point in target local space and is subtracted from the
+  resulting target position after target rotation and scale are applied;
+- a component whose inheritance flag is false is left at the target's current
+  value.
+
+Angles use radians. The runtime composes rotations as matrices and converts to
+Euler XYZ radians only when writing the renderizable transform. The optional
+`rotationMatrix` emitted by the editor is the authoritative local offset
+rotation when present. The composition follows the engine's row-vector matrix
+convention.
+
+`aimAtSource` makes the target's local +Z axis point toward the current source
+position or toward `aimPoint` expressed in source-local coordinates. It requires
+rotation inheritance. `aimLimits` clamps yaw and pitch in radians. `dynamic`
+uses the current source frame; `captured` uses the reference matrix captured by
+the editor or by `captureOffset()`.
+
+`blend` interpolates the selected inherited components between the current
+target pose and the attachment pose. Its weight is in the range 0..1. Rotation
+blending uses the shortest angular path.
+
+`spring` applies damped position and rotation following for the enabled
+components. `stiffness` and `damping` must be finite and non-negative. Spring
+integration is reset when the attachment state or relevant configuration
+changes.
+
+State profiles contain `influenceEnabled` and optional partial `blend` values.
+`initialState` selects the profile at creation, and `setState()` changes the
+active profile at runtime.
+
+## Direct Lua API
+
+The direct API creates one relation at a time:
+
+```lua
+local relation, errorMessage = attachments.attach {
+    id = "character_hat",
+    source = characterMesh,
+    target = hatMesh,
+    sourceType = "bone",
+    sourceBone = "Head",
+    inherit = {position = true, rotation = true, scale = false},
+    offset = {
+        position = {x = 0, y = 0.4, z = 0},
+        rotation = {x = 0, y = 0, z = 0},
+        scale = {x = 1, y = 1, z = 1},
+    },
+}
+assert(relation, errorMessage)
+```
+
+For a socket use `sourceType = "socket"` and `sourceSocket`. For an articulated
+part use `sourceType = "articulated_part"` and `sourcePart`. For a static-frame
+source use `sourceType = "frame"`, `sourceAnimation`, and optional
+`frameOffsets`.
+
+The attachment object exposes:
+
+| Method | Result | Description |
 |---|---|---|
-| Bone | No extra anchor metadata; every canonical skeleton bone is immediately available; follows the rig's structural joint directly | The bone origin may be inside the mesh or have an inconvenient orientation; each prop needs its own attachment offset; rig edits can change the meaning of the anchor; moving the bone changes the skeleton and can affect deformation |
-| Socket | Dedicated local translation, rotation, and scale; can sit at a hand grip, muzzle, hat base, weapon mount, or other art-directed point; multiple sockets can share one bone; moving the socket does not alter weights, bone bind transforms, or animation tracks | Must be authored and kept under a stable name; a missing or renamed socket invalidates the attachment; it still requires a skeletal mesh with an evaluated pose; it is unnecessary for static or articulated meshes that only need a root transform |
+| `detach(options?)` | boolean | Detaches the relation. `preserveWorldPose` defaults to `true`. |
+| `isActive()` | boolean | Reports whether the relation is active. |
+| `getId()` | string | Returns the attachment identifier. |
+| `getOffset()` | table | Returns offset vectors, matrix, and target pivot. |
+| `setOffset(offset)` | boolean or `nil, error` | Changes the local offset and pivot. |
+| `setInherit(inherit)` | boolean or `nil, error` | Changes the inheritance mask after validation. |
+| `getBlend()` | table | Returns the current blend settings. |
+| `setBlend(blend)` | boolean or `nil, error` | Updates blend settings. |
+| `setState(name)` | boolean or `nil, error` | Selects a configured state profile. |
+| `getStateName()` | string | Returns the active state name. |
+| `getStates()` | table | Returns configured state names. |
+| `setInfluenceEnabled(enabled)` | boolean or `nil, error` | Suspends or resumes target writes. |
+| `isInfluenceEnabled()` | boolean | Reports whether target writes are enabled. |
+| `captureOffset()` | boolean or `nil, error` | Captures the current target pose relative to the current source pose. |
+| `getEffectivePose()` | table or `nil, error` | Returns the currently calculated target pose. |
+| `getState()` | table | Returns status, source settings, offsets, constraints, and effective pose. |
 
-Both choices are evaluated from the same animated source mesh and use the same attachment offset,
-inheritance flags, and target pivot. A socket is therefore not a replacement for a bone: it is a
-stable, editable attachment frame layered on top of the skeleton.
+`detach()` preserves the current world pose by default. With
+`{preserveWorldPose = false}`, it restores the target pose recorded when the
+relation was created.
 
-### Articulated-part workflow
+## Validation and lifecycle
 
-An articulated mesh is a rigid mesh assembled from named subsets and animated by articulated clips.
-It is not a skeletal mesh and does not require bones or skin weights. To attach another object to one
-of its moving parts:
+`attachments.attach` rejects:
 
-1. Author the part names and articulated clips in the Articulated Animation Editor.
-2. Load the articulated `.msh` as the source actor in the Attachment Editor.
-3. Select **Articulated part transform** and choose the named part.
-4. Select an articulated clip in the Timeline, then configure inheritance and capture the target
-   offset as usual.
+- missing or invalid source and target renderizables;
+- source and target from different scenes;
+- source and target referring to the same renderizable;
+- unsupported or malformed source types;
+- missing or unevaluated bones, sockets, articulated parts, or frame
+  animations;
+- invalid vectors, matrices, limits, spring values, or blend weights;
+- duplicate target component ownership;
+- duplicate attachment identifiers;
+- dependency cycles.
 
-The selected part belongs to the active target. Multiple targets in one attachment definition can
-therefore follow different articulated subsets of the same source mesh.
+Active relations are resolved in a stable topological order. This allows an
+attachment target to be the source of another attachment. A relation that
+becomes invalid during the update loop is deactivated and no longer writes to
+its target.
 
-The editor queries `getArticulatedPartInfo()` for the part list and
-`getArticulatedPartTransform(name, "world")` for the preview. The attachment anchor uses the
-returned `pivotPosition`, matching the pivot marker in the Articulated Animation Editor. The
-runtime plugin evaluates the same part hierarchy and clip every frame. The source part is not copied into the attachment file;
-the game must bind the same mesh asset, including the part name and its articulated animation data.
+The plugin retains Lua references to the source and target tables while a
+relation is active. Scene teardown deactivates all relations and releases those
+references. Destroyed or invalidated renderizables are detected during
+resolution and invalidate their relations without leaving dangling references.
 
-### Look-at constraint
-
-The first additional constraint is `aimAtSource`. When enabled, the target's local +Z axis points
-from the target position toward the current source position. The target must inherit rotation;
-the constraint uses a world-up reference and falls back to the previous target rotation when the
-source and target positions coincide. Position, scale, socket selection, and target pivot keep
-their normal attachment semantics. The editor exposes this as **Look at source** and the runtime
-Lua definition uses `aimAtSource = true`.
-
-When a constrained target should not turn freely, `aimLimits.enabled = true` clamps the look-at
-direction in the attachment frame. `yawMin` and `yawMax` limit the horizontal angle around the
-frame's local Y axis, while `pitchMin` and `pitchMax` limit the vertical angle. All four values
-are radians. With `reference = "dynamic"`, the frame follows the current source socket or bone;
-with `reference = "captured"`, the editor stores a frame at `captureOffset()` and keeps the
-angular reference fixed during playback. The same calculation is used by the editor Timeline and
-by the runtime plugin, so the preview and exported execution keep the same orientation.
-
-The optional `spring` table smooths inherited position and rotation with a damped spring. It is
-disabled by default. `stiffness` controls how quickly the target follows the effective pose and
-`damping` reduces oscillation; both values are non-negative and use engine time units. Position
-and rotation can be enabled independently.
-
-`aimPoint` is an optional point in the source's local space. When `aimAtSource` is enabled, the
-target points toward this point after the source rotation and scale are applied. The default zero
-vector preserves the original behavior of aiming at the source origin. This point changes only the
-look-at direction; attachment position continues to use the normal source offset and target pivot.
-In the Attachment Editor, the point is shown as a pink cube with the same 10% mesh-relative size as
-the yaw/pitch handles. Select **Move aim point** to activate the XYZ gizmo and edit the point in
-the viewport.
-
-The optional `blend` table interpolates the constrained pose with the target's current pose. It is
-disabled by default; `weight = 0` keeps the current pose and `weight = 1` applies the full
-constraint. Position, rotation, and scale can be blended independently. Rotation uses the shortest
-angular path, and the same calculation is used by the editor and runtime.
-
-This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
-The next constraint stages can add blending without changing the basic
-attachment contract.
-
-## Phase 2 lifecycle guarantees
-
-The engine invokes plugin `onLoop` after scene logic, deferred main-thread work, physics, and audio,
-and invokes rendering only afterward. Attachment resolution therefore reads the final source pose
-for that frame and writes inherited target components before the render pass. Scene transitions call
-`onDestroy` before the plugin list is cleared; the plugin disables all relations, releases registry
-references, and leaves surviving Lua attachment objects inert instead of retaining a dangling plugin
-pointer. Invalidated renderizables are detected during the next resolution pass.
-
-## Future phases
-
-IK, multi-source blending, physics integration,
-cross-scene attachments, and a general scene graph remain future work. Socket consumption already
-has the MSH/API/runtime contract described above, and socket authoring is implemented in the
-Skeletal Animation Editor.
+The plugin owns only the components selected by the inheritance mask. It does
+not arbitrate writes made by unrelated gameplay, physics, or animation code;
+the game must avoid external writers that compete for the same target
+components.
