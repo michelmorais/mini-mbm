@@ -20,7 +20,7 @@
 
    Attachments Editor
 
-   Independent authoring tool for root-transform and skeletal-bone attachments.
+   Independent authoring tool for root-transform, skeletal-bone, and articulated-part attachments.
    Its layout follows the interaction animation editor, but its state and
    saved definition are independent from interaction_animation_editor.lua.
 ]]--
@@ -138,6 +138,7 @@ local S = {
         skeletonReport = nil, meshBounds = nil, boneVisuals = {}, selectedBone = '', skeletonGeneration = 0,
         socketCatalog = {},
         articulatedPartCatalog = {},
+        articulatedPartPickGeometry = nil,
         animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
         selectionAnimation = nil},
     targets = {newTargetState()},
@@ -148,6 +149,7 @@ local S = {
     targetPivotMarker = nil,
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
+    partSelectionMarker = nil,
     aimPointMarker = nil,
     aimLimitsVisual = {objects = {}, signature = nil},
     springState = {
@@ -172,6 +174,9 @@ local S = {
     boneSelectionMode = false,
     boneSelectionCamera = nil,
     boneSelectionTargetVisible = nil,
+    partSelectionMode = false,
+    partSelectionCamera = nil,
+    partSelectionTargetVisible = nil,
     camera = nil,
     cameraOrbit = {azimuth = 0.3, elevation = 0.3, distance = 700, fx = 50, fy = 30, fz = 0},
     cameraDrag = nil,
@@ -198,6 +203,10 @@ local function showTooltip(message)
     tImGui.Text(message)
     tImGui.PopTextWrapPos()
     tImGui.EndTooltip()
+end
+
+local function isSourceSelectionMode()
+    return S.boneSelectionMode or S.partSelectionMode
 end
 
 local function dpCall(fn, ...)
@@ -684,6 +693,7 @@ local targetPivotWorldPosition
 local sourceAimPointWorldPosition
 local updateAimPointMarker
 local updateTargetPivotMarker
+local updatePartSelectionMarker
 local showTargetPivotFields
 local showAimPointFields
 local captureOffset
@@ -843,6 +853,7 @@ local function destroyRoleObject(role)
     entry.meshLoaded = false
     entry.skeletonReport = nil
     entry.meshBounds = nil
+    entry.articulatedPartPickGeometry = nil
     entry.selectedBone = ''
     entry.socketCatalog = {}
     entry.articulatedPartCatalog = {}
@@ -936,8 +947,8 @@ end
 
 local function playSourceAnimation()
     local source = S.source
-    if S.boneSelectionMode then
-        setStatus(L('animation_unavailable_in_bone_mode'), true)
+    if isSourceSelectionMode() then
+        setStatus(L('animation_unavailable_in_selection_mode'), true)
         return
     end
     local name = source.animationClips[source.selectedAnimation]
@@ -1212,6 +1223,20 @@ local function createPivotMarker()
     return object
 end
 
+local function createPartSelectionMarker()
+    local object = shape:new('3d', 0, 0, 0)
+    if not object:create(unitSphereVertices(), nil, 'attachments_articulated_part_selection_marker') then
+        object:destroy()
+        return nil
+    end
+    object:setColor(1.0, 0.35, 0.1, 1.0)
+    object.alwaysOnTop = true
+    object.alwaysOnTopPriority = 26
+    object.alwaysRender = true
+    object.visible = false
+    return object
+end
+
 local function createAimPointMarker()
     local object = shape:new('3d', 0, 0, 0)
     if not object:create(cubeVertices(), nil, 'attachments_source_aim_point_marker') then
@@ -1259,10 +1284,27 @@ local function getAimPointHandleSize()
     return math.max(targetExtent * 0.10, 0.01)
 end
 
+local function ensureSourceDebugMesh()
+    local source = S.source
+    if source.debugMesh then return true end
+    if not source.path or source.path == '' then return false end
+    local ok, debugMesh = dpCall(function()
+        local result = meshDebug:new()
+        if not result:load(source.path) then
+            result:destroy()
+            error('Could not load mesh data for attachment part picker')
+        end
+        return result
+    end)
+    if not ok or not debugMesh then return false end
+    source.debugMesh = debugMesh
+    return true
+end
+
 local function getSourceMeshBounds()
     local source = S.source
     if source.meshBounds then return source.meshBounds end
-    if not source.debugMesh then return nil end
+    if not ensureSourceDebugMesh() then return nil end
     local minX, minY, minZ = math.huge, math.huge, math.huge
     local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
     local total = 0
@@ -1291,8 +1333,99 @@ local function getSourceMeshBounds()
     return source.meshBounds
 end
 
+local function transformMatrixPoint(matrix, point)
+    if type(matrix) ~= 'table' then return vector(point.x, point.y, point.z) end
+    return vector(
+        point.x * (matrix[1] or 1) + point.y * (matrix[5] or 0) + point.z * (matrix[9] or 0) + (matrix[13] or 0),
+        point.x * (matrix[2] or 0) + point.y * (matrix[6] or 1) + point.z * (matrix[10] or 0) + (matrix[14] or 0),
+        point.x * (matrix[3] or 0) + point.y * (matrix[7] or 0) + point.z * (matrix[11] or 1) + (matrix[15] or 0))
+end
+
+local function sourcePoseSignature()
+    local poseValue = S.source.pose
+    return table.concat({poseValue.x, poseValue.y, poseValue.z, poseValue.rx, poseValue.ry,
+        poseValue.rz, poseValue.sx, poseValue.sy, poseValue.sz}, ':')
+end
+
+local function buildArticulatedPartPickGeometry()
+    local source = S.source
+    if not ensureSourceDebugMesh() then return false end
+    local signature = sourcePoseSignature()
+    if source.articulatedPartPickGeometry and source.articulatedPartPickGeometry.signature == signature then
+        return true
+    end
+    local okTotal, totalParts = dpCall(function() return source.object:getTotalArticulatedParts() end)
+    if not okTotal then return false end
+    local geometry = {signature = signature, parts = {}}
+    for index = 1, tonumber(totalParts) or 0 do
+        local okInfo, info = dpCall(function() return source.object:getArticulatedPartInfo(index) end)
+        if okInfo and type(info) == 'table' and type(info.name) == 'string' and info.name ~= '' then
+            local frame = tonumber(info.frame) or 1
+            local subset = tonumber(info.subset) or 1
+            local okTransform, part = dpCall(function()
+                return source.object:getArticulatedPartTransform(info.name, 'model')
+            end)
+            local partMatrix = okTransform and type(part) == 'table' and part.matrix or nil
+            local okVertices, vertexCount = dpCall(function()
+                return source.debugMesh:getTotalVertex(frame, subset)
+            end)
+            if okVertices and tonumber(vertexCount) and vertexCount > 0 then
+                local vertices = {}
+                for vertex = 1, vertexCount do
+                    local okPoint, point = dpCall(function()
+                        return source.debugMesh:getVertex(frame, subset, vertex)
+                    end)
+                    if okPoint and point then
+                        vertices[vertex] = transformSourcePoint(transformMatrixPoint(partMatrix, point))
+                    end
+                end
+                local okIndices, indices = dpCall(function()
+                    return source.debugMesh:getIndex(frame, subset)
+                end)
+                local triangles = {}
+                local function addTriangle(a, b, c)
+                    if not vertices[a] or not vertices[b] or not vertices[c] then return end
+                    local first, second, third = vertices[a], vertices[b], vertices[c]
+                    triangles[#triangles + 1] = {a = first, b = second, c = third}
+                end
+                if okIndices and type(indices) == 'table' and #indices >= 3 then
+                    for current = 1, #indices - 2, 3 do
+                        addTriangle(indices[current], indices[current + 1], indices[current + 2])
+                    end
+                else
+                    for current = 1, vertexCount - 2, 3 do
+                        addTriangle(current, current + 1, current + 2)
+                    end
+                end
+                if #triangles > 0 then
+                    local bounds = {minX = math.huge, minY = math.huge, minZ = math.huge,
+                        maxX = -math.huge, maxY = -math.huge, maxZ = -math.huge}
+                    for _, triangle in ipairs(triangles) do
+                        for _, point in ipairs({triangle.a, triangle.b, triangle.c}) do
+                            bounds.minX = math.min(bounds.minX, point.x)
+                            bounds.minY = math.min(bounds.minY, point.y)
+                            bounds.minZ = math.min(bounds.minZ, point.z)
+                            bounds.maxX = math.max(bounds.maxX, point.x)
+                            bounds.maxY = math.max(bounds.maxY, point.y)
+                            bounds.maxZ = math.max(bounds.maxZ, point.z)
+                        end
+                    end
+                    bounds.centerX = (bounds.minX + bounds.maxX) * 0.5
+                    bounds.centerY = (bounds.minY + bounds.maxY) * 0.5
+                    bounds.centerZ = (bounds.minZ + bounds.maxZ) * 0.5
+                    geometry.parts[#geometry.parts + 1] = {
+                        name = info.name, triangles = triangles, bounds = bounds,
+                    }
+                end
+            end
+        end
+    end
+    source.articulatedPartPickGeometry = geometry
+    return #geometry.parts > 0
+end
+
 local function getBoneSelectionMinCameraDistance()
-    if not S.boneSelectionMode then return 80 end
+    if not isSourceSelectionMode() then return 80 end
     local bounds = getSourceMeshBounds()
     if not bounds then return 0.01 end
     local extent = math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,
@@ -1511,6 +1644,70 @@ setBoneSelectionMode = function(enabled)
     return true
 end
 
+local setPartSelectionMode
+
+setPartSelectionMode = function(enabled)
+    enabled = enabled == true
+    if enabled == S.partSelectionMode then return true end
+    if enabled then
+        if S.definition.sourceType ~= 'articulated_part' then return false end
+        if not S.source.meshLoaded then
+            setStatus(L('part_select_requires_mesh'), true)
+            return false
+        end
+        S.source.selectionAnimation = S.source.activeAnimation ~= '' and {
+            name = S.source.activeAnimation, paused = S.source.animationPaused == true,
+        } or nil
+        stopSourceAnimation()
+        if not buildArticulatedPartPickGeometry() then
+            S.source.selectionAnimation = nil
+            setStatus(L('no_articulated_parts'), true)
+            return false
+        end
+        S.partSelectionCamera = {
+            azimuth = S.cameraOrbit.azimuth, elevation = S.cameraOrbit.elevation,
+            distance = S.cameraOrbit.distance, fx = S.cameraOrbit.fx,
+            fy = S.cameraOrbit.fy, fz = S.cameraOrbit.fz,
+        }
+        S.partSelectionTargetVisible = {}
+        S.partSelectionMode = true
+        for index, targetState in ipairs(S.targets) do
+            S.partSelectionTargetVisible[index] = targetState.object and targetState.object.visible ~= false
+            if targetState.object then targetState.object.visible = false end
+            local relation = S.relationLines[index]
+            if relation then relation.visible = false end
+        end
+        if S.targetPivotMarker then S.targetPivotMarker.visible = false end
+        if S.aimPointMarker then S.aimPointMarker.visible = false end
+        if S.xzPlane then S.xzPlane.visible = false end
+        if S.source.object then S.source.object.visible = true end
+        frameBoneSelectionCamera()
+        hideGizmo()
+        updatePartSelectionMarker()
+        return true
+    end
+    S.partSelectionMode = false
+    for index, targetState in ipairs(S.targets) do
+        if targetState.object then
+            targetState.object.visible = not S.partSelectionTargetVisible or
+                S.partSelectionTargetVisible[index] ~= false
+        end
+        local relation = S.relationLines[index]
+        if relation then relation.visible = true end
+    end
+    if S.targetPivotMarker then S.targetPivotMarker.visible = true end
+    if S.partSelectionCamera then
+        S.cameraOrbit = S.partSelectionCamera
+        S.partSelectionCamera = nil
+        applyCamera()
+    end
+    S.partSelectionTargetVisible = nil
+    restoreSourceAnimation()
+    updatePartSelectionMarker()
+    S.dirtyPreview = true
+    return true
+end
+
 local function getSourceBonePose(name)
     local bone = getSourceBone(name)
     local bindPose = bone and matrixPose(bone.globalBindMatrix) or nil
@@ -1587,7 +1784,7 @@ local function updateXZPlane()
         S.xzPlane:setPos(S.cameraOrbit.fx, 0, S.cameraOrbit.fz)
         S.xzPlaneX, S.xzPlaneZ = S.cameraOrbit.fx, S.cameraOrbit.fz
     end
-    S.xzPlane.visible = S.showXZPlane and not S.boneSelectionMode
+    S.xzPlane.visible = S.showXZPlane and not isSourceSelectionMode()
 end
 
 local function applyMarker(role, value)
@@ -1766,7 +1963,7 @@ end
 local function updateAimLimitsVisual()
     local visual = S.aimLimitsVisual
     local limits = S.definition.aimLimits
-    if S.boneSelectionMode or not S.showAimLimits or not S.target.object or
+    if isSourceSelectionMode() or not S.showAimLimits or not S.target.object or
             not S.definition.aimAtSource or not limits or not limits.enabled then
         hideAimLimitsVisual()
         return
@@ -1876,7 +2073,7 @@ end
 
 local function pickAimLimitsHandle(screenX, screenY)
     local visual = S.aimLimitsVisual
-    if S.boneSelectionMode or not S.showAimLimits or S.selectedRole ~= 'target' or
+    if isSourceSelectionMode() or not S.showAimLimits or S.selectedRole ~= 'target' or
             not S.definition.aimAtSource or
             not S.definition.aimLimits or not S.definition.aimLimits.enabled then
         return nil
@@ -1908,7 +2105,7 @@ local function getGizmoAxes()
 end
 
 local function updateGizmo()
-    if S.boneSelectionMode then
+    if isSourceSelectionMode() then
         if S.targetPivotMarker then S.targetPivotMarker.visible = false end
         hideGizmo()
         return
@@ -2054,9 +2251,76 @@ local function pickSourceBone(screenX, screenY)
     return bestName
 end
 
+local function rayTriangleHit(ox, oy, oz, dx, dy, dz, triangle)
+    local a, b, c = triangle.a, triangle.b, triangle.c
+    local e1x, e1y, e1z = b.x - a.x, b.y - a.y, b.z - a.z
+    local e2x, e2y, e2z = c.x - a.x, c.y - a.y, c.z - a.z
+    local px, py, pz = dy * e2z - dz * e2y, dz * e2x - dx * e2z, dx * e2y - dy * e2x
+    local determinant = e1x * px + e1y * py + e1z * pz
+    if math.abs(determinant) < 1e-9 then return nil end
+    local inverse = 1 / determinant
+    local tx, ty, tz = ox - a.x, oy - a.y, oz - a.z
+    local u = (tx * px + ty * py + tz * pz) * inverse
+    if u < 0 or u > 1 then return nil end
+    local qx, qy, qz = ty * e1z - tz * e1y, tz * e1x - tx * e1z, tx * e1y - ty * e1x
+    local v = (dx * qx + dy * qy + dz * qz) * inverse
+    if v < 0 or u + v > 1 then return nil end
+    local distance = (e2x * qx + e2y * qy + e2z * qz) * inverse
+    return distance > 1e-7 and distance or nil
+end
+
+local function rayHitsBounds(ox, oy, oz, dx, dy, dz, bounds)
+    local near, far = -math.huge, math.huge
+    local function slab(origin, direction, minimum, maximum)
+        if math.abs(direction) < 1e-9 then
+            return origin >= minimum and origin <= maximum
+        end
+        local first, second = (minimum - origin) / direction, (maximum - origin) / direction
+        if first > second then first, second = second, first end
+        near, far = math.max(near, first), math.min(far, second)
+        return near <= far
+    end
+    return slab(ox, dx, bounds.minX, bounds.maxX) and slab(oy, dy, bounds.minY, bounds.maxY) and
+        slab(oz, dz, bounds.minZ, bounds.maxZ) and far >= 0
+end
+
+local function pickArticulatedPart(screenX, screenY)
+    if S.definition.sourceType ~= 'articulated_part' or not S.partSelectionMode then return nil end
+    if not buildArticulatedPartPickGeometry() then return nil end
+    local ok, ox, oy, oz, dx, dy, dz = pcall(mbm.getPickRay, screenX, screenY)
+    if not ok then return nil end
+    local bestName, bestDistance
+    for _, part in ipairs(S.source.articulatedPartPickGeometry.parts) do
+        if rayHitsBounds(ox, oy, oz, dx, dy, dz, part.bounds) then
+            for _, triangle in ipairs(part.triangles) do
+                local distance = rayTriangleHit(ox, oy, oz, dx, dy, dz, triangle)
+                if distance and (not bestDistance or distance < bestDistance) then
+                    bestName, bestDistance = part.name, distance
+                end
+            end
+        end
+    end
+    return bestName
+end
+
 local function beginViewportInteraction(key, screenX, screenY)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
+        local pickedPart = pickArticulatedPart(screenX, screenY)
+        if pickedPart then
+            local preservedTargetPose = clonePose(S.target.pose)
+            S.selectedRole = 'source'
+            S.definition.sourcePart = pickedPart
+            captureOffset(preservedTargetPose)
+            S.target.manualOverride = false
+            markModified()
+            updatePartSelectionMarker()
+            return
+        end
+        if S.partSelectionMode then
+            S.cameraDrag = {kind = 'orbit', startX = screenX, startY = screenY}
+            return
+        end
         local aimHandle = pickAimLimitsHandle(screenX, screenY)
         if aimHandle then
             local source = getActiveTargetSourcePose() or S.source.pose
@@ -2412,7 +2676,7 @@ updateAimPointMarker = function()
     local handleSize = getAimPointHandleSize()
     S.aimPointMarker:setPos(point.x, point.y, point.z)
     S.aimPointMarker:setScale(handleSize, handleSize, handleSize)
-    S.aimPointMarker.visible = not S.boneSelectionMode and S.definition.aimAtSource
+    S.aimPointMarker.visible = not isSourceSelectionMode() and S.definition.aimAtSource
 end
 
 updateTargetPivotMarker = function()
@@ -2421,11 +2685,35 @@ updateTargetPivotMarker = function()
     S.targetPivotMarker:setPos(targetPivot.x, targetPivot.y, targetPivot.z)
     local radius = getTargetPivotMarkerRadius()
     S.targetPivotMarker:setScale(radius, radius, radius)
-    S.targetPivotMarker.visible = not S.boneSelectionMode and
+    S.targetPivotMarker.visible = not isSourceSelectionMode() and
         (S.selectedRole == 'target' or S.transformMode == 'pivot' or
          math.abs(S.definition.targetPivot.x) > 1e-6 or
          math.abs(S.definition.targetPivot.y) > 1e-6 or
          math.abs(S.definition.targetPivot.z) > 1e-6)
+end
+
+updatePartSelectionMarker = function()
+    local marker = S.partSelectionMarker
+    if not marker then return end
+    if not S.partSelectionMode or S.definition.sourceType ~= 'articulated_part' or
+            not buildArticulatedPartPickGeometry() then
+        marker.visible = false
+        return
+    end
+    local selectedPart = S.definition.sourcePart
+    for _, part in ipairs(S.source.articulatedPartPickGeometry.parts) do
+        if part.name == selectedPart then
+            local bounds = part.bounds
+            local extent = math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY,
+                bounds.maxZ - bounds.minZ)
+            local radius = math.max(extent * 0.025, 0.05)
+            marker:setPos(bounds.centerX, bounds.centerY, bounds.centerZ)
+            marker:setScale(radius, radius, radius)
+            marker.visible = true
+            return
+        end
+    end
+    marker.visible = false
 end
 
 local function evaluateTargetPreview(index, delta, visiting, evaluated, errors)
@@ -2457,7 +2745,7 @@ local function evaluateTargetPreview(index, delta, visiting, evaluated, errors)
     local targetPivot = targetPivotWorldPosition(S.target.pose)
     relation:set({sourcePose.x, sourcePose.y, sourcePose.z,
         targetPivot.x, targetPivot.y, targetPivot.z}, 1)
-    relation.visible = not S.boneSelectionMode
+    relation.visible = not isSourceSelectionMode()
     syncActiveTargetDefinition()
     visiting[index] = nil
     evaluated[index] = {pose = clonePose(S.target.pose), sourcePose = clonePose(sourcePose)}
@@ -2486,6 +2774,7 @@ local function rebuildPreview(delta)
     applyMarker('target', S.target.pose)
     updateTargetPivotMarker()
     updateAimPointMarker()
+    updatePartSelectionMarker()
     S.dirtyPreview = false
 end
 
@@ -3062,6 +3351,7 @@ local function loadDefinition(path)
     if not definition then setStatus(L('invalid_definition'), true); return end
     local repairedSource = false
     if S.boneSelectionMode then setBoneSelectionMode(false) end
+    if S.partSelectionMode then setPartSelectionMode(false) end
     for _, targetState in ipairs(S.targets) do
         if targetState.object then targetState.object:destroy() end
     end
@@ -3435,6 +3725,7 @@ local function showAttachment()
              L('articulated_part_transform')})
         if sourceTypeChanged then
             syncActiveTargetDefinition()
+            if S.partSelectionMode then setPartSelectionMode(false) end
             stopSourceAnimation()
             S.definition.sourceType = nextSourceType == 2 and 'bone' or
                 (nextSourceType == 3 and 'socket' or
@@ -3528,6 +3819,11 @@ local function showAttachment()
             else
                 tImGui.Text(L('no_articulated_parts'))
             end
+            local selectPart = tImGui.Checkbox(L('select_part'), S.partSelectionMode)
+            if selectPart ~= S.partSelectionMode then
+                setPartSelectionMode(selectPart)
+            end
+            tImGui.TextWrapped(L('part_select_help'))
             tImGui.TextWrapped(L('source_part_help'))
         end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
@@ -4031,9 +4327,13 @@ function onInitScene()
     S.source.object = createMarker('source', {0.15, 0.75, 1.0, 0.42})
     S.target.object = createMarker('target', {1.0, 0.65, 0.15, 0.42})
     S.targetPivotMarker = createPivotMarker()
+    S.partSelectionMarker = createPartSelectionMarker()
     S.aimPointMarker = createAimPointMarker()
     if S.targetPivotMarker then
         S.targetPivotMarker.visible = false
+    end
+    if S.partSelectionMarker then
+        S.partSelectionMarker.visible = false
     end
     if S.aimPointMarker then
         S.aimPointMarker.visible = false
@@ -4051,7 +4351,7 @@ function onLoop(delta)
     if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket' or
             S.definition.sourceType == 'articulated_part') and
             S.source.activeAnimation ~= '' and
-            not S.source.animationPaused and not S.boneSelectionMode then
+            not S.source.animationPaused and not isSourceSelectionMode() then
         S.dirtyPreview = true
     end
     if S.dirtyPreview then rebuildPreview(delta) end
@@ -4074,6 +4374,7 @@ function onKeyDown(key)
     end
     if key == mbm.getKeyCode('ESC') then
         if S.boneSelectionMode then setBoneSelectionMode(false) end
+        if S.partSelectionMode then setPartSelectionMode(false) end
         S.selectedRole = nil
         hideGizmo()
         return
@@ -4121,6 +4422,7 @@ function onFinalizeScene()
         if targetState.object then targetState.object:destroy(); targetState.object = nil end
     end
     if S.targetPivotMarker then S.targetPivotMarker:destroy(); S.targetPivotMarker = nil end
+    if S.partSelectionMarker then S.partSelectionMarker:destroy(); S.partSelectionMarker = nil end
     if S.aimPointMarker then S.aimPointMarker:destroy(); S.aimPointMarker = nil end
     for index, relation in pairs(S.relationLines) do
         relation:destroy()

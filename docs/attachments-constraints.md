@@ -240,6 +240,10 @@ mesh in the viewport, hides the target and relation helpers, loads the canonical
 bind/T-pose, and draws large joint spheres and bone segments over the mesh. The user selects the
 source bone directly in the viewport; the selected bone name is displayed as read-only editor state
 and is saved with the definition. Leaving the mode restores the previous camera and target preview.
+For `articulated_part`, the Attachment panel provides a `Select part` mode with the same dedicated
+viewport behavior: the source mesh is framed, targets and relation helpers are hidden, and a
+viewport click resolves the hit subset and updates the active target's source part. Leaving the
+mode restores the previous camera and target preview.
 There is no free-text bone authoring field. The Objects panel can add, remove, select, and rename
 targets. Each target has its own mesh, preview pose, selection flag, offset, inheritance mask,
 target pivot, look-at settings, spring, and blend configuration; the source and state profiles are
