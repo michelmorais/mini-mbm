@@ -106,6 +106,7 @@ local S = {
     targetPivotMarker = nil,
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
+    aimLimitsVisual = {objects = {}, signature = nil},
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
     xzPlaneSize = nil,
@@ -1172,9 +1173,146 @@ local function pickRole(screenX, screenY)
     return nil
 end
 
+local function hideAimLimitsVisual()
+    for _, object in pairs(S.aimLimitsVisual.objects) do object.visible = false end
+    for _, handle in pairs(S.aimLimitsVisual.handles or {}) do handle.object.visible = false end
+    S.aimLimitsVisual.signature = nil
+end
+
+local function updateAimLimitsVisual()
+    local visual = S.aimLimitsVisual
+    local limits = S.definition.aimLimits
+    if S.boneSelectionMode or S.selectedRole ~= 'target' or not S.target.object or
+            not S.definition.aimAtSource or not limits or not limits.enabled then
+        hideAimLimitsVisual()
+        return
+    end
+    local source = getPreviewSourcePose() or S.source.pose
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local offsetRotation = S.definition.offset.rotationMatrix or
+        eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
+            S.definition.offset.rotation.z)
+    local baseRotation = multiplyRotation(offsetRotation, sourceRotation)
+    local origin = targetPivotWorldPosition(S.target.pose)
+    local radius = math.max(S.target.previewSize * 1.8, 45)
+    local signatureParts = {origin.x, origin.y, origin.z, radius,
+        limits.yawMin, limits.yawMax, limits.pitchMin, limits.pitchMax}
+    for row = 1, 3 do
+        for column = 1, 3 do signatureParts[#signatureParts + 1] = baseRotation[row][column] end
+    end
+    local signature = table.concat(signatureParts, ':')
+    if visual.signature == signature then
+        for _, object in pairs(visual.objects) do object.visible = true end
+        for _, handle in pairs(visual.handles or {}) do handle.object.visible = true end
+        return
+    end
+    local function worldPoint(x, y, z)
+        local point = rotateVector(baseRotation, vector(x, y, z))
+        return {x = origin.x + point.x, y = origin.y + point.y, z = origin.z + point.z}
+    end
+    local function arcPoints(first, last, angleFunction)
+        local points = {}
+        local steps = 64
+        for index = 0, steps do
+            local angle = first + (last - first) * index / steps
+            local x, y, z = angleFunction(angle)
+            local point = worldPoint(x * radius, y * radius, z * radius)
+            points[#points + 1] = point.x
+            points[#points + 1] = point.y
+            points[#points + 1] = point.z
+        end
+        return points
+    end
+    local yawPoints = arcPoints(limits.yawMin, limits.yawMax, function(angle)
+        return math.sin(angle), 0, math.cos(angle)
+    end)
+    local pitchPoints = arcPoints(limits.pitchMin, limits.pitchMax, function(angle)
+        return 0, math.sin(angle), math.cos(angle)
+    end)
+    local function corner(yaw, pitch)
+        local cosinePitch = math.cos(pitch)
+        return worldPoint(radius * cosinePitch * math.sin(yaw), radius * math.sin(pitch),
+            radius * cosinePitch * math.cos(yaw))
+    end
+    local function rayPoints(yaw, pitch)
+        local point = corner(yaw, pitch)
+        return {origin.x, origin.y, origin.z, point.x, point.y, point.z}
+    end
+    local paths = {
+        {name = 'yaw', points = yawPoints, color = {0.15, 1, 0.2, 1}},
+        {name = 'pitch', points = pitchPoints, color = {1, 0.15, 0.15, 1}},
+        {name = 'corner_a', points = rayPoints(limits.yawMin, limits.pitchMin), color = {1, 0.85, 0.15, 1}},
+        {name = 'corner_b', points = rayPoints(limits.yawMin, limits.pitchMax), color = {1, 0.85, 0.15, 1}},
+        {name = 'corner_c', points = rayPoints(limits.yawMax, limits.pitchMin), color = {1, 0.85, 0.15, 1}},
+        {name = 'corner_d', points = rayPoints(limits.yawMax, limits.pitchMax), color = {1, 0.85, 0.15, 1}},
+    }
+    for _, path in ipairs(paths) do
+        local object = visual.objects[path.name]
+        if not object then
+            object = line:new('3d', 0, 0, 0)
+            object:add(path.points)
+            object.alwaysOnTop = true
+            object.alwaysOnTopPriority = 12
+            object.alwaysRender = true
+            visual.objects[path.name] = object
+        else
+            object:set(path.points, 1)
+        end
+        object:setColor(table.unpack(path.color))
+        object.visible = true
+    end
+    local handlePoints = {
+        yaw_min = corner(limits.yawMin, 0),
+        yaw_max = corner(limits.yawMax, 0),
+        pitch_min = corner(0, limits.pitchMin),
+        pitch_max = corner(0, limits.pitchMax),
+    }
+    visual.handles = visual.handles or {}
+    for name, point in pairs(handlePoints) do
+        local handle = visual.handles[name]
+        if not handle then
+            local object = shape:new('3d', point.x, point.y, point.z)
+            if object:create(cubeVertices(), nil, 'attachments_aim_limit_handle_' .. name) then
+                object.alwaysOnTop = true
+                object.alwaysOnTopPriority = 14
+                object.alwaysRender = true
+                handle = {object = object}
+                visual.handles[name] = handle
+            else
+                object:destroy()
+            end
+        end
+        if handle then
+            handle.object:setPos(point.x, point.y, point.z)
+            local size = math.max(radius * 0.11, 3)
+            handle.object:setScale(size, size, size)
+            handle.object:setColor(name:find('yaw') and 0.15 or 1,
+                name:find('yaw') and 1 or 0.15, 0.2, 1)
+            handle.object.visible = true
+        end
+    end
+    visual.signature = signature
+end
+
+local function pickAimLimitsHandle(screenX, screenY)
+    local visual = S.aimLimitsVisual
+    if S.boneSelectionMode or S.selectedRole ~= 'target' or not S.definition.aimAtSource or
+            not S.definition.aimLimits or not S.definition.aimLimits.enabled then
+        return nil
+    end
+    for name, handle in pairs(visual.handles or {}) do
+        local ok, hit = dpCall(function()
+            return handle.object:collide(screenX, screenY, true)
+        end)
+        if ok and hit then return name end
+    end
+    return nil
+end
+
 hideGizmo = function()
     for _, object in pairs(S.gizmo.axes) do object.visible = false end
     for _, object in pairs(S.gizmo.rings) do object.visible = false end
+    hideAimLimitsVisual()
     S.gizmo.drag = nil
     S.gizmo.origin, S.gizmo.length, S.gizmo.radius, S.gizmo.axesSignature = nil, nil, nil, nil
 end
@@ -1260,6 +1398,7 @@ local function updateGizmo()
     end
     S.gizmo.origin, S.gizmo.length, S.gizmo.radius, S.gizmo.axesSignature = origin, length, radius,
         axesSignature
+    updateAimLimitsVisual()
 end
 
 local function pickGizmoAxis(screenX, screenY)
@@ -1327,6 +1466,26 @@ end
 local function beginViewportInteraction(key, screenX, screenY)
     if tImGui.GetWantCaptureMouse() then return end
     if key == 0 then
+        local aimHandle = pickAimLimitsHandle(screenX, screenY)
+        if aimHandle then
+            local source = getPreviewSourcePose() or S.source.pose
+            local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+            local offsetRotation = S.definition.offset.rotationMatrix or
+                eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
+                    S.definition.offset.rotation.z)
+            local baseRotation = multiplyRotation(offsetRotation, sourceRotation)
+            local origin = targetPivotWorldPosition(S.target.pose)
+            local field = aimHandle == 'yaw_min' and 'yawMin' or aimHandle == 'yaw_max' and 'yawMax' or
+                aimHandle == 'pitch_min' and 'pitchMin' or 'pitchMax'
+            S.gizmo.drag = {
+                mode = 'aim_limit', handle = aimHandle, field = field, origin = origin,
+                baseRotation = baseRotation,
+                planeNormal = aimHandle:find('yaw') and rotateVector(baseRotation, vector(0, 1, 0)) or
+                    rotateVector(baseRotation, vector(1, 0, 0)),
+            }
+            S.cameraDrag = nil
+            return
+        end
         local ring = pickRotationRing(screenX, screenY)
         if ring then
             local entry = roleEntry(S.selectedRole)
@@ -1385,6 +1544,34 @@ end
 local function updateViewportInteraction(screenX, screenY)
     local drag = S.gizmo.drag
     if drag then
+        if drag.mode == 'aim_limit' then
+            local wx, wy, wz = rayPlaneHit(screenX, screenY, drag.origin, drag.planeNormal)
+            if wx then
+                local localPoint = rotateVector(transposeRotation(drag.baseRotation), vector(
+                    wx - drag.origin.x, wy - drag.origin.y, wz - drag.origin.z))
+                local angle
+                if drag.handle:find('yaw') then
+                    angle = math.atan(localPoint.x, localPoint.z)
+                    angle = unwrapAngle(angle, S.definition.aimLimits[drag.field])
+                else
+                    angle = math.atan(localPoint.y, localPoint.z)
+                    angle = math.max(-math.pi * 0.5, math.min(math.pi * 0.5, angle))
+                end
+                local limits = S.definition.aimLimits
+                if drag.handle == 'yaw_min' then
+                    limits.yawMin = math.min(angle, limits.yawMax)
+                elseif drag.handle == 'yaw_max' then
+                    limits.yawMax = math.max(angle, limits.yawMin)
+                elseif drag.handle == 'pitch_min' then
+                    limits.pitchMin = math.min(angle, limits.pitchMax)
+                else
+                    limits.pitchMax = math.max(angle, limits.pitchMin)
+                end
+                S.target.manualOverride = false
+                markModified()
+            end
+            return
+        end
         local entry = roleEntry(S.selectedRole)
         if drag.mode == 'move' then
             local parameter = rayAxisParameter(screenX, screenY, drag.origin, drag.axis)
@@ -2467,7 +2654,11 @@ end
 function onFinalizeScene()
     for _, object in pairs(S.gizmo.axes) do object:destroy() end
     for _, object in pairs(S.gizmo.rings) do object:destroy() end
+    for _, object in pairs(S.aimLimitsVisual.objects) do object:destroy() end
+    for _, handle in pairs(S.aimLimitsVisual.handles or {}) do handle.object:destroy() end
     S.gizmo.axes, S.gizmo.rings = {}, {}
+    S.aimLimitsVisual.objects = {}
+    S.aimLimitsVisual.handles = {}
     destroySourceSkeletonVisuals()
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
     if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
