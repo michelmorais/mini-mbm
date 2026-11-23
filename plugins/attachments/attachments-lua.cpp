@@ -47,6 +47,7 @@ constexpr uint8_t INHERIT_SCALE = 4u;
 constexpr uint8_t SOURCE_ROOT = 0u;
 constexpr uint8_t SOURCE_BONE = 1u;
 constexpr uint8_t SOURCE_SOCKET = 2u;
+constexpr double PI = 3.14159265358979323846;
 
 int PLUGIN_IDENTIFIER = 1;
 
@@ -174,6 +175,56 @@ MATRIX3 lookAtRotation(const VEC3D &from, const VEC3D &to, const MATRIX3 &fallba
     result.value[2][1] = forward.y;
     result.value[2][2] = forward.z;
     return result;
+}
+
+struct AIM_LIMITS
+{
+    bool enabled = false;
+    double yawMin = -PI;
+    double yawMax = PI;
+    double pitchMin = -PI * 0.5;
+    double pitchMax = PI * 0.5;
+};
+
+MATRIX3 limitedLookAtRotation(const VEC3D &from, const VEC3D &to,
+                              const MATRIX3 &baseRotation, const MATRIX3 &fallback,
+                              const AIM_LIMITS &limits)
+{
+    VEC3D forward{to.x - from.x, to.y - from.y, to.z - from.z};
+    if (!normalizeVector(forward)) return fallback;
+    VEC3D localForward = transformVector(transpose(baseRotation), forward);
+    if (!normalizeVector(localForward)) return fallback;
+    const double horizontalLength = std::sqrt(localForward.x * localForward.x +
+                                              localForward.z * localForward.z);
+    double yaw = std::atan2(localForward.x, localForward.z);
+    double pitch = std::atan2(localForward.y, horizontalLength);
+    const double yawMin = std::min(limits.yawMin, limits.yawMax);
+    const double yawMax = std::max(limits.yawMin, limits.yawMax);
+    const double pitchMin = std::min(limits.pitchMin, limits.pitchMax);
+    const double pitchMax = std::max(limits.pitchMin, limits.pitchMax);
+    yaw = std::max(yawMin, std::min(yawMax, yaw));
+    pitch = std::max(pitchMin, std::min(pitchMax, pitch));
+    const double cosinePitch = std::cos(pitch);
+    localForward = {cosinePitch * std::sin(yaw), std::sin(pitch),
+                    cosinePitch * std::cos(yaw)};
+    VEC3D localUp{0.0, 1.0, 0.0};
+    if (std::abs(dotProduct(localForward, localUp)) > 0.999)
+        localUp = {1.0, 0.0, 0.0};
+    VEC3D localRight = crossProduct(localUp, localForward);
+    if (!normalizeVector(localRight)) return fallback;
+    localUp = crossProduct(localForward, localRight);
+    if (!normalizeVector(localUp)) return fallback;
+    MATRIX3 localRotation;
+    localRotation.value[0][0] = localRight.x;
+    localRotation.value[0][1] = localRight.y;
+    localRotation.value[0][2] = localRight.z;
+    localRotation.value[1][0] = localUp.x;
+    localRotation.value[1][1] = localUp.y;
+    localRotation.value[1][2] = localUp.z;
+    localRotation.value[2][0] = localForward.x;
+    localRotation.value[2][1] = localForward.y;
+    localRotation.value[2][2] = localForward.z;
+    return multiply(localRotation, baseRotation);
 }
 
 MATRIX3 axisRotation(const VEC3D &axis, const double angle)
@@ -351,6 +402,47 @@ bool booleanField(lua_State *lua, const int table, const char *field, const bool
     return value;
 }
 
+bool parseAimLimits(lua_State *lua, const int spec, AIM_LIMITS &limits, std::string &error)
+{
+    lua_getfield(lua, spec, "aimLimits");
+    const int limitsTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, limitsTable))
+    {
+        lua_pop(lua, 1);
+        return true;
+    }
+    if (!lua_istable(lua, limitsTable))
+    {
+        lua_pop(lua, 1);
+        error = "aimLimits must be a table";
+        return false;
+    }
+    limits.enabled = booleanField(lua, limitsTable, "enabled", false);
+    const char *fields[] = {"yawMin", "yawMax", "pitchMin", "pitchMax"};
+    double *values[] = {&limits.yawMin, &limits.yawMax, &limits.pitchMin, &limits.pitchMax};
+    const double defaults[] = {-PI, PI, -PI * 0.5, PI * 0.5};
+    for (int index = 0; index < 4; ++index)
+    {
+        lua_getfield(lua, limitsTable, fields[index]);
+        if (lua_isnil(lua, -1)) *values[index] = defaults[index];
+        else if (!lua_isnumber(lua, -1) || !std::isfinite(lua_tonumber(lua, -1)))
+        {
+            lua_pop(lua, 2);
+            error = std::string("aimLimits.") + fields[index] + " must be finite";
+            return false;
+        }
+        else *values[index] = lua_tonumber(lua, -1);
+        lua_pop(lua, 1);
+    }
+    lua_pop(lua, 1);
+    if (limits.yawMin > limits.yawMax || limits.pitchMin > limits.pitchMax)
+    {
+        error = "aimLimits minimum values must not exceed maximum values";
+        return false;
+    }
+    return true;
+}
+
 uint8_t parseInheritance(lua_State *lua, const int spec)
 {
     uint8_t result = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
@@ -398,6 +490,7 @@ struct ATTACHMENT
     POSE poseBeforeAttach;
     uint8_t inherit = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
     bool aimAtSource = false;
+    AIM_LIMITS aimLimits;
     bool active = true;
     bool invalid = false;
 
@@ -509,7 +602,12 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
                            sourcePose.position.z + rotated.z};
     }
     if (attachment->aimAtSource)
-        targetRotation = lookAtRotation(result.position, sourcePose.position, targetRotation);
+    {
+        targetRotation = attachment->aimLimits.enabled
+            ? limitedLookAtRotation(result.position, sourcePose.position, targetRotation,
+                                    targetRotation, attachment->aimLimits)
+            : lookAtRotation(result.position, sourcePose.position, targetRotation);
+    }
     if ((attachment->inherit & INHERIT_ROTATION) != 0u || attachment->aimAtSource)
         result.angle = rotationToEuler(targetRotation);
     if ((attachment->inherit & INHERIT_POSITION) != 0u)
@@ -570,6 +668,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const POSE &before,
                                                   uint8_t inherit,
                                                   bool aimAtSource,
+                                                  const AIM_LIMITS &aimLimits,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -720,7 +819,8 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
     const std::string &sourceSocket,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
-    const uint8_t inherit, const bool aimAtSource, const int sourceReference,
+    const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
+    const int sourceReference,
     const int targetReference)
 {
     std::shared_ptr<ATTACHMENT> attachment = std::make_shared<ATTACHMENT>();
@@ -737,6 +837,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->poseBeforeAttach = before;
     attachment->inherit = inherit;
     attachment->aimAtSource = aimAtSource;
+    attachment->aimLimits = aimLimits;
     attachments.push_back(attachment);
     return attachment;
 }
@@ -1141,6 +1242,18 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritScale");
     lua_pushboolean(lua, attachment->aimAtSource);
     lua_setfield(lua, -2, "aimAtSource");
+    lua_createtable(lua, 0, 5);
+    lua_pushboolean(lua, attachment->aimLimits.enabled);
+    lua_setfield(lua, -2, "enabled");
+    lua_pushnumber(lua, attachment->aimLimits.yawMin);
+    lua_setfield(lua, -2, "yawMin");
+    lua_pushnumber(lua, attachment->aimLimits.yawMax);
+    lua_setfield(lua, -2, "yawMax");
+    lua_pushnumber(lua, attachment->aimLimits.pitchMin);
+    lua_setfield(lua, -2, "pitchMin");
+    lua_pushnumber(lua, attachment->aimLimits.pitchMax);
+    lua_setfield(lua, -2, "pitchMax");
+    lua_setfield(lua, -2, "aimLimits");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
                    (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
     lua_setfield(lua, -2, "sourceType");
@@ -1273,6 +1386,19 @@ int onAttach(lua_State *lua)
     }
     const uint8_t inherit = parseInheritance(lua, 1);
     const bool aimAtSource = booleanField(lua, 1, "aimAtSource", false);
+    AIM_LIMITS aimLimits;
+    if (!parseAimLimits(lua, 1, aimLimits, error))
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, error.c_str());
+    }
+    if (aimLimits.enabled && !aimAtSource)
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, "aimLimits requires aimAtSource=true");
+    }
     if (aimAtSource && (inherit & INHERIT_ROTATION) == 0u)
     {
         luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
@@ -1319,7 +1445,7 @@ int onAttach(lua_State *lua)
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
         id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, aimAtSource,
-        sourceReference, targetReference);
+        aimLimits, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");

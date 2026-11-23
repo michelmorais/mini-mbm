@@ -2140,7 +2140,10 @@ convention. Bone sources require a mesh
 with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
 socket query also resolves to the canonical bind pose while playback is inactive. `aimAtSource = true`
 requires rotation inheritance and makes the target's local +Z axis point toward the current source
-position, using world Y as the up reference.
+position, using world Y as the up reference. The optional `aimLimits` table enables angular limits
+for this constraint: `yawMin`, `yawMax`, `pitchMin`, and `pitchMax` are radians relative to the
+attachment frame. Its `enabled` field must be true together with `aimAtSource = true`; when it is
+false, the existing unrestricted look-at behavior is preserved.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2150,6 +2153,11 @@ local relation, err = attachments.attach {
     sourceSocket = "RightHandGrip",
     inherit = {position = true, rotation = true, scale = false},
     aimAtSource = false,
+    aimLimits = {
+        enabled = false,
+        yawMin = -math.pi, yawMax = math.pi,
+        pitchMin = -math.pi / 2, pitchMax = math.pi / 2,
+    },
     offset = {
         position = {x = 0, y = 1.8, z = 0},
         rotation = {x = 0, y = 0, z = 0},
@@ -2176,7 +2184,7 @@ computes for the target, including the target's current values for non-inherited
 
 Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
 stable topological order for acyclic chains. Scene teardown deactivates relations and releases
-their Lua references. IK, aim, spring, damping, and physics constraints are not supported yet; see
+their Lua references. IK, spring, damping, and physics constraints are not supported yet; see
 [Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions

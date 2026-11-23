@@ -326,7 +326,7 @@ base no tempo e na pose do clipe.
 Somente depois do contrato basico estar estavel:
 
 - look-at/aim para o alvo apontar para a origem atual;
-- limites de rotacao;
+- limites de rotacao (yaw/pitch do Look at, em radianos);
 - mola e amortecimento;
 - blending entre varias origens;
 - integracao opcional com fisica;

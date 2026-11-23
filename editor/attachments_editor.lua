@@ -54,6 +54,13 @@ local function newDefinition()
         sourceBone = '',
         sourceSocket = '',
         aimAtSource = false,
+        aimLimits = {
+            enabled = false,
+            yawMin = -math.pi,
+            yawMax = math.pi,
+            pitchMin = -math.pi * 0.5,
+            pitchMax = math.pi * 0.5,
+        },
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -221,6 +228,8 @@ local function matrixToEuler(matrix)
     return x, y, z
 end
 
+local rotateVector
+
 local function lookAtRotation(from, to, fallback)
     local fx, fy, fz = to.x - from.x, to.y - from.y, to.z - from.z
     local length = math.sqrt(fx * fx + fy * fy + fz * fz)
@@ -236,13 +245,50 @@ local function lookAtRotation(from, to, fallback)
     return {{rx, ry, rz}, {ux, uy, uz}, {fx, fy, fz}}
 end
 
+local function limitedLookAtRotation(from, to, baseRotation, fallback, limits)
+    if not limits or not limits.enabled then
+        return lookAtRotation(from, to, fallback)
+    end
+    local fx, fy, fz = to.x - from.x, to.y - from.y, to.z - from.z
+    local length = math.sqrt(fx * fx + fy * fy + fz * fz)
+    if length <= 1e-6 then return fallback end
+    fx, fy, fz = fx / length, fy / length, fz / length
+    local localForward = rotateVector(transposeRotation(baseRotation), vector(fx, fy, fz))
+    length = math.sqrt(localForward.x * localForward.x + localForward.y * localForward.y +
+        localForward.z * localForward.z)
+    if length <= 1e-6 then return fallback end
+    localForward.x, localForward.y, localForward.z = localForward.x / length,
+        localForward.y / length, localForward.z / length
+    local yaw = math.atan(localForward.x, localForward.z)
+    local pitch = math.atan(localForward.y,
+        math.sqrt(localForward.x * localForward.x + localForward.z * localForward.z))
+    local yawMin, yawMax = math.min(limits.yawMin, limits.yawMax), math.max(limits.yawMin, limits.yawMax)
+    local pitchMin, pitchMax = math.min(limits.pitchMin, limits.pitchMax),
+        math.max(limits.pitchMin, limits.pitchMax)
+    yaw = math.max(yawMin, math.min(yawMax, yaw))
+    pitch = math.max(pitchMin, math.min(pitchMax, pitch))
+    local cosinePitch = math.cos(pitch)
+    localForward = vector(cosinePitch * math.sin(yaw), math.sin(pitch), cosinePitch * math.cos(yaw))
+    local ux, uy, uz = 0, 1, 0
+    if math.abs(localForward.y) > 0.999 then ux, uy, uz = 1, 0, 0 end
+    local rx, ry, rz = uy * localForward.z - uz * localForward.y,
+        uz * localForward.x - ux * localForward.z, ux * localForward.y - uy * localForward.x
+    length = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if length <= 1e-6 then return fallback end
+    rx, ry, rz = rx / length, ry / length, rz / length
+    ux, uy, uz = localForward.y * rz - localForward.z * ry,
+        localForward.z * rx - localForward.x * rz, localForward.x * ry - localForward.y * rx
+    return multiplyRotation({{rx, ry, rz}, {ux, uy, uz},
+        {localForward.x, localForward.y, localForward.z}}, baseRotation)
+end
+
 local function unwrapAngle(value, reference)
     if reference == nil then return value end
     local turns = math.floor((reference - value) / (math.pi * 2) + 0.5)
     return value + turns * math.pi * 2
 end
 
-local function rotateVector(matrix, value)
+rotateVector = function(matrix, value)
     return vector(
         matrix[1][1] * value.x + matrix[2][1] * value.y + matrix[3][1] * value.z,
         matrix[1][2] * value.x + matrix[2][2] * value.y + matrix[3][2] * value.z,
@@ -1452,7 +1498,8 @@ local function calculateTargetPose()
         result.z = source.z + worldPosition.z
     end
     if S.definition.aimAtSource then
-        targetRotation = lookAtRotation(result, vector(source.x, source.y, source.z), targetRotation)
+        targetRotation = limitedLookAtRotation(result, vector(source.x, source.y, source.z),
+            targetRotation, targetRotation, S.definition.aimLimits)
     end
     if inherit.rotation or S.definition.aimAtSource then
         result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
@@ -1697,6 +1744,7 @@ function onLoop()
             sourceType = definition.sourceType,
             inherit = definition.inherit,
             aimAtSource = definition.aimAtSource == true,
+            aimLimits = definition.aimLimits,
             offset = definition.offset,
             targetPivot = definition.targetPivot,
         }
@@ -1783,6 +1831,21 @@ local function normalizeDefinition(value)
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     result.aimAtSource = value.aimAtSource == true
+    if type(value.aimLimits) == 'table' then
+        result.aimLimits.enabled = result.aimAtSource and value.aimLimits.enabled == true
+        for _, field in ipairs({'yawMin', 'yawMax', 'pitchMin', 'pitchMax'}) do
+            local number = tonumber(value.aimLimits[field])
+            if number and number == number and number ~= math.huge and number ~= -math.huge then
+                result.aimLimits[field] = number
+            end
+        end
+        if result.aimLimits.yawMin > result.aimLimits.yawMax then
+            result.aimLimits.yawMin, result.aimLimits.yawMax = result.aimLimits.yawMax, result.aimLimits.yawMin
+        end
+        if result.aimLimits.pitchMin > result.aimLimits.pitchMax then
+            result.aimLimits.pitchMin, result.aimLimits.pitchMax = result.aimLimits.pitchMax, result.aimLimits.pitchMin
+        end
+    end
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
         result.inherit.rotation = value.inherit.rotation ~= false
@@ -2195,6 +2258,49 @@ local function showAttachment()
             markModified()
         end
         tImGui.TextWrapped(L('aim_at_source_help'))
+        if S.definition.aimAtSource then
+            tImGui.Separator()
+            tImGui.Text(L('aim_limits'))
+            local limits = S.definition.aimLimits
+            local previousLimitsEnabled = limits.enabled == true
+            local nextLimitsEnabled = tImGui.Checkbox(L('aim_limits_enabled'), previousLimitsEnabled)
+            if nextLimitsEnabled ~= previousLimitsEnabled then
+                limits.enabled = nextLimitsEnabled == true
+                S.target.manualOverride = false
+                markModified()
+            end
+            showTooltip(L('aim_limits_help'))
+            if limits.enabled then
+                tImGui.SetNextItemWidth(210)
+                local changed, value = tImGui.InputFloat(L('aim_yaw_min'), limits.yawMin)
+                if changed then
+                    limits.yawMin = math.min(value, limits.yawMax)
+                    S.target.manualOverride = false
+                    markModified()
+                end
+                tImGui.SetNextItemWidth(210)
+                changed, value = tImGui.InputFloat(L('aim_yaw_max'), limits.yawMax)
+                if changed then
+                    limits.yawMax = math.max(value, limits.yawMin)
+                    S.target.manualOverride = false
+                    markModified()
+                end
+                tImGui.SetNextItemWidth(210)
+                changed, value = tImGui.InputFloat(L('aim_pitch_min'), limits.pitchMin)
+                if changed then
+                    limits.pitchMin = math.min(value, limits.pitchMax)
+                    S.target.manualOverride = false
+                    markModified()
+                end
+                tImGui.SetNextItemWidth(210)
+                changed, value = tImGui.InputFloat(L('aim_pitch_max'), limits.pitchMax)
+                if changed then
+                    limits.pitchMax = math.max(value, limits.pitchMin)
+                    S.target.manualOverride = false
+                    markModified()
+                end
+            end
+        end
         tImGui.Separator()
         showOffsetFields()
         tImGui.TextWrapped(L('offset_help'))

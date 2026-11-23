@@ -92,6 +92,24 @@ function M.validate(definition)
     if definition.targetPivot ~= nil and not validateVector(definition.targetPivot, 0) then
         return false, 'targetPivot must be a vector'
     end
+    if definition.aimLimits ~= nil then
+        if type(definition.aimLimits) ~= 'table' then
+            return false, 'aimLimits must be a table'
+        end
+        local limits = definition.aimLimits
+        if limits.enabled == true and definition.aimAtSource ~= true then
+            return false, 'aimLimits requires aimAtSource=true'
+        end
+        local values = {
+            yawMin = number(limits.yawMin, -math.pi),
+            yawMax = number(limits.yawMax, math.pi),
+            pitchMin = number(limits.pitchMin, -math.pi * 0.5),
+            pitchMax = number(limits.pitchMax, math.pi * 0.5),
+        }
+        if values.yawMin > values.yawMax or values.pitchMin > values.pitchMax then
+            return false, 'aimLimits minimum values must not exceed maximum values'
+        end
+    end
     return true
 end
 
@@ -116,6 +134,17 @@ local function appendDefinition(output, definition)
     output[#output + 1] = '        rotation = ' .. tostring(inherit.rotation == true) .. ','
     output[#output + 1] = '        scale = ' .. tostring(inherit.scale == true) .. ','
     output[#output + 1] = '    },'
+    output[#output + 1] = '    aimAtSource = ' .. tostring(definition.aimAtSource == true) .. ','
+    local aimLimits = definition.aimLimits
+    if type(aimLimits) == 'table' then
+        output[#output + 1] = '    aimLimits = {'
+        output[#output + 1] = '        enabled = ' .. tostring(aimLimits.enabled == true) .. ','
+        output[#output + 1] = string.format('        yawMin = %.17g,', number(aimLimits.yawMin, -math.pi))
+        output[#output + 1] = string.format('        yawMax = %.17g,', number(aimLimits.yawMax, math.pi))
+        output[#output + 1] = string.format('        pitchMin = %.17g,', number(aimLimits.pitchMin, -math.pi * 0.5))
+        output[#output + 1] = string.format('        pitchMax = %.17g,', number(aimLimits.pitchMax, math.pi * 0.5))
+        output[#output + 1] = '    },'
+    end
     output[#output + 1] = '    offset = {'
     addVector('position', offset.position)
     addVector('rotation', offset.rotation)
@@ -159,6 +188,8 @@ function M.build(definition)
     output[#output + 1] = '        target = target,'
     output[#output + 1] = '        sourceType = definition.sourceType,'
     output[#output + 1] = '        inherit = definition.inherit,'
+    output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
+    output[#output + 1] = '        aimLimits = definition.aimLimits,'
     output[#output + 1] = '        offset = definition.offset,'
     output[#output + 1] = '        targetPivot = definition.targetPivot,'
     output[#output + 1] = '    }'
