@@ -2145,7 +2145,9 @@ for this constraint: `yawMin`, `yawMax`, `pitchMin`, and `pitchMax` are radians 
 attachment frame. `reference = "dynamic"` follows the current source frame; `reference =
 "captured"` uses the persisted frame captured by the editor. Its `enabled` field must be true
 together with `aimAtSource = true`; when it is false, the existing unrestricted look-at behavior is
-preserved.
+preserved. The optional `spring` table smooths inherited position and rotation. It is disabled by
+default; `stiffness` and `damping` are non-negative engine-time coefficients, and `position` and
+`rotation` select which inherited components are smoothed.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2160,6 +2162,11 @@ local relation, err = attachments.attach {
         reference = "dynamic", -- or "captured"
         yawMin = -math.pi, yawMax = math.pi,
         pitchMin = -math.pi / 2, pitchMax = math.pi / 2,
+    },
+    spring = {
+        enabled = false,
+        position = true, rotation = true,
+        stiffness = 120, damping = 24,
     },
     offset = {
         position = {x = 0, y = 1.8, z = 0},
@@ -2187,7 +2194,7 @@ computes for the target, including the target's current values for non-inherited
 
 Resolution runs in the post-simulation, pre-render plugin phase. Active attachments are sorted in a
 stable topological order for acyclic chains. Scene teardown deactivates relations and releases
-their Lua references. IK, spring, damping, and physics constraints are not supported yet; see
+their Lua references. IK and physics constraints are not supported yet; see
 [Attachments and constraints](attachments-constraints.md).
 
 ## 14. print() extensions

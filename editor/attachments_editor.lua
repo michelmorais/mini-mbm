@@ -63,6 +63,13 @@ local function newDefinition()
             pitchMin = -math.pi * 0.5,
             pitchMax = math.pi * 0.5,
         },
+        spring = {
+            enabled = false,
+            position = true,
+            rotation = true,
+            stiffness = 120,
+            damping = 24,
+        },
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -109,6 +116,13 @@ local S = {
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
     aimLimitsVisual = {objects = {}, signature = nil},
+    springState = {
+        initialized = false,
+        position = vector(0, 0, 0),
+        rotation = vector(0, 0, 0),
+        positionVelocity = vector(0, 0, 0),
+        rotationVelocity = vector(0, 0, 0),
+    },
     originLines = {x = nil, y = nil, z = nil},
     xzPlane = nil,
     xzPlaneSize = nil,
@@ -337,6 +351,25 @@ end
 local function markModified()
     S.modified = true
     S.dirtyPreview = true
+end
+
+local function resetSpringState()
+    S.springState.initialized = false
+    S.springState.positionVelocity = vector(0, 0, 0)
+    S.springState.rotationVelocity = vector(0, 0, 0)
+end
+
+local function springScalar(current, velocity, target, stiffness, damping, delta)
+    local acceleration = stiffness * (target - current) - damping * velocity
+    velocity = velocity + acceleration * delta
+    return current + velocity * delta, velocity
+end
+
+local function springAngle(current, velocity, target, stiffness, damping, delta)
+    local difference = math.atan(math.sin(target - current), math.cos(target - current))
+    local next, nextVelocity = springScalar(current, velocity, current + difference,
+        stiffness, damping, delta)
+    return next, nextVelocity
 end
 
 local function cameraPosition()
@@ -1680,7 +1713,7 @@ local function endViewportInteraction(key)
     if key == 0 or key == 1 then S.cameraDrag = nil end
 end
 
-local function calculateTargetPose()
+local function calculateTargetPose(delta)
     local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
     local result = clonePose(target)
     local inherit = S.definition.inherit
@@ -1729,6 +1762,43 @@ local function calculateTargetPose()
         result.y = result.y - worldPivot.y
         result.z = result.z - worldPivot.z
     end
+    local spring = S.definition.spring
+    if spring and spring.enabled then
+        local step = math.min(math.max(tonumber(delta) or 0, 0), 0.1)
+        if not S.springState.initialized then
+            S.springState.position = vector(target.x, target.y, target.z)
+            S.springState.rotation = vector(target.rx, target.ry, target.rz)
+            S.springState.initialized = true
+        end
+        if spring.position and inherit.position then
+            S.springState.position.x, S.springState.positionVelocity.x = springScalar(
+                S.springState.position.x, S.springState.positionVelocity.x, result.x,
+                spring.stiffness, spring.damping, step)
+            S.springState.position.y, S.springState.positionVelocity.y = springScalar(
+                S.springState.position.y, S.springState.positionVelocity.y, result.y,
+                spring.stiffness, spring.damping, step)
+            S.springState.position.z, S.springState.positionVelocity.z = springScalar(
+                S.springState.position.z, S.springState.positionVelocity.z, result.z,
+                spring.stiffness, spring.damping, step)
+            result.x, result.y, result.z = S.springState.position.x, S.springState.position.y,
+                S.springState.position.z
+        end
+        if spring.rotation and (inherit.rotation or S.definition.aimAtSource) then
+            S.springState.rotation.x, S.springState.rotationVelocity.x = springAngle(
+                S.springState.rotation.x, S.springState.rotationVelocity.x, result.rx,
+                spring.stiffness, spring.damping, step)
+            S.springState.rotation.y, S.springState.rotationVelocity.y = springAngle(
+                S.springState.rotation.y, S.springState.rotationVelocity.y, result.ry,
+                spring.stiffness, spring.damping, step)
+            S.springState.rotation.z, S.springState.rotationVelocity.z = springAngle(
+                S.springState.rotation.z, S.springState.rotationVelocity.z, result.rz,
+                spring.stiffness, spring.damping, step)
+            result.rx, result.ry, result.rz = S.springState.rotation.x, S.springState.rotation.y,
+                S.springState.rotation.z
+        end
+    else
+        resetSpringState()
+    end
     return result
 end
 
@@ -1753,8 +1823,8 @@ updateTargetPivotMarker = function()
          math.abs(S.definition.targetPivot.z) > 1e-6)
 end
 
-local function rebuildPreview()
-    if not S.target.manualOverride then S.target.pose = calculateTargetPose() end
+local function rebuildPreview(delta)
+    if not S.target.manualOverride then S.target.pose = calculateTargetPose(delta) end
     applyMarker('source', S.source.pose)
     updateSourceSkeletonVisuals()
     applyMarker('target', S.target.pose)
@@ -1797,6 +1867,7 @@ captureOffset = function(targetPoseOverride)
     if inherit.scale then
         S.definition.offset.scale = vector(target.sx / source.sx, target.sy / source.sy, target.sz / source.sz)
     end
+    resetSpringState()
     S.target.manualOverride = false
     markModified()
     setStatus(L('captured'))
@@ -2068,6 +2139,13 @@ local function normalizeDefinition(value)
         if result.aimLimits.pitchMin > result.aimLimits.pitchMax then
             result.aimLimits.pitchMin, result.aimLimits.pitchMax = result.aimLimits.pitchMax, result.aimLimits.pitchMin
         end
+    end
+    if type(value.spring) == 'table' then
+        result.spring.enabled = value.spring.enabled == true
+        result.spring.position = value.spring.position ~= false
+        result.spring.rotation = value.spring.rotation ~= false
+        result.spring.stiffness = math.max(0, tonumber(value.spring.stiffness) or result.spring.stiffness)
+        result.spring.damping = math.max(0, tonumber(value.spring.damping) or result.spring.damping)
     end
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
@@ -2536,6 +2614,48 @@ local function showAttachment()
             end
         end
         tImGui.Separator()
+        tImGui.Text(L('spring'))
+        local spring = S.definition.spring
+        local previousSpringEnabled = spring.enabled == true
+        local nextSpringEnabled = tImGui.Checkbox(L('spring_enabled'), previousSpringEnabled)
+        if nextSpringEnabled ~= previousSpringEnabled then
+            spring.enabled = nextSpringEnabled == true
+            resetSpringState()
+            S.target.manualOverride = false
+            markModified()
+        end
+        if spring.enabled then
+            local previousSpringPosition = spring.position == true
+            local nextSpringPosition = tImGui.Checkbox(L('spring_position'), previousSpringPosition)
+            if nextSpringPosition ~= previousSpringPosition then
+                spring.position = nextSpringPosition == true
+                resetSpringState()
+                markModified()
+            end
+            local previousSpringRotation = spring.rotation == true
+            local nextSpringRotation = tImGui.Checkbox(L('spring_rotation'), previousSpringRotation)
+            if nextSpringRotation ~= previousSpringRotation then
+                spring.rotation = nextSpringRotation == true
+                resetSpringState()
+                markModified()
+            end
+            tImGui.SetNextItemWidth(210)
+            local changed, value = tImGui.InputFloat(L('spring_stiffness'), spring.stiffness)
+            if changed then
+                spring.stiffness = math.max(0, value)
+                resetSpringState()
+                markModified()
+            end
+            tImGui.SetNextItemWidth(210)
+            changed, value = tImGui.InputFloat(L('spring_damping'), spring.damping)
+            if changed then
+                spring.damping = math.max(0, value)
+                resetSpringState()
+                markModified()
+            end
+            tImGui.TextWrapped(L('spring_help'))
+        end
+        tImGui.Separator()
         showOffsetFields()
         tImGui.TextWrapped(L('offset_help'))
     end
@@ -2643,12 +2763,13 @@ function onInitScene()
 end
 
 function onLoop(delta)
+    if S.definition.spring and S.definition.spring.enabled then S.dirtyPreview = true end
     if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket') and
             S.source.activeAnimation ~= '' and
             not S.source.animationPaused and not S.boneSelectionMode then
         S.dirtyPreview = true
     end
-    if S.dirtyPreview then rebuildPreview() end
+    if S.dirtyPreview then rebuildPreview(delta) end
     showMainMenu()
     showObjects()
     showAttachment()

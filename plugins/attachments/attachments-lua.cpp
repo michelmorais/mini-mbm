@@ -188,6 +188,15 @@ struct AIM_LIMITS
     double pitchMax = PI * 0.5;
 };
 
+struct SPRING_SETTINGS
+{
+    bool enabled = false;
+    bool position = true;
+    bool rotation = true;
+    double stiffness = 120.0;
+    double damping = 24.0;
+};
+
 MATRIX3 limitedLookAtRotation(const VEC3D &from, const VEC3D &to,
                               const MATRIX3 &baseRotation, const MATRIX3 &fallback,
                               const AIM_LIMITS &limits)
@@ -473,6 +482,36 @@ bool parseAimLimits(lua_State *lua, const int spec, AIM_LIMITS &limits, std::str
     return true;
 }
 
+bool parseSpring(lua_State *lua, const int spec, SPRING_SETTINGS &spring, std::string &error)
+{
+    lua_getfield(lua, spec, "spring");
+    const int springTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, springTable))
+    {
+        lua_pop(lua, 1);
+        return true;
+    }
+    if (!lua_istable(lua, springTable))
+    {
+        lua_pop(lua, 1);
+        error = "spring must be a table";
+        return false;
+    }
+    spring.enabled = booleanField(lua, springTable, "enabled", false);
+    spring.position = booleanField(lua, springTable, "position", true);
+    spring.rotation = booleanField(lua, springTable, "rotation", true);
+    spring.stiffness = numberField(lua, springTable, "stiffness", spring.stiffness);
+    spring.damping = numberField(lua, springTable, "damping", spring.damping);
+    lua_pop(lua, 1);
+    if (!std::isfinite(spring.stiffness) || !std::isfinite(spring.damping) ||
+        spring.stiffness < 0.0 || spring.damping < 0.0)
+    {
+        error = "spring stiffness and damping must be finite and non-negative";
+        return false;
+    }
+    return true;
+}
+
 uint8_t parseInheritance(lua_State *lua, const int spec)
 {
     uint8_t result = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
@@ -521,6 +560,12 @@ struct ATTACHMENT
     uint8_t inherit = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
     bool aimAtSource = false;
     AIM_LIMITS aimLimits;
+    SPRING_SETTINGS spring;
+    bool springInitialized = false;
+    VEC3D springPositionVelocity;
+    VEC3D springRotationVelocity;
+    VEC3D springPosition;
+    VEC3D springRotation;
     bool active = true;
     bool invalid = false;
 
@@ -656,6 +701,63 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     return result;
 }
 
+double springScalar(const double current, double &velocity, const double target,
+                    const SPRING_SETTINGS &spring, const double delta)
+{
+    const double acceleration = spring.stiffness * (target - current) -
+        spring.damping * velocity;
+    velocity += acceleration * delta;
+    return current + velocity * delta;
+}
+
+double springAngle(const double current, double &velocity, const double target,
+                   const SPRING_SETTINGS &spring, const double delta)
+{
+    const double difference = std::atan2(std::sin(target - current),
+                                         std::cos(target - current));
+    return springScalar(current, velocity, current + difference, spring, delta);
+}
+
+void applySpring(ATTACHMENT *attachment, POSE &pose, const POSE &currentPose,
+                 const float frameDelta)
+{
+    if (!attachment || !attachment->spring.enabled)
+    {
+        if (attachment) attachment->springInitialized = false;
+        return;
+    }
+    const double delta = std::max(0.0, std::min(0.1, static_cast<double>(frameDelta)));
+    if (!attachment->springInitialized)
+    {
+        attachment->springPosition = currentPose.position;
+        attachment->springRotation = currentPose.angle;
+        attachment->springPositionVelocity = {};
+        attachment->springRotationVelocity = {};
+        attachment->springInitialized = true;
+    }
+    if (attachment->spring.position && (attachment->inherit & INHERIT_POSITION) != 0u)
+    {
+        attachment->springPosition.x = springScalar(attachment->springPosition.x,
+            attachment->springPositionVelocity.x, pose.position.x, attachment->spring, delta);
+        attachment->springPosition.y = springScalar(attachment->springPosition.y,
+            attachment->springPositionVelocity.y, pose.position.y, attachment->spring, delta);
+        attachment->springPosition.z = springScalar(attachment->springPosition.z,
+            attachment->springPositionVelocity.z, pose.position.z, attachment->spring, delta);
+        pose.position = attachment->springPosition;
+    }
+    if (attachment->spring.rotation &&
+        ((attachment->inherit & INHERIT_ROTATION) != 0u || attachment->aimAtSource))
+    {
+        attachment->springRotation.x = springAngle(attachment->springRotation.x,
+            attachment->springRotationVelocity.x, pose.angle.x, attachment->spring, delta);
+        attachment->springRotation.y = springAngle(attachment->springRotation.y,
+            attachment->springRotationVelocity.y, pose.angle.y, attachment->spring, delta);
+        attachment->springRotation.z = springAngle(attachment->springRotation.z,
+            attachment->springRotationVelocity.z, pose.angle.z, attachment->spring, delta);
+        pose.angle = attachment->springRotation;
+    }
+}
+
 struct RESOLVED_ATTACHMENT
 {
     ATTACHMENT *attachment = nullptr;
@@ -702,6 +804,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   uint8_t inherit,
                                                   bool aimAtSource,
                                                   const AIM_LIMITS &aimLimits,
+                                                  const SPRING_SETTINGS &spring,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -778,7 +881,10 @@ bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) co
         return false;
     POSE sourcePose;
     if (!readSourcePose(attachment, source, sourcePose)) return false;
-    pose = composeEffectivePose(attachment, sourcePose, readPose(target));
+    const POSE currentTargetPose = readPose(target);
+    pose = attachment->spring.enabled
+        ? currentTargetPose
+        : composeEffectivePose(attachment, sourcePose, currentTargetPose);
     return true;
 }
 
@@ -853,6 +959,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &sourceSocket,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
+    const SPRING_SETTINGS &spring,
     const int sourceReference,
     const int targetReference)
 {
@@ -871,6 +978,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->inherit = inherit;
     attachment->aimAtSource = aimAtSource;
     attachment->aimLimits = aimLimits;
+    attachment->spring = spring;
     attachments.push_back(attachment);
     return attachment;
 }
@@ -951,7 +1059,7 @@ bool ATTACHMENTS_PLUGIN::resolveAll(std::vector<RESOLVED_ATTACHMENT> &resolved)
     return true;
 }
 
-void ATTACHMENTS_PLUGIN::onLoop(float)
+void ATTACHMENTS_PLUGIN::onLoop(float delta)
 {
     if (!active || destroying) return;
     std::vector<RESOLVED_ATTACHMENT> resolved;
@@ -1005,8 +1113,9 @@ void ATTACHMENTS_PLUGIN::onLoop(float)
             deactivate(attachment, true);
             continue;
         }
-        const POSE effectivePose = composeEffectivePose(attachment, sourcePose,
-                                                        readPose(resolvedAttachment.target));
+        const POSE currentTargetPose = readPose(resolvedAttachment.target);
+        POSE effectivePose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
+        applySpring(attachment, effectivePose, currentTargetPose, delta);
         if ((attachment->inherit & INHERIT_POSITION) != 0u) writePosition(resolvedAttachment.target,
                                                                             effectivePose.position);
         if ((attachment->inherit & INHERIT_ROTATION) != 0u) writeAngle(resolvedAttachment.target,
@@ -1167,6 +1276,7 @@ int onAttachmentSetOffset(lua_State *lua)
     attachment->offset.hasRotationMatrix = hasRotationMatrix;
     attachment->offset.scale = scale;
     attachment->targetPivot = targetPivot;
+    attachment->springInitialized = false;
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -1190,6 +1300,7 @@ int onAttachmentSetInherit(lua_State *lua)
     if (!attachment->manager->canReconfigure(attachment, inherit, error))
         return fail(lua, error.c_str());
     attachment->inherit = inherit;
+    attachment->springInitialized = false;
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -1241,6 +1352,7 @@ int onAttachmentCaptureOffset(lua_State *lua)
     if (attachment->aimLimits.capturedFrame)
         attachment->aimLimits.referenceRotation =
             multiply(poseRotation(attachment->offset), sourceRotation);
+    attachment->springInitialized = false;
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -1297,6 +1409,18 @@ int onAttachmentGetState(lua_State *lua)
     lua_pushnumber(lua, attachment->aimLimits.pitchMax);
     lua_setfield(lua, -2, "pitchMax");
     lua_setfield(lua, -2, "aimLimits");
+    lua_createtable(lua, 0, 5);
+    lua_pushboolean(lua, attachment->spring.enabled);
+    lua_setfield(lua, -2, "enabled");
+    lua_pushboolean(lua, attachment->spring.position);
+    lua_setfield(lua, -2, "position");
+    lua_pushboolean(lua, attachment->spring.rotation);
+    lua_setfield(lua, -2, "rotation");
+    lua_pushnumber(lua, attachment->spring.stiffness);
+    lua_setfield(lua, -2, "stiffness");
+    lua_pushnumber(lua, attachment->spring.damping);
+    lua_setfield(lua, -2, "damping");
+    lua_setfield(lua, -2, "spring");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
                    (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
     lua_setfield(lua, -2, "sourceType");
@@ -1448,6 +1572,13 @@ int onAttach(lua_State *lua)
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
         return fail(lua, "aimAtSource requires inherit.rotation=true");
     }
+    SPRING_SETTINGS spring;
+    if (!parseSpring(lua, 1, spring, error))
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, error.c_str());
+    }
     const POSE offset = parseOffset(lua, 1);
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
     if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale) ||
@@ -1488,7 +1619,7 @@ int onAttach(lua_State *lua)
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
         id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, aimAtSource,
-        aimLimits, sourceReference, targetReference);
+        aimLimits, spring, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");

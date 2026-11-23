@@ -117,6 +117,15 @@ function M.validate(definition)
             return false, 'aimLimits minimum values must not exceed maximum values'
         end
     end
+    if definition.spring ~= nil then
+        if type(definition.spring) ~= 'table' then return false, 'spring must be a table' end
+        local spring = definition.spring
+        local stiffness = number(spring.stiffness, 120)
+        local damping = number(spring.damping, 24)
+        if stiffness < 0 or damping < 0 then
+            return false, 'spring stiffness and damping must be non-negative'
+        end
+    end
     return true
 end
 
@@ -160,6 +169,16 @@ local function appendDefinition(output, definition)
         output[#output + 1] = string.format('        yawMax = %.17g,', number(aimLimits.yawMax, math.pi))
         output[#output + 1] = string.format('        pitchMin = %.17g,', number(aimLimits.pitchMin, -math.pi * 0.5))
         output[#output + 1] = string.format('        pitchMax = %.17g,', number(aimLimits.pitchMax, math.pi * 0.5))
+        output[#output + 1] = '    },'
+    end
+    local spring = definition.spring
+    if type(spring) == 'table' then
+        output[#output + 1] = '    spring = {'
+        output[#output + 1] = '        enabled = ' .. tostring(spring.enabled == true) .. ','
+        output[#output + 1] = '        position = ' .. tostring(spring.position ~= false) .. ','
+        output[#output + 1] = '        rotation = ' .. tostring(spring.rotation ~= false) .. ','
+        output[#output + 1] = string.format('        stiffness = %.17g,', number(spring.stiffness, 120))
+        output[#output + 1] = string.format('        damping = %.17g,', number(spring.damping, 24))
         output[#output + 1] = '    },'
     end
     output[#output + 1] = '    offset = {'
@@ -207,6 +226,7 @@ function M.build(definition)
     output[#output + 1] = '        inherit = definition.inherit,'
     output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
     output[#output + 1] = '        aimLimits = definition.aimLimits,'
+    output[#output + 1] = '        spring = definition.spring,'
     output[#output + 1] = '        offset = definition.offset,'
     output[#output + 1] = '        targetPivot = definition.targetPivot,'
     output[#output + 1] = '    }'
