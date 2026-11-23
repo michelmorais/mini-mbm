@@ -367,6 +367,7 @@ local function ensureRelationLine(index)
 end
 
 local cloneBlend
+local markModified
 
 local function copyVector(value, fallback)
     value = value or fallback or vector(0, 0, 0)
@@ -576,7 +577,7 @@ local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
 end
 
-local function markModified()
+markModified = function()
     S.modified = true
     S.dirtyPreview = true
 end
