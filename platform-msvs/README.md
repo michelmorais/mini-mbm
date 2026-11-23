@@ -71,6 +71,7 @@ workflow uses the `bin/` and `libs/` directories described below.
 | **tiny_obj_loader** | `tiny-obj-loader/` | Tiny OBJ mesh loader library |
 | **plugin-helper** | `plugin-helper/` | Shared utilities for plugin development (Lua shader bindings, class identification) |
 | **interaction-animation-runtime** | `interaction-animation-runtime/` | Lua runtime DLL for `require "interaction_animation_runtime"` |
+| **attachments** | `attachments/` | Attachments and constraints runtime DLL for `require "attachments"` |
 | **distribution** | `distribution/` | Asset packaging DLL — AES-128-CBC encrypted SQLite archive library |
 | **distribution_exe** | `distribution-exe/` | `distribution.exe` CLI — packs/extracts `.asset` files; called by `package-game.bat` |
 | **libTest** | `libTest/` | Unit and integration test library |

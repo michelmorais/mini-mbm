@@ -26,11 +26,23 @@
 #include <algorithm>
 #include <cfloat>
 #include <map>
+#include <unordered_set>
 #include <utility>
 
 namespace mbm
 
 {
+    namespace
+    {
+        std::unordered_set<const RENDERIZABLE *> &liveRenderizables() noexcept
+        {
+            // Keep the registry alive until process exit so late object
+            // destruction cannot race static destruction of the registry.
+            static auto *registry = new std::unordered_set<const RENDERIZABLE *>();
+            return *registry;
+        }
+    }
+
     struct RENDERIZABLE::Impl
     {
         const int        idScene;
@@ -84,10 +96,12 @@ namespace mbm
     RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
                                const bool _is2ds) noexcept : impl(std::make_unique<Impl>(idSceneMe, newTypeClass, _is3d, _is2ds))
     {
+        liveRenderizables().insert(this);
     }
 
     RENDERIZABLE::~RENDERIZABLE() noexcept
     {
+        liveRenderizables().erase(this);
         std::map<std::string, DYNAMIC_VAR *>::const_iterator it;
         for (it = this->impl->lsDynamicVar.cbegin(); it != this->impl->lsDynamicVar.cend(); ++it)
         {
@@ -96,6 +110,11 @@ namespace mbm
                 delete dVar;
         }
         this->impl->lsDynamicVar.clear();
+    }
+
+    bool RENDERIZABLE::isAlive(const RENDERIZABLE *candidate) noexcept
+    {
+        return candidate != nullptr && liveRenderizables().find(candidate) != liveRenderizables().end();
     }
 
     struct RENDERIZABLE_TO_TARGET::BackendData

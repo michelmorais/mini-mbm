@@ -66,7 +66,7 @@ if /i "%ARCH%"=="x32" (
 call :copy_tree "%ENGINE_ROOT%\editor" "%DESTINATION_FOLDER%\editor"
 if errorlevel 1 exit /b 1
 
-echo [copy-dlls] Done. Plugin DLLs, including interaction_animation_runtime.dll,
+echo [copy-dlls] Done. Plugin DLLs, including interaction_animation_runtime.dll and attachments.dll,
 echo [copy-dlls] are supplied by their MSBuild targets in the same output folder.
 exit /b 0
 

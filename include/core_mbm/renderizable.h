@@ -70,6 +70,10 @@ namespace mbm
       public:
         API_IMPL RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds)noexcept;
         API_IMPL virtual ~RENDERIZABLE()noexcept;
+        // Safe lifetime check for non-owning pointers retained by plugins. The
+        // function compares the address against the live-object registry and
+        // never dereferences the candidate pointer.
+        API_IMPL static bool isAlive(const RENDERIZABLE *candidate) noexcept;
         API_IMPL TYPE_CLASS getTypeClass() const noexcept;
         API_IMPL bool is3DObject() const noexcept;
         API_IMPL bool is2dScreenObject() const noexcept;

@@ -2119,7 +2119,9 @@ advances it once per engine frame. The game must not call an update method for
 the interaction. Callbacks are optional. `onEvent(instance,event,index)` is called when an event is
 reached; `event` is a table containing the exported event fields and `index` is
 one-based. The runtime calls callbacks only at lifecycle or event boundaries, not
-for every internal interpolation step.
+for every internal interpolation step. The runtime also validates bound mesh
+lifetime before each update; if an actor is destroyed, that instance stops
+safely without accessing the destroyed object.
 
 ---
 
@@ -2589,9 +2591,10 @@ and all scale components must be positive. Add/update validates a complete candi
 committing, so a failed call leaves the previous socket set unchanged. New socket IDs are opaque
 stable IDs allocated without colliding with existing IDs. Removing the last socket omits section
 47 on the next save. A bone referenced by a socket cannot be removed until the socket is removed
-or reassigned. The Skeletal Animation Editor exposes these operations in its Bone Editor worktree;
-viewport picking and a socket gizmo are the next visual increment. The Blender roundtrip already
-preserves the records as Empty objects parented to their bones.
+or reassigned. The Skeletal Animation Editor exposes these operations in its Bone Editor worktree.
+Its viewport supports socket picking and a socket gizmo for translation and rotation, with an
+explicit socket selection mode that prevents bone selection conflicts. The Blender roundtrip
+already preserves the records as Empty objects parented to their bones.
 
 ```lua
 meshD:renameSkeletalBone(oneBasedBoneIndex, newName)

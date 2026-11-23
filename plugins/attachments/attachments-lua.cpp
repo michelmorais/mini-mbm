@@ -349,9 +349,9 @@ void writeScale(mbm::RENDERIZABLE *renderizable, const VEC3D &scale)
 
 bool isValidLuaRenderizable(mbm::RENDERIZABLE *object)
 {
-    // The attachment owns the Lua table reference. ref_MeAsTable is optional
-    // userdata state used by callback paths, not a general lifetime marker.
-    return object != nullptr;
+    // The attachment owns the Lua table reference, while the engine registry
+    // validates that the non-owning pointer still identifies a live object.
+    return object != nullptr && mbm::RENDERIZABLE::isAlive(object);
 }
 
 void pushVec3(lua_State *lua, const VEC3D &value)
