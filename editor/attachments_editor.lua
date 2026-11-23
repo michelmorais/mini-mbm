@@ -123,6 +123,7 @@ local function newDefinition()
             targetSelectable = true,
             sourceAnimation = '',
             sourceAnimationPaused = false,
+            carryFrameTransform = true,
         },
     }
 end
@@ -170,6 +171,7 @@ local S = {
     showOrigins = true,
     showXZPlane = true,
     showAimLimits = false,
+    carryFrameTransform = true,
     showStates = false,
     showGraph = false,
     graphLayout = {root = nil, targets = {}},
@@ -1153,15 +1155,22 @@ local function seekSourceAnimation(time)
     if not source.object or not name then return end
     if sourceUsesFrameAnimation() then
         if source.activeAnimation ~= name then selectSourceFrameAnimation(name) end
+        local previousFrame = sourceCurrentFrame()
         local count = sourceFrameCount()
         local firstFrame = source.frameStart or sourceCurrentFrame()
         local lastFrame = firstFrame + count - 1
         local frame = math.max(firstFrame, math.min(lastFrame, math.floor(tonumber(time) or firstFrame)))
+        local preservedTargetPose
+        if S.carryFrameTransform and S.target and previousFrame ~= frame and
+                not S.definition.frameOffsets[frame] then
+            preservedTargetPose = clonePose(S.target.pose)
+        end
         local ok = dpCall(function() return source.object:setIndexFrame(frame) end)
         if ok then
             source.activeAnimation = name
             source.animationPaused = true
             S.definition.frameAnimation = name
+            if preservedTargetPose then captureOffset(preservedTargetPose, true) end
             S.dirtyPreview = true
         end
         return
@@ -2939,7 +2948,7 @@ local function rebuildPreview(delta)
     S.dirtyPreview = false
 end
 
-captureOffset = function(targetPoseOverride)
+captureOffset = function(targetPoseOverride, silent)
     local source = getActiveTargetSourcePose() or S.source.pose
     local target = targetPoseOverride or S.target.pose
     local inherit = S.definition.inherit
@@ -2976,7 +2985,7 @@ captureOffset = function(targetPoseOverride)
     resetSpringState()
     S.target.manualOverride = false
     markModified()
-    setStatus(L('captured'))
+    if not silent then setStatus(L('captured')) end
 end
 
 local function resetTargetPreview()
@@ -3004,6 +3013,7 @@ local function syncEditorDefinition()
             (S.source.animationClips[S.source.selectedAnimation] or ''),
         sourceAnimationPaused = S.source.animationPaused == true,
         sourceAnimationFrame = sourceUsesFrameAnimation() and sourceCurrentFrame() or nil,
+        carryFrameTransform = S.carryFrameTransform == true,
     }
 end
 
@@ -3396,6 +3406,7 @@ local function normalizeDefinition(value)
         result.editor.sourceAnimation = type(editor.sourceAnimation) == 'string' and editor.sourceAnimation or ''
         result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
         result.editor.sourceAnimationFrame = tonumber(editor.sourceAnimationFrame)
+        result.editor.carryFrameTransform = editor.carryFrameTransform ~= false
     end
     local function targetRecordFromValue(raw, fallbackName)
         local record = {
@@ -3541,6 +3552,7 @@ local function loadDefinition(path)
     S.targets = {}
     S.selectedTargetIndex = 1
     S.definition = definition
+    S.carryFrameTransform = definition.editor.carryFrameTransform ~= false
     S.graphLayout = {root = nil, targets = {}}
     S.stateDraft = definition.initialState
     S.source.pose = clonePose(definition.editor.sourcePose)
@@ -3742,6 +3754,13 @@ local function showSourceAnimationControls()
                 seekSourceAnimation(math.min(lastFrame, currentFrame + 1))
             end
             showTooltip(L('step_forward_tooltip'))
+            local carry = tImGui.Checkbox(L('carry_frame_transform') .. '##att_carry_frame_transform',
+                S.carryFrameTransform)
+            if carry ~= S.carryFrameTransform then
+                S.carryFrameTransform = carry
+                markModified()
+            end
+            showTooltip(L('carry_frame_transform_tooltip'))
         end
         return
     end

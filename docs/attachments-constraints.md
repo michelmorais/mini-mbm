@@ -277,7 +277,9 @@ Definition version 5 stores the target collection and uses the same row-major bi
 orientation as the runtime. Each target entry is serialized independently. It adds
 `sourceType = "frame"`, `frameAnimation`, and per-target `frameOffsets`; the Timeline selects
 and pauses a static frame animation, and capture/manual offset editing affects the current frame.
-Uncaptured frames fall back to the base offset.
+The Timeline option `Preserve target transform on uncaptured frames` automatically captures the
+previous target pose as the offset for a newly selected frame. When disabled, uncaptured frames
+fall back to the base offset.
 
 ### Socket workflow and source choice
 
