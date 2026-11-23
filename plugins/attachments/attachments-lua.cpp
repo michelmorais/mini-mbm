@@ -357,9 +357,9 @@ bool isValidLuaRenderizable(mbm::RENDERIZABLE *object)
 void pushVec3(lua_State *lua, const VEC3D &value)
 {
     lua_createtable(lua, 0, 3);
-    lua_pushnumber(lua, value.x); lua_setfield(lua, -2, "x");
-    lua_pushnumber(lua, value.y); lua_setfield(lua, -2, "y");
-    lua_pushnumber(lua, value.z); lua_setfield(lua, -2, "z");
+    lua_pushnumber(lua, static_cast<lua_Number>(value.x)); lua_setfield(lua, -2, "x");
+    lua_pushnumber(lua, static_cast<lua_Number>(value.y)); lua_setfield(lua, -2, "y");
+    lua_pushnumber(lua, static_cast<lua_Number>(value.z)); lua_setfield(lua, -2, "z");
 }
 
 void pushMatrix3(lua_State *lua, const MATRIX3 &value)
@@ -370,7 +370,7 @@ void pushMatrix3(lua_State *lua, const MATRIX3 &value)
         lua_createtable(lua, 3, 0);
         for (int column = 0; column < 3; ++column)
         {
-            lua_pushnumber(lua, value.value[row][column]);
+            lua_pushnumber(lua, static_cast<lua_Number>(value.value[row][column]));
             lua_rawseti(lua, -2, column + 1);
         }
         lua_rawseti(lua, -2, row + 1);
@@ -1617,7 +1617,7 @@ void pushBlendData(lua_State *lua, const BLEND_SETTINGS &blend)
     lua_setfield(lua, -2, "rotation");
     lua_pushboolean(lua, blend.scale);
     lua_setfield(lua, -2, "scale");
-    lua_pushnumber(lua, blend.weight);
+    lua_pushnumber(lua, static_cast<lua_Number>(blend.weight));
     lua_setfield(lua, -2, "weight");
 }
 
@@ -1876,13 +1876,13 @@ int onAttachmentGetState(lua_State *lua)
         pushMatrix3(lua, attachment->aimLimits.referenceRotation);
         lua_setfield(lua, -2, "referenceRotationMatrix");
     }
-    lua_pushnumber(lua, attachment->aimLimits.yawMin);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->aimLimits.yawMin));
     lua_setfield(lua, -2, "yawMin");
-    lua_pushnumber(lua, attachment->aimLimits.yawMax);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->aimLimits.yawMax));
     lua_setfield(lua, -2, "yawMax");
-    lua_pushnumber(lua, attachment->aimLimits.pitchMin);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->aimLimits.pitchMin));
     lua_setfield(lua, -2, "pitchMin");
-    lua_pushnumber(lua, attachment->aimLimits.pitchMax);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->aimLimits.pitchMax));
     lua_setfield(lua, -2, "pitchMax");
     lua_setfield(lua, -2, "aimLimits");
     lua_createtable(lua, 0, 5);
@@ -1892,9 +1892,9 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "position");
     lua_pushboolean(lua, attachment->spring.rotation);
     lua_setfield(lua, -2, "rotation");
-    lua_pushnumber(lua, attachment->spring.stiffness);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->spring.stiffness));
     lua_setfield(lua, -2, "stiffness");
-    lua_pushnumber(lua, attachment->spring.damping);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->spring.damping));
     lua_setfield(lua, -2, "damping");
     lua_setfield(lua, -2, "spring");
     lua_createtable(lua, 0, 5);
@@ -1906,7 +1906,7 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "rotation");
     lua_pushboolean(lua, attachment->blend.scale);
     lua_setfield(lua, -2, "scale");
-    lua_pushnumber(lua, attachment->blend.weight);
+    lua_pushnumber(lua, static_cast<lua_Number>(attachment->blend.weight));
     lua_setfield(lua, -2, "weight");
     lua_setfield(lua, -2, "blend");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :

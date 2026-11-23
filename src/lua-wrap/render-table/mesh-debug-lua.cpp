@@ -4522,7 +4522,7 @@ namespace mbm
                 lua_pop(lua,1);
                 if (n<(area.line?2u:3u) || n>128) luaL_error(lua,"Height areas need 3..128 polygon points or 2..128 line points");
                 area.points=areaPoints+offset;area.count=static_cast<uint32_t>(n);
-                lua_getfield(lua,-1,"lineWidth");area.lineWidth=static_cast<float>(luaL_optnumber(lua,-1,.05));lua_pop(lua,1);
+                lua_getfield(lua,-1,"lineWidth");area.lineWidth=static_cast<float>(luaL_optnumber(lua,-1,static_cast<lua_Number>(.05)));lua_pop(lua,1);
                 lua_getfield(lua,-1,"mode");
                 const char *areaMode=luaL_optstring(lua,-1,"flatten");
                 if (!std::strcmp(areaMode,"raise")) area.mode=IMAGE_MESH_BRUSH::RAISE;
@@ -4531,7 +4531,7 @@ namespace mbm
                 else luaL_error(lua,"Height area mode must be raise, lower or flatten");
                 lua_pop(lua,1);
                 lua_getfield(lua,-1,"height");area.height=static_cast<float>(luaL_optnumber(lua,-1,.75));lua_pop(lua,1);
-                lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,.02));lua_pop(lua,1);
+                lua_getfield(lua,-1,"transition");area.transition=static_cast<float>(luaL_optnumber(lua,-1,static_cast<lua_Number>(.02)));lua_pop(lua,1);
                 lua_getfield(lua,-1,"enabled");
                 if (!lua_isnil(lua,-1)) { luaL_checktype(lua,-1,LUA_TBOOLEAN);area.enabled=lua_toboolean(lua,-1)!=0; }
                 lua_pop(lua,1);

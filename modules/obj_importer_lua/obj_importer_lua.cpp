@@ -110,7 +110,7 @@ static int parse(lua_State *lua)
 			lua_pushnumber(lua,MeshMaterial.d);
 			lua_setfield(lua, -2, "d");
 
-			lua_pushnumber(lua,MeshMaterial.illum);
+			lua_pushnumber(lua,static_cast<lua_Number>(MeshMaterial.illum));
 			lua_setfield(lua, -2, "illum");
 
 			lua_newtable(lua);
@@ -304,7 +304,7 @@ static int tiny_parse(lua_State *lua)
 			lua_pushnumber(lua,material.dissolve);//(5)
 			lua_setfield(lua, 4, "d");
 
-			lua_pushnumber(lua,material.illum);//(5)
+			lua_pushnumber(lua,static_cast<lua_Number>(material.illum));//(5)
 			lua_setfield(lua, 4, "illum");
 
 			lua_newtable(lua);//(5)
