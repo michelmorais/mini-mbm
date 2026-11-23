@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.8**
-Status: **Phase 12 multi-target authoring, runtime export, and attachment chains implemented on top of the validated conditional-state and socket pipelines**
+Document version: **2.9**
+Status: **Phase 13 attachment graph visualization and chain validation implemented on top of multi-target authoring and runtime export**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -28,7 +28,9 @@ authoring, and socket viewport gizmos were exercised. The complete interchange p
 validated: open the mesh in Mesh Debug, export to FBX, apply an animation in Mixamo, download the
 FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation Editor. The
 authored sockets remained available after that round-trip. Multi-target authoring and runtime
-export are implemented in Phase 11 and are ready for manual editor validation.
+export are implemented in Phase 11. Phase 13 adds an editor graph view with clickable target
+nodes, selected-chain highlighting, missing-source/cycle validation, and the same validation gate
+before F5 or runtime export.
 
 ## Transform contract
 
@@ -230,7 +232,10 @@ and is saved with the definition. Leaving the mode restores the previous camera 
 There is no free-text bone authoring field. The Objects panel can add, remove, select, and rename
 targets. Each target has its own mesh, preview pose, selection flag, offset, inheritance mask,
 target pivot, look-at settings, spring, and blend configuration; the source and state profiles are
-shared by all targets.
+shared by all targets. The Attachment graph panel shows the source and target nodes with directed
+edges. Clicking a target node selects it in the Objects panel, and the active dependency chain is
+highlighted. Empty or duplicate target names, missing sources, self-links, and cycles are shown as
+graph errors and block preview execution and runtime export.
 The Attachment panel also exposes a target-local virtual pivot. The viewport draws that point and
 the relation line ends there; zero keeps the mesh origin as the target point.
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment

@@ -164,6 +164,7 @@ local S = {
     showXZPlane = true,
     showAimLimits = false,
     showStates = false,
+    showGraph = false,
     chainStatus = '',
     boneSelectionMode = false,
     boneSelectionCamera = nil,
@@ -173,7 +174,7 @@ local S = {
     cameraDrag = nil,
     gizmo = {axes = {}, rings = {}, origin = nil, length = nil, radius = nil,
         axesSignature = nil, drag = nil},
-    windows = {objects = '', attachment = '', camera = '', timeline = '', states = ''},
+    windows = {objects = '', attachment = '', camera = '', timeline = '', states = '', graph = ''},
     stateDraft = '',
 }
 
@@ -511,6 +512,63 @@ local function targetIndexByName(name)
         if record.name == name then return index end
     end
     return nil
+end
+
+local function validateAttachmentGraph()
+    local graph = {
+        valid = true,
+        errorKey = nil,
+        nodes = {},
+        edges = {},
+        targetIndexes = {},
+    }
+    local sourceName = tostring(S.definition.source or '')
+    if sourceName == '' then
+        graph.valid, graph.errorKey = false, 'target_source_invalid'
+        return graph
+    end
+    graph.nodes[#graph.nodes + 1] = {name = sourceName, root = true}
+    local names = {[sourceName] = true}
+    for index, record in ipairs(S.definition.targets or {}) do
+        local name = tostring(record.name or '')
+        if name == '' or names[name] then
+            graph.valid, graph.errorKey = false, 'target_name_invalid'
+        else
+            names[name] = true
+            graph.targetIndexes[name] = index
+            graph.nodes[#graph.nodes + 1] = {name = name, index = index}
+        end
+    end
+    for index, record in ipairs(S.definition.targets or {}) do
+        local targetName = tostring(record.name or '')
+        local parentName = tostring(record.source or sourceName)
+        graph.edges[#graph.edges + 1] = {source = parentName, target = targetName, index = index}
+        if parentName == '' or not names[parentName] or parentName == targetName then
+            graph.valid, graph.errorKey = false, 'target_source_invalid'
+        end
+    end
+    local visiting, visited = {}, {}
+    local function visit(name)
+        if name == sourceName then return true end
+        if visiting[name] then
+            graph.valid, graph.errorKey = false, 'target_cycle'
+            return false
+        end
+        if visited[name] then return true end
+        local index = graph.targetIndexes[name]
+        if not index then
+            graph.valid, graph.errorKey = false, 'target_source_invalid'
+            return false
+        end
+        visiting[name] = true
+        local parentName = tostring(S.definition.targets[index].source or sourceName)
+        local result = visit(parentName)
+        visiting[name] = nil
+        if result then visited[name] = true end
+        return result
+    end
+    for name in pairs(graph.targetIndexes) do visit(name) end
+    return graph
 end
 
 local function getActiveTargetSourcePose()
@@ -2421,9 +2479,14 @@ local function runtimeExportDefaultPath()
 end
 
 local function exportRuntimeDefinition()
+    syncEditorDefinition()
+    local graph = validateAttachmentGraph()
+    if not graph.valid then
+        setStatus(L(graph.errorKey), true)
+        return
+    end
     local path = mbm.saveFile(runtimeExportDefaultPath(), 'runtime.lua')
     if not path then return end
-    syncEditorDefinition()
     local ok, errorMessage = tRuntimeExport.write(path, S.definition)
     if not ok then
         setStatus(errorMessage or L('runtime_export_failed'), true)
@@ -2583,6 +2646,11 @@ local function writePreviewFiles(projectPath, driverPath)
 end
 
 local function validatePreview()
+    local graph = validateAttachmentGraph()
+    if not graph.valid then
+        setStatus(L(graph.errorKey), true)
+        return false
+    end
     if S.source.kind ~= 'mesh' or not S.source.meshLoaded then
         setStatus(L('run_preview_requires_source'), true)
         return false
@@ -3408,6 +3476,111 @@ local function showAttachment()
     tImGui.End()
 end
 
+local function showGraphPanel()
+    if not S.showGraph then return end
+    local screenWidth, screenHeight = mbm.getRealSizeScreen()
+    local leftPanelWidth, rightPanelWidth = 390, 400
+    local top = tImGui.GetMainMenuBarHeight() + 20
+    local bottom = math.floor(screenHeight * 0.20)
+    local graphWidth = math.max(240, screenWidth - leftPanelWidth - rightPanelWidth)
+    local graphHeight = math.max(180, screenHeight - top - bottom)
+    tImGui.SetNextWindowPos({x = leftPanelWidth, y = top}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowSize({x = graphWidth, y = graphHeight}, tImGui.Flags('ImGuiCond_Once'))
+    local opened, closed = tImGui.Begin(S.windows.graph, true, 0)
+    if closed then S.showGraph = false end
+    if opened then
+        local graph = validateAttachmentGraph()
+        tImGui.Text(L('graph'))
+        if graph.valid then
+            tImGui.TextColored({r = 0.35, g = 1, b = 0.45, a = 1}, L('graph_valid'))
+        else
+            tImGui.TextColored({r = 1, g = 0.35, b = 0.3, a = 1}, L('graph_invalid'))
+            tImGui.TextWrapped(L(graph.errorKey))
+        end
+        tImGui.TextWrapped(L('graph_help'))
+
+        local available = tImGui.GetContentRegionAvail()
+        local canvasWidth = math.max(180, available.x)
+        local rowHeight, nodeHeight = 42, 28
+        local targetCount = #S.definition.targets
+        local canvasHeight = math.max(100, 26 + math.max(1, targetCount) * rowHeight)
+        local origin = tImGui.GetCursorScreenPos()
+        local rootWidth = math.min(135, math.max(80, canvasWidth * 0.36))
+        local targetWidth = math.min(175, math.max(100, canvasWidth * 0.42))
+        local rootX = origin.x + 8
+        local targetX = origin.x + canvasWidth - targetWidth - 8
+        local rootY = origin.y + 12 + math.max(0, targetCount - 1) * rowHeight * 0.5
+        local positions = {
+            root = {x = rootX, y = rootY, width = rootWidth},
+            targets = {},
+        }
+        for index, record in ipairs(S.definition.targets) do
+            positions.targets[index] = {x = targetX, y = origin.y + 12 + (index - 1) * rowHeight,
+                width = targetWidth, index = index}
+        end
+
+        local selectedChain = {}
+        local selected = S.definition.targets[S.selectedTargetIndex]
+        local currentName = selected and selected.name or nil
+        while currentName and currentName ~= S.definition.source and not selectedChain[currentName] do
+            selectedChain[currentName] = true
+            local index = targetIndexByName(currentName)
+            currentName = index and (S.definition.targets[index].source or S.definition.source) or nil
+        end
+        selectedChain[S.definition.source] = selected ~= nil
+
+        for _, edge in ipairs(graph.edges) do
+            local sourceIndex = edge.source == S.definition.source and nil or targetIndexByName(edge.source)
+            local targetIndex = targetIndexByName(edge.target)
+            local sourcePosition = sourceIndex and positions.targets[sourceIndex] or positions.root
+            local targetPosition = targetIndex and positions.targets[targetIndex]
+            if sourcePosition and targetPosition then
+                local highlighted = selectedChain[edge.source] and selectedChain[edge.target]
+                local color = highlighted and {r = 1, g = 0.8, b = 0.2, a = 1} or
+                    {r = 0.55, g = 0.6, b = 0.68, a = 1}
+                tImGui.AddLine(
+                    {x = sourcePosition.x + sourcePosition.width, y = sourcePosition.y + nodeHeight * 0.5},
+                    {x = targetPosition.x, y = targetPosition.y + nodeHeight * 0.5}, color,
+                    highlighted and 3 or 1)
+            end
+        end
+
+        local rootPosition = positions.root
+        tImGui.AddRectFilled({x = rootPosition.x, y = rootPosition.y},
+            {x = rootPosition.x + rootPosition.width, y = rootPosition.y + nodeHeight},
+            {r = 0.12, g = 0.42, b = 0.62, a = 1}, 4)
+        tImGui.AddText({x = rootPosition.x + 8, y = rootPosition.y + 6},
+            {r = 1, g = 1, b = 1, a = 1}, S.definition.source)
+        for index, record in ipairs(S.definition.targets) do
+            local name = tostring(record.name or '')
+            local position = positions.targets[index]
+            if position then
+                local selectedNode = index == S.selectedTargetIndex
+                local nodeColor = selectedNode and {r = 0.2, g = 0.48, b = 0.78, a = 1} or
+                    {r = 0.32, g = 0.34, b = 0.4, a = 1}
+                if not graph.valid then nodeColor = {r = 0.46, g = 0.2, b = 0.2, a = 1} end
+                tImGui.AddRectFilled({x = position.x, y = position.y},
+                    {x = position.x + position.width, y = position.y + nodeHeight}, nodeColor, 4)
+                tImGui.AddText({x = position.x + 8, y = position.y + 6},
+                    {r = 1, g = 1, b = 1, a = 1}, name ~= '' and name or ('target_' .. index))
+            end
+        end
+        for index, record in ipairs(S.definition.targets) do
+            local position = positions.targets[index]
+            if position then
+                tImGui.SetCursorScreenPos({x = position.x, y = position.y})
+                if tImGui.InvisibleButton('##att_graph_target_' .. index,
+                        {x = position.width, y = nodeHeight}) then
+                    selectTarget(index)
+                end
+            end
+        end
+        tImGui.SetCursorScreenPos({x = origin.x, y = origin.y + canvasHeight})
+        tImGui.Dummy({x = canvasWidth, y = 1})
+    end
+    tImGui.End()
+end
+
 local function showStatePanel()
     if not S.showStates then return end
     tUtil.setInitialWindowPositionLeft(S.windows.states, 380, 20, 380, 380, 380)
@@ -3547,6 +3720,9 @@ local function showMainMenu()
         local showStatesPressed, showStatesValue =
             tImGui.MenuItem(L('show_states_in_attachment'), nil, S.showStates)
         if showStatesPressed then S.showStates = showStatesValue end
+        local showGraphPressed, showGraphValue =
+            tImGui.MenuItem(L('show_graph'), nil, S.showGraph)
+        if showGraphPressed then S.showGraph = showGraphValue end
         tImGui.Separator()
         if tImGui.MenuItem(L('quit')) then mbm.quit() end
         tImGui.EndMenu()
@@ -3578,6 +3754,7 @@ refreshWindowTitles = function()
     S.windows.camera = L('camera')
     S.windows.timeline = L('timeline')
     S.windows.states = L('states')
+    S.windows.graph = L('graph')
 end
 
 function onInitScene()
@@ -3618,6 +3795,7 @@ function onLoop(delta)
     if S.dirtyPreview then rebuildPreview(delta) end
     showMainMenu()
     showObjects()
+    showGraphPanel()
     showAttachment()
     showStatePanel()
     showCameraPanel()
