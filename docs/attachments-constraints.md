@@ -217,10 +217,10 @@ discover actors from a runtime scene. Instead, its `Export runtime` action write
 Lua module that keeps these labels and resolves them against an explicit binding table supplied by
 the game.
 
-For example, if the editor exports `character_weapon.runtime.lua`, the game can use:
+For example, if the editor exports `character_weapon-attachment.lua`, the game can use:
 
 ```lua
-local runtime = require "character_weapon.runtime"
+local runtime = require "character_weapon-attachment"
 local relations, errorMessage = runtime.attach {
     character = characterMesh,
     hat = hatMesh,

@@ -1923,8 +1923,10 @@ end
 
 local function createXZPlane()
     local points = {
-        -0.5, 0, -0.5, 0.5, 0, -0.5, 0.5, 0, 0.5,
-        -0.5, 0, -0.5, 0.5, 0, 0.5, -0.5, 0, 0.5,
+        -0.5, 0, -0.5,  0.5, 0, -0.5,  0.5, 0,  0.5,
+        -0.5, 0, -0.5,  0.5, 0,  0.5, -0.5, 0,  0.5,
+         0.5, 0, -0.5, -0.5, 0, -0.5,  0.5, 0,  0.5,
+         0.5, 0,  0.5, -0.5, 0, -0.5, -0.5, 0,  0.5,
     }
     local object = shape:new('3d', 0, 0, 0)
     if not object:create(points, nil, 'attachments_xz_plane') then
@@ -3044,7 +3046,7 @@ local function runtimeExportDefaultPath()
     if not S.projectPath or S.projectPath == '' then return '' end
     local base = S.projectPath:gsub('%.att%.lua$', '')
     if base == S.projectPath then base = S.projectPath:gsub('%.lua$', '') end
-    return base .. '.runtime.lua'
+    return base .. '-attachment.lua'
 end
 
 local function exportRuntimeDefinition()
@@ -3054,8 +3056,12 @@ local function exportRuntimeDefinition()
         setStatus(L(graph.errorKey), true)
         return
     end
-    local path = mbm.saveFile(runtimeExportDefaultPath(), 'runtime.lua')
+    local path = mbm.saveFile(runtimeExportDefaultPath(), 'lua')
     if not path then return end
+    if not ensureRuntimeModuleDirectory(path) then
+        setStatus(L('runtime_export_failed'), true)
+        return
+    end
     local ok, errorMessage = tRuntimeExport.write(path, S.definition)
     if not ok then
         setStatus(errorMessage or L('runtime_export_failed'), true)
@@ -3857,7 +3863,14 @@ local function showObjects()
                     tImGui.Text(string.format('%s: %d', L('animation_frame'), math.max(1, sourceCurrentFrame())))
                 end
                 tImGui.Separator()
+                local needsCapture = S.target.manualOverride == true
+                if needsCapture then
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 1, b = 1, a = 1})
+                    tImGui.PushStyleColor('ImGuiCol_Button', {r = 0.85, g = 0.45, b = 0.05, a = 1})
+                    tImGui.PushStyleColor('ImGuiCol_ButtonHovered', {r = 1, g = 0.60, b = 0.10, a = 1})
+                end
                 if tImGui.Button(L('capture') .. '##att_objects_capture') then captureOffset() end
+                if needsCapture then tImGui.PopStyleColor(3) end
                 tImGui.SameLine()
                 if tImGui.Button(L('reset_preview') .. '##att_objects_reset') then resetTargetPreview() end
             else
@@ -4535,7 +4548,6 @@ local function showTimelinePanel()
     if opened then
         tImGui.Text(L('timeline'))
         showSourceAnimationControls()
-        tImGui.Text(string.format(L('relation_status'), roleName('source'), roleName('target')))
     end
     tImGui.End()
 end
