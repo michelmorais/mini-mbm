@@ -2825,7 +2825,7 @@ local function showAttachment()
         end
         if blend.enabled then
             tImGui.SetNextItemWidth(210)
-            local changed, value = tImGui.InputFloat(L('blend_weight'), blend.weight)
+            local changed, value = tImGui.InputFloat(L('blend_weight'), blend.weight, 0.05, 0.05, '%.2f')
             if changed then
                 blend.weight = math.min(1, math.max(0, value))
                 S.target.manualOverride = false
