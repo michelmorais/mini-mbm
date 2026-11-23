@@ -2129,8 +2129,8 @@ Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
 `interaction_animation_runtime`.
 
 `attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, and named
-skeletal sockets. The specification requires `source` and `target` renderizable objects and accepts
-`id`, `sourceType` (`"root"`, `"bone"`, or `"socket"`), `sourceBone` or `sourceSocket` when using
+skeletal sockets, and named articulated-part sources. The specification requires `source` and `target` renderizable objects and accepts
+`id`, `sourceType` (`"root"`, `"bone"`, `"socket"`, or `"articulated_part"`), `sourceBone`, `sourceSocket`, or `sourcePart` when using
 the corresponding source, `inherit`, `offset`, `aimPoint`, `aimLimits`, `spring`, and `blend`. Position,
 rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
 offset is in the selected source's local space, and source scale affects offset position when
@@ -2142,7 +2142,9 @@ runtime derives it from `offset.rotation` for backward compatibility. The runtim
 source-local rotation before the evaluated source frame, following the engine's row-vector matrix
 convention. Bone sources require a mesh
 with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
-socket query also resolves to the canonical bind pose while playback is inactive. `aimAtSource = true`
+socket query also resolves to the canonical bind pose while playback is inactive. Articulated-part
+sources require a named part in the MSH articulated-parts section; their anchor is the evaluated
+part pivot and their orientation/scale come from the part transform. `aimAtSource = true`
 requires rotation inheritance and makes the target's local +Z axis point toward the current source
 aim point, using world Y as the up reference. `aimPoint` is expressed in source-local coordinates;
 its zero value aims at the source origin. The optional `aimLimits` table enables angular limits
