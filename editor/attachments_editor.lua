@@ -165,6 +165,7 @@ local S = {
     showAimLimits = false,
     showStates = false,
     showGraph = false,
+    graphLayout = {root = nil, targets = {}},
     chainStatus = '',
     boneSelectionMode = false,
     boneSelectionCamera = nil,
@@ -616,6 +617,7 @@ local function removeTarget()
     local removedState = table.remove(S.targets, index)
     if removedState and removedState.object then removedState.object:destroy() end
     table.remove(S.definition.targets, index)
+    table.remove(S.graphLayout.targets, index)
     if index > #S.definition.targets then index = #S.definition.targets end
     S.selectedTargetIndex = index
     activateTargetDefinition(index)
@@ -2936,6 +2938,7 @@ local function loadDefinition(path)
     S.targets = {}
     S.selectedTargetIndex = 1
     S.definition = definition
+    S.graphLayout = {root = nil, targets = {}}
     S.stateDraft = definition.initialState
     S.source.pose = clonePose(definition.editor.sourcePose)
     for index = 1, #definition.targets do S.targets[index] = newTargetState() end
@@ -3503,20 +3506,46 @@ local function showGraphPanel()
         local canvasWidth = math.max(180, available.x)
         local rowHeight, nodeHeight = 42, 28
         local targetCount = #S.definition.targets
-        local canvasHeight = math.max(100, 26 + math.max(1, targetCount) * rowHeight)
+        local canvasHeight = math.max(100, available.y)
         local origin = tImGui.GetCursorScreenPos()
         local rootWidth = math.min(135, math.max(80, canvasWidth * 0.36))
         local targetWidth = math.min(175, math.max(100, canvasWidth * 0.42))
-        local rootX = origin.x + 8
-        local targetX = origin.x + canvasWidth - targetWidth - 8
-        local rootY = origin.y + 12 + math.max(0, targetCount - 1) * rowHeight * 0.5
+        local rootDefaultY = 12 + math.max(0, targetCount - 1) * rowHeight * 0.5
+        local function clampLayoutPosition(layoutPosition, width)
+            layoutPosition.x = math.max(0, math.min(math.max(0, canvasWidth - width), layoutPosition.x))
+            layoutPosition.y = math.max(0, math.min(math.max(0, canvasHeight - nodeHeight), layoutPosition.y))
+        end
+        if not S.graphLayout.root then S.graphLayout.root = {x = 8, y = rootDefaultY} end
+        clampLayoutPosition(S.graphLayout.root, rootWidth)
         local positions = {
-            root = {x = rootX, y = rootY, width = rootWidth},
+            root = {x = origin.x + S.graphLayout.root.x, y = origin.y + S.graphLayout.root.y,
+                width = rootWidth, layout = S.graphLayout.root},
             targets = {},
         }
+        local function targetDepth(index, visiting)
+            visiting = visiting or {}
+            if visiting[index] then return 1 end
+            visiting[index] = true
+            local record = S.definition.targets[index]
+            local sourceName = record and (record.source or S.definition.source) or S.definition.source
+            local sourceIndex = graph.targetIndexes[sourceName]
+            local depth = sourceIndex and (targetDepth(sourceIndex, visiting) + 1) or 1
+            visiting[index] = nil
+            return depth
+        end
         for index, record in ipairs(S.definition.targets) do
-            positions.targets[index] = {x = targetX, y = origin.y + 12 + (index - 1) * rowHeight,
-                width = targetWidth, index = index}
+            if not S.graphLayout.targets[index] then
+                local depth = targetDepth(index)
+                local defaultX = 8 + rootWidth + 48 + (depth - 1) * (targetWidth + 48)
+                S.graphLayout.targets[index] = {x = defaultX,
+                    y = 12 + (index - 1) * rowHeight}
+            end
+            clampLayoutPosition(S.graphLayout.targets[index], targetWidth)
+            positions.targets[index] = {
+                x = origin.x + S.graphLayout.targets[index].x,
+                y = origin.y + S.graphLayout.targets[index].y,
+                width = targetWidth, index = index, layout = S.graphLayout.targets[index],
+            }
         end
 
         local selectedChain = {}
@@ -3565,14 +3594,31 @@ local function showGraphPanel()
                     {r = 1, g = 1, b = 1, a = 1}, name ~= '' and name or ('target_' .. index))
             end
         end
+        local function makeNodeDraggable(id, position, onClick)
+            tImGui.SetCursorScreenPos({x = position.x, y = position.y})
+            if tImGui.InvisibleButton(id, {x = position.width, y = nodeHeight}) and onClick then
+                onClick()
+            end
+            if tImGui.IsItemActive() then
+                local delta = tImGui.GetMouseDragDelta(0)
+                if delta.x ~= 0 or delta.y ~= 0 then
+                    position.layout.x = position.layout.x + delta.x
+                    position.layout.y = position.layout.y + delta.y
+                    clampLayoutPosition(position.layout, position.width)
+                    tImGui.ResetMouseDragDelta(0)
+                end
+            end
+        end
+        makeNodeDraggable('##att_graph_source', positions.root, function()
+            S.selectedRole = 'source'
+            S.gizmo.drag = nil
+        end)
         for index, record in ipairs(S.definition.targets) do
             local position = positions.targets[index]
             if position then
-                tImGui.SetCursorScreenPos({x = position.x, y = position.y})
-                if tImGui.InvisibleButton('##att_graph_target_' .. index,
-                        {x = position.width, y = nodeHeight}) then
+                makeNodeDraggable('##att_graph_target_' .. index, position, function()
                     selectTarget(index)
-                end
+                end)
             end
         end
         tImGui.SetCursorScreenPos({x = origin.x, y = origin.y + canvasHeight})
