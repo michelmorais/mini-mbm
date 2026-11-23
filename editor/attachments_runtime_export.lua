@@ -54,16 +54,64 @@ local function validateRotationMatrix(value)
     return true
 end
 
+local function validateTarget(target, sourceType)
+    if type(target) ~= 'table' then return false, 'targets must contain tables' end
+    if type(target.name) ~= 'string' or target.name == '' then
+        return false, 'target binding name must not be empty'
+    end
+    if type(target.inherit) ~= 'table' then return false, 'target inherit must be a table' end
+    local offset = target.offset
+    if type(offset) ~= 'table' then return false, 'target offset must be a table' end
+    for _, component in ipairs({'position', 'rotation', 'scale'}) do
+        if not validateVector(offset[component], component == 'scale' and 1 or 0) then
+            return false, 'target offset.' .. component .. ' must be a vector'
+        end
+    end
+    if offset.rotationMatrix ~= nil and not validateRotationMatrix(offset.rotationMatrix) then
+        return false, 'target offset.rotationMatrix must be a 3x3 matrix'
+    end
+    if target.targetPivot ~= nil and not validateVector(target.targetPivot, 0) then
+        return false, 'target targetPivot must be a vector'
+    end
+    if target.aimPoint ~= nil and not validateVector(target.aimPoint, 0) then
+        return false, 'target aimPoint must be a vector'
+    end
+    if target.aimLimits ~= nil then
+        if type(target.aimLimits) ~= 'table' then return false, 'target aimLimits must be a table' end
+        local limits = target.aimLimits
+        if limits.enabled == true and target.aimAtSource ~= true then
+            return false, 'target aimLimits requires aimAtSource=true'
+        end
+        local reference = limits.reference or 'dynamic'
+        if reference ~= 'dynamic' and reference ~= 'captured' then
+            return false, "target aimLimits.reference must be 'dynamic' or 'captured'"
+        end
+        if reference == 'captured' and not validateRotationMatrix(limits.referenceRotationMatrix) then
+            return false, 'target captured aim limits require a reference rotation matrix'
+        end
+        if number(limits.yawMin, -math.pi) > number(limits.yawMax, math.pi) or
+                number(limits.pitchMin, -math.pi * 0.5) > number(limits.pitchMax, math.pi * 0.5) then
+            return false, 'target aim limits minimum values must not exceed maximum values'
+        end
+    end
+    if target.spring ~= nil then
+        if type(target.spring) ~= 'table' then return false, 'target spring must be a table' end
+        if number(target.spring.stiffness, 120) < 0 or number(target.spring.damping, 24) < 0 then
+            return false, 'target spring stiffness and damping must be non-negative'
+        end
+    end
+    if target.blend ~= nil then
+        if type(target.blend) ~= 'table' then return false, 'target blend must be a table' end
+        local weight = number(target.blend.weight, 1)
+        if weight < 0 or weight > 1 then return false, 'target blend weight must be between 0 and 1' end
+    end
+    return true
+end
+
 function M.validate(definition)
     if type(definition) ~= 'table' then return false, 'attachment definition must be a table' end
     if type(definition.source) ~= 'string' or definition.source == '' then
         return false, 'source binding name must not be empty'
-    end
-    if type(definition.target) ~= 'string' or definition.target == '' then
-        return false, 'target binding name must not be empty'
-    end
-    if definition.source == definition.target then
-        return false, 'source and target binding names must be different'
     end
     if definition.sourceType ~= 'root' and definition.sourceType ~= 'bone' and
             definition.sourceType ~= 'socket' then
@@ -77,65 +125,16 @@ function M.validate(definition)
             (type(definition.sourceSocket) ~= 'string' or definition.sourceSocket == '') then
         return false, "sourceSocket must not be empty when sourceType is 'socket'"
     end
-    local inherit = definition.inherit
-    if type(inherit) ~= 'table' then return false, 'inherit must be a table' end
-    local offset = definition.offset
-    if type(offset) ~= 'table' then return false, 'offset must be a table' end
-    for _, component in ipairs({'position', 'rotation', 'scale'}) do
-        if not validateVector(offset[component], component == 'scale' and 1 or 0) then
-            return false, 'offset.' .. component .. ' must be a vector'
-        end
+    if type(definition.targets) ~= 'table' or #definition.targets == 0 then
+        return false, 'at least one target is required'
     end
-    if offset.rotationMatrix ~= nil and not validateRotationMatrix(offset.rotationMatrix) then
-        return false, 'offset.rotationMatrix must be a 3x3 matrix'
-    end
-    if definition.targetPivot ~= nil and not validateVector(definition.targetPivot, 0) then
-        return false, 'targetPivot must be a vector'
-    end
-    if definition.aimPoint ~= nil and not validateVector(definition.aimPoint, 0) then
-        return false, 'aimPoint must be a vector'
-    end
-    if definition.aimLimits ~= nil then
-        if type(definition.aimLimits) ~= 'table' then
-            return false, 'aimLimits must be a table'
-        end
-        local limits = definition.aimLimits
-        if limits.enabled == true and definition.aimAtSource ~= true then
-            return false, 'aimLimits requires aimAtSource=true'
-        end
-        local reference = limits.reference or 'dynamic'
-        if reference ~= 'dynamic' and reference ~= 'captured' then
-            return false, "aimLimits.reference must be 'dynamic' or 'captured'"
-        end
-        if reference == 'captured' and not validateRotationMatrix(limits.referenceRotationMatrix) then
-            return false, 'aimLimits.referenceRotationMatrix must be a 3x3 matrix for captured frame mode'
-        end
-        local values = {
-            yawMin = number(limits.yawMin, -math.pi),
-            yawMax = number(limits.yawMax, math.pi),
-            pitchMin = number(limits.pitchMin, -math.pi * 0.5),
-            pitchMax = number(limits.pitchMax, math.pi * 0.5),
-        }
-        if values.yawMin > values.yawMax or values.pitchMin > values.pitchMax then
-            return false, 'aimLimits minimum values must not exceed maximum values'
-        end
-    end
-    if definition.spring ~= nil then
-        if type(definition.spring) ~= 'table' then return false, 'spring must be a table' end
-        local spring = definition.spring
-        local stiffness = number(spring.stiffness, 120)
-        local damping = number(spring.damping, 24)
-        if stiffness < 0 or damping < 0 then
-            return false, 'spring stiffness and damping must be non-negative'
-        end
-    end
-    if definition.blend ~= nil then
-        if type(definition.blend) ~= 'table' then return false, 'blend must be a table' end
-        local blend = definition.blend
-        local weight = number(blend.weight, 1)
-        if weight < 0 or weight > 1 then
-            return false, 'blend weight must be between 0 and 1'
-        end
+    local names = {}
+    for index, target in ipairs(definition.targets) do
+        local valid, errorMessage = validateTarget(target, definition.sourceType)
+        if not valid then return false, string.format('target %d: %s', index, errorMessage) end
+        if target.name == definition.source then return false, 'source and target binding names must be different' end
+        if names[target.name] then return false, 'target binding names must be unique' end
+        names[target.name] = true
     end
     if definition.states ~= nil then
         if type(definition.states) ~= 'table' then return false, 'states must be a table' end
@@ -162,30 +161,87 @@ function M.validate(definition)
 end
 
 local function appendDefinition(output, definition)
-    local inherit = definition.inherit
-    local offset = definition.offset
-    local function addVector(name, value)
-        output[#output + 1] = string.format('        %s = {x = %.17g, y = %.17g, z = %.17g},',
-            name, number(value.x, 0), number(value.y, 0), number(value.z, name == 'scale' and 1 or 0))
+    local function addVector(name, value, indent)
+        output[#output + 1] = string.format('%s%s = {x = %.17g, y = %.17g, z = %.17g},',
+            indent, name, number(value.x, 0), number(value.y, 0),
+            number(value.z, name == 'scale' and 1 or 0))
+    end
+    local function addMatrix(name, value, indent)
+        if not validateRotationMatrix(value) then return end
+        output[#output + 1] = indent .. name .. ' = {'
+        for row = 1, 3 do
+            output[#output + 1] = string.format('%s    {%.17g, %.17g, %.17g},', indent,
+                value[row][1], value[row][2], value[row][3])
+        end
+        output[#output + 1] = indent .. '},'
+    end
+    local function addBlend(blend, indent)
+        if type(blend) ~= 'table' then return end
+        output[#output + 1] = indent .. 'blend = {'
+        output[#output + 1] = indent .. '    enabled = ' .. tostring(blend.enabled == true) .. ','
+        output[#output + 1] = indent .. '    position = ' .. tostring(blend.position ~= false) .. ','
+        output[#output + 1] = indent .. '    rotation = ' .. tostring(blend.rotation ~= false) .. ','
+        output[#output + 1] = indent .. '    scale = ' .. tostring(blend.scale ~= false) .. ','
+        output[#output + 1] = string.format('%s    weight = %.17g,', indent, number(blend.weight, 1))
+        output[#output + 1] = indent .. '},'
+    end
+    local function addTarget(target, index)
+        local prefix = '        '
+        local inherit = target.inherit
+        local offset = target.offset
+        output[#output + 1] = '        [' .. index .. '] = {'
+        output[#output + 1] = prefix .. 'name = ' .. quote(target.name) .. ','
+        output[#output + 1] = prefix .. 'inherit = {'
+        output[#output + 1] = prefix .. '    position = ' .. tostring(inherit.position == true) .. ','
+        output[#output + 1] = prefix .. '    rotation = ' .. tostring(inherit.rotation == true) .. ','
+        output[#output + 1] = prefix .. '    scale = ' .. tostring(inherit.scale == true) .. ','
+        output[#output + 1] = prefix .. '},'
+        output[#output + 1] = prefix .. 'aimAtSource = ' .. tostring(target.aimAtSource == true) .. ','
+        local aimPoint = target.aimPoint or {x = 0, y = 0, z = 0}
+        output[#output + 1] = string.format('%saimPoint = {x = %.17g, y = %.17g, z = %.17g},',
+            prefix, number(aimPoint.x, 0), number(aimPoint.y, 0), number(aimPoint.z, 0))
+        local aimLimits = target.aimLimits
+        if type(aimLimits) == 'table' then
+            output[#output + 1] = prefix .. 'aimLimits = {'
+            output[#output + 1] = prefix .. '    enabled = ' .. tostring(aimLimits.enabled == true) .. ','
+            output[#output + 1] = prefix .. '    reference = ' .. quote(aimLimits.reference or 'dynamic') .. ','
+            addMatrix('referenceRotationMatrix', aimLimits.referenceRotationMatrix, prefix .. '    ')
+            output[#output + 1] = string.format('%s    yawMin = %.17g,', prefix, number(aimLimits.yawMin, -math.pi))
+            output[#output + 1] = string.format('%s    yawMax = %.17g,', prefix, number(aimLimits.yawMax, math.pi))
+            output[#output + 1] = string.format('%s    pitchMin = %.17g,', prefix, number(aimLimits.pitchMin, -math.pi * 0.5))
+            output[#output + 1] = string.format('%s    pitchMax = %.17g,', prefix, number(aimLimits.pitchMax, math.pi * 0.5))
+            output[#output + 1] = prefix .. '},'
+        end
+        local spring = target.spring
+        if type(spring) == 'table' then
+            output[#output + 1] = prefix .. 'spring = {'
+            output[#output + 1] = prefix .. '    enabled = ' .. tostring(spring.enabled == true) .. ','
+            output[#output + 1] = prefix .. '    position = ' .. tostring(spring.position ~= false) .. ','
+            output[#output + 1] = prefix .. '    rotation = ' .. tostring(spring.rotation ~= false) .. ','
+            output[#output + 1] = string.format('%s    stiffness = %.17g,', prefix, number(spring.stiffness, 120))
+            output[#output + 1] = string.format('%s    damping = %.17g,', prefix, number(spring.damping, 24))
+            output[#output + 1] = prefix .. '},'
+        end
+        addBlend(target.blend, prefix)
+        output[#output + 1] = prefix .. 'offset = {'
+        addVector('position', offset.position, prefix .. '    ')
+        addVector('rotation', offset.rotation, prefix .. '    ')
+        addVector('scale', offset.scale, prefix .. '    ')
+        addMatrix('rotationMatrix', offset.rotationMatrix, prefix .. '    ')
+        output[#output + 1] = prefix .. '},'
+        local targetPivot = target.targetPivot or {x = 0, y = 0, z = 0}
+        output[#output + 1] = string.format('%stargetPivot = {x = %.17g, y = %.17g, z = %.17g},',
+            prefix, number(targetPivot.x, 0), number(targetPivot.y, 0), number(targetPivot.z, 0))
+        output[#output + 1] = '        },'
     end
     output[#output + 1] = 'local definition = {'
     output[#output + 1] = '    source = ' .. quote(definition.source) .. ','
-    output[#output + 1] = '    target = ' .. quote(definition.target) .. ','
     output[#output + 1] = '    sourceType = ' .. quote(definition.sourceType) .. ','
     if definition.sourceType == 'bone' then
         output[#output + 1] = '    sourceBone = ' .. quote(definition.sourceBone) .. ','
     elseif definition.sourceType == 'socket' then
         output[#output + 1] = '    sourceSocket = ' .. quote(definition.sourceSocket) .. ','
     end
-    output[#output + 1] = '    inherit = {'
-    output[#output + 1] = '        position = ' .. tostring(inherit.position == true) .. ','
-    output[#output + 1] = '        rotation = ' .. tostring(inherit.rotation == true) .. ','
-    output[#output + 1] = '        scale = ' .. tostring(inherit.scale == true) .. ','
-    output[#output + 1] = '    },'
-    output[#output + 1] = '    aimAtSource = ' .. tostring(definition.aimAtSource == true) .. ','
-    local aimPoint = definition.aimPoint or {x = 0, y = 0, z = 0}
-    output[#output + 1] = string.format('    aimPoint = {x = %.17g, y = %.17g, z = %.17g},',
-        number(aimPoint.x, 0), number(aimPoint.y, 0), number(aimPoint.z, 0))
     output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
     if type(definition.initialState) == 'string' and definition.initialState ~= '' then
         output[#output + 1] = '    initialState = ' .. quote(definition.initialState) .. ','
@@ -195,79 +251,15 @@ local function appendDefinition(output, definition)
         output[#output + 1] = '    states = {'
         for name, state in pairs(states) do
             output[#output + 1] = '        [' .. quote(name) .. '] = {'
-            output[#output + 1] = '            influenceEnabled = ' ..
-                tostring(state.influenceEnabled ~= false) .. ','
-            if type(state.blend) == 'table' then
-                output[#output + 1] = '            blend = {'
-                output[#output + 1] = '                enabled = ' .. tostring(state.blend.enabled == true) .. ','
-                output[#output + 1] = '                position = ' .. tostring(state.blend.position ~= false) .. ','
-                output[#output + 1] = '                rotation = ' .. tostring(state.blend.rotation ~= false) .. ','
-                output[#output + 1] = '                scale = ' .. tostring(state.blend.scale ~= false) .. ','
-                output[#output + 1] = string.format('                weight = %.17g,',
-                    number(state.blend.weight, 1))
-                output[#output + 1] = '            },'
-            end
+            output[#output + 1] = '            influenceEnabled = ' .. tostring(state.influenceEnabled ~= false) .. ','
+            addBlend(state.blend, '            ')
             output[#output + 1] = '        },'
         end
         output[#output + 1] = '    },'
     end
-    local aimLimits = definition.aimLimits
-    if type(aimLimits) == 'table' then
-        output[#output + 1] = '    aimLimits = {'
-        output[#output + 1] = '        enabled = ' .. tostring(aimLimits.enabled == true) .. ','
-        output[#output + 1] = '        reference = ' .. quote(aimLimits.reference or 'dynamic') .. ','
-        if aimLimits.reference == 'captured' and validateRotationMatrix(aimLimits.referenceRotationMatrix) then
-            output[#output + 1] = '        referenceRotationMatrix = {'
-            for row = 1, 3 do
-                output[#output + 1] = string.format('            {%.17g, %.17g, %.17g},',
-                    aimLimits.referenceRotationMatrix[row][1], aimLimits.referenceRotationMatrix[row][2],
-                    aimLimits.referenceRotationMatrix[row][3])
-            end
-            output[#output + 1] = '        },'
-        end
-        output[#output + 1] = string.format('        yawMin = %.17g,', number(aimLimits.yawMin, -math.pi))
-        output[#output + 1] = string.format('        yawMax = %.17g,', number(aimLimits.yawMax, math.pi))
-        output[#output + 1] = string.format('        pitchMin = %.17g,', number(aimLimits.pitchMin, -math.pi * 0.5))
-        output[#output + 1] = string.format('        pitchMax = %.17g,', number(aimLimits.pitchMax, math.pi * 0.5))
-        output[#output + 1] = '    },'
-    end
-    local spring = definition.spring
-    if type(spring) == 'table' then
-        output[#output + 1] = '    spring = {'
-        output[#output + 1] = '        enabled = ' .. tostring(spring.enabled == true) .. ','
-        output[#output + 1] = '        position = ' .. tostring(spring.position ~= false) .. ','
-        output[#output + 1] = '        rotation = ' .. tostring(spring.rotation ~= false) .. ','
-        output[#output + 1] = string.format('        stiffness = %.17g,', number(spring.stiffness, 120))
-        output[#output + 1] = string.format('        damping = %.17g,', number(spring.damping, 24))
-        output[#output + 1] = '    },'
-    end
-    local blend = definition.blend
-    if type(blend) == 'table' then
-        output[#output + 1] = '    blend = {'
-        output[#output + 1] = '        enabled = ' .. tostring(blend.enabled == true) .. ','
-        output[#output + 1] = '        position = ' .. tostring(blend.position ~= false) .. ','
-        output[#output + 1] = '        rotation = ' .. tostring(blend.rotation ~= false) .. ','
-        output[#output + 1] = '        scale = ' .. tostring(blend.scale ~= false) .. ','
-        output[#output + 1] = string.format('        weight = %.17g,', number(blend.weight, 1))
-        output[#output + 1] = '    },'
-    end
-    output[#output + 1] = '    offset = {'
-    addVector('position', offset.position)
-    addVector('rotation', offset.rotation)
-    addVector('scale', offset.scale)
-    if validateRotationMatrix(offset.rotationMatrix) then
-        output[#output + 1] = '        rotationMatrix = {'
-        for row = 1, 3 do
-            output[#output + 1] = string.format('            {%.17g, %.17g, %.17g},',
-                offset.rotationMatrix[row][1], offset.rotationMatrix[row][2],
-                offset.rotationMatrix[row][3])
-        end
-        output[#output + 1] = '        },'
-    end
+    output[#output + 1] = '    targets = {'
+    for index, target in ipairs(definition.targets) do addTarget(target, index) end
     output[#output + 1] = '    },'
-    local targetPivot = definition.targetPivot or {x = 0, y = 0, z = 0}
-    output[#output + 1] = string.format('    targetPivot = {x = %.17g, y = %.17g, z = %.17g},',
-        number(targetPivot.x, 0), number(targetPivot.y, 0), number(targetPivot.z, 0))
     output[#output + 1] = '}'
 end
 
@@ -286,28 +278,37 @@ function M.build(definition)
     output[#output + 1] = '        return nil, "bindings must be a table"'
     output[#output + 1] = '    end'
     output[#output + 1] = '    local source = bindings[definition.source]'
-    output[#output + 1] = '    local target = bindings[definition.target]'
     output[#output + 1] = '    if not source then return nil, "missing source binding: " .. definition.source end'
-    output[#output + 1] = '    if not target then return nil, "missing target binding: " .. definition.target end'
-    output[#output + 1] = '    local specification = {'
-    output[#output + 1] = '        source = source,'
-    output[#output + 1] = '        target = target,'
-    output[#output + 1] = '        sourceType = definition.sourceType,'
-    output[#output + 1] = '        inherit = definition.inherit,'
-    output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
-    output[#output + 1] = '        aimPoint = definition.aimPoint,'
-    output[#output + 1] = '        influenceEnabled = definition.influenceEnabled,'
-    output[#output + 1] = '        initialState = definition.initialState,'
-    output[#output + 1] = '        states = definition.states,'
-    output[#output + 1] = '        aimLimits = definition.aimLimits,'
-    output[#output + 1] = '        spring = definition.spring,'
-    output[#output + 1] = '        blend = definition.blend,'
-    output[#output + 1] = '        offset = definition.offset,'
-    output[#output + 1] = '        targetPivot = definition.targetPivot,'
-    output[#output + 1] = '    }'
-    output[#output + 1] = '    if definition.sourceBone then specification.sourceBone = definition.sourceBone end'
-    output[#output + 1] = '    if definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
-    output[#output + 1] = '    return attachments.attach(specification)'
+    output[#output + 1] = '    local relations = {}'
+    output[#output + 1] = '    for index, targetDefinition in ipairs(definition.targets) do'
+    output[#output + 1] = '        local target = bindings[targetDefinition.name]'
+    output[#output + 1] = '        if not target then return nil, "missing target binding: " .. targetDefinition.name end'
+    output[#output + 1] = '        local specification = {'
+    output[#output + 1] = '            source = source,'
+    output[#output + 1] = '            target = target,'
+    output[#output + 1] = '            sourceType = definition.sourceType,'
+    output[#output + 1] = '            inherit = targetDefinition.inherit,'
+    output[#output + 1] = '            aimAtSource = targetDefinition.aimAtSource,'
+    output[#output + 1] = '            aimPoint = targetDefinition.aimPoint,'
+    output[#output + 1] = '            influenceEnabled = definition.influenceEnabled,'
+    output[#output + 1] = '            initialState = definition.initialState,'
+    output[#output + 1] = '            states = definition.states,'
+    output[#output + 1] = '            aimLimits = targetDefinition.aimLimits,'
+    output[#output + 1] = '            spring = targetDefinition.spring,'
+    output[#output + 1] = '            blend = targetDefinition.blend,'
+    output[#output + 1] = '            offset = targetDefinition.offset,'
+    output[#output + 1] = '            targetPivot = targetDefinition.targetPivot,'
+    output[#output + 1] = '        }'
+    output[#output + 1] = '        if definition.sourceBone then specification.sourceBone = definition.sourceBone end'
+    output[#output + 1] = '        if definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
+    output[#output + 1] = '        local relation, errorMessage = attachments.attach(specification)'
+    output[#output + 1] = '        if not relation then'
+    output[#output + 1] = '            for _, created in ipairs(relations) do created:detach() end'
+    output[#output + 1] = '            return nil, errorMessage'
+    output[#output + 1] = '        end'
+    output[#output + 1] = '        relations[index] = relation'
+    output[#output + 1] = '    end'
+    output[#output + 1] = '    return relations'
     output[#output + 1] = 'end'
     output[#output + 1] = ''
     output[#output + 1] = 'return {definition = definition, attach = attach}'

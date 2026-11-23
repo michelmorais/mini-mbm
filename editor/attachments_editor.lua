@@ -45,9 +45,25 @@ local function clonePose(value)
     }
 end
 
+local function newSpringState()
+    return {
+        initialized = false,
+        position = vector(0, 0, 0),
+        rotation = vector(0, 0, 0),
+        positionVelocity = vector(0, 0, 0),
+        rotationVelocity = vector(0, 0, 0),
+    }
+end
+
+local function newTargetState()
+    return {pose = pose(100, 0, 0), manualOverride = false, kind = 'placeholder',
+        path = '', previewSize = 50, meshLoaded = false, selectable = true,
+        springState = newSpringState()}
+end
+
 local function newDefinition()
     return {
-        version = 3,
+        version = 4,
         source = 'source',
         target = 'target',
         sourceType = 'root',
@@ -89,6 +105,7 @@ local function newDefinition()
             scale = vector(1, 1, 1),
         },
         targetPivot = vector(0, 0, 0),
+        targets = {},
         editor = {
             sourceKind = 'placeholder',
             targetKind = 'placeholder',
@@ -120,9 +137,11 @@ local S = {
         socketCatalog = {},
         animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
         selectionAnimation = nil},
-    target = {pose = pose(100, 0, 0), object = nil, manualOverride = false, kind = 'placeholder',
-        path = '', previewSize = 50, meshLoaded = false, selectable = true},
+    targets = {newTargetState()},
+    selectedTargetIndex = 1,
+    target = nil,
     relationLine = nil,
+    relationLines = {},
     targetPivotMarker = nil,
     targetPivotMarkerRadius = nil,
     targetPivotMarkerSignature = nil,
@@ -155,6 +174,8 @@ local S = {
     windows = {objects = '', attachment = '', camera = '', timeline = '', states = ''},
     stateDraft = '',
 }
+
+S.target = S.targets[1]
 
 local L
 local refreshWindowTitles
@@ -331,6 +352,196 @@ local function roleEntry(role)
     return role == 'source' and S.source or S.target
 end
 
+local function ensureRelationLine(index)
+    local relation = S.relationLines[index]
+    if relation then return relation end
+    relation = line:new('3d', 0, 0, 0)
+    relation:add({0, 0, 0, 100, 0, 0})
+    relation:setColor(0.85, 0.85, 0.85, 1)
+    relation.alwaysOnTop = true
+    relation.alwaysOnTopPriority = 2
+    relation.alwaysRender = true
+    S.relationLines[index] = relation
+    if index == 1 then S.relationLine = relation end
+    return relation
+end
+
+local cloneBlend
+
+local function copyVector(value, fallback)
+    value = value or fallback or vector(0, 0, 0)
+    return vector(value.x or 0, value.y or 0, value.z or 0)
+end
+
+local function copyTargetRecord(record)
+    local inherit = record.inherit or {}
+    local result = {
+        name = record.name or 'target',
+        inherit = {
+            position = inherit.position ~= false,
+            rotation = inherit.rotation ~= false,
+            scale = inherit.scale == true,
+        },
+        aimAtSource = record.aimAtSource == true,
+        aimPoint = copyVector(record.aimPoint),
+        aimLimits = {
+            enabled = record.aimLimits and record.aimLimits.enabled == true or false,
+            reference = record.aimLimits and record.aimLimits.reference == 'captured' and 'captured' or 'dynamic',
+            referenceRotationMatrix = record.aimLimits and record.aimLimits.referenceRotationMatrix and
+                cloneRotation(record.aimLimits.referenceRotationMatrix) or nil,
+            yawMin = record.aimLimits and record.aimLimits.yawMin or -math.pi,
+            yawMax = record.aimLimits and record.aimLimits.yawMax or math.pi,
+            pitchMin = record.aimLimits and record.aimLimits.pitchMin or -math.pi * 0.5,
+            pitchMax = record.aimLimits and record.aimLimits.pitchMax or math.pi * 0.5,
+        },
+        spring = {
+            enabled = record.spring and record.spring.enabled == true or false,
+            position = not record.spring or record.spring.position ~= false,
+            rotation = not record.spring or record.spring.rotation ~= false,
+            stiffness = record.spring and record.spring.stiffness or 120,
+            damping = record.spring and record.spring.damping or 24,
+        },
+        blend = cloneBlend(record.blend),
+        offset = {
+            position = copyVector(record.offset and record.offset.position),
+            rotation = copyVector(record.offset and record.offset.rotation),
+            rotationMatrix = record.offset and record.offset.rotationMatrix and
+                cloneRotation(record.offset.rotationMatrix) or identityRotation(),
+            scale = copyVector(record.offset and record.offset.scale, vector(1, 1, 1)),
+        },
+        targetPivot = copyVector(record.targetPivot),
+        editor = {},
+    }
+    result.editor.targetKind = record.editor and record.editor.targetKind or 'placeholder'
+    result.editor.targetMesh = record.editor and record.editor.targetMesh or ''
+    result.editor.targetPose = record.editor and clonePose(record.editor.targetPose or pose(100, 0, 0)) or
+        pose(100, 0, 0)
+    result.editor.targetManualOverride = record.editor and record.editor.targetManualOverride == true or false
+    result.editor.targetSelectable = not record.editor or record.editor.targetSelectable ~= false
+    return result
+end
+
+local function snapshotActiveTarget()
+    local record = {
+        name = S.definition.target,
+        inherit = S.definition.inherit,
+        aimAtSource = S.definition.aimAtSource,
+        aimPoint = S.definition.aimPoint,
+        aimLimits = S.definition.aimLimits,
+        spring = S.definition.spring,
+        blend = S.definition.blend,
+        offset = S.definition.offset,
+        targetPivot = S.definition.targetPivot,
+        editor = {
+            targetKind = S.target.kind,
+            targetMesh = S.target.path,
+            targetPose = clonePose(S.target.pose),
+            targetManualOverride = S.target.manualOverride == true,
+            targetSelectable = S.target.selectable ~= false,
+        },
+    }
+    return copyTargetRecord(record)
+end
+
+local function ensureTargetDefinitions()
+    if type(S.definition.targets) ~= 'table' then S.definition.targets = {} end
+    if #S.definition.targets == 0 then
+        S.definition.targets[1] = snapshotActiveTarget()
+    end
+    while #S.targets < #S.definition.targets do S.targets[#S.targets + 1] = newTargetState() end
+    while #S.targets > #S.definition.targets do
+        local removed = table.remove(S.targets)
+        if removed.object then removed.object:destroy() end
+    end
+    if S.selectedTargetIndex > #S.definition.targets then S.selectedTargetIndex = 1 end
+end
+
+local function syncActiveTargetDefinition()
+    ensureTargetDefinitions()
+    local record = S.definition.targets[S.selectedTargetIndex]
+    if not record then return end
+    local snapshot = snapshotActiveTarget()
+    S.definition.targets[S.selectedTargetIndex] = snapshot
+end
+
+local function activateTargetDefinition(index)
+    ensureTargetDefinitions()
+    local record = S.definition.targets[index]
+    if not record then return false end
+    S.selectedTargetIndex = index
+    S.target = S.targets[index]
+    S.springState = S.target.springState or newSpringState()
+    S.target.springState = S.springState
+    S.definition.target = record.name
+    S.definition.inherit = record.inherit
+    S.definition.aimAtSource = record.aimAtSource
+    S.definition.aimPoint = record.aimPoint
+    S.definition.aimLimits = record.aimLimits
+    S.definition.spring = record.spring
+    S.definition.blend = record.blend
+    S.definition.offset = record.offset
+    S.definition.targetPivot = record.targetPivot
+    S.target.pose = clonePose(record.editor.targetPose)
+    S.target.manualOverride = record.editor.targetManualOverride == true
+    S.target.selectable = record.editor.targetSelectable ~= false
+    return true
+end
+
+local function selectTarget(index)
+    if index == S.selectedTargetIndex then return true end
+    syncActiveTargetDefinition()
+    if not activateTargetDefinition(index) then return false end
+    S.selectedRole = 'target'
+    S.transformMode = 'move'
+    S.gizmo.drag = nil
+    S.targetPivotMarkerRadius, S.targetPivotMarkerSignature = nil, nil
+    S.dirtyPreview = true
+    return true
+end
+
+local function addTarget()
+    syncActiveTargetDefinition()
+    local index = #S.definition.targets + 1
+    local name = 'target_' .. index
+    local used = {}
+    for _, record in ipairs(S.definition.targets) do used[record.name] = true end
+    while used[name] do
+        index = index + 1
+        name = 'target_' .. index
+    end
+    local record = snapshotActiveTarget()
+    record.name = name
+    record.editor.targetPose = clonePose(newTargetState().pose)
+    record.editor.targetManualOverride = false
+    record.editor.targetKind = 'placeholder'
+    record.editor.targetMesh = ''
+    S.definition.targets[#S.definition.targets + 1] = record
+    S.targets[#S.targets + 1] = newTargetState()
+    S.selectedTargetIndex = #S.definition.targets
+    activateTargetDefinition(S.selectedTargetIndex)
+    S.selectedRole = 'target'
+    markModified()
+    setStatus(L('target_added'))
+end
+
+local function removeTarget()
+    if #S.definition.targets <= 1 then
+        setStatus(L('target_remove_last'), true)
+        return
+    end
+    syncActiveTargetDefinition()
+    local index = S.selectedTargetIndex
+    local removedState = table.remove(S.targets, index)
+    if removedState and removedState.object then removedState.object:destroy() end
+    table.remove(S.definition.targets, index)
+    if index > #S.definition.targets then index = #S.definition.targets end
+    S.selectedTargetIndex = index
+    activateTargetDefinition(index)
+    S.targetPivotMarkerRadius, S.targetPivotMarkerSignature = nil, nil
+    markModified()
+    setStatus(L('target_removed'))
+end
+
 local function destroySourceSkeletonVisuals()
     for _, visual in pairs(S.source.boneVisuals) do
         if visual.object then visual.object:destroy() end
@@ -398,7 +609,7 @@ local function blendAngle(current, target, weight)
     return current + difference * weight
 end
 
-local function cloneBlend(value)
+cloneBlend = function(value)
     value = value or {}
     return {
         enabled = value.enabled == true,
@@ -1074,10 +1285,14 @@ setBoneSelectionMode = function(enabled)
             distance = S.cameraOrbit.distance, fx = S.cameraOrbit.fx,
             fy = S.cameraOrbit.fy, fz = S.cameraOrbit.fz,
         }
-        S.boneSelectionTargetVisible = S.target.object and S.target.object.visible ~= false
+        S.boneSelectionTargetVisible = {}
         S.boneSelectionMode = true
-        if S.target.object then S.target.object.visible = false end
-        if S.relationLine then S.relationLine.visible = false end
+        for index, targetState in ipairs(S.targets) do
+            S.boneSelectionTargetVisible[index] = targetState.object and targetState.object.visible ~= false
+            if targetState.object then targetState.object.visible = false end
+            local relation = S.relationLines[index]
+            if relation then relation.visible = false end
+        end
         if S.targetPivotMarker then S.targetPivotMarker.visible = false end
         if S.xzPlane then S.xzPlane.visible = false end
         updateSourceSkeletonVisibility()
@@ -1086,8 +1301,14 @@ setBoneSelectionMode = function(enabled)
         return true
     end
     S.boneSelectionMode = false
-    if S.target.object then S.target.object.visible = S.boneSelectionTargetVisible ~= false end
-    if S.relationLine then S.relationLine.visible = true end
+    for index, targetState in ipairs(S.targets) do
+        if targetState.object then
+            targetState.object.visible = not S.boneSelectionTargetVisible or
+                S.boneSelectionTargetVisible[index] ~= false
+        end
+        local relation = S.relationLines[index]
+        if relation then relation.visible = true end
+    end
     if S.targetPivotMarker then S.targetPivotMarker.visible = true end
     if S.boneSelectionCamera then
         S.cameraOrbit = S.boneSelectionCamera
@@ -1313,15 +1534,17 @@ local function rayPlaneHit(screenX, screenY, point, normal)
 end
 
 local function pickRole(screenX, screenY)
-    for _, role in ipairs({'source', 'target'}) do
-        local entry = roleEntry(role)
+    local entries = {{role = 'source', index = nil, entry = S.source}}
+    for index, targetState in ipairs(S.targets) do
+        entries[#entries + 1] = {role = 'target', index = index, entry = targetState}
+    end
+    for _, item in ipairs(entries) do
+        local role, entry = item.role, item.entry
         if entry.selectable ~= false and entry.object then
             local ok, hit = dpCall(function()
                 return entry.object:collide(screenX, screenY, true)
             end)
-            if ok and hit then
-                return role
-            end
+            if ok and hit then return role, item.index end
         end
     end
     return nil
@@ -1705,8 +1928,9 @@ local function beginViewportInteraction(key, screenX, screenY)
             markModified()
             return
         end
-        local picked = pickRole(screenX, screenY)
+        local picked, pickedTargetIndex = pickRole(screenX, screenY)
         if picked then
+            if picked == 'target' and pickedTargetIndex then selectTarget(pickedTargetIndex) end
             S.selectedRole = picked
             updateGizmo()
             return
@@ -1998,16 +2222,28 @@ updateTargetPivotMarker = function()
 end
 
 local function rebuildPreview(delta)
-    if not S.target.manualOverride then S.target.pose = calculateTargetPose(delta) end
+    ensureTargetDefinitions()
+    local selectedTargetIndex = S.selectedTargetIndex
+    syncActiveTargetDefinition()
     applyMarker('source', S.source.pose)
     updateSourceSkeletonVisuals()
-    applyMarker('target', S.target.pose)
-    if S.relationLine then
-        local source = getPreviewSourcePose() or S.source.pose
+    local source = getPreviewSourcePose() or S.source.pose
+    for index = 1, #S.definition.targets do
+        activateTargetDefinition(index)
+        if not S.target.manualOverride then S.target.pose = calculateTargetPose(delta) end
+        applyMarker('target', S.target.pose)
+        local relation = ensureRelationLine(index)
         local targetPivot = targetPivotWorldPosition(S.target.pose)
-        S.relationLine:set({source.x, source.y, source.z,
+        relation:set({source.x, source.y, source.z,
             targetPivot.x, targetPivot.y, targetPivot.z}, 1)
+        relation.visible = not S.boneSelectionMode
+        syncActiveTargetDefinition()
     end
+    for index = #S.definition.targets + 1, #S.relationLines do
+        S.relationLines[index].visible = false
+    end
+    activateTargetDefinition(selectedTargetIndex)
+    applyMarker('target', S.target.pose)
     updateTargetPivotMarker()
     updateAimPointMarker()
     S.dirtyPreview = false
@@ -2057,6 +2293,7 @@ local function resetTargetPreview()
 end
 
 local function syncEditorDefinition()
+    syncActiveTargetDefinition()
     S.definition.editor = {
         sourceKind = S.source.kind,
         targetKind = S.target.kind,
@@ -2107,6 +2344,7 @@ end
 local function exportRuntimeDefinition()
     local path = mbm.saveFile(runtimeExportDefaultPath(), 'runtime.lua')
     if not path then return end
+    syncEditorDefinition()
     local ok, errorMessage = tRuntimeExport.write(path, S.definition)
     if not ok then
         setStatus(errorMessage or L('runtime_export_failed'), true)
@@ -2129,8 +2367,8 @@ local project = dofile(]] .. projectLiteral .. [[)
 local definition = project.definition
 local attachments = require 'attachments'
 local source
-local target
-local previewRelation = nil
+local targets = {}
+local previewRelations = nil
 
 local function cubeVertices()
     return {
@@ -2150,10 +2388,11 @@ local function cubeVertices()
 end
 
 local function loadRole(role, editor)
-    local pose = editor[role .. 'Pose'] or {}
+    local roleKey = role == 'source' and 'source' or 'target'
+    local pose = editor[roleKey .. 'Pose'] or {}
     local object
-    if editor[role .. 'Kind'] == 'mesh' and editor[role .. 'Mesh'] and editor[role .. 'Mesh'] ~= '' then
-        local path = editor[role .. 'Mesh']
+    if editor[roleKey .. 'Kind'] == 'mesh' and editor[roleKey .. 'Mesh'] and editor[roleKey .. 'Mesh'] ~= '' then
+        local path = editor[roleKey .. 'Mesh']
         local folder = path:match('^(.*)[/\\][^/\\]+$')
         if folder then mbm.addPath(folder) end
         object = mesh:new('3d')
@@ -2176,7 +2415,9 @@ function onInitScene()
     mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5},
         {r = 1, g = 0.98, b = 0.9, a = 1})
     source = loadRole('source', definition.editor)
-    target = loadRole('target', definition.editor)
+    for index, targetDefinition in ipairs(definition.targets or {}) do
+        targets[index] = loadRole('target_' .. index, targetDefinition.editor or {})
+    end
     local camera = mbm.getCamera('3d')
     local orbit = project.camera or {azimuth = 0.3, elevation = 0.3, distance = 700,
         fx = 50, fy = 30, fz = 0}
@@ -2193,7 +2434,7 @@ function onInitScene()
 end
 
 function onLoop()
-    if not previewRelation then
+    if not previewRelations then
         if definition.sourceType == 'bone' and
                 not source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
             return
@@ -2202,31 +2443,34 @@ function onLoop()
                 not source:getSkeletalSocketTransform(definition.sourceSocket, 'world') then
             return
         end
-        local specification = {
-            source = source,
-            target = target,
-            sourceType = definition.sourceType,
-            inherit = definition.inherit,
-            aimAtSource = definition.aimAtSource == true,
-            aimPoint = definition.aimPoint,
-            influenceEnabled = definition.influenceEnabled ~= false,
-            initialState = definition.initialState,
-            states = definition.states,
-            aimLimits = definition.aimLimits,
-            spring = definition.spring,
-            blend = definition.blend,
-            offset = definition.offset,
-            targetPivot = definition.targetPivot,
-        }
-        if definition.sourceBone and definition.sourceBone ~= '' then
-            specification.sourceBone = definition.sourceBone
+        previewRelations = {}
+        for index, targetDefinition in ipairs(definition.targets or {}) do
+            local specification = {
+                source = source,
+                target = targets[index],
+                sourceType = definition.sourceType,
+                inherit = targetDefinition.inherit,
+                aimAtSource = targetDefinition.aimAtSource == true,
+                aimPoint = targetDefinition.aimPoint,
+                influenceEnabled = definition.influenceEnabled ~= false,
+                initialState = definition.initialState,
+                states = definition.states,
+                aimLimits = targetDefinition.aimLimits,
+                spring = targetDefinition.spring,
+                blend = targetDefinition.blend,
+                offset = targetDefinition.offset,
+                targetPivot = targetDefinition.targetPivot,
+            }
+            if definition.sourceBone and definition.sourceBone ~= '' then
+                specification.sourceBone = definition.sourceBone
+            end
+            if definition.sourceSocket and definition.sourceSocket ~= '' then
+                specification.sourceSocket = definition.sourceSocket
+            end
+            local relation, errorMessage = attachments.attach(specification)
+            assert(relation, errorMessage)
+            previewRelations[index] = relation
         end
-        if definition.sourceSocket and definition.sourceSocket ~= '' then
-            specification.sourceSocket = definition.sourceSocket
-        end
-        local relation, errorMessage = attachments.attach(specification)
-        assert(relation, errorMessage)
-        previewRelation = relation
     end
 end
 
@@ -2404,6 +2648,106 @@ local function normalizeDefinition(value)
         result.editor.sourceAnimation = type(editor.sourceAnimation) == 'string' and editor.sourceAnimation or ''
         result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
     end
+    local function targetRecordFromValue(raw, fallbackName)
+        local record = {
+            name = tostring(raw.name or fallbackName or result.target),
+            inherit = {
+                position = result.inherit.position,
+                rotation = result.inherit.rotation,
+                scale = result.inherit.scale,
+            },
+            aimAtSource = result.aimAtSource,
+            aimPoint = copyVector(result.aimPoint),
+            aimLimits = copyTargetRecord({aimLimits = result.aimLimits}).aimLimits,
+            spring = copyTargetRecord({spring = result.spring}).spring,
+            blend = cloneBlend(result.blend),
+            offset = copyTargetRecord({offset = result.offset}).offset,
+            targetPivot = copyVector(result.targetPivot),
+            editor = {
+                targetKind = result.editor.targetKind,
+                targetMesh = result.editor.targetMesh,
+                targetPose = clonePose(result.editor.targetPose),
+                targetManualOverride = result.editor.targetManualOverride,
+                targetSelectable = result.editor.targetSelectable,
+            },
+        }
+        if type(raw.inherit) == 'table' then
+            record.inherit.position = raw.inherit.position ~= false
+            record.inherit.rotation = raw.inherit.rotation ~= false
+            record.inherit.scale = raw.inherit.scale == true
+        end
+        if raw.aimAtSource ~= nil then record.aimAtSource = raw.aimAtSource == true end
+        if type(raw.aimPoint) == 'table' then record.aimPoint = copyVector(raw.aimPoint) end
+        if type(raw.aimLimits) == 'table' then
+            local limits = raw.aimLimits
+            record.aimLimits.enabled = record.aimAtSource and limits.enabled == true
+            record.aimLimits.reference = limits.reference == 'captured' and 'captured' or 'dynamic'
+            if type(limits.referenceRotationMatrix) == 'table' then
+                record.aimLimits.referenceRotationMatrix = readRotation(
+                    limits.referenceRotationMatrix, identityRotation())
+            end
+            for _, field in ipairs({'yawMin', 'yawMax', 'pitchMin', 'pitchMax'}) do
+                if tonumber(limits[field]) then record.aimLimits[field] = tonumber(limits[field]) end
+            end
+        end
+        if type(raw.spring) == 'table' then
+            record.spring.enabled = raw.spring.enabled == true
+            record.spring.position = raw.spring.position ~= false
+            record.spring.rotation = raw.spring.rotation ~= false
+            record.spring.stiffness = math.max(0, tonumber(raw.spring.stiffness) or record.spring.stiffness)
+            record.spring.damping = math.max(0, tonumber(raw.spring.damping) or record.spring.damping)
+        end
+        if type(raw.blend) == 'table' then record.blend = cloneBlend(raw.blend) end
+        if type(raw.offset) == 'table' then
+            for _, component in ipairs({'position', 'rotation', 'scale'}) do
+                if type(raw.offset[component]) == 'table' then
+                    for _, axis in ipairs({'x', 'y', 'z'}) do
+                        if tonumber(raw.offset[component][axis]) then
+                            record.offset[component][axis] = tonumber(raw.offset[component][axis])
+                        end
+                    end
+                end
+            end
+            local fallbackRotation = eulerRotation(record.offset.rotation.x, record.offset.rotation.y,
+                record.offset.rotation.z)
+            record.offset.rotationMatrix = readRotation(raw.offset.rotationMatrix, fallbackRotation)
+        end
+        if type(raw.targetPivot) == 'table' then record.targetPivot = copyVector(raw.targetPivot) end
+        if type(raw.editor) == 'table' then
+            local editor = raw.editor
+            record.editor.targetKind = editor.targetKind == 'mesh' and 'mesh' or 'placeholder'
+            record.editor.targetMesh = type(editor.targetMesh) == 'string' and editor.targetMesh or ''
+            if type(editor.targetPose) == 'table' then record.editor.targetPose = clonePose(editor.targetPose) end
+            record.editor.targetManualOverride = editor.targetManualOverride == true
+            record.editor.targetSelectable = editor.targetSelectable ~= false
+        end
+        return record
+    end
+    local baseTarget = targetRecordFromValue({}, result.target)
+    result.targets = {}
+    if type(value.targets) == 'table' and #value.targets > 0 then
+        for index, raw in ipairs(value.targets) do
+            if type(raw) == 'table' then
+                result.targets[#result.targets + 1] = targetRecordFromValue(raw, 'target_' .. index)
+            end
+        end
+    end
+    if #result.targets == 0 then result.targets[1] = baseTarget end
+    local firstTarget = result.targets[1]
+    result.target = firstTarget.name
+    result.inherit = firstTarget.inherit
+    result.aimAtSource = firstTarget.aimAtSource
+    result.aimPoint = firstTarget.aimPoint
+    result.aimLimits = firstTarget.aimLimits
+    result.spring = firstTarget.spring
+    result.blend = firstTarget.blend
+    result.offset = firstTarget.offset
+    result.targetPivot = firstTarget.targetPivot
+    result.editor.targetKind = firstTarget.editor.targetKind
+    result.editor.targetMesh = firstTarget.editor.targetMesh
+    result.editor.targetPose = firstTarget.editor.targetPose
+    result.editor.targetManualOverride = firstTarget.editor.targetManualOverride
+    result.editor.targetSelectable = firstTarget.editor.targetSelectable
     if result.sourceType == 'bone' and result.sourceBone == '' then return nil end
     return result
 end
@@ -2431,12 +2775,24 @@ local function loadDefinition(path)
     if not definition then setStatus(L('invalid_definition'), true); return end
     local repairedSocket = false
     if S.boneSelectionMode then setBoneSelectionMode(false) end
+    for _, targetState in ipairs(S.targets) do
+        if targetState.object then targetState.object:destroy() end
+    end
+    S.targets = {}
+    S.selectedTargetIndex = 1
     S.definition = definition
     S.stateDraft = definition.initialState
     S.source.pose = clonePose(definition.editor.sourcePose)
-    S.target.pose = clonePose(definition.editor.targetPose)
+    for index = 1, #definition.targets do S.targets[index] = newTargetState() end
+    activateTargetDefinition(1)
     restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
-    restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
+    for index, targetDefinition in ipairs(definition.targets) do
+        activateTargetDefinition(index)
+        restoreRoleAsset('target', targetDefinition.editor.targetKind, targetDefinition.editor.targetMesh)
+        S.target.pose = clonePose(targetDefinition.editor.targetPose)
+        S.target.manualOverride = targetDefinition.editor.targetManualOverride == true
+    end
+    activateTargetDefinition(1)
     if definition.sourceType == 'socket' and definition.sourceSocket == '' then
         local firstSocket = S.source.socketCatalog and S.source.socketCatalog[1] or nil
         if not firstSocket then
@@ -2458,9 +2814,8 @@ local function loadDefinition(path)
         captureOffset()
         S.definition.version = 2
     end
-    S.definition.version = math.max(3, S.definition.version)
+    S.definition.version = math.max(4, S.definition.version)
     S.source.selectable = definition.editor.sourceSelectable ~= false
-    S.target.selectable = definition.editor.targetSelectable ~= false
     if definition.editor.language == 'pt_br' or definition.editor.language == 'en' then
         tLang.setLanguage(definition.editor.language)
         refreshWindowTitles()
@@ -2582,6 +2937,20 @@ local function showObjects()
     if opened then
         tImGui.Text(L('objects'))
         tImGui.TextWrapped(L('objects_help'))
+        tImGui.Separator()
+        tImGui.Text(L('targets'))
+        for index, targetDefinition in ipairs(S.definition.targets) do
+            local label = string.format('%s %d: %s##att_target_item_%d', L('target'), index,
+                targetDefinition.name, index)
+            if tImGui.Selectable(label, S.selectedTargetIndex == index) then
+                selectTarget(index)
+            end
+        end
+        if tImGui.Button(L('add_target') .. '##att_add_target') then addTarget() end
+        if #S.definition.targets > 1 then
+            tImGui.SameLine()
+            if tImGui.Button(L('remove_target') .. '##att_remove_target') then removeTarget() end
+        end
         tImGui.Separator()
         if tImGui.Selectable(L('source') .. ': ' .. roleName('source'), S.selectedRole == 'source') then
             S.selectedRole = 'source'
@@ -3111,6 +3480,8 @@ end
 function onInitScene()
     L = function(key) return tLang.L('att_' .. key) end
     refreshWindowTitles()
+    ensureTargetDefinitions()
+    activateTargetDefinition(1)
     mbm.setAmbientLight('3d', {r = 0.25, g = 0.25, b = 0.25, a = 1})
     mbm.setDirectionalLight('3d', {x = -0.8, y = -0.7, z = -0.5}, {r = 1, g = 0.98, b = 0.9, a = 1})
     S.camera = mbm.getCamera('3d')
@@ -3126,12 +3497,7 @@ function onInitScene()
     if S.aimPointMarker then
         S.aimPointMarker.visible = false
     end
-    S.relationLine = line:new('3d', 0, 0, 0)
-    S.relationLine:add({0, 0, 0, 100, 0, 0})
-    S.relationLine:setColor(0.85, 0.85, 0.85, 1)
-    S.relationLine.alwaysOnTop = true
-    S.relationLine.alwaysOnTopPriority = 2
-    S.relationLine.alwaysRender = true
+    ensureRelationLine(1)
     createOriginLines()
     createXZPlane()
     tUtil.bRightSide = false
@@ -3208,10 +3574,16 @@ function onFinalizeScene()
     destroySourceSkeletonVisuals()
     if S.source.object then S.source.object:destroy(); S.source.object = nil end
     if S.source.debugMesh then S.source.debugMesh:destroy(); S.source.debugMesh = nil end
-    if S.target.object then S.target.object:destroy(); S.target.object = nil end
+    for _, targetState in ipairs(S.targets) do
+        if targetState.object then targetState.object:destroy(); targetState.object = nil end
+    end
     if S.targetPivotMarker then S.targetPivotMarker:destroy(); S.targetPivotMarker = nil end
     if S.aimPointMarker then S.aimPointMarker:destroy(); S.aimPointMarker = nil end
-    if S.relationLine then S.relationLine:destroy(); S.relationLine = nil end
+    for index, relation in pairs(S.relationLines) do
+        relation:destroy()
+        S.relationLines[index] = nil
+    end
+    S.relationLine = nil
     if S.xzPlane then S.xzPlane:destroy(); S.xzPlane = nil end
     for key, object in pairs(S.originLines) do
         if object then object:destroy(); S.originLines[key] = nil end

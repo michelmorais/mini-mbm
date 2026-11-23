@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.7**
-Status: **Phase 10 conditional attachment states implemented on top of the validated socket pipeline; runtime control, constraint blending, look-at limits, editable aim points, and spring smoothing remain validated**
+Document version: **2.8**
+Status: **Phase 11 multi-target authoring and runtime export implemented on top of the validated conditional-state and socket pipelines**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -22,12 +22,13 @@ profiles link the plugin statically; desktop builds load `attachments.so`, `atta
 
 ## Validation status
 
-The current editor and `attachments` plugin were manually validated with the rat and propeller
-project. The skeletal-bone attachment, target pivot, animation preview, target rotation follow,
-socket authoring, and socket viewport gizmos were exercised. The complete interchange path was
-also validated: open the mesh in Mesh Debug, export to FBX, apply an animation in Mixamo, download
-the FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation Editor. The
-authored sockets remained available after that round-trip.
+The single-source attachment pipeline was manually validated with the rat and propeller project.
+The skeletal-bone attachment, target pivot, animation preview, target rotation follow, socket
+authoring, and socket viewport gizmos were exercised. The complete interchange path was also
+validated: open the mesh in Mesh Debug, export to FBX, apply an animation in Mixamo, download the
+FBX, import it again through Mesh Debug, and reopen it in the Skeletal Animation Editor. The
+authored sockets remained available after that round-trip. Multi-target authoring and runtime
+export are implemented in Phase 11 and are ready for manual editor validation.
 
 ## Transform contract
 
@@ -40,6 +41,10 @@ target origin = attachment position - (target scale * targetPivot) * target rota
 world rotation = offset rotationMatrix * source rotation
 world scale    = source scale * offset scale
 ```
+
+For a multi-target definition, the same source is evaluated once and the transform contract is
+applied independently to every entry in `targets`. Each target keeps its own local offset, pivot,
+inheritance mask, and optional look-at, spring, and blend settings.
 
 The source scale in the position expression is used only when `inherit.scale` is enabled. The
 source rotation orients the position offset whenever position inheritance is enabled, even when
@@ -71,58 +76,48 @@ once a skeletal animation changes the bone pose, even when the bind/T-pose looks
 ## Lua API
 
 ```lua
-local attachment, err = attachments.attach {
-    id = "hat_on_character", -- optional; generated when omitted
-    source = character,
-    target = hat,
+-- Saved .att.lua / runtime definition format used by the editor and exporter.
+local attachmentDefinition = {
+    source = "character",
     sourceType = "socket", -- "root", "bone", or "socket"; defaults to "root"
     sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
-    inherit = {
-        position = true,
-        rotation = true,
-        scale = false,
-    },
-    aimAtSource = false, -- optional; target +Z points toward the source aim point
-    aimPoint = {x = 0, y = 0, z = 0}, -- optional source-local point used by Look at
     influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
-    aimLimits = { -- optional; only used when aimAtSource is true
-        enabled = false,
-        reference = "dynamic", -- "dynamic" or "captured"
-        yawMin = -math.pi,
-        yawMax = math.pi,
-        pitchMin = -math.pi / 2,
-        pitchMax = math.pi / 2,
-    },
-    spring = { -- optional; disabled by default
-        enabled = false,
-        position = true,
-        rotation = true,
-        stiffness = 120,
-        damping = 24,
-    },
-    blend = { -- optional; disabled by default
-        enabled = false,
-        position = true,
-        rotation = true,
-        scale = true,
-        weight = 1,
-    },
     initialState = "equipped", -- optional; selects one entry from states
     states = {
         equipped = {influenceEnabled = true, blend = {enabled = true, weight = 1}},
         released = {influenceEnabled = false},
     },
-    offset = {
-        position = {x = 0, y = 1.8, z = 0},
-        rotation = {x = 0, y = 0, z = 0}, -- radians
-        scale = {x = 1, y = 1, z = 1},
+    targets = {
+        {
+            name = "hat",
+            inherit = {position = true, rotation = true, scale = false},
+            aimAtSource = false,
+            aimPoint = {x = 0, y = 0, z = 0},
+            offset = {
+                position = {x = 0, y = 1.8, z = 0},
+                rotation = {x = 0, y = 0, z = 0}, -- radians
+                scale = {x = 1, y = 1, z = 1},
+            },
+            targetPivot = {x = 0, y = 0, z = 0},
+        },
+        {
+            name = "propeller",
+            inherit = {position = true, rotation = true, scale = false},
+            offset = {
+                position = {x = 0, y = 2.2, z = 0},
+                rotation = {x = 0, y = 0, z = 0},
+                scale = {x = 1, y = 1, z = 1},
+            },
+            targetPivot = {x = 0, y = 0, z = 0},
+        },
     },
-    targetPivot = {x = 0, y = 0, z = 0}, -- target-local point kept on the attachment
 }
-assert(attachment, err)
+-- The exported module resolves these names from the game's binding table.
 ```
 
-`attach` rejects invalid or destroyed renderizables, cross-scene references, self-attachments,
+The direct `attachments.attach` API still creates one relation at a time. The generated runtime
+module creates one relation for each entry in `targets`, using the same source. Each direct relation
+rejects invalid or destroyed renderizables, cross-scene references, self-attachments,
 cycles, duplicate component ownership on one target, missing or unevaluated bones, and unsupported
 source types. It returns
 `nil, errorMessage` for those validation failures.
@@ -188,7 +183,8 @@ references.
 ## Authoring boundary
 
 `editor/attachments_editor.lua` is an independent, definition-only authoring tool. Its saved
-`.att.lua` file contains source/target labels, inheritance flags, and the local offset. It may also
+`.att.lua` file contains one source label and a collection of target labels, each with its own
+inheritance flags, offsets, and target-local settings. It may also
 contain an `editor` block with mesh paths, actor kinds, and preview poses; that block is ignored by
 the runtime plugin. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
@@ -202,21 +198,22 @@ For example, if the editor exports `character_weapon.runtime.lua`, the game can 
 
 ```lua
 local runtime = require "character_weapon.runtime"
-local relation, errorMessage = runtime.attach {
+local relations, errorMessage = runtime.attach {
     character = characterMesh,
-    weapon = weaponMesh,
+    hat = hatMesh,
+    propeller = propellerMesh,
 }
-assert(relation, errorMessage)
+assert(relations, errorMessage) -- relations[1], relations[2], ...
 ```
 
-The generated module validates the binding names, builds the `attachments.attach` specification,
-and returns the plugin's relation/error result. It contains only runtime fields; editor-only mesh
+The generated module validates the binding names, builds one `attachments.attach` specification
+per entry in `targets`, and returns a table of relations or an error. It contains only runtime fields; editor-only mesh
 paths, preview poses, selection state, and language settings are not exported.
 
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D
 source/target placeholder or mesh pair, XYZ origins, an XZ reference plane, orbit/pan camera
-controls, editable source and target authoring poses, mesh loading through the standard file picker,
+controls, editable source and multiple target authoring poses, mesh loading through the standard file picker,
 offset capture, and interaction-style move/rotate gizmos for the selected actor. Bone source mode
 adds a read-only selected-bone display and evaluates the selected bind-pose bone through the loaded
 source mesh preview. Loading a runtime scene and discovering renderizables remains outside the
@@ -227,7 +224,10 @@ mesh in the viewport, hides the target and relation helpers, loads the canonical
 bind/T-pose, and draws large joint spheres and bone segments over the mesh. The user selects the
 source bone directly in the viewport; the selected bone name is displayed as read-only editor state
 and is saved with the definition. Leaving the mode restores the previous camera and target preview.
-There is no free-text bone authoring field.
+There is no free-text bone authoring field. The Objects panel can add, remove, select, and rename
+targets. Each target has its own mesh, preview pose, selection flag, offset, inheritance mask,
+target pivot, look-at settings, spring, and blend configuration; the source and state profiles are
+shared by all targets.
 The Attachment panel also exposes a target-local virtual pivot. The viewport draws that point and
 the relation line ends there; zero keeps the mesh origin as the target point.
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
@@ -239,9 +239,8 @@ Stop controls; while a clip is playing, the attached target is refreshed from th
 bone each frame. It also includes a timeline slider and one-frame step controls. Capture and reset
 actions are available in the Objects panel when the target is selected; save and export remain in
 the File menu.
-Definition version 2 uses the same row-major bind-matrix orientation as the runtime. Loading a
-version 1 bone definition migrates its captured offset from the corrected bind pose before the
-next save, avoiding a legacy 180-degree orientation error.
+Definition version 4 stores the target collection and uses the same row-major bind-matrix
+orientation as the runtime. Each target entry is serialized independently.
 
 ### Socket workflow and source choice
 
