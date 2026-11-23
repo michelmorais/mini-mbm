@@ -55,6 +55,7 @@ local function newDefinition()
         sourceSocket = '',
         aimPoint = vector(0, 0, 0),
         aimAtSource = false,
+        influenceEnabled = true,
         aimLimits = {
             enabled = false,
             reference = 'dynamic',
@@ -2154,6 +2155,7 @@ function onLoop()
             inherit = definition.inherit,
             aimAtSource = definition.aimAtSource == true,
             aimPoint = definition.aimPoint,
+            influenceEnabled = definition.influenceEnabled ~= false,
             aimLimits = definition.aimLimits,
             spring = definition.spring,
             blend = definition.blend,
@@ -2243,6 +2245,7 @@ local function normalizeDefinition(value)
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     result.aimAtSource = value.aimAtSource == true
+    result.influenceEnabled = value.influenceEnabled ~= false
     if type(value.aimPoint) == 'table' then
         for _, axis in ipairs({'x', 'y', 'z'}) do
             result.aimPoint[axis] = tonumber(value.aimPoint[axis]) or 0

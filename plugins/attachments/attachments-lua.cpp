@@ -521,6 +521,27 @@ bool parseSpring(lua_State *lua, const int spec, SPRING_SETTINGS &spring, std::s
     return true;
 }
 
+bool parseBlendTable(lua_State *lua, const int blendTable, BLEND_SETTINGS &blend,
+                     std::string &error)
+{
+    if (!lua_istable(lua, blendTable))
+    {
+        error = "blend must be a table";
+        return false;
+    }
+    blend.enabled = booleanField(lua, blendTable, "enabled", false);
+    blend.position = booleanField(lua, blendTable, "position", true);
+    blend.rotation = booleanField(lua, blendTable, "rotation", true);
+    blend.scale = booleanField(lua, blendTable, "scale", true);
+    blend.weight = numberField(lua, blendTable, "weight", blend.weight);
+    if (!std::isfinite(blend.weight) || blend.weight < 0.0 || blend.weight > 1.0)
+    {
+        error = "blend weight must be finite and between 0 and 1";
+        return false;
+    }
+    return true;
+}
+
 bool parseBlend(lua_State *lua, const int spec, BLEND_SETTINGS &blend, std::string &error)
 {
     lua_getfield(lua, spec, "blend");
@@ -530,24 +551,9 @@ bool parseBlend(lua_State *lua, const int spec, BLEND_SETTINGS &blend, std::stri
         lua_pop(lua, 1);
         return true;
     }
-    if (!lua_istable(lua, blendTable))
-    {
-        lua_pop(lua, 1);
-        error = "blend must be a table";
-        return false;
-    }
-    blend.enabled = booleanField(lua, blendTable, "enabled", false);
-    blend.position = booleanField(lua, blendTable, "position", true);
-    blend.rotation = booleanField(lua, blendTable, "rotation", true);
-    blend.scale = booleanField(lua, blendTable, "scale", true);
-    blend.weight = numberField(lua, blendTable, "weight", blend.weight);
+    const bool valid = parseBlendTable(lua, blendTable, blend, error);
     lua_pop(lua, 1);
-    if (!std::isfinite(blend.weight) || blend.weight < 0.0 || blend.weight > 1.0)
-    {
-        error = "blend weight must be finite and between 0 and 1";
-        return false;
-    }
-    return true;
+    return valid;
 }
 
 uint8_t parseInheritance(lua_State *lua, const int spec)
@@ -601,6 +607,7 @@ struct ATTACHMENT
     AIM_LIMITS aimLimits;
     SPRING_SETTINGS spring;
     BLEND_SETTINGS blend;
+    bool influenceEnabled = true;
     bool springInitialized = false;
     VEC3D springPositionVelocity;
     VEC3D springRotationVelocity;
@@ -894,6 +901,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const AIM_LIMITS &aimLimits,
                                                   const SPRING_SETTINGS &spring,
                                                   const BLEND_SETTINGS &blend,
+                                                  bool influenceEnabled,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -968,6 +976,11 @@ bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) co
     mbm::RENDERIZABLE *target = nullptr;
     if (!resolve(attachment, &source, &target) || source->getIdScene() != target->getIdScene())
         return false;
+    if (!attachment->influenceEnabled)
+    {
+        pose = readPose(target);
+        return true;
+    }
     POSE sourcePose;
     if (!readSourcePose(attachment, source, sourcePose)) return false;
     const POSE currentTargetPose = readPose(target);
@@ -1051,6 +1064,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
     const SPRING_SETTINGS &spring,
     const BLEND_SETTINGS &blend,
+    const bool influenceEnabled,
     const int sourceReference,
     const int targetReference)
 {
@@ -1072,6 +1086,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->aimLimits = aimLimits;
     attachment->spring = spring;
     attachment->blend = blend;
+    attachment->influenceEnabled = influenceEnabled;
     attachments.push_back(attachment);
     return attachment;
 }
@@ -1206,6 +1221,7 @@ void ATTACHMENTS_PLUGIN::onLoop(float delta)
             deactivate(attachment, true);
             continue;
         }
+        if (!attachment->influenceEnabled) continue;
         const POSE currentTargetPose = readPose(resolvedAttachment.target);
         POSE effectivePose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
         applyBlend(attachment, effectivePose, currentTargetPose);
@@ -1352,6 +1368,65 @@ int onAttachmentGetOffset(lua_State *lua)
     return 1;
 }
 
+void pushBlendData(lua_State *lua, const BLEND_SETTINGS &blend)
+{
+    lua_createtable(lua, 0, 5);
+    lua_pushboolean(lua, blend.enabled);
+    lua_setfield(lua, -2, "enabled");
+    lua_pushboolean(lua, blend.position);
+    lua_setfield(lua, -2, "position");
+    lua_pushboolean(lua, blend.rotation);
+    lua_setfield(lua, -2, "rotation");
+    lua_pushboolean(lua, blend.scale);
+    lua_setfield(lua, -2, "scale");
+    lua_pushnumber(lua, blend.weight);
+    lua_setfield(lua, -2, "weight");
+}
+
+int onAttachmentGetBlend(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment)
+    {
+        lua_pushnil(lua);
+        return 1;
+    }
+    pushBlendData(lua, attachment->blend);
+    return 1;
+}
+
+int onAttachmentSetBlend(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment || !lua_istable(lua, 2)) return fail(lua, "invalid attachment or blend table");
+    BLEND_SETTINGS blend = attachment->blend;
+    std::string error;
+    if (!parseBlendTable(lua, lua_absindex(lua, 2), blend, error))
+        return fail(lua, error.c_str());
+    attachment->blend = blend;
+    attachment->springInitialized = false;
+    lua_pushboolean(lua, 1);
+    return 1;
+}
+
+int onAttachmentSetInfluenceEnabled(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment || !lua_isboolean(lua, 2))
+        return fail(lua, "invalid attachment or influenceEnabled boolean");
+    attachment->influenceEnabled = lua_toboolean(lua, 2) != 0;
+    attachment->springInitialized = false;
+    lua_pushboolean(lua, 1);
+    return 1;
+}
+
+int onAttachmentIsInfluenceEnabled(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    lua_pushboolean(lua, attachment && attachment->influenceEnabled);
+    return 1;
+}
+
 int onAttachmentSetOffset(lua_State *lua)
 {
     ATTACHMENT *attachment = getAttachment(lua, 1);
@@ -1476,6 +1551,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "invalid");
     lua_pushstring(lua, attachment->invalid ? "invalid" : (attachment->active ? "active" : "detached"));
     lua_setfield(lua, -2, "status");
+    lua_pushboolean(lua, attachment->influenceEnabled);
+    lua_setfield(lua, -2, "influenceEnabled");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_POSITION) != 0u);
     lua_setfield(lua, -2, "inheritPosition");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_ROTATION) != 0u);
@@ -1694,6 +1771,7 @@ int onAttach(lua_State *lua)
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
         return fail(lua, error.c_str());
     }
+    const bool influenceEnabled = booleanField(lua, 1, "influenceEnabled", true);
     const POSE offset = parseOffset(lua, 1);
     const VEC3D aimPoint = vec3Field(lua, 1, "aimPoint", {});
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
@@ -1735,7 +1813,7 @@ int onAttach(lua_State *lua)
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
         id, sourceType, sourceBone, sourceSocket, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
-        aimLimits, spring, blend, sourceReference, targetReference);
+        aimLimits, spring, blend, influenceEnabled, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");
@@ -1743,6 +1821,12 @@ int onAttach(lua_State *lua)
     lua_pushcfunction(lua, onAttachmentGetOffset); lua_setfield(lua, -2, "getOffset");
     lua_pushcfunction(lua, onAttachmentSetOffset); lua_setfield(lua, -2, "setOffset");
     lua_pushcfunction(lua, onAttachmentSetInherit); lua_setfield(lua, -2, "setInherit");
+    lua_pushcfunction(lua, onAttachmentGetBlend); lua_setfield(lua, -2, "getBlend");
+    lua_pushcfunction(lua, onAttachmentSetBlend); lua_setfield(lua, -2, "setBlend");
+    lua_pushcfunction(lua, onAttachmentSetInfluenceEnabled);
+    lua_setfield(lua, -2, "setInfluenceEnabled");
+    lua_pushcfunction(lua, onAttachmentIsInfluenceEnabled);
+    lua_setfield(lua, -2, "isInfluenceEnabled");
     lua_pushcfunction(lua, onAttachmentCaptureOffset); lua_setfield(lua, -2, "captureOffset");
     lua_pushcfunction(lua, onAttachmentGetEffectivePose); lua_setfield(lua, -2, "getEffectivePose");
     lua_pushcfunction(lua, onAttachmentGetState); lua_setfield(lua, -2, "getState");

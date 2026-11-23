@@ -2152,6 +2152,10 @@ default; `stiffness` and `damping` are non-negative engine-time coefficients, an
 by default. Its `weight` is clamped to the range 0..1; zero keeps the target's current pose and one
 applies the full constraint. Position, rotation, and scale can be blended independently, with
 shortest-path interpolation for rotation.
+`influenceEnabled = false` suspends target writes without detaching the relation. The returned
+attachment exposes `getBlend()`, `setBlend(blend)`, `setInfluenceEnabled(enabled)`, and
+`isInfluenceEnabled()` for runtime transitions. `setBlend()` accepts a partial table and preserves
+omitted settings.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2162,6 +2166,7 @@ local relation, err = attachments.attach {
     inherit = {position = true, rotation = true, scale = false},
     aimAtSource = false,
     aimPoint = {x = 0, y = 0, z = 0},
+    influenceEnabled = true,
     aimLimits = {
         enabled = false,
         reference = "dynamic", -- or "captured"

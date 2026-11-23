@@ -165,6 +165,7 @@ local function appendDefinition(output, definition)
     local aimPoint = definition.aimPoint or {x = 0, y = 0, z = 0}
     output[#output + 1] = string.format('    aimPoint = {x = %.17g, y = %.17g, z = %.17g},',
         number(aimPoint.x, 0), number(aimPoint.y, 0), number(aimPoint.z, 0))
+    output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
     local aimLimits = definition.aimLimits
     if type(aimLimits) == 'table' then
         output[#output + 1] = '    aimLimits = {'
@@ -250,6 +251,7 @@ function M.build(definition)
     output[#output + 1] = '        inherit = definition.inherit,'
     output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
     output[#output + 1] = '        aimPoint = definition.aimPoint,'
+    output[#output + 1] = '        influenceEnabled = definition.influenceEnabled,'
     output[#output + 1] = '        aimLimits = definition.aimLimits,'
     output[#output + 1] = '        spring = definition.spring,'
     output[#output + 1] = '        blend = definition.blend,'

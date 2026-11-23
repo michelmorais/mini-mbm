@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.5**
-Status: **Phase 8 constraint blending implemented on top of the validated socket pipeline; look-at limits, editable aim points, and spring smoothing remain validated**
+Document version: **2.6**
+Status: **Phase 9 runtime attachment control implemented on top of the validated socket pipeline; constraint blending, look-at limits, editable aim points, and spring smoothing remain validated**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -84,6 +84,7 @@ local attachment, err = attachments.attach {
     },
     aimAtSource = false, -- optional; target +Z points toward the source aim point
     aimPoint = {x = 0, y = 0, z = 0}, -- optional source-local point used by Look at
+    influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
     aimLimits = { -- optional; only used when aimAtSource is true
         enabled = false,
         reference = "dynamic", -- "dynamic" or "captured"
@@ -131,6 +132,10 @@ An attachment object provides:
 | `getOffset()` | table | Returns `position`, `rotation`, and `scale` tables. |
 | `setOffset(offset)` | boolean | Changes the local offset without changing ownership. |
 | `setInherit(inherit)` | boolean or `nil,error` | Changes the component mask after conflict/cycle validation. |
+| `getBlend()` | table | Returns the current blend settings. |
+| `setBlend(blend)` | boolean or `nil,error` | Updates blend settings without recreating the relation. |
+| `setInfluenceEnabled(enabled)` | boolean or `nil,error` | Enables or suspends target writes while keeping the relation alive. |
+| `isInfluenceEnabled()` | boolean | Reports whether the relation currently writes the target. |
 | `captureOffset()` | boolean or `nil,error` | Captures the current target pose relative to the current source pose. |
 | `getEffectivePose()` | table or `nil,error` | Returns the target pose currently computed by the attachment. |
 | `getState()` | table | Returns active/invalid status, source type/name, inheritance flags, and offset. |
@@ -142,6 +147,11 @@ An attachment object provides:
 current values. `getState()` also exposes the configured `blend` and `spring` tables. Destroying a
 source, target, or scene deactivates the relation and releases its Lua
 references.
+
+`influenceEnabled = false` suspends writes to the target but does not detach the relation. Calling
+`setInfluenceEnabled(true)` resumes it using the current source and target poses. `setBlend()`
+accepts a partial table, so omitted fields retain their current values; its weight must remain in
+the range 0..1.
 
 ## Frame order and ownership
 
