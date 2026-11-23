@@ -20,6 +20,7 @@
 #include "attachments-lua.h"
 
 #include <plugin-helper/plugin-helper.h>
+#include <core_mbm/animation.h>
 #include <core_mbm/plugin-callback.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/util-interface.h>
@@ -48,6 +49,7 @@ constexpr uint8_t SOURCE_ROOT = 0u;
 constexpr uint8_t SOURCE_BONE = 1u;
 constexpr uint8_t SOURCE_SOCKET = 2u;
 constexpr uint8_t SOURCE_ARTICULATED_PART = 3u;
+constexpr uint8_t SOURCE_FRAME = 4u;
 constexpr double PI = 3.14159265358979323846;
 
 int PLUGIN_IDENTIFIER = 1;
@@ -667,11 +669,9 @@ uint8_t parseInheritance(lua_State *lua, const int spec)
     return result;
 }
 
-POSE parseOffset(lua_State *lua, const int spec)
+POSE parseOffsetTable(lua_State *lua, const int offset)
 {
     POSE result;
-    lua_getfield(lua, spec, "offset");
-    const int offset = lua_absindex(lua, -1);
     if (lua_istable(lua, offset))
     {
         result.position = vec3Field(lua, offset, "position", result.position);
@@ -680,8 +680,60 @@ POSE parseOffset(lua_State *lua, const int spec)
         result.rotationMatrix = eulerRotation(result.angle);
         result.hasRotationMatrix = matrix3Field(lua, offset, "rotationMatrix", result.rotationMatrix);
     }
+    return result;
+}
+
+POSE parseOffset(lua_State *lua, const int spec)
+{
+    lua_getfield(lua, spec, "offset");
+    const int offset = lua_absindex(lua, -1);
+    POSE result = parseOffsetTable(lua, offset);
     lua_pop(lua, 1);
     return result;
+}
+
+bool parseFrameOffsets(lua_State *lua, const int spec,
+                       std::unordered_map<uint32_t, POSE> &frameOffsets,
+                       std::string &error)
+{
+    lua_getfield(lua, spec, "frameOffsets");
+    const int offsetsTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, offsetsTable))
+    {
+        lua_pop(lua, 1);
+        return true;
+    }
+    if (!lua_istable(lua, offsetsTable))
+    {
+        lua_pop(lua, 1);
+        error = "frameOffsets must be a table";
+        return false;
+    }
+    lua_pushnil(lua);
+    while (lua_next(lua, offsetsTable) != 0)
+    {
+        if (!lua_isinteger(lua, -2) || lua_tointeger(lua, -2) < 1 || !lua_istable(lua, -1))
+        {
+            lua_pop(lua, 2);
+            lua_pop(lua, 1);
+            error = "frameOffsets must map positive integer frames to offset tables";
+            return false;
+        }
+        const lua_Integer frame = lua_tointeger(lua, -2);
+        const POSE offset = parseOffsetTable(lua, lua_absindex(lua, -1));
+        if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale) ||
+            !isFinite(offset.rotationMatrix))
+        {
+            lua_pop(lua, 2);
+            lua_pop(lua, 1);
+            error = "frame offset values must be finite";
+            return false;
+        }
+        frameOffsets[static_cast<uint32_t>(frame)] = offset;
+        lua_pop(lua, 1);
+    }
+    lua_pop(lua, 1);
+    return true;
 }
 
 struct ATTACHMENT
@@ -694,6 +746,8 @@ struct ATTACHMENT
     std::string sourceBone;
     std::string sourceSocket;
     std::string sourcePart;
+    std::string sourceAnimation;
+    std::unordered_map<uint32_t, POSE> frameOffsets;
     uint8_t sourceType = SOURCE_ROOT;
     VEC3D aimPoint;
     POSE offset;
@@ -795,6 +849,36 @@ bool readArticulatedPartPose(mbm::RENDERIZABLE *source, const std::string &partN
     return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
 }
 
+bool readFramePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POSE &pose)
+{
+    if (!attachment || !source || source->getTypeClass() != mbm::TYPE_CLASS_MESH ||
+        attachment->sourceAnimation.empty())
+        return false;
+    auto *mesh = dynamic_cast<mbm::MESH *>(source);
+    if (!mesh) return false;
+    mbm::ANIMATION_MANAGER *animationManager = mesh->getAnimationManager();
+    mbm::ANIMATION *animation = animationManager ? animationManager->getAnimation() : nullptr;
+    if (!animation) return false;
+    const char *name = animation->getNameAnimation();
+    if (!name || attachment->sourceAnimation != name) return false;
+    pose = readPose(source);
+    return isFinite(pose.position) && isFinite(pose.angle) && isFinite(pose.scale);
+}
+
+const POSE &effectiveOffset(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source)
+{
+    if (!attachment || attachment->sourceType != SOURCE_FRAME || !source)
+        return attachment->offset;
+    auto *mesh = dynamic_cast<mbm::MESH *>(source);
+    if (!mesh) return attachment->offset;
+    mbm::ANIMATION_MANAGER *animationManager = mesh->getAnimationManager();
+    mbm::ANIMATION *animation = animationManager ? animationManager->getAnimation() : nullptr;
+    if (!animation) return attachment->offset;
+    const auto found = attachment->frameOffsets.find(
+        static_cast<uint32_t>(std::max(0, animation->getIndexCurrentFrame()) + 1));
+    return found == attachment->frameOffsets.end() ? attachment->offset : found->second;
+}
+
 bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POSE &pose)
 {
     if (!attachment || !source) return false;
@@ -809,6 +893,8 @@ bool readSourcePose(const ATTACHMENT *attachment, mbm::RENDERIZABLE *source, POS
         return readSocketPose(source, attachment->sourceSocket, pose);
     if (attachment->sourceType == SOURCE_ARTICULATED_PART)
         return readArticulatedPartPose(source, attachment->sourcePart, pose);
+    if (attachment->sourceType == SOURCE_FRAME)
+        return readFramePose(attachment, source, pose);
     return false;
 }
 
@@ -818,7 +904,7 @@ MATRIX3 poseRotation(const POSE &pose)
 }
 
 POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
-                          const POSE &currentTargetPose)
+                          const POSE &currentTargetPose, const POSE &offset)
 {
     POSE result = currentTargetPose;
     if (!attachment) return result;
@@ -828,17 +914,17 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     {
         // The engine uses row-vector matrices. Compose a source-local target
         // frame as offset * source, not source * offset.
-        targetRotation = multiply(poseRotation(attachment->offset), sourceRotation);
+        targetRotation = multiply(poseRotation(offset), sourceRotation);
     }
     if ((attachment->inherit & INHERIT_SCALE) != 0u)
     {
-        result.scale = {sourcePose.scale.x * attachment->offset.scale.x,
-                        sourcePose.scale.y * attachment->offset.scale.y,
-                        sourcePose.scale.z * attachment->offset.scale.z};
+        result.scale = {sourcePose.scale.x * offset.scale.x,
+                        sourcePose.scale.y * offset.scale.y,
+                        sourcePose.scale.z * offset.scale.z};
     }
     if ((attachment->inherit & INHERIT_POSITION) != 0u)
     {
-        VEC3D local = attachment->offset.position;
+        VEC3D local = offset.position;
         if ((attachment->inherit & INHERIT_SCALE) != 0u)
         {
             local.x *= sourcePose.scale.x;
@@ -1020,6 +1106,8 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const std::string &sourceBone,
                                                   const std::string &sourceSocket,
                                                   const std::string &sourcePart,
+                                                  const std::string &sourceAnimation,
+                                                  const std::unordered_map<uint32_t, POSE> &frameOffsets,
                                                   const VEC3D &aimPoint,
                                                   const POSE &offset,
                                                   const VEC3D &targetPivot,
@@ -1114,7 +1202,8 @@ bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) co
     POSE sourcePose;
     if (!readSourcePose(attachment, source, sourcePose)) return false;
     const POSE currentTargetPose = readPose(target);
-    pose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
+    pose = composeEffectivePose(attachment, sourcePose, currentTargetPose,
+                               effectiveOffset(attachment, source));
     applyBlend(attachment, pose, currentTargetPose);
     if (attachment->spring.enabled) pose = currentTargetPose;
     return true;
@@ -1189,6 +1278,8 @@ bool ATTACHMENTS_PLUGIN::wouldCycle(mbm::RENDERIZABLE *source,
 std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
     const std::string &sourceSocket, const std::string &sourcePart,
+    const std::string &sourceAnimation,
+    const std::unordered_map<uint32_t, POSE> &frameOffsets,
     const VEC3D &aimPoint,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
@@ -1210,6 +1301,8 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->sourceBone = sourceBone;
     attachment->sourceSocket = sourceSocket;
     attachment->sourcePart = sourcePart;
+    attachment->sourceAnimation = sourceAnimation;
+    attachment->frameOffsets = frameOffsets;
     attachment->aimPoint = aimPoint;
     attachment->offset = offset;
     attachment->targetPivot = targetPivot;
@@ -1367,7 +1460,8 @@ void ATTACHMENTS_PLUGIN::onLoop(float delta)
         }
         if (!attachment->influenceEnabled) continue;
         const POSE currentTargetPose = readPose(resolvedAttachment.target);
-        POSE effectivePose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
+        POSE effectivePose = composeEffectivePose(attachment, sourcePose, currentTargetPose,
+                                                  effectiveOffset(attachment, resolvedAttachment.source));
         applyBlend(attachment, effectivePose, currentTargetPose);
         applySpring(attachment, effectivePose, currentTargetPose, delta);
         if ((attachment->inherit & INHERIT_POSITION) != 0u) writePosition(resolvedAttachment.target,
@@ -1696,22 +1790,38 @@ int onAttachmentCaptureOffset(lua_State *lua)
                            targetAnchor.y - sourcePose.position.y,
                            targetAnchor.z - sourcePose.position.z};
     const VEC3D localDelta = transformVector(transpose(sourceRotation), worldDelta);
-    attachment->offset.position = scaleIsInherited
+    POSE *capturedOffset = &attachment->offset;
+    if (attachment->sourceType == SOURCE_FRAME)
+    {
+        auto *mesh = dynamic_cast<mbm::MESH *>(source);
+        mbm::ANIMATION_MANAGER *animationManager = mesh ? mesh->getAnimationManager() : nullptr;
+        mbm::ANIMATION *animation = animationManager ? animationManager->getAnimation() : nullptr;
+        if (!animation || !animation->getNameAnimation() ||
+            attachment->sourceAnimation != animation->getNameAnimation())
+            return fail(lua, "source frame animation is invalid or not selected");
+        const uint32_t frame = static_cast<uint32_t>(std::max(0, animation->getIndexCurrentFrame()) + 1);
+        const auto existing = attachment->frameOffsets.find(frame);
+        if (existing == attachment->frameOffsets.end())
+            attachment->frameOffsets.emplace(frame, attachment->offset);
+        POSE &frameOffset = attachment->frameOffsets[frame];
+        capturedOffset = &frameOffset;
+    }
+    capturedOffset->position = scaleIsInherited
         ? VEC3D{localDelta.x / sourcePose.scale.x,
                 localDelta.y / sourcePose.scale.y,
                 localDelta.z / sourcePose.scale.z}
         : localDelta;
-    attachment->offset.rotationMatrix = multiply(targetRotation, transpose(sourceRotation));
-    attachment->offset.hasRotationMatrix = true;
-    attachment->offset.angle = rotationToEuler(attachment->offset.rotationMatrix);
-    attachment->offset.scale = scaleIsInherited
+    capturedOffset->rotationMatrix = multiply(targetRotation, transpose(sourceRotation));
+    capturedOffset->hasRotationMatrix = true;
+    capturedOffset->angle = rotationToEuler(capturedOffset->rotationMatrix);
+    capturedOffset->scale = scaleIsInherited
         ? VEC3D{targetPose.scale.x / sourcePose.scale.x,
                 targetPose.scale.y / sourcePose.scale.y,
                 targetPose.scale.z / sourcePose.scale.z}
         : targetPose.scale;
     if (attachment->aimLimits.capturedFrame)
         attachment->aimLimits.referenceRotation =
-            multiply(poseRotation(attachment->offset), sourceRotation);
+            multiply(poseRotation(*capturedOffset), sourceRotation);
     attachment->springInitialized = false;
     lua_pushboolean(lua, 1);
     return 1;
@@ -1801,7 +1911,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "blend");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
                    (attachment->sourceType == SOURCE_SOCKET ? "socket" :
-                    (attachment->sourceType == SOURCE_ARTICULATED_PART ? "articulated_part" : "root")));
+                    (attachment->sourceType == SOURCE_ARTICULATED_PART ? "articulated_part" :
+                     (attachment->sourceType == SOURCE_FRAME ? "frame" : "root"))));
     lua_setfield(lua, -2, "sourceType");
     if (attachment->sourceType == SOURCE_BONE)
     {
@@ -1817,6 +1928,11 @@ int onAttachmentGetState(lua_State *lua)
     {
         lua_pushlstring(lua, attachment->sourcePart.c_str(), attachment->sourcePart.size());
         lua_setfield(lua, -2, "sourcePart");
+    }
+    else if (attachment->sourceType == SOURCE_FRAME)
+    {
+        lua_pushlstring(lua, attachment->sourceAnimation.c_str(), attachment->sourceAnimation.size());
+        lua_setfield(lua, -2, "sourceAnimation");
     }
     pushAttachmentData(lua, attachment);
     lua_setfield(lua, -2, "offset");
@@ -1862,6 +1978,8 @@ int onAttach(lua_State *lua)
     std::string sourceBone;
     std::string sourceSocket;
     std::string sourcePart;
+    std::string sourceAnimation;
+    std::unordered_map<uint32_t, POSE> frameOffsets;
     lua_getfield(lua, 1, "sourceType");
     if (!lua_isnil(lua, -1))
     {
@@ -1870,18 +1988,19 @@ int onAttach(lua_State *lua)
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'");
+            return fail(lua, "sourceType must be 'root', 'bone', 'socket', 'articulated_part' or 'frame'");
         }
         const std::string sourceTypeName = lua_tostring(lua, -1);
         if (sourceTypeName == "bone") sourceType = SOURCE_BONE;
         else if (sourceTypeName == "socket") sourceType = SOURCE_SOCKET;
         else if (sourceTypeName == "articulated_part") sourceType = SOURCE_ARTICULATED_PART;
+        else if (sourceTypeName == "frame") sourceType = SOURCE_FRAME;
         else if (sourceTypeName != "root")
         {
             lua_pop(lua, 1);
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
-            return fail(lua, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'");
+            return fail(lua, "sourceType must be 'root', 'bone', 'socket', 'articulated_part' or 'frame'");
         }
     }
     lua_pop(lua, 1);
@@ -1961,6 +2080,40 @@ int onAttach(lua_State *lua)
             luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
             luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
             return fail(lua, "source articulated part is invalid or has no evaluated pose");
+        }
+    }
+    else if (sourceType == SOURCE_FRAME)
+    {
+        lua_getfield(lua, 1, "sourceAnimation");
+        if (!lua_isstring(lua, -1) || lua_tostring(lua, -1)[0] == '\0')
+        {
+            lua_pop(lua, 1);
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceAnimation must be a non-empty animation name for sourceType='frame'");
+        }
+        sourceAnimation = lua_tostring(lua, -1);
+        lua_pop(lua, 1);
+        if (source->getTypeClass() != mbm::TYPE_CLASS_MESH)
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "sourceType='frame' requires a mesh source");
+        }
+        if (!parseFrameOffsets(lua, 1, frameOffsets, error))
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, error.c_str());
+        }
+        POSE sourcePose;
+        ATTACHMENT frameProbe;
+        frameProbe.sourceAnimation = sourceAnimation;
+        if (!readFramePose(&frameProbe, source, sourcePose))
+        {
+            luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+            luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+            return fail(lua, "source frame animation is invalid or not selected");
         }
     }
     const uint8_t inherit = parseInheritance(lua, 1);
@@ -2047,7 +2200,8 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, sourceSocket, sourcePart, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
+        id, sourceType, sourceBone, sourceSocket, sourcePart, sourceAnimation, frameOffsets,
+        aimPoint, offset, targetPivot, before, inherit, aimAtSource,
         aimLimits, spring, blend, influenceEnabled, stateProfiles, initialState,
         sourceReference, targetReference);
     lua_createtable(lua, 0, 8);

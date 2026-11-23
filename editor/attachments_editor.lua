@@ -63,7 +63,7 @@ end
 
 local function newDefinition()
     return {
-        version = 4,
+        version = 5,
         source = 'source',
         target = 'target',
         targetSource = 'source',
@@ -71,6 +71,8 @@ local function newDefinition()
         sourceBone = '',
         sourceSocket = '',
         sourcePart = '',
+        frameAnimation = '',
+        frameOffsets = {},
         aimPoint = vector(0, 0, 0),
         aimAtSource = false,
         influenceEnabled = true,
@@ -140,6 +142,7 @@ local S = {
         articulatedPartCatalog = {},
         articulatedPartPickGeometry = nil,
         animationClips = {}, selectedAnimation = 1, activeAnimation = '', animationPaused = false,
+        frameStart = 1,
         selectionAnimation = nil},
     targets = {newTargetState()},
     selectedTargetIndex = 1,
@@ -390,6 +393,29 @@ local function copyVector(value, fallback)
     return vector(value.x or 0, value.y or 0, value.z or 0)
 end
 
+local function copyOffset(value)
+    value = value or {}
+    local result = {
+        position = copyVector(value.position),
+        rotation = copyVector(value.rotation),
+        rotationMatrix = value.rotationMatrix and cloneRotation(value.rotationMatrix) or identityRotation(),
+        scale = copyVector(value.scale, vector(1, 1, 1)),
+    }
+    return result
+end
+
+local function copyFrameOffsets(value)
+    local result = {}
+    if type(value) ~= 'table' then return result end
+    for frame, offset in pairs(value) do
+        local index = tonumber(frame)
+        if index and index >= 1 and type(offset) == 'table' then
+            result[math.floor(index)] = copyOffset(offset)
+        end
+    end
+    return result
+end
+
 local function copyTargetRecord(record)
     local inherit = record.inherit or {}
     local result = {
@@ -398,6 +424,7 @@ local function copyTargetRecord(record)
         sourceBone = record.sourceBone or '',
         sourceSocket = record.sourceSocket or '',
         sourcePart = record.sourcePart or '',
+        frameOffsets = copyFrameOffsets(record.frameOffsets),
         inherit = {
             position = inherit.position ~= false,
             rotation = inherit.rotation ~= false,
@@ -449,6 +476,7 @@ local function snapshotActiveTarget()
         sourceBone = S.definition.sourceBone,
         sourceSocket = S.definition.sourceSocket,
         sourcePart = S.definition.sourcePart,
+        frameOffsets = S.definition.frameOffsets,
         inherit = S.definition.inherit,
         aimAtSource = S.definition.aimAtSource,
         aimPoint = S.definition.aimPoint,
@@ -502,6 +530,7 @@ local function activateTargetDefinition(index)
     S.definition.sourceBone = record.sourceBone or ''
     S.definition.sourceSocket = record.sourceSocket or ''
     S.definition.sourcePart = record.sourcePart or ''
+    S.definition.frameOffsets = record.frameOffsets or {}
     S.definition.inherit = record.inherit
     S.definition.aimAtSource = record.aimAtSource
     S.definition.aimPoint = record.aimPoint
@@ -872,15 +901,22 @@ local function refreshSourceAnimationCatalog()
     source.selectedAnimation = 1
     source.activeAnimation = ''
     source.animationPaused = false
+    source.frameStart = 1
     if not source.object or not source.meshLoaded then return end
     local articulated = S.definition.sourceType == 'articulated_part'
+    local frame = S.definition.sourceType == 'frame'
     local okTotal, total = dpCall(function()
+        if frame then return source.object:getTotalAnim() end
         return articulated and source.object:getTotalArticulatedAnimations() or
             source.object:getTotalSkeletalAnimations()
     end)
     if not okTotal then return end
     for index = 1, tonumber(total) or 0 do
         local okName, name = dpCall(function()
+            if frame then
+                local animationName = source.object:getAnim(index)
+                return animationName
+            end
             return articulated and source.object:getArticulatedAnimationName(index) or
                 source.object:getSkeletalAnimationName(index)
         end)
@@ -911,6 +947,57 @@ local function sourceUsesArticulatedAnimation()
     return S.definition.sourceType == 'articulated_part'
 end
 
+local function sourceUsesFrameAnimation()
+    return S.definition.sourceType == 'frame'
+end
+
+local function selectedSourceAnimationName()
+    return S.source.animationClips[S.source.selectedAnimation]
+end
+
+local function sourceCurrentFrame()
+    if not S.source.object then return 0 end
+    local ok, frame = dpCall(function() return S.source.object:getIndexFrame() end)
+    return ok and math.max(0, tonumber(frame) or 0) or 0
+end
+
+local sourceFrameRange
+
+local function sourceFrameCount()
+    local firstFrame, lastFrame = sourceFrameRange()
+    return math.max(0, lastFrame - firstFrame + 1)
+end
+
+sourceFrameRange = function()
+    if not S.source.object then return 1, 0 end
+    local ok, firstFrame, lastFrame = dpCall(function()
+        return S.source.object:getAnimationFrameRange()
+    end)
+    if ok and tonumber(firstFrame) and tonumber(lastFrame) then
+        return math.max(1, tonumber(firstFrame)), math.max(0, tonumber(lastFrame))
+    end
+    local current = sourceCurrentFrame()
+    local okTotal, total = dpCall(function() return S.source.object:getTotalFrame() end)
+    if not okTotal then return current, current end
+    return current, math.max(current, tonumber(total) or current)
+end
+
+local function selectSourceFrameAnimation(name)
+    local source = S.source
+    if not source.object or not name or name == '' then return false end
+    local ok = dpCall(function()
+        source.object:setAnim(name)
+        source.object:setTypeAnim(mbm.PAUSED)
+    end)
+    if not ok then return false end
+    source.activeAnimation = name
+    source.animationPaused = true
+    source.frameStart = sourceFrameRange()
+    S.definition.frameAnimation = name
+    S.dirtyPreview = true
+    return true
+end
+
 local function refreshSourceSocketCatalog()
     local source = S.source
     source.socketCatalog = {}
@@ -930,6 +1017,12 @@ local function restoreSourceAnimation()
     source.selectionAnimation = nil
     if not saved or saved.name == '' or not source.object then return end
     local ok, played = dpCall(function()
+        if sourceUsesFrameAnimation() then
+            source.object:setAnim(saved.name)
+            if saved.frame then source.object:setIndexFrame(saved.frame) end
+            source.object:setTypeAnim(saved.paused and mbm.PAUSED or mbm.GROWING_LOOP)
+            return true
+        end
         return sourceUsesArticulatedAnimation() and source.object:playArticulatedAnimation(saved.name) or
             source.object:playSkeletalAnimation(saved.name)
     end)
@@ -938,6 +1031,10 @@ local function restoreSourceAnimation()
     source.animationPaused = saved.paused == true
     if source.animationPaused then
         dpCall(function()
+            if sourceUsesFrameAnimation() then
+                source.object:setTypeAnim(mbm.PAUSED)
+                return true
+            end
             return sourceUsesArticulatedAnimation() and source.object:pauseArticulatedAnimation(saved.name) or
                 source.object:pauseSkeletalAnimation()
         end)
@@ -953,6 +1050,21 @@ local function playSourceAnimation()
     end
     local name = source.animationClips[source.selectedAnimation]
     if not source.object or not name then return end
+    if sourceUsesFrameAnimation() then
+        local ok = dpCall(function()
+            if source.activeAnimation ~= name then source.object:setAnim(name) end
+            source.object:setTypeAnim(mbm.GROWING_LOOP)
+        end)
+        if not ok then
+            setStatus(L('animation_play_failed'), true)
+            return
+        end
+        source.activeAnimation = name
+        source.animationPaused = false
+        S.definition.frameAnimation = name
+        S.dirtyPreview = true
+        return
+    end
     if source.activeAnimation == name and source.animationPaused then
         resumeSourceAnimation()
         return
@@ -973,6 +1085,11 @@ end
 local function pauseSourceAnimation()
     if not S.source.object or S.source.activeAnimation == '' then return end
     local name = S.source.activeAnimation
+    if sourceUsesFrameAnimation() then
+        local ok = dpCall(function() return S.source.object:setTypeAnim(mbm.PAUSED) end)
+        if ok then S.source.animationPaused = true; S.dirtyPreview = true end
+        return
+    end
     local ok, paused = dpCall(function()
         return sourceUsesArticulatedAnimation() and S.source.object:pauseArticulatedAnimation(name) or
             S.source.object:pauseSkeletalAnimation()
@@ -986,6 +1103,11 @@ end
 local function resumeSourceAnimation()
     if not S.source.object or S.source.activeAnimation == '' then return end
     local name = S.source.activeAnimation
+    if sourceUsesFrameAnimation() then
+        local ok = dpCall(function() return S.source.object:setTypeAnim(mbm.GROWING_LOOP) end)
+        if ok then S.source.animationPaused = false; S.dirtyPreview = true end
+        return
+    end
     local ok, resumed = dpCall(function()
         return sourceUsesArticulatedAnimation() and S.source.object:resumeArticulatedAnimation(name) or
             S.source.object:resumeSkeletalAnimation()
@@ -998,7 +1120,9 @@ end
 
 local function stopSourceAnimation()
     if not S.source.object then return end
-    if sourceUsesArticulatedAnimation() then
+    if sourceUsesFrameAnimation() then
+        dpCall(function() return S.source.object:setTypeAnim(mbm.PAUSED) end)
+    elseif sourceUsesArticulatedAnimation() then
         dpCall(function() return S.source.object:disableArticulatedAnimation(S.source.activeAnimation) end)
     else
         dpCall(function() return S.source.object:stopSkeletalAnimation() end)
@@ -1012,7 +1136,9 @@ local function sourceAnimationDuration()
     local source = S.source
     if not source.object or #source.animationClips == 0 then return 0 end
     local ok, duration = dpCall(function()
-        if sourceUsesArticulatedAnimation() then
+        if sourceUsesFrameAnimation() then
+            return sourceFrameCount()
+        elseif sourceUsesArticulatedAnimation() then
             local name = source.animationClips[source.selectedAnimation]
             return name and source.object:getArticulatedAnimationDuration(name) or 0
         end
@@ -1025,6 +1151,21 @@ local function seekSourceAnimation(time)
     local source = S.source
     local name = source.animationClips[source.selectedAnimation]
     if not source.object or not name then return end
+    if sourceUsesFrameAnimation() then
+        if source.activeAnimation ~= name then selectSourceFrameAnimation(name) end
+        local count = sourceFrameCount()
+        local firstFrame = source.frameStart or sourceCurrentFrame()
+        local lastFrame = firstFrame + count - 1
+        local frame = math.max(firstFrame, math.min(lastFrame, math.floor(tonumber(time) or firstFrame)))
+        local ok = dpCall(function() return source.object:setIndexFrame(frame) end)
+        if ok then
+            source.activeAnimation = name
+            source.animationPaused = true
+            S.definition.frameAnimation = name
+            S.dirtyPreview = true
+        end
+        return
+    end
     if source.activeAnimation ~= name then
         playSourceAnimation()
         if source.activeAnimation ~= name then return end
@@ -1092,6 +1233,7 @@ local function loadRoleMesh(role, path)
     object.alwaysRender = true
     object.visible = true
     if role == 'source' then
+        dpCall(function() return object:setTypeAnim(mbm.PAUSED) end)
         dpCall(function() return object:stopSkeletalAnimation() end)
         local okTotal, total = dpCall(function() return object:getTotalArticulatedAnimations() end)
         for index = 1, (okTotal and tonumber(total) or 0) do
@@ -1104,6 +1246,17 @@ local function loadRoleMesh(role, path)
         refreshSourceSocketCatalog()
         refreshSourceArticulatedPartCatalog()
         if S.definition.sourceType == 'bone' then prepareSourceSkeleton() end
+        if S.definition.sourceType == 'frame' then
+            local name = S.definition.frameAnimation ~= '' and S.definition.frameAnimation or
+                S.source.animationClips[1]
+            if name then
+                for index, clipName in ipairs(S.source.animationClips) do
+                    if clipName == name then S.source.selectedAnimation = index; break end
+                end
+                S.definition.frameAnimation = name
+                selectSourceFrameAnimation(name)
+            end
+        end
     end
     markModified()
     setStatus(string.format(L('mesh_loaded'), roleName(role), path))
@@ -1600,6 +1753,7 @@ setBoneSelectionMode = function(enabled)
         end
         S.source.selectionAnimation = S.source.activeAnimation ~= '' and {
             name = S.source.activeAnimation, paused = S.source.animationPaused == true,
+            frame = sourceUsesFrameAnimation() and sourceCurrentFrame() or nil,
         } or nil
         if not prepareSourceSkeleton() then return false end
         S.boneSelectionCamera = {
@@ -1657,6 +1811,7 @@ setPartSelectionMode = function(enabled)
         end
         S.source.selectionAnimation = S.source.activeAnimation ~= '' and {
             name = S.source.activeAnimation, paused = S.source.animationPaused == true,
+            frame = sourceUsesFrameAnimation() and sourceCurrentFrame() or nil,
         } or nil
         stopSourceAnimation()
         if not buildArticulatedPartPickGeometry() then
@@ -2543,16 +2698,22 @@ local function endViewportInteraction(key)
     if key == 0 or key == 1 then S.cameraDrag = nil end
 end
 
+local function activeAttachmentOffset()
+    if not sourceUsesFrameAnimation() then return S.definition.offset end
+    local frame = math.max(1, sourceCurrentFrame())
+    return S.definition.frameOffsets[frame] or S.definition.offset
+end
+
 local function calculateTargetPose(delta, sourceOverride)
     local source, target = sourceOverride or getActiveTargetSourcePose() or S.source.pose, S.target.pose
     local result = clonePose(target)
     if not previewInfluenceEnabled() then return result end
     local inherit = S.definition.inherit
-    local offset = S.definition.offset
+    local offset = activeAttachmentOffset()
     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
     local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
     if inherit.rotation then
-        local offsetRotation = S.definition.offset.rotationMatrix or
+        local offsetRotation = offset.rotationMatrix or
             eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z)
         targetRotation = multiplyRotation(offsetRotation,
             sourceRotation)
@@ -2800,12 +2961,17 @@ captureOffset = function(targetPoseOverride)
     local targetRotation = eulerRotation(target.rx, target.ry, target.rz)
     local relativeRotation = multiplyRotation(targetRotation, inverseSource)
     local rx, ry, rz = matrixToEuler(relativeRotation)
-    S.definition.offset.position = localPosition
-    S.definition.offset.rotation = vector(rx, ry, rz)
-    S.definition.offset.rotationMatrix = cloneRotation(relativeRotation)
+    local capturedOffset = sourceUsesFrameAnimation() and copyOffset(activeAttachmentOffset()) or S.definition.offset
+    capturedOffset.position = localPosition
+    capturedOffset.rotation = vector(rx, ry, rz)
+    capturedOffset.rotationMatrix = cloneRotation(relativeRotation)
     captureAimReference(source)
     if inherit.scale then
-        S.definition.offset.scale = vector(target.sx / source.sx, target.sy / source.sy, target.sz / source.sz)
+        capturedOffset.scale = vector(target.sx / source.sx, target.sy / source.sy, target.sz / source.sz)
+    end
+    if sourceUsesFrameAnimation() then
+        local frame = math.max(1, sourceCurrentFrame())
+        S.definition.frameOffsets[frame] = capturedOffset
     end
     resetSpringState()
     S.target.manualOverride = false
@@ -2837,6 +3003,7 @@ local function syncEditorDefinition()
         sourceAnimation = S.source.activeAnimation ~= '' and S.source.activeAnimation or
             (S.source.animationClips[S.source.selectedAnimation] or ''),
         sourceAnimationPaused = S.source.animationPaused == true,
+        sourceAnimationFrame = sourceUsesFrameAnimation() and sourceCurrentFrame() or nil,
     }
 end
 
@@ -2964,14 +3131,22 @@ function onInitScene()
     camera:setFocus(orbit.fx, orbit.fy, orbit.fz)
     local clip = definition.editor.sourceAnimation
     if clip and clip ~= '' then
-        if definition.sourceType == 'articulated_part' then
+        if definition.sourceType == 'frame' then
+            source:setAnim(definition.frameAnimation or clip)
+            if definition.editor.sourceAnimationFrame then
+                source:setIndexFrame(definition.editor.sourceAnimationFrame)
+            end
+            source:setTypeAnim(definition.editor.sourceAnimationPaused and mbm.PAUSED or mbm.GROWING_LOOP)
+        elseif definition.sourceType == 'articulated_part' then
             assert(source:playArticulatedAnimation(clip))
         else
             assert(source:playSkeletalAnimation(clip))
         end
     end
     if definition.editor.sourceAnimationPaused and clip and clip ~= '' then
-        if definition.sourceType == 'articulated_part' then
+        if definition.sourceType == 'frame' then
+            source:setTypeAnim(mbm.PAUSED)
+        elseif definition.sourceType == 'articulated_part' then
             assert(source:pauseArticulatedAnimation(clip))
         else
             assert(source:pauseSkeletalAnimation())
@@ -3017,6 +3192,8 @@ function onLoop()
                 blend = targetDefinition.blend,
                 offset = targetDefinition.offset,
                 targetPivot = targetDefinition.targetPivot,
+                sourceAnimation = usesOriginalSource and definition.frameAnimation or nil,
+                frameOffsets = usesOriginalSource and targetDefinition.frameOffsets or nil,
             }
             if usesOriginalSource and targetDefinition.sourceBone and targetDefinition.sourceBone ~= '' then
                 specification.sourceBone = targetDefinition.sourceBone
@@ -3068,7 +3245,7 @@ local function validatePreview()
         return false
     end
     if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket' or
-            S.definition.sourceType == 'articulated_part') and
+            S.definition.sourceType == 'articulated_part' or S.definition.sourceType == 'frame') and
             (S.source.activeAnimation == '' and S.source.animationClips[S.source.selectedAnimation] == nil) then
         setStatus(L('run_preview_requires_animation'), true)
         return false
@@ -3108,10 +3285,13 @@ local function normalizeDefinition(value)
     result.target = tostring(value.target or result.target)
     result.sourceType = value.sourceType == 'bone' and 'bone' or
         (value.sourceType == 'socket' and 'socket' or
-            (value.sourceType == 'articulated_part' and 'articulated_part' or 'root'))
+            (value.sourceType == 'articulated_part' and 'articulated_part' or
+                (value.sourceType == 'frame' and 'frame' or 'root')))
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     result.sourcePart = type(value.sourcePart) == 'string' and value.sourcePart or ''
+    result.frameAnimation = type(value.frameAnimation) == 'string' and value.frameAnimation or ''
+    result.frameOffsets = copyFrameOffsets(value.frameOffsets)
     result.aimAtSource = value.aimAtSource == true
     result.influenceEnabled = value.influenceEnabled ~= false
     result.initialState = type(value.initialState) == 'string' and value.initialState or ''
@@ -3215,6 +3395,7 @@ local function normalizeDefinition(value)
         result.editor.targetSelectable = editor.targetSelectable ~= false
         result.editor.sourceAnimation = type(editor.sourceAnimation) == 'string' and editor.sourceAnimation or ''
         result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
+        result.editor.sourceAnimationFrame = tonumber(editor.sourceAnimationFrame)
     end
     local function targetRecordFromValue(raw, fallbackName)
         local record = {
@@ -3223,6 +3404,7 @@ local function normalizeDefinition(value)
             sourceBone = type(raw.sourceBone) == 'string' and raw.sourceBone or result.sourceBone,
             sourceSocket = type(raw.sourceSocket) == 'string' and raw.sourceSocket or result.sourceSocket,
             sourcePart = type(raw.sourcePart) == 'string' and raw.sourcePart or result.sourcePart,
+            frameOffsets = copyFrameOffsets(raw.frameOffsets),
             inherit = {
                 position = result.inherit.position,
                 rotation = result.inherit.rotation,
@@ -3296,6 +3478,7 @@ local function normalizeDefinition(value)
         return record
     end
     local baseTarget = targetRecordFromValue({}, result.target)
+    if next(baseTarget.frameOffsets) == nil then baseTarget.frameOffsets = copyFrameOffsets(result.frameOffsets) end
     result.targets = {}
     if type(value.targets) == 'table' and #value.targets > 0 then
         for index, raw in ipairs(value.targets) do
@@ -3420,11 +3603,26 @@ local function loadDefinition(path)
             end
         end
     end
+    if definition.sourceType == 'frame' then
+        if definition.frameAnimation == '' then
+            definition.frameAnimation = definition.editor.sourceAnimation or ''
+        end
+        for index, name in ipairs(S.source.animationClips) do
+            if name == definition.frameAnimation then
+                S.source.selectedAnimation = index
+                selectSourceFrameAnimation(name)
+                if definition.editor.sourceAnimationFrame then
+                    seekSourceAnimation(definition.editor.sourceAnimationFrame)
+                end
+                break
+            end
+        end
+    end
     if definition.version < 2 and definition.sourceType == 'bone' and S.source.skeletonReport then
         captureOffset()
         S.definition.version = 2
     end
-    S.definition.version = math.max(4, S.definition.version)
+    S.definition.version = math.max(5, S.definition.version)
     S.source.selectable = definition.editor.sourceSelectable ~= false
     if definition.editor.language == 'pt_br' or definition.editor.language == 'en' then
         tLang.setLanguage(definition.editor.language)
@@ -3498,7 +3696,13 @@ local function showSourceAnimationControls()
     source.selectedAnimation = math.max(1, math.min(source.selectedAnimation, #source.animationClips))
     tImGui.SetNextItemWidth(210)
     local changed, selected = tImGui.Combo(L('animation_clip'), source.selectedAnimation, source.animationClips)
-    if changed then source.selectedAnimation = selected end
+    if changed then
+        source.selectedAnimation = selected
+        if sourceUsesFrameAnimation() then
+            selectSourceFrameAnimation(source.animationClips[selected])
+            markModified()
+        end
+    end
     showTooltip(L('animation_clip_tooltip'))
     if tImGui.Button(L('play_animation') .. '##att_source_animation_play') then
         playSourceAnimation()
@@ -3519,6 +3723,28 @@ local function showSourceAnimationControls()
         stopSourceAnimation()
     end
     showTooltip(L('stop_animation_tooltip'))
+    if sourceUsesFrameAnimation() then
+        local count = sourceFrameCount()
+        local firstFrame = source.frameStart or sourceCurrentFrame()
+        local lastFrame = firstFrame + count - 1
+        local currentFrame = math.max(firstFrame, math.min(lastFrame, sourceCurrentFrame()))
+        if count > 0 then
+            local frameChanged, nextFrame = tImGui.SliderFloat(L('animation_frame'), currentFrame,
+                firstFrame, lastFrame)
+            if frameChanged then seekSourceAnimation(math.floor(nextFrame + 0.5)) end
+            showTooltip(L('animation_frame_tooltip'))
+            if tImGui.Button(L('step_back') .. '##att_source_animation_step_back') then
+                seekSourceAnimation(math.max(firstFrame, currentFrame - 1))
+            end
+            showTooltip(L('step_back_tooltip'))
+            tImGui.SameLine()
+            if tImGui.Button(L('step_forward') .. '##att_source_animation_step_forward') then
+                seekSourceAnimation(math.min(lastFrame, currentFrame + 1))
+            end
+            showTooltip(L('step_forward_tooltip'))
+        end
+        return
+    end
     local duration = sourceAnimationDuration()
     local currentTime = 0
     if source.activeAnimation ~= '' then
@@ -3608,6 +3834,9 @@ local function showObjects()
             showPoseFields(S.selectedRole)
             if S.selectedRole == 'target' then
                 tImGui.TextWrapped(L('target_pose_help'))
+                if sourceUsesFrameAnimation() then
+                    tImGui.Text(string.format('%s: %d', L('animation_frame'), math.max(1, sourceCurrentFrame())))
+                end
                 tImGui.Separator()
                 if tImGui.Button(L('capture') .. '##att_objects_capture') then captureOffset() end
                 tImGui.SameLine()
@@ -3655,6 +3884,8 @@ local function showObjects()
 end
 
 local function showOffsetFields()
+    local frame = sourceUsesFrameAnimation() and math.max(1, sourceCurrentFrame()) or nil
+    local offset = activeAttachmentOffset()
     local components = {
         {'position', L('offset_position')}, {'rotation', L('offset_rotation')}, {'scale', L('offset_scale')},
     }
@@ -3664,13 +3895,16 @@ local function showOffsetFields()
             tImGui.SetNextItemWidth(105)
             local key = component[1]
             local changed, nextValue = tImGui.InputFloat(string.upper(axis) .. '##att_offset_' .. key .. '_' .. axis,
-                S.definition.offset[key][axis])
+                offset[key][axis])
             if changed then
-                S.definition.offset[key][axis] = nextValue
+                if frame and not S.definition.frameOffsets[frame] then
+                    S.definition.frameOffsets[frame] = copyOffset(offset)
+                    offset = S.definition.frameOffsets[frame]
+                end
+                offset[key][axis] = nextValue
                 if key == 'rotation' then
-                    S.definition.offset.rotationMatrix = eulerRotation(
-                        S.definition.offset.rotation.x, S.definition.offset.rotation.y,
-                        S.definition.offset.rotation.z)
+                    offset.rotationMatrix = eulerRotation(offset.rotation.x, offset.rotation.y,
+                        offset.rotation.z)
                 end
                 S.target.manualOverride = false
                 markModified()
@@ -3719,29 +3953,34 @@ local function showAttachment()
         tImGui.SetNextItemWidth(210)
         local sourceTypeIndex = S.definition.sourceType == 'bone' and 2 or
             (S.definition.sourceType == 'socket' and 3 or
-                (S.definition.sourceType == 'articulated_part' and 4 or 1))
+                (S.definition.sourceType == 'articulated_part' and 4 or
+                    (S.definition.sourceType == 'frame' and 5 or 1)))
         local sourceTypeChanged, nextSourceType = tImGui.Combo(L('source_type'), sourceTypeIndex,
             {L('root_transform'), L('bone_transform'), L('socket_transform'),
-             L('articulated_part_transform')})
+             L('articulated_part_transform'), L('frame_transform')})
         if sourceTypeChanged then
             syncActiveTargetDefinition()
             if S.partSelectionMode then setPartSelectionMode(false) end
             stopSourceAnimation()
             S.definition.sourceType = nextSourceType == 2 and 'bone' or
                 (nextSourceType == 3 and 'socket' or
-                    (nextSourceType == 4 and 'articulated_part' or 'root'))
+                    (nextSourceType == 4 and 'articulated_part' or
+                        (nextSourceType == 5 and 'frame' or 'root')))
             if S.definition.sourceType == 'root' then
                 S.definition.sourceBone = ''
                 S.definition.sourceSocket = ''
                 S.definition.sourcePart = ''
+                S.definition.frameAnimation = ''
                 setBoneSelectionMode(false)
             elseif S.definition.sourceType == 'bone' then
                 S.definition.sourceSocket = ''
                 S.definition.sourcePart = ''
+                S.definition.frameAnimation = ''
                 setBoneSelectionMode(true)
             elseif S.definition.sourceType == 'socket' then
                 S.definition.sourceBone = ''
                 S.definition.sourcePart = ''
+                S.definition.frameAnimation = ''
                 S.definition.sourceSocket = S.source.socketCatalog[1] or ''
                 for _, targetDefinition in ipairs(S.definition.targets) do
                     if targetDefinition.sourceSocket == '' then
@@ -3749,18 +3988,31 @@ local function showAttachment()
                     end
                 end
                 setBoneSelectionMode(false)
-            else
+            elseif S.definition.sourceType == 'articulated_part' then
                 S.definition.sourceBone = ''
                 S.definition.sourceSocket = ''
                 S.definition.sourcePart = S.source.articulatedPartCatalog[1] or ''
+                S.definition.frameAnimation = ''
                 for _, targetDefinition in ipairs(S.definition.targets) do
                     if targetDefinition.sourcePart == '' then
                         targetDefinition.sourcePart = S.definition.sourcePart
                     end
                 end
                 setBoneSelectionMode(false)
+            elseif S.definition.sourceType == 'frame' then
+                S.definition.sourceBone = ''
+                S.definition.sourceSocket = ''
+                S.definition.sourcePart = ''
+                setBoneSelectionMode(false)
             end
             refreshSourceAnimationCatalog()
+            if S.definition.sourceType == 'frame' then
+                S.definition.frameAnimation = S.source.animationClips[1] or ''
+                if S.definition.frameAnimation ~= '' then
+                    S.source.selectedAnimation = 1
+                    selectSourceFrameAnimation(S.definition.frameAnimation)
+                end
+            end
             -- Changing the source frame must not apply the previous offset to the
             -- target immediately. Keep the current target pose until the user
             -- explicitly captures an offset for the new source.
@@ -3825,6 +4077,8 @@ local function showAttachment()
             end
             tImGui.TextWrapped(L('part_select_help'))
             tImGui.TextWrapped(L('source_part_help'))
+        elseif S.definition.sourceType == 'frame' then
+            tImGui.TextWrapped(L('source_frame_help'))
         end
         local components = {{'position', L('inherit_position')}, {'rotation', L('inherit_rotation')},
             {'scale', L('inherit_scale')}}
@@ -4349,7 +4603,7 @@ end
 function onLoop(delta)
     if S.definition.spring and S.definition.spring.enabled then S.dirtyPreview = true end
     if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket' or
-            S.definition.sourceType == 'articulated_part') and
+            S.definition.sourceType == 'articulated_part' or S.definition.sourceType == 'frame') and
             S.source.activeAnimation ~= '' and
             not S.source.animationPaused and not isSourceSelectionMode() then
         S.dirtyPreview = true

@@ -607,6 +607,7 @@ renderizable; optional `x`, `y`, `z` or `center` fields can offset the complete 
 | `obj:addAnim` | `(name?, type?, startFrame?, finalFrame?, intervalSeconds?)` | name, index | Define a frame animation; frames and returned index are 1-based. Defaults: generated name, paused type, first frame, first frame, 1 second. A non-positive interval keeps the default. |
 | `obj:getTotalAnim` | `()` | int | Number of animations defined |
 | `obj:getTotalFrame` | `()` | int | Total frames in current animation |
+| `obj:getAnimationFrameRange` | `()` | initialFrame, finalFrame | Absolute 1-based frame interval of the selected animation |
 | `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
 | `obj:setIndexFrame` | `(frame: int)` | — | Select an absolute 1-based frame inside the current static animation interval and pause that frame animation. Raises an error outside the interval. Does not pause or seek articulated/skeletal players, nor shader FX. |
 | `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
@@ -2128,9 +2129,9 @@ Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
 `local attachments = require "attachments"`. This plugin is independent from
 `interaction_animation_runtime`.
 
-`attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, and named
-skeletal sockets, and named articulated-part sources. The specification requires `source` and `target` renderizable objects and accepts
-`id`, `sourceType` (`"root"`, `"bone"`, `"socket"`, or `"articulated_part"`), `sourceBone`, `sourceSocket`, or `sourcePart` when using
+`attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, named
+skeletal sockets, named articulated-part sources, and static frame animation sources. The specification requires `source` and `target` renderizable objects and accepts
+`id`, `sourceType` (`"root"`, `"bone"`, `"socket"`, `"articulated_part"`, or `"frame"`), `sourceBone`, `sourceSocket`, `sourcePart`, `sourceAnimation`, or `frameOffsets` when using
 the corresponding source, `inherit`, `offset`, `aimPoint`, `aimLimits`, `spring`, and `blend`. Position,
 rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
 offset is in the selected source's local space, and source scale affects offset position when
@@ -2144,7 +2145,9 @@ convention. Bone sources require a mesh
 with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
 socket query also resolves to the canonical bind pose while playback is inactive. Articulated-part
 sources require a named part in the MSH articulated-parts section; their anchor is the evaluated
-part pivot and their orientation/scale come from the part transform. `aimAtSource = true`
+part pivot and their orientation/scale come from the part transform. Frame sources require a mesh
+whose current generic animation name matches `sourceAnimation`; `frameOffsets[frame]` overrides
+the base offset for that absolute frame and missing entries use the base offset. `aimAtSource = true`
 requires rotation inheritance and makes the target's local +Z axis point toward the current source
 aim point, using world Y as the up reference. `aimPoint` is expressed in source-local coordinates;
 its zero value aims at the source origin. The optional `aimLimits` table enables angular limits

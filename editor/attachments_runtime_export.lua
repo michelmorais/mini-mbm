@@ -54,6 +54,33 @@ local function validateRotationMatrix(value)
     return true
 end
 
+local function validateOffset(value, label)
+    if type(value) ~= 'table' then return false, label .. ' must be a table' end
+    for _, component in ipairs({'position', 'rotation', 'scale'}) do
+        if not validateVector(value[component], component == 'scale' and 1 or 0) then
+            return false, label .. '.' .. component .. ' must be a vector'
+        end
+    end
+    if value.rotationMatrix ~= nil and not validateRotationMatrix(value.rotationMatrix) then
+        return false, label .. '.rotationMatrix must be a 3x3 matrix'
+    end
+    return true
+end
+
+local function validateFrameOffsets(value)
+    if value == nil then return true end
+    if type(value) ~= 'table' then return false, 'target frameOffsets must be a table' end
+    for frame, offset in pairs(value) do
+        local index = tonumber(frame)
+        if not index or index < 1 or index ~= math.floor(index) then
+            return false, 'target frameOffsets keys must be positive integers'
+        end
+        local valid, errorMessage = validateOffset(offset, 'target frameOffsets[' .. frame .. ']')
+        if not valid then return false, errorMessage end
+    end
+    return true
+end
+
 local function validateTarget(target, sourceType, rootSource,
         legacySourceBone, legacySourceSocket, legacySourcePart)
     if type(target) ~= 'table' then return false, 'targets must contain tables' end
@@ -61,16 +88,10 @@ local function validateTarget(target, sourceType, rootSource,
         return false, 'target binding name must not be empty'
     end
     if type(target.inherit) ~= 'table' then return false, 'target inherit must be a table' end
-    local offset = target.offset
-    if type(offset) ~= 'table' then return false, 'target offset must be a table' end
-    for _, component in ipairs({'position', 'rotation', 'scale'}) do
-        if not validateVector(offset[component], component == 'scale' and 1 or 0) then
-            return false, 'target offset.' .. component .. ' must be a vector'
-        end
-    end
-    if offset.rotationMatrix ~= nil and not validateRotationMatrix(offset.rotationMatrix) then
-        return false, 'target offset.rotationMatrix must be a 3x3 matrix'
-    end
+    local validOffset, offsetError = validateOffset(target.offset, 'target offset')
+    if not validOffset then return false, offsetError end
+    local validFrameOffsets, frameOffsetsError = validateFrameOffsets(target.frameOffsets)
+    if not validFrameOffsets then return false, frameOffsetsError end
     if target.targetPivot ~= nil and not validateVector(target.targetPivot, 0) then
         return false, 'target targetPivot must be a vector'
     end
@@ -133,8 +154,13 @@ function M.validate(definition)
         return false, 'source binding name must not be empty'
     end
     if definition.sourceType ~= 'root' and definition.sourceType ~= 'bone' and
-            definition.sourceType ~= 'socket' and definition.sourceType ~= 'articulated_part' then
-        return false, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'"
+            definition.sourceType ~= 'socket' and definition.sourceType ~= 'articulated_part' and
+            definition.sourceType ~= 'frame' then
+        return false, "sourceType must be 'root', 'bone', 'socket', 'articulated_part' or 'frame'"
+    end
+    if definition.sourceType == 'frame' and
+            (type(definition.frameAnimation) ~= 'string' or definition.frameAnimation == '') then
+        return false, 'frameAnimation must not be empty for a frame source'
     end
     if type(definition.targets) ~= 'table' or #definition.targets == 0 then
         return false, 'at least one target is required'
@@ -219,6 +245,23 @@ local function appendDefinition(output, definition)
         output[#output + 1] = string.format('%s    weight = %.17g,', indent, number(blend.weight, 1))
         output[#output + 1] = indent .. '},'
     end
+    local function addFrameOffsets(frameOffsets, indent)
+        if type(frameOffsets) ~= 'table' or next(frameOffsets) == nil then return end
+        local frames = {}
+        for frame in pairs(frameOffsets) do frames[#frames + 1] = tonumber(frame) end
+        table.sort(frames)
+        output[#output + 1] = indent .. 'frameOffsets = {'
+        for _, frame in ipairs(frames) do
+            local offset = frameOffsets[frame] or frameOffsets[tostring(frame)]
+            output[#output + 1] = indent .. '    [' .. frame .. '] = {'
+            addVector('position', offset.position, indent .. '        ')
+            addVector('rotation', offset.rotation, indent .. '        ')
+            addVector('scale', offset.scale, indent .. '        ')
+            addMatrix('rotationMatrix', offset.rotationMatrix, indent .. '        ')
+            output[#output + 1] = indent .. '    },'
+        end
+        output[#output + 1] = indent .. '},'
+    end
     local function addTarget(target, index)
         local prefix = '        '
         local inherit = target.inherit
@@ -264,6 +307,10 @@ local function appendDefinition(output, definition)
         addVector('scale', offset.scale, prefix .. '    ')
         addMatrix('rotationMatrix', offset.rotationMatrix, prefix .. '    ')
         output[#output + 1] = prefix .. '},'
+        if definition.sourceType == 'frame' and
+                (target.source == nil or target.source == definition.source) then
+            addFrameOffsets(target.frameOffsets, prefix)
+        end
         local targetPivot = target.targetPivot or {x = 0, y = 0, z = 0}
         output[#output + 1] = string.format('%stargetPivot = {x = %.17g, y = %.17g, z = %.17g},',
             prefix, number(targetPivot.x, 0), number(targetPivot.y, 0), number(targetPivot.z, 0))
@@ -286,6 +333,9 @@ local function appendDefinition(output, definition)
     output[#output + 1] = 'local definition = {'
     output[#output + 1] = '    source = ' .. quote(definition.source) .. ','
     output[#output + 1] = '    sourceType = ' .. quote(definition.sourceType) .. ','
+    if definition.sourceType == 'frame' then
+        output[#output + 1] = '    frameAnimation = ' .. quote(definition.frameAnimation) .. ','
+    end
     output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
     if type(definition.initialState) == 'string' and definition.initialState ~= '' then
         output[#output + 1] = '    initialState = ' .. quote(definition.initialState) .. ','
@@ -334,6 +384,7 @@ function M.build(definition)
     output[#output + 1] = '            source = relationSource,'
     output[#output + 1] = '            target = target,'
     output[#output + 1] = '            sourceType = sourceName == definition.source and definition.sourceType or "root",'
+    output[#output + 1] = '            sourceAnimation = sourceName == definition.source and definition.frameAnimation or nil,'
     output[#output + 1] = '            inherit = targetDefinition.inherit,'
     output[#output + 1] = '            aimAtSource = targetDefinition.aimAtSource,'
     output[#output + 1] = '            aimPoint = targetDefinition.aimPoint,'
@@ -345,6 +396,7 @@ function M.build(definition)
     output[#output + 1] = '            blend = targetDefinition.blend,'
     output[#output + 1] = '            offset = targetDefinition.offset,'
     output[#output + 1] = '            targetPivot = targetDefinition.targetPivot,'
+    output[#output + 1] = '            frameOffsets = sourceName == definition.source and targetDefinition.frameOffsets or nil,'
     output[#output + 1] = '        }'
     output[#output + 1] = '        if sourceName == definition.source and targetDefinition.sourceBone then specification.sourceBone = targetDefinition.sourceBone end'
     output[#output + 1] = '        if sourceName == definition.source and targetDefinition.sourceSocket then specification.sourceSocket = targetDefinition.sourceSocket end'

@@ -1086,6 +1086,7 @@ namespace mbm
                                                     {"getTotalAnim", onGetTotalAnimationsManagerLua},
                                                     {"addAnim", onAddAnimationsManagerLua},
                                                     {"getTotalFrame", onGetTotalFrameAnimationsManagerLua},
+                                                    {"getAnimationFrameRange", onGetAnimationFrameRangeLua},
                                                     // basic renderizable
                                                     {"setPos", onSetPosRenderizableLua},
                                                     {"getPos", onGetPosRenderizableLua},

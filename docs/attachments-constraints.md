@@ -1,10 +1,10 @@
 # Attachments and constraints
 
-Document version: **3.0**
-Status: **Phase 14 articulated-mesh part sources implemented on top of multi-target authoring and runtime export**
+Document version: **3.1**
+Status: **Phase 15 static frame attachment sources implemented on top of multi-target authoring and runtime export**
 Last updated: **2026-11-23**
 
-This document defines the runtime contract for root-transform, skeletal, and articulated-part attachments. It is independent
+This document defines the runtime contract for root-transform, skeletal, articulated-part, and static-frame attachments. It is independent
 from `interaction_animation_runtime`; the interaction plugin does not create, update, or own
 attachments.
 
@@ -31,13 +31,16 @@ authored sockets remained available after that round-trip. Multi-target authorin
 export are implemented in Phase 11. Phase 13 adds an editor graph view with clickable target
 nodes, selected-chain highlighting, missing-source/cycle validation, and the same validation gate
 before F5 or runtime export. Phase 14 adds articulated part selection, articulated clip preview,
-runtime part-pose evaluation, and runtime export for an articulated part as the source.
+runtime part-pose evaluation, and runtime export for an articulated part as the source. Phase 15
+adds static frame animation selection, per-frame offset capture, and runtime frame lookup.
 
 ## Transform contract
 
 The source can be the `root` transform of a renderizable object, the evaluated world transform of
-a named skeletal bone or socket on a mesh, or the evaluated world transform of a named articulated
-mesh part. An offset is stored in the selected source's local space:
+a named skeletal bone or socket on a mesh, the evaluated world transform of a named articulated
+mesh part, or the root transform of a mesh using a selected static frame animation. An offset is
+stored in the selected source's local space. A static-frame attachment can override that offset
+for individual absolute animation frames:
 
 ```text
 attachment position = source position + (source scale * offset position) * source rotation
@@ -45,6 +48,10 @@ target origin = attachment position - (target scale * targetPivot) * target rota
 world rotation = offset rotationMatrix * source rotation
 world scale    = source scale * offset scale
 ```
+
+For `sourceType = "frame"`, the runtime selects `frameOffsets[currentFrame]` when present and
+falls back to the base `offset` otherwise. The source mesh must already be playing or paused on
+the named static frame animation; the attachment does not change the mesh animation itself.
 
 For a multi-target definition, the source mesh is evaluated for each target's selected bone,
 socket, or articulated part, and the transform contract is applied independently to every entry in
@@ -88,8 +95,9 @@ once a skeletal animation changes the bone pose, even when the bind/T-pose looks
 -- Saved .att.lua / runtime definition format used by the editor and exporter.
 local attachmentDefinition = {
     source = "character",
-    sourceType = "socket", -- "root", "bone", "socket", or "articulated_part"; defaults to "root"
+    sourceType = "socket", -- "root", "bone", "socket", "articulated_part", or "frame"
     sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
+    -- frameAnimation = "blink", -- required when sourceType is "frame"
     influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
     initialState = "equipped", -- optional; selects one entry from states
     states = {
@@ -111,6 +119,9 @@ local attachmentDefinition = {
                 scale = {x = 1, y = 1, z = 1},
             },
             targetPivot = {x = 0, y = 0, z = 0},
+            -- frameOffsets = { -- only for sourceType = "frame"
+            --     [1] = {position = {x = 0, y = 0, z = 0}, rotation = {x = 0, y = 0, z = 0}, scale = {x = 1, y = 1, z = 1}},
+            -- },
         },
         {
             name = "propeller",
@@ -255,15 +266,18 @@ The Attachment panel also exposes a target-local virtual pivot. The viewport dra
 the relation line ends there; zero keeps the mesh origin as the target point.
 The Attachments Editor also exposes a `Run` menu with `Save preview as...` and `Run attachment
 preview`. The preview is a standalone Lua driver containing the saved source and target asset
-references, transform setup, selected skeletal or articulated animation, and the same attachment
-specification. For bone, socket, and articulated-part sources, a selected clip is required when
+references, transform setup, selected skeletal, articulated, or static-frame animation, and the same attachment
+specification. For bone, socket, articulated-part, and static-frame sources, a selected clip is required when
 the source asset needs an evaluated animated pose. The `Timeline` panel provides the clip selector,
 Play, Pause, Resume, and Stop controls; while a clip is playing, the attached target is refreshed
 from the evaluated source frame each update. It also includes a timeline slider and one-frame step
 controls. Capture and reset actions are available in the Objects panel when the target is selected;
 save and export remain in the File menu.
-Definition version 4 stores the target collection and uses the same row-major bind-matrix
-orientation as the runtime. Each target entry is serialized independently.
+Definition version 5 stores the target collection and uses the same row-major bind-matrix
+orientation as the runtime. Each target entry is serialized independently. It adds
+`sourceType = "frame"`, `frameAnimation`, and per-target `frameOffsets`; the Timeline selects
+and pauses a static frame animation, and capture/manual offset editing affects the current frame.
+Uncaptured frames fall back to the base offset.
 
 ### Socket workflow and source choice
 
