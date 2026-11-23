@@ -206,6 +206,12 @@ struct BLEND_SETTINGS
     double weight = 1.0;
 };
 
+struct STATE_PROFILE
+{
+    bool influenceEnabled = true;
+    BLEND_SETTINGS blend;
+};
+
 MATRIX3 limitedLookAtRotation(const VEC3D &from, const VEC3D &to,
                               const MATRIX3 &baseRotation, const MATRIX3 &fallback,
                               const AIM_LIMITS &limits)
@@ -556,6 +562,95 @@ bool parseBlend(lua_State *lua, const int spec, BLEND_SETTINGS &blend, std::stri
     return valid;
 }
 
+bool parseStateProfiles(lua_State *lua, const int spec, const bool baseInfluenceEnabled,
+                        const BLEND_SETTINGS &baseBlend,
+                        std::unordered_map<std::string, STATE_PROFILE> &profiles,
+                        std::string &initialState, std::string &error)
+{
+    lua_getfield(lua, spec, "states");
+    const int statesTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, statesTable))
+    {
+        lua_pop(lua, 1);
+        return true;
+    }
+    if (!lua_istable(lua, statesTable))
+    {
+        lua_pop(lua, 1);
+        error = "states must be a table";
+        return false;
+    }
+    lua_pushnil(lua);
+    while (lua_next(lua, statesTable) != 0)
+    {
+        if (!lua_isstring(lua, -2) || !lua_istable(lua, -1))
+        {
+            lua_pop(lua, 2);
+            lua_pop(lua, 1);
+            error = "states must map names to tables";
+            return false;
+        }
+        const std::string name = lua_tostring(lua, -2);
+        if (name.empty() || profiles.find(name) != profiles.end())
+        {
+            lua_pop(lua, 2);
+            lua_pop(lua, 1);
+            error = "state names must be non-empty and unique";
+            return false;
+        }
+        STATE_PROFILE profile;
+        profile.influenceEnabled = baseInfluenceEnabled;
+        profile.blend = baseBlend;
+        profile.influenceEnabled = booleanField(lua, -1, "influenceEnabled",
+                                                profile.influenceEnabled);
+        lua_getfield(lua, -1, "blend");
+        const int blendTable = lua_absindex(lua, -1);
+        if (!lua_isnil(lua, blendTable))
+        {
+            if (!parseBlendTable(lua, blendTable, profile.blend, error))
+            {
+                lua_pop(lua, 4);
+                return false;
+            }
+        }
+        lua_pop(lua, 1);
+        profiles.emplace(name, profile);
+        lua_pop(lua, 1);
+    }
+    lua_getfield(lua, spec, "initialState");
+    if (!lua_isnil(lua, -1))
+    {
+        if (!lua_isstring(lua, -1))
+        {
+            lua_pop(lua, 2);
+            error = "initialState must be a string";
+            return false;
+        }
+        initialState = lua_tostring(lua, -1);
+    }
+    lua_pop(lua, 1);
+    if (!profiles.empty() && initialState.empty())
+    {
+        const auto defaultState = profiles.find("default");
+        if (defaultState != profiles.end()) initialState = "default";
+        else if (profiles.size() == 1) initialState = profiles.begin()->first;
+        else
+        {
+            lua_pop(lua, 1);
+            error = "initialState is required when multiple states are defined";
+            return false;
+        }
+    }
+    if (!initialState.empty() && profiles.find(initialState) == profiles.end())
+    {
+        lua_pop(lua, 1);
+        error = "initialState does not name a configured state";
+        return false;
+    }
+    lua_pop(lua, 1);
+    return true;
+}
+
 uint8_t parseInheritance(lua_State *lua, const int spec)
 {
     uint8_t result = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
@@ -608,6 +703,8 @@ struct ATTACHMENT
     SPRING_SETTINGS spring;
     BLEND_SETTINGS blend;
     bool influenceEnabled = true;
+    std::unordered_map<std::string, STATE_PROFILE> stateProfiles;
+    std::string stateName;
     bool springInitialized = false;
     VEC3D springPositionVelocity;
     VEC3D springRotationVelocity;
@@ -902,6 +999,8 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const SPRING_SETTINGS &spring,
                                                   const BLEND_SETTINGS &blend,
                                                   bool influenceEnabled,
+                                                  const std::unordered_map<std::string, STATE_PROFILE> &stateProfiles,
+                                                  const std::string &stateName,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -1065,6 +1164,8 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const SPRING_SETTINGS &spring,
     const BLEND_SETTINGS &blend,
     const bool influenceEnabled,
+    const std::unordered_map<std::string, STATE_PROFILE> &stateProfiles,
+    const std::string &stateName,
     const int sourceReference,
     const int targetReference)
 {
@@ -1087,6 +1188,17 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->spring = spring;
     attachment->blend = blend;
     attachment->influenceEnabled = influenceEnabled;
+    attachment->stateProfiles = stateProfiles;
+    attachment->stateName = stateName;
+    if (!stateName.empty())
+    {
+        const auto found = attachment->stateProfiles.find(stateName);
+        if (found != attachment->stateProfiles.end())
+        {
+            attachment->influenceEnabled = found->second.influenceEnabled;
+            attachment->blend = found->second.blend;
+        }
+    }
     attachments.push_back(attachment);
     return attachment;
 }
@@ -1409,6 +1521,53 @@ int onAttachmentSetBlend(lua_State *lua)
     return 1;
 }
 
+int onAttachmentSetState(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment || !lua_isstring(lua, 2))
+        return fail(lua, "invalid attachment or state name");
+    const std::string name = lua_tostring(lua, 2);
+    const auto found = attachment->stateProfiles.find(name);
+    if (found == attachment->stateProfiles.end())
+        return fail(lua, "attachment state is not configured");
+    attachment->influenceEnabled = found->second.influenceEnabled;
+    attachment->blend = found->second.blend;
+    attachment->stateName = name;
+    attachment->springInitialized = false;
+    lua_pushboolean(lua, 1);
+    return 1;
+}
+
+int onAttachmentGetStateName(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment)
+    {
+        lua_pushnil(lua);
+        return 1;
+    }
+    lua_pushlstring(lua, attachment->stateName.c_str(), attachment->stateName.size());
+    return 1;
+}
+
+int onAttachmentGetStates(lua_State *lua)
+{
+    ATTACHMENT *attachment = getAttachment(lua, 1);
+    if (!attachment)
+    {
+        lua_pushnil(lua);
+        return 1;
+    }
+    lua_createtable(lua, static_cast<int>(attachment->stateProfiles.size()), 0);
+    int index = 1;
+    for (const auto &entry : attachment->stateProfiles)
+    {
+        lua_pushlstring(lua, entry.first.c_str(), entry.first.size());
+        lua_rawseti(lua, -2, index++);
+    }
+    return 1;
+}
+
 int onAttachmentSetInfluenceEnabled(lua_State *lua)
 {
     ATTACHMENT *attachment = getAttachment(lua, 1);
@@ -1553,6 +1712,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "status");
     lua_pushboolean(lua, attachment->influenceEnabled);
     lua_setfield(lua, -2, "influenceEnabled");
+    lua_pushlstring(lua, attachment->stateName.c_str(), attachment->stateName.size());
+    lua_setfield(lua, -2, "stateName");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_POSITION) != 0u);
     lua_setfield(lua, -2, "inheritPosition");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_ROTATION) != 0u);
@@ -1772,6 +1933,14 @@ int onAttach(lua_State *lua)
         return fail(lua, error.c_str());
     }
     const bool influenceEnabled = booleanField(lua, 1, "influenceEnabled", true);
+    std::unordered_map<std::string, STATE_PROFILE> stateProfiles;
+    std::string initialState;
+    if (!parseStateProfiles(lua, 1, influenceEnabled, blend, stateProfiles, initialState, error))
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, error.c_str());
+    }
     const POSE offset = parseOffset(lua, 1);
     const VEC3D aimPoint = vec3Field(lua, 1, "aimPoint", {});
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
@@ -1813,7 +1982,8 @@ int onAttach(lua_State *lua)
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
         id, sourceType, sourceBone, sourceSocket, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
-        aimLimits, spring, blend, influenceEnabled, sourceReference, targetReference);
+        aimLimits, spring, blend, influenceEnabled, stateProfiles, initialState,
+        sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");
@@ -1823,6 +1993,9 @@ int onAttach(lua_State *lua)
     lua_pushcfunction(lua, onAttachmentSetInherit); lua_setfield(lua, -2, "setInherit");
     lua_pushcfunction(lua, onAttachmentGetBlend); lua_setfield(lua, -2, "getBlend");
     lua_pushcfunction(lua, onAttachmentSetBlend); lua_setfield(lua, -2, "setBlend");
+    lua_pushcfunction(lua, onAttachmentSetState); lua_setfield(lua, -2, "setState");
+    lua_pushcfunction(lua, onAttachmentGetStateName); lua_setfield(lua, -2, "getStateName");
+    lua_pushcfunction(lua, onAttachmentGetStates); lua_setfield(lua, -2, "getStates");
     lua_pushcfunction(lua, onAttachmentSetInfluenceEnabled);
     lua_setfield(lua, -2, "setInfluenceEnabled");
     lua_pushcfunction(lua, onAttachmentIsInfluenceEnabled);

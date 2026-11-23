@@ -137,6 +137,27 @@ function M.validate(definition)
             return false, 'blend weight must be between 0 and 1'
         end
     end
+    if definition.states ~= nil then
+        if type(definition.states) ~= 'table' then return false, 'states must be a table' end
+        for name, state in pairs(definition.states) do
+            if type(name) ~= 'string' or name == '' or type(state) ~= 'table' then
+                return false, 'states must map names to tables'
+            end
+            if state.blend ~= nil then
+                if type(state.blend) ~= 'table' then return false, 'state blend must be a table' end
+                local weight = number(state.blend.weight, 1)
+                if weight < 0 or weight > 1 then
+                    return false, 'state blend weight must be between 0 and 1'
+                end
+            end
+        end
+        if definition.initialState ~= nil and definition.initialState ~= '' and
+                definition.states[definition.initialState] == nil then
+            return false, 'initialState does not name a configured state'
+        end
+    elseif definition.initialState ~= nil and definition.initialState ~= '' then
+        return false, 'initialState requires states'
+    end
     return true
 end
 
@@ -166,6 +187,30 @@ local function appendDefinition(output, definition)
     output[#output + 1] = string.format('    aimPoint = {x = %.17g, y = %.17g, z = %.17g},',
         number(aimPoint.x, 0), number(aimPoint.y, 0), number(aimPoint.z, 0))
     output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
+    if type(definition.initialState) == 'string' and definition.initialState ~= '' then
+        output[#output + 1] = '    initialState = ' .. quote(definition.initialState) .. ','
+    end
+    local states = definition.states
+    if type(states) == 'table' and next(states) ~= nil then
+        output[#output + 1] = '    states = {'
+        for name, state in pairs(states) do
+            output[#output + 1] = '        [' .. quote(name) .. '] = {'
+            output[#output + 1] = '            influenceEnabled = ' ..
+                tostring(state.influenceEnabled ~= false) .. ','
+            if type(state.blend) == 'table' then
+                output[#output + 1] = '            blend = {'
+                output[#output + 1] = '                enabled = ' .. tostring(state.blend.enabled == true) .. ','
+                output[#output + 1] = '                position = ' .. tostring(state.blend.position ~= false) .. ','
+                output[#output + 1] = '                rotation = ' .. tostring(state.blend.rotation ~= false) .. ','
+                output[#output + 1] = '                scale = ' .. tostring(state.blend.scale ~= false) .. ','
+                output[#output + 1] = string.format('                weight = %.17g,',
+                    number(state.blend.weight, 1))
+                output[#output + 1] = '            },'
+            end
+            output[#output + 1] = '        },'
+        end
+        output[#output + 1] = '    },'
+    end
     local aimLimits = definition.aimLimits
     if type(aimLimits) == 'table' then
         output[#output + 1] = '    aimLimits = {'
@@ -252,6 +297,8 @@ function M.build(definition)
     output[#output + 1] = '        aimAtSource = definition.aimAtSource,'
     output[#output + 1] = '        aimPoint = definition.aimPoint,'
     output[#output + 1] = '        influenceEnabled = definition.influenceEnabled,'
+    output[#output + 1] = '        initialState = definition.initialState,'
+    output[#output + 1] = '        states = definition.states,'
     output[#output + 1] = '        aimLimits = definition.aimLimits,'
     output[#output + 1] = '        spring = definition.spring,'
     output[#output + 1] = '        blend = definition.blend,'

@@ -56,6 +56,8 @@ local function newDefinition()
         aimPoint = vector(0, 0, 0),
         aimAtSource = false,
         influenceEnabled = true,
+        initialState = '',
+        states = {},
         aimLimits = {
             enabled = false,
             reference = 'dynamic',
@@ -2156,6 +2158,8 @@ function onLoop()
             aimAtSource = definition.aimAtSource == true,
             aimPoint = definition.aimPoint,
             influenceEnabled = definition.influenceEnabled ~= false,
+            initialState = definition.initialState,
+            states = definition.states,
             aimLimits = definition.aimLimits,
             spring = definition.spring,
             blend = definition.blend,
@@ -2246,6 +2250,7 @@ local function normalizeDefinition(value)
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
     result.aimAtSource = value.aimAtSource == true
     result.influenceEnabled = value.influenceEnabled ~= false
+    result.initialState = type(value.initialState) == 'string' and value.initialState or ''
     if type(value.aimPoint) == 'table' then
         for _, axis in ipairs({'x', 'y', 'z'}) do
             result.aimPoint[axis] = tonumber(value.aimPoint[axis]) or 0
@@ -2284,6 +2289,23 @@ local function normalizeDefinition(value)
         result.blend.rotation = value.blend.rotation ~= false
         result.blend.scale = value.blend.scale ~= false
         result.blend.weight = math.min(1, math.max(0, tonumber(value.blend.weight) or result.blend.weight))
+    end
+    if type(value.states) == 'table' then
+        for name, state in pairs(value.states) do
+            if type(name) == 'string' and type(state) == 'table' and name ~= '' then
+                local profile = {influenceEnabled = state.influenceEnabled ~= false}
+                if type(state.blend) == 'table' then
+                    profile.blend = {
+                        enabled = state.blend.enabled == true,
+                        position = state.blend.position ~= false,
+                        rotation = state.blend.rotation ~= false,
+                        scale = state.blend.scale ~= false,
+                        weight = math.min(1, math.max(0, tonumber(state.blend.weight) or 1)),
+                    }
+                end
+                result.states[name] = profile
+            end
+        end
     end
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false

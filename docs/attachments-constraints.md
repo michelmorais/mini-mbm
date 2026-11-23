@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.6**
-Status: **Phase 9 runtime attachment control implemented on top of the validated socket pipeline; constraint blending, look-at limits, editable aim points, and spring smoothing remain validated**
+Document version: **2.7**
+Status: **Phase 10 conditional attachment states implemented on top of the validated socket pipeline; runtime control, constraint blending, look-at limits, editable aim points, and spring smoothing remain validated**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -107,6 +107,11 @@ local attachment, err = attachments.attach {
         scale = true,
         weight = 1,
     },
+    initialState = "equipped", -- optional; selects one entry from states
+    states = {
+        equipped = {influenceEnabled = true, blend = {enabled = true, weight = 1}},
+        released = {influenceEnabled = false},
+    },
     offset = {
         position = {x = 0, y = 1.8, z = 0},
         rotation = {x = 0, y = 0, z = 0}, -- radians
@@ -136,6 +141,9 @@ An attachment object provides:
 | `setBlend(blend)` | boolean or `nil,error` | Updates blend settings without recreating the relation. |
 | `setInfluenceEnabled(enabled)` | boolean or `nil,error` | Enables or suspends target writes while keeping the relation alive. |
 | `isInfluenceEnabled()` | boolean | Reports whether the relation currently writes the target. |
+| `setState(name)` | boolean or `nil,error` | Applies a named runtime state profile. |
+| `getStateName()` | string | Returns the active configured state name. |
+| `getStates()` | table | Returns the configured state names. |
 | `captureOffset()` | boolean or `nil,error` | Captures the current target pose relative to the current source pose. |
 | `getEffectivePose()` | table or `nil,error` | Returns the target pose currently computed by the attachment. |
 | `getState()` | table | Returns active/invalid status, source type/name, inheritance flags, and offset. |
@@ -152,6 +160,11 @@ references.
 `setInfluenceEnabled(true)` resumes it using the current source and target poses. `setBlend()`
 accepts a partial table, so omitted fields retain their current values; its weight must remain in
 the range 0..1.
+
+`states` contains named profiles with optional `influenceEnabled` and partial `blend` settings.
+`initialState` selects the profile at attach time; when omitted, a `default` profile is preferred,
+or the only configured profile is selected. `setState()` changes the active profile atomically and
+resets spring integration so a state transition starts from the current target pose.
 
 ## Frame order and ownership
 

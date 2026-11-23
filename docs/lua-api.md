@@ -2156,6 +2156,8 @@ shortest-path interpolation for rotation.
 attachment exposes `getBlend()`, `setBlend(blend)`, `setInfluenceEnabled(enabled)`, and
 `isInfluenceEnabled()` for runtime transitions. `setBlend()` accepts a partial table and preserves
 omitted settings.
+Optional `states` entries can group these settings under names such as `equipped` and `released`;
+`initialState` selects the starting profile and `setState(name)` switches profiles atomically.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2167,6 +2169,11 @@ local relation, err = attachments.attach {
     aimAtSource = false,
     aimPoint = {x = 0, y = 0, z = 0},
     influenceEnabled = true,
+    initialState = "equipped",
+    states = {
+        equipped = {influenceEnabled = true, blend = {enabled = true, weight = 1}},
+        released = {influenceEnabled = false},
+    },
     aimLimits = {
         enabled = false,
         reference = "dynamic", -- or "captured"
