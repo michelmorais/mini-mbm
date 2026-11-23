@@ -744,7 +744,7 @@ end
 
 local function createAimPointMarker()
     local object = shape:new('3d', 0, 0, 0)
-    if not object:create(unitSphereVertices(), nil, 'attachments_source_aim_point_marker') then
+    if not object:create(cubeVertices(), nil, 'attachments_source_aim_point_marker') then
         object:destroy()
         return nil
     end
@@ -782,6 +782,11 @@ local function getTargetPivotMarkerRadius()
     S.targetPivotMarkerRadius = math.max(extent * 0.012, 0.25)
     S.targetPivotMarkerSignature = signature
     return S.targetPivotMarkerRadius
+end
+
+local function getAimPointHandleSize()
+    local targetExtent = getTargetPivotMarkerRadius() / 0.012
+    return math.max(targetExtent * 0.10, 0.01)
 end
 
 local function getSourceMeshBounds()
@@ -1342,8 +1347,7 @@ local function updateAimLimitsVisual()
         pitch_min = corner(0, limits.pitchMin),
         pitch_max = corner(0, limits.pitchMax),
     }
-    local targetExtent = getTargetPivotMarkerRadius() / 0.012
-    local handleSize = math.max(targetExtent * 0.10, 0.01)
+    local handleSize = getAimPointHandleSize()
     visual.handles = visual.handles or {}
     for name, point in pairs(handlePoints) do
         local handle = visual.handles[name]
@@ -1410,14 +1414,21 @@ local function updateGizmo()
         return
     end
     updateTargetPivotMarker()
-    if not S.selectedRole then hideGizmo(); return end
+    if not S.selectedRole and S.transformMode ~= 'aim_point' then hideGizmo(); return end
     if S.transformMode == 'pivot' and S.selectedRole ~= 'target' then hideGizmo(); return end
-    local entry = roleEntry(S.selectedRole)
-    if entry.selectable == false then hideGizmo(); return end
+    if S.transformMode == 'aim_point' and (not S.definition.aimAtSource or not S.source.object) then
+        hideGizmo()
+        return
+    end
+    local entry = S.transformMode == 'aim_point' and S.source or roleEntry(S.selectedRole)
+    if entry.selectable == false and S.transformMode ~= 'aim_point' then hideGizmo(); return end
     if not entry.object then hideGizmo(); return end
     local origin = {x = entry.pose.x, y = entry.pose.y, z = entry.pose.z}
     if S.transformMode == 'pivot' then
         origin = targetPivotWorldPosition(entry.pose)
+    elseif S.transformMode == 'aim_point' then
+        local point = sourceAimPointWorldPosition(getPreviewSourcePose() or S.source.pose)
+        origin = {x = point.x, y = point.y, z = point.z}
     end
     local length = math.max(entry.previewSize * 1.6, 45)
     local radius = math.max(entry.previewSize * 0.9, 30)
@@ -1447,7 +1458,8 @@ local function updateGizmo()
         if originChanged then object:setPos(origin.x, origin.y, origin.z) end
         object:setColor(table.unpack(axis.color))
         object.alwaysOnTop, object.alwaysOnTopPriority, object.alwaysRender = true, 10, true
-        object.visible = S.transformMode == 'move' or S.transformMode == 'pivot'
+        object.visible = S.transformMode == 'move' or S.transformMode == 'pivot' or
+            S.transformMode == 'aim_point'
     end
     local rings = {
         x = {u = axes.y, v = axes.z}, y = {u = axes.z, v = axes.x}, z = {u = axes.x, v = axes.y},
@@ -1479,9 +1491,11 @@ local function updateGizmo()
 end
 
 local function pickGizmoAxis(screenX, screenY)
-    if not S.selectedRole or (S.transformMode ~= 'move' and S.transformMode ~= 'pivot') or
+    if (not S.selectedRole and S.transformMode ~= 'aim_point') or
+            (S.transformMode ~= 'move' and S.transformMode ~= 'pivot' and
+             S.transformMode ~= 'aim_point') or
             not S.gizmo.origin or
-            roleEntry(S.selectedRole).selectable == false then
+            (S.transformMode ~= 'aim_point' and roleEntry(S.selectedRole).selectable == false) then
         return nil
     end
     local axes = {x = {x = 1, y = 0, z = 0}, y = {x = 0, y = 1, z = 0}, z = {x = 0, y = 0, z = 1}}
@@ -1582,6 +1596,21 @@ local function beginViewportInteraction(key, screenX, screenY)
                 z = {x = 0, y = 0, z = 1}})[axisName]
             local parameter = rayAxisParameter(screenX, screenY, S.gizmo.origin, axis)
             if parameter then
+                if S.transformMode == 'aim_point' then
+                    local source = getPreviewSourcePose() or S.source.pose
+                    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+                    S.gizmo.drag = {
+                        mode = 'aim_point', axis = axis,
+                        origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y, z = S.gizmo.origin.z},
+                        startParameter = parameter,
+                        baseAimPoint = vector(S.definition.aimPoint.x, S.definition.aimPoint.y,
+                            S.definition.aimPoint.z),
+                        sourceRotation = cloneRotation(sourceRotation),
+                        sourceScale = vector(source.sx, source.sy, source.sz),
+                    }
+                    S.cameraDrag = nil
+                    return
+                end
                 local drag = {mode = S.transformMode, axis = axis,
                     origin = {x = S.gizmo.origin.x, y = S.gizmo.origin.y, z = S.gizmo.origin.z},
                     startParameter = parameter, base = clonePose(roleEntry(S.selectedRole).pose)}
@@ -1644,6 +1673,24 @@ local function updateViewportInteraction(screenX, screenY)
                 else
                     limits.pitchMax = math.max(angle, limits.pitchMin)
                 end
+                S.target.manualOverride = false
+                markModified()
+            end
+            return
+        end
+        if drag.mode == 'aim_point' then
+            local parameter = rayAxisParameter(screenX, screenY, drag.origin, drag.axis)
+            if parameter then
+                local amount = parameter - drag.startParameter
+                local worldDelta = vector(drag.axis.x * amount, drag.axis.y * amount,
+                    drag.axis.z * amount)
+                local localDelta = rotateVector(transposeRotation(drag.sourceRotation), worldDelta)
+                if math.abs(drag.sourceScale.x) > 1e-6 then localDelta.x = localDelta.x / drag.sourceScale.x end
+                if math.abs(drag.sourceScale.y) > 1e-6 then localDelta.y = localDelta.y / drag.sourceScale.y end
+                if math.abs(drag.sourceScale.z) > 1e-6 then localDelta.z = localDelta.z / drag.sourceScale.z end
+                S.definition.aimPoint.x = drag.baseAimPoint.x + localDelta.x
+                S.definition.aimPoint.y = drag.baseAimPoint.y + localDelta.y
+                S.definition.aimPoint.z = drag.baseAimPoint.z + localDelta.z
                 S.target.manualOverride = false
                 markModified()
             end
@@ -1841,9 +1888,9 @@ updateAimPointMarker = function()
     if not S.aimPointMarker then return end
     local source = getPreviewSourcePose() or S.source.pose
     local point = sourceAimPointWorldPosition(source)
-    local radius = math.max(getTargetPivotMarkerRadius() * 0.9, 0.1)
+    local handleSize = getAimPointHandleSize()
     S.aimPointMarker:setPos(point.x, point.y, point.z)
-    S.aimPointMarker:setScale(radius, radius, radius)
+    S.aimPointMarker:setScale(handleSize, handleSize, handleSize)
     S.aimPointMarker.visible = not S.boneSelectionMode and S.definition.aimAtSource
 end
 
@@ -2448,7 +2495,8 @@ local function showObjects()
         tImGui.Separator()
         tImGui.Text(L('transform_mode'))
         local currentModeIndex = S.transformMode == 'rotate' and 2 or
-            (S.transformMode == 'pivot' and S.selectedRole == 'target' and 3 or 1)
+            (S.transformMode == 'pivot' and S.selectedRole == 'target' and 3 or
+             (S.transformMode == 'aim_point' and S.definition.aimAtSource and 4 or 1))
         local modeIndex = tImGui.RadioButton(L('move'), currentModeIndex, 1)
         tImGui.SameLine()
         modeIndex = tImGui.RadioButton(L('rotate'), modeIndex, 2)
@@ -2456,9 +2504,14 @@ local function showObjects()
             tImGui.SameLine()
             modeIndex = tImGui.RadioButton(L('move_pivot'), modeIndex, 3)
         end
+        if S.definition.aimAtSource then
+            tImGui.SameLine()
+            modeIndex = tImGui.RadioButton(L('move_aim_point'), modeIndex, 4)
+        end
         local nextMode
         if modeIndex == 2 then nextMode = 'rotate'
         elseif modeIndex == 3 and S.selectedRole == 'target' then nextMode = 'pivot'
+        elseif modeIndex == 4 and S.definition.aimAtSource then nextMode = 'aim_point'
         else nextMode = 'move' end
         if nextMode ~= S.transformMode then
             S.transformMode = nextMode
@@ -2467,7 +2520,8 @@ local function showObjects()
         end
         local help = L('move_gizmo_help')
         if S.transformMode == 'rotate' then help = L('rotate_gizmo_help')
-        elseif S.transformMode == 'pivot' then help = L('move_pivot_gizmo_help') end
+        elseif S.transformMode == 'pivot' then help = L('move_pivot_gizmo_help')
+        elseif S.transformMode == 'aim_point' then help = L('move_aim_point_gizmo_help') end
         tImGui.TextWrapped(help)
     end
     tImGui.End()

@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.3**
-Status: **Phase 7 look-at limits, explicit aim points, and spring smoothing implemented on top of the validated socket pipeline**
+Document version: **2.4**
+Status: **Phase 7 look-at limits, editable aim points, and spring smoothing implemented on top of the validated socket pipeline**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -284,6 +284,9 @@ and rotation can be enabled independently.
 target points toward this point after the source rotation and scale are applied. The default zero
 vector preserves the original behavior of aiming at the source origin. This point changes only the
 look-at direction; attachment position continues to use the normal source offset and target pivot.
+In the Attachment Editor, the point is shown as a pink cube with the same 10% mesh-relative size as
+the yaw/pitch handles. Select **Move aim point** to activate the XYZ gizmo and edit the point in
+the viewport.
 
 This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
 The next constraint stages can add blending without changing the basic
