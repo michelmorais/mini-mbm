@@ -184,6 +184,7 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
 
     message("-DUSE_BOX2D=${USE_BOX2D}             : Unified Box2D 2.4.1 Lua plugin")
     message("-DUSE_BOX2D_PARTICLES=${USE_BOX2D_PARTICLES} : Optional LiquidFun particles in the unified plugin")
+    message("-DUSE_ATTACHMENTS=${USE_ATTACHMENTS}       : Attachments and constraints Lua plugin")
     if(USE_BOX2D)
         message("box2dLiquidFun                         : Compatibility entry points use unified Box2D; fluids require particles ON")
     else()
