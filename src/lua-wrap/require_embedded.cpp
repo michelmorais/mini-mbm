@@ -53,6 +53,13 @@ extern "C"
 #endif
 #endif
 
+#if defined USE_ATTACHMENTS
+    #include <attachments/attachments-lua.h>
+#ifndef REQUIRE_EMBEDDED
+    #define REQUIRE_EMBEDDED
+#endif
+#endif
+
 #if defined REQUIRE_EMBEDDED
     #pragma message("REQUIRE_EMBEDDED is enabled, one or more library is linked, usually this is for ANDROID")
     #pragma message("plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)")
@@ -92,6 +99,13 @@ extern "C"
             if((strcmp(name,"interaction_animation_runtime") == 0 ||
                 strcmp(name,"libinteraction_animation_runtime") == 0))
                 return luaopen_interaction_animation_runtime(lua);
+        #endif
+
+        #if defined USE_ATTACHMENTS
+            #pragma message("Using attachments embedded for this platform")
+            if((strcmp(name,"attachments") == 0 ||
+                strcmp(name,"libattachments") == 0))
+                return luaopen_attachments(lua);
         #endif
         lua_pushnil(lua);
         return 1;

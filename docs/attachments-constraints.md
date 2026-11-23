@@ -20,6 +20,37 @@ target during `PLUGIN::onLoop`. It does not load assets, discover scene objects,
 or require a Lua callback every frame. The game supplies the source and target
 objects explicitly.
 
+### Embedded loading on mobile platforms
+
+Android and iOS builds cannot depend on the normal runtime Lua shared-library
+lookup for every plugin. The engine therefore links the selected plugin into
+the application and registers its Lua entry point in
+`src/lua-wrap/require_embedded.cpp`.
+
+When `USE_ATTACHMENTS=1` is enabled for Android, iOS, or the macOS App Store
+profile, that loader includes `attachments-lua.h` and maps both module names to
+the same entry point:
+
+```text
+attachments     -> luaopen_attachments
+libattachments  -> luaopen_attachments
+```
+
+`framework-lua.cpp` installs a wrapper around Lua's `require`. It first asks the
+embedded loader for the module and falls back to the normal Lua loader when the
+module is not embedded. Application Lua code therefore keeps the same form on
+all supported platforms:
+
+```lua
+local attachments = require "attachments"
+```
+
+To embed another plugin, its platform build must define the corresponding
+`USE_*` symbol, link the plugin target into the application, include the plugin
+Lua header in `require_embedded.cpp`, and map its module name to its exported
+`luaopen_*` function. Plugins keep the standard shared-library path on desktop
+builds.
+
 ## Editor
 
 The authoring tool is `editor/attachments_editor.lua`. It is independent from
