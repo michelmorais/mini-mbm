@@ -1696,6 +1696,7 @@ function onLoop()
             target = target,
             sourceType = definition.sourceType,
             inherit = definition.inherit,
+            aimAtSource = definition.aimAtSource == true,
             offset = definition.offset,
             targetPivot = definition.targetPivot,
         }
