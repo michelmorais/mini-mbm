@@ -66,6 +66,7 @@ local function newDefinition()
         version = 4,
         source = 'source',
         target = 'target',
+        targetSource = 'source',
         sourceType = 'root',
         sourceBone = '',
         sourceSocket = '',
@@ -163,6 +164,7 @@ local S = {
     showXZPlane = true,
     showAimLimits = false,
     showStates = false,
+    chainStatus = '',
     boneSelectionMode = false,
     boneSelectionCamera = nil,
     boneSelectionTargetVisible = nil,
@@ -368,6 +370,7 @@ end
 
 local cloneBlend
 local markModified
+local getPreviewSourcePose
 
 local function copyVector(value, fallback)
     value = value or fallback or vector(0, 0, 0)
@@ -378,6 +381,7 @@ local function copyTargetRecord(record)
     local inherit = record.inherit or {}
     local result = {
         name = record.name or 'target',
+        source = record.source or 'source',
         inherit = {
             position = inherit.position ~= false,
             rotation = inherit.rotation ~= false,
@@ -425,6 +429,7 @@ end
 local function snapshotActiveTarget()
     local record = {
         name = S.definition.target,
+        source = S.definition.targetSource or S.definition.source,
         inherit = S.definition.inherit,
         aimAtSource = S.definition.aimAtSource,
         aimPoint = S.definition.aimPoint,
@@ -474,6 +479,7 @@ local function activateTargetDefinition(index)
     S.springState = S.target.springState or newSpringState()
     S.target.springState = S.springState
     S.definition.target = record.name
+    S.definition.targetSource = record.source or S.definition.source
     S.definition.inherit = record.inherit
     S.definition.aimAtSource = record.aimAtSource
     S.definition.aimPoint = record.aimPoint
@@ -498,6 +504,23 @@ local function selectTarget(index)
     S.targetPivotMarkerRadius, S.targetPivotMarkerSignature = nil, nil
     S.dirtyPreview = true
     return true
+end
+
+local function targetIndexByName(name)
+    for index, record in ipairs(S.definition.targets or {}) do
+        if record.name == name then return index end
+    end
+    return nil
+end
+
+local function getActiveTargetSourcePose()
+    local sourceName = S.definition.targetSource or S.definition.source
+    if sourceName == S.definition.source then
+        return getPreviewSourcePose() or clonePose(S.source.pose)
+    end
+    local sourceIndex = targetIndexByName(sourceName)
+    if not sourceIndex or not S.targets[sourceIndex] then return nil end
+    return clonePose(S.targets[sourceIndex].pose)
 end
 
 local function addTarget()
@@ -543,6 +566,29 @@ local function removeTarget()
     setStatus(L('target_removed'))
 end
 
+local function setSourceBindingName(name)
+    local oldName = S.definition.source
+    S.definition.source = name
+    for _, record in ipairs(S.definition.targets) do
+        if record.source == oldName then record.source = name end
+    end
+    if S.definition.targetSource == oldName then S.definition.targetSource = name end
+    markModified()
+end
+
+local function setTargetBindingName(name)
+    local oldName = S.definition.target
+    S.definition.target = name
+    local record = S.definition.targets[S.selectedTargetIndex]
+    if record then
+        record.name = name
+        for index, other in ipairs(S.definition.targets) do
+            if index ~= S.selectedTargetIndex and other.source == oldName then other.source = name end
+        end
+    end
+    markModified()
+end
+
 local function destroySourceSkeletonVisuals()
     for _, visual in pairs(S.source.boneVisuals) do
         if visual.object then visual.object:destroy() end
@@ -569,7 +615,6 @@ local updateAimPointMarker
 local updateTargetPivotMarker
 local showTargetPivotFields
 local showAimPointFields
-local getPreviewSourcePose
 local captureOffset
 local captureAimReference
 
@@ -1468,7 +1513,7 @@ local function aimBaseRotation(source)
 end
 
 captureAimReference = function(sourceOverride)
-    local source = sourceOverride or getPreviewSourcePose() or S.source.pose
+    local source = sourceOverride or getActiveTargetSourcePose() or S.source.pose
     if not source then return false end
     S.definition.aimLimits.referenceRotationMatrix = cloneRotation(dynamicAimBaseRotation(source))
     return true
@@ -1565,7 +1610,7 @@ local function updateAimLimitsVisual()
         hideAimLimitsVisual()
         return
     end
-    local source = getPreviewSourcePose() or S.source.pose
+    local source = getActiveTargetSourcePose() or S.source.pose
     local baseRotation = aimBaseRotation(source)
     local origin = targetPivotWorldPosition(S.target.pose)
     local radius = math.max(S.target.previewSize * 1.8, 45)
@@ -1721,7 +1766,7 @@ local function updateGizmo()
     if S.transformMode == 'pivot' then
         origin = targetPivotWorldPosition(entry.pose)
     elseif S.transformMode == 'aim_point' then
-        local point = sourceAimPointWorldPosition(getPreviewSourcePose() or S.source.pose)
+        local point = sourceAimPointWorldPosition(getActiveTargetSourcePose() or S.source.pose)
         origin = {x = point.x, y = point.y, z = point.z}
     end
     local length = math.max(entry.previewSize * 1.6, 45)
@@ -1853,7 +1898,7 @@ local function beginViewportInteraction(key, screenX, screenY)
     if key == 0 then
         local aimHandle = pickAimLimitsHandle(screenX, screenY)
         if aimHandle then
-            local source = getPreviewSourcePose() or S.source.pose
+            local source = getActiveTargetSourcePose() or S.source.pose
             local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
             local offsetRotation = S.definition.offset.rotationMatrix or
                 eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
@@ -1891,7 +1936,7 @@ local function beginViewportInteraction(key, screenX, screenY)
             local parameter = rayAxisParameter(screenX, screenY, S.gizmo.origin, axis)
             if parameter then
                 if S.transformMode == 'aim_point' then
-                    local source = getPreviewSourcePose() or S.source.pose
+                    local source = getActiveTargetSourcePose() or S.source.pose
                     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
                     S.gizmo.drag = {
                         mode = 'aim_point', axis = axis,
@@ -2073,8 +2118,8 @@ local function endViewportInteraction(key)
     if key == 0 or key == 1 then S.cameraDrag = nil end
 end
 
-local function calculateTargetPose(delta)
-    local source, target = getPreviewSourcePose() or S.source.pose, S.target.pose
+local function calculateTargetPose(delta, sourceOverride)
+    local source, target = sourceOverride or getActiveTargetSourcePose() or S.source.pose, S.target.pose
     local result = clonePose(target)
     if not previewInfluenceEnabled() then return result end
     local inherit = S.definition.inherit
@@ -2201,7 +2246,7 @@ end
 
 updateAimPointMarker = function()
     if not S.aimPointMarker then return end
-    local source = getPreviewSourcePose() or S.source.pose
+    local source = getActiveTargetSourcePose() or S.source.pose
     local point = sourceAimPointWorldPosition(source)
     local handleSize = getAimPointHandleSize()
     S.aimPointMarker:setPos(point.x, point.y, point.z)
@@ -2222,23 +2267,56 @@ updateTargetPivotMarker = function()
          math.abs(S.definition.targetPivot.z) > 1e-6)
 end
 
+local function evaluateTargetPreview(index, delta, visiting, evaluated, errors)
+    if evaluated[index] then return evaluated[index].pose, evaluated[index].sourcePose end
+    if visiting[index] then errors.cycle = true; return nil, nil, true end
+    visiting[index] = true
+    local record = S.definition.targets[index]
+    activateTargetDefinition(index)
+    local sourceName = record.source or S.definition.source
+    local sourcePose
+    if sourceName == S.definition.source then
+        sourcePose = getPreviewSourcePose() or S.source.pose
+    else
+        local sourceIndex = targetIndexByName(sourceName)
+        if sourceIndex then
+            sourcePose = evaluateTargetPreview(sourceIndex, delta, visiting, evaluated, errors)
+        else
+            errors.invalid = true
+        end
+    end
+    activateTargetDefinition(index)
+    if not sourcePose then
+        errors.invalid = true
+        sourcePose = getPreviewSourcePose() or S.source.pose
+    end
+    if not S.target.manualOverride then S.target.pose = calculateTargetPose(delta, sourcePose) end
+    applyMarker('target', S.target.pose)
+    local relation = ensureRelationLine(index)
+    local targetPivot = targetPivotWorldPosition(S.target.pose)
+    relation:set({sourcePose.x, sourcePose.y, sourcePose.z,
+        targetPivot.x, targetPivot.y, targetPivot.z}, 1)
+    relation.visible = not S.boneSelectionMode
+    syncActiveTargetDefinition()
+    visiting[index] = nil
+    evaluated[index] = {pose = clonePose(S.target.pose), sourcePose = clonePose(sourcePose)}
+    return evaluated[index].pose, evaluated[index].sourcePose
+end
+
 local function rebuildPreview(delta)
     ensureTargetDefinitions()
     local selectedTargetIndex = S.selectedTargetIndex
     syncActiveTargetDefinition()
     applyMarker('source', S.source.pose)
     updateSourceSkeletonVisuals()
-    local source = getPreviewSourcePose() or S.source.pose
+    local visiting, evaluated, errors = {}, {}, {}
     for index = 1, #S.definition.targets do
-        activateTargetDefinition(index)
-        if not S.target.manualOverride then S.target.pose = calculateTargetPose(delta) end
-        applyMarker('target', S.target.pose)
-        local relation = ensureRelationLine(index)
-        local targetPivot = targetPivotWorldPosition(S.target.pose)
-        relation:set({source.x, source.y, source.z,
-            targetPivot.x, targetPivot.y, targetPivot.z}, 1)
-        relation.visible = not S.boneSelectionMode
-        syncActiveTargetDefinition()
+        evaluateTargetPreview(index, delta, visiting, evaluated, errors)
+    end
+    local chainMessage = errors.cycle and L('target_cycle') or errors.invalid and L('target_source_invalid') or ''
+    if chainMessage ~= S.chainStatus then
+        S.chainStatus = chainMessage
+        if chainMessage ~= '' then setStatus(chainMessage, true) end
     end
     for index = #S.definition.targets + 1, #S.relationLines do
         S.relationLines[index].visible = false
@@ -2251,7 +2329,7 @@ local function rebuildPreview(delta)
 end
 
 captureOffset = function(targetPoseOverride)
-    local source = getPreviewSourcePose() or S.source.pose
+    local source = getActiveTargetSourcePose() or S.source.pose
     local target = targetPoseOverride or S.target.pose
     local inherit = S.definition.inherit
     local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
@@ -2369,6 +2447,7 @@ local definition = project.definition
 local attachments = require 'attachments'
 local source
 local targets = {}
+local targetsByName = {}
 local previewRelations = nil
 
 local function cubeVertices()
@@ -2418,6 +2497,7 @@ function onInitScene()
     source = loadRole('source', definition.editor)
     for index, targetDefinition in ipairs(definition.targets or {}) do
         targets[index] = loadRole('target_' .. index, targetDefinition.editor or {})
+        targetsByName[targetDefinition.name] = targets[index]
     end
     local camera = mbm.getCamera('3d')
     local orbit = project.camera or {azimuth = 0.3, elevation = 0.3, distance = 700,
@@ -2446,8 +2526,12 @@ function onLoop()
         end
         previewRelations = {}
         for index, targetDefinition in ipairs(definition.targets or {}) do
+            local relationSource = targetDefinition.source == definition.source and source or
+                targetsByName[targetDefinition.source]
+            assert(relationSource, 'Could not resolve attachment source: ' ..
+                tostring(targetDefinition.source))
             local specification = {
-                source = source,
+                source = relationSource,
                 target = targets[index],
                 sourceType = definition.sourceType,
                 inherit = targetDefinition.inherit,
@@ -2652,6 +2736,7 @@ local function normalizeDefinition(value)
     local function targetRecordFromValue(raw, fallbackName)
         local record = {
             name = tostring(raw.name or fallbackName or result.target),
+            source = type(raw.source) == 'string' and raw.source ~= '' and raw.source or result.source,
             inherit = {
                 position = result.inherit.position,
                 rotation = result.inherit.rotation,
@@ -2736,6 +2821,7 @@ local function normalizeDefinition(value)
     if #result.targets == 0 then result.targets[1] = baseTarget end
     local firstTarget = result.targets[1]
     result.target = firstTarget.name
+    result.targetSource = firstTarget.source or result.source
     result.inherit = firstTarget.inherit
     result.aimAtSource = firstTarget.aimAtSource
     result.aimPoint = firstTarget.aimPoint
@@ -2958,7 +3044,7 @@ local function showObjects()
         end
         tImGui.SetNextItemWidth(210)
         local sourceChanged, sourceName = tImGui.InputText(L('source_name'), S.definition.source)
-        if sourceChanged then S.definition.source = sourceName; markModified() end
+        if sourceChanged then setSourceBindingName(sourceName) end
         showViewSelectable('source')
         showRoleAsset('source')
         if tImGui.Selectable(L('target') .. ': ' .. roleName('target'), S.selectedRole == 'target') then
@@ -2966,7 +3052,23 @@ local function showObjects()
         end
         tImGui.SetNextItemWidth(210)
         local targetChanged, targetName = tImGui.InputText(L('target_name'), S.definition.target)
-        if targetChanged then S.definition.target = targetName; markModified() end
+        if targetChanged then setTargetBindingName(targetName) end
+        local sourceOptions = {S.definition.source}
+        for index, targetDefinition in ipairs(S.definition.targets) do
+            if index ~= S.selectedTargetIndex and targetDefinition.name ~= '' then
+                sourceOptions[#sourceOptions + 1] = targetDefinition.name
+            end
+        end
+        local selectedSource = 1
+        for index, sourceNameValue in ipairs(sourceOptions) do
+            if sourceNameValue == S.definition.targetSource then selectedSource = index; break end
+        end
+        tImGui.SetNextItemWidth(210)
+        local sourceTargetChanged, nextSourceTarget = tImGui.Combo(L('target_source'), selectedSource, sourceOptions)
+        if sourceTargetChanged and sourceOptions[nextSourceTarget] then
+            S.definition.targetSource = sourceOptions[nextSourceTarget]
+            markModified()
+        end
         showViewSelectable('target')
         showRoleAsset('target')
         tImGui.TextWrapped(L('runtime_id_help'))

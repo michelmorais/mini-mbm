@@ -1,7 +1,7 @@
 # Attachments and constraints
 
 Document version: **2.8**
-Status: **Phase 11 multi-target authoring and runtime export implemented on top of the validated conditional-state and socket pipelines**
+Status: **Phase 12 multi-target authoring, runtime export, and attachment chains implemented on top of the validated conditional-state and socket pipelines**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -209,6 +209,9 @@ assert(relations, errorMessage) -- relations[1], relations[2], ...
 The generated module validates the binding names, builds one `attachments.attach` specification
 per entry in `targets`, and returns a table of relations or an error. It contains only runtime fields; editor-only mesh
 paths, preview poses, selection state, and language settings are not exported.
+Each target may name the root source or another target as its `source`, enabling chains such as
+`character -> sword -> effect`. The exporter validates missing sources and cycles before runtime
+relations are created.
 
 Its UX follows the interaction animation editor: a file/options menu, an objects panel, an
 attachment-properties panel, a camera panel, and a lower preview panel. The viewport uses a 3D

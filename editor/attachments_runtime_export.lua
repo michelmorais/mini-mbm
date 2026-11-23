@@ -136,6 +136,28 @@ function M.validate(definition)
         if names[target.name] then return false, 'target binding names must be unique' end
         names[target.name] = true
     end
+    local visiting, visited = {}, {}
+    local function visitTarget(name)
+        if name == definition.source then return true end
+        if visited[name] then return true end
+        if visiting[name] then return false, 'attachment target chain contains a cycle' end
+        local index
+        for targetIndex, target in ipairs(definition.targets) do
+            if target.name == name then index = targetIndex; break end
+        end
+        if not index then return false, 'attachment target source does not exist: ' .. tostring(name) end
+        visiting[name] = true
+        local sourceName = definition.targets[index].source or definition.source
+        local valid, errorMessage = visitTarget(sourceName)
+        visiting[name] = nil
+        if not valid then return false, errorMessage end
+        visited[name] = true
+        return true
+    end
+    for _, target in ipairs(definition.targets) do
+        local valid, errorMessage = visitTarget(target.name)
+        if not valid then return false, errorMessage end
+    end
     if definition.states ~= nil then
         if type(definition.states) ~= 'table' then return false, 'states must be a table' end
         for name, state in pairs(definition.states) do
@@ -191,6 +213,7 @@ local function appendDefinition(output, definition)
         local offset = target.offset
         output[#output + 1] = '        [' .. index .. '] = {'
         output[#output + 1] = prefix .. 'name = ' .. quote(target.name) .. ','
+        output[#output + 1] = prefix .. 'source = ' .. quote(target.source or definition.source) .. ','
         output[#output + 1] = prefix .. 'inherit = {'
         output[#output + 1] = prefix .. '    position = ' .. tostring(inherit.position == true) .. ','
         output[#output + 1] = prefix .. '    rotation = ' .. tostring(inherit.rotation == true) .. ','
@@ -282,9 +305,12 @@ function M.build(definition)
     output[#output + 1] = '    local relations = {}'
     output[#output + 1] = '    for index, targetDefinition in ipairs(definition.targets) do'
     output[#output + 1] = '        local target = bindings[targetDefinition.name]'
+    output[#output + 1] = '        local sourceName = targetDefinition.source or definition.source'
+    output[#output + 1] = '        local relationSource = bindings[sourceName]'
     output[#output + 1] = '        if not target then return nil, "missing target binding: " .. targetDefinition.name end'
+    output[#output + 1] = '        if not relationSource then return nil, "missing source binding: " .. sourceName end'
     output[#output + 1] = '        local specification = {'
-    output[#output + 1] = '            source = source,'
+    output[#output + 1] = '            source = relationSource,'
     output[#output + 1] = '            target = target,'
     output[#output + 1] = '            sourceType = definition.sourceType,'
     output[#output + 1] = '            inherit = targetDefinition.inherit,'
