@@ -875,7 +875,8 @@ namespace mbm
         API_IMPL bool getArticulatedPartTransform(const ARTICULATED_ANIMATION_PLAYER &player,
                                                   const char *partName, const MATRIX *modelMatrix,
                                                   uint64_t *partId, MATRIX *matrix, VEC3 *position,
-                                                  float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept;
+                                                  VEC3 *pivotPosition, float rotation[4],
+                                                  VEC3 *angle, VEC3 *scale) const noexcept;
         API_IMPL void updateArticulatedAnimations(ARTICULATED_ANIMATION_PLAYER &player,
                                                   const float delta, RENDERIZABLE *owner,
                                                   OnEndAnimation onEndAnimation) const;

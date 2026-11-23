@@ -386,6 +386,9 @@ local function copyTargetRecord(record)
     local result = {
         name = record.name or 'target',
         source = record.source or 'source',
+        sourceBone = record.sourceBone or '',
+        sourceSocket = record.sourceSocket or '',
+        sourcePart = record.sourcePart or '',
         inherit = {
             position = inherit.position ~= false,
             rotation = inherit.rotation ~= false,
@@ -434,6 +437,9 @@ local function snapshotActiveTarget()
     local record = {
         name = S.definition.target,
         source = S.definition.targetSource or S.definition.source,
+        sourceBone = S.definition.sourceBone,
+        sourceSocket = S.definition.sourceSocket,
+        sourcePart = S.definition.sourcePart,
         inherit = S.definition.inherit,
         aimAtSource = S.definition.aimAtSource,
         aimPoint = S.definition.aimPoint,
@@ -484,6 +490,9 @@ local function activateTargetDefinition(index)
     S.target.springState = S.springState
     S.definition.target = record.name
     S.definition.targetSource = record.source or S.definition.source
+    S.definition.sourceBone = record.sourceBone or ''
+    S.definition.sourceSocket = record.sourceSocket or ''
+    S.definition.sourcePart = record.sourcePart or ''
     S.definition.inherit = record.inherit
     S.definition.aimAtSource = record.aimAtSource
     S.definition.aimPoint = record.aimPoint
@@ -1600,8 +1609,9 @@ getPreviewSourcePose = function()
         if ok and type(part) == 'table' and type(part.position) == 'table' and
                 type(part.angle) == 'table' and type(part.scale) == 'table' then
             local partMatrixPose = matrixPose(part.matrix)
+            local anchor = type(part.pivotPosition) == 'table' and part.pivotPosition or part.position
             return {
-                x = part.position.x or 0, y = part.position.y or 0, z = part.position.z or 0,
+                x = anchor.x or 0, y = anchor.y or 0, z = anchor.z or 0,
                 rx = part.angle.x or 0, ry = part.angle.y or 0, rz = part.angle.z or 0,
                 sx = part.scale.x or 1, sy = part.scale.y or 1, sz = part.scale.z or 1,
                 rotation = partMatrixPose and partMatrixPose.rotation or nil,
@@ -2682,17 +2692,19 @@ end
 
 function onLoop()
     if not previewRelations then
-        if definition.sourceType == 'bone' and
-                not source:getSkeletalBoneTransform(definition.sourceBone, 'world') then
-            return
-        end
-        if definition.sourceType == 'socket' and
-                not source:getSkeletalSocketTransform(definition.sourceSocket, 'world') then
-            return
-        end
-        if definition.sourceType == 'articulated_part' and
-                not source:getArticulatedPartTransform(definition.sourcePart, 'world') then
-            return
+        if definition.sourceType == 'bone' or definition.sourceType == 'socket' or
+                definition.sourceType == 'articulated_part' then
+            for _, targetDefinition in ipairs(definition.targets or {}) do
+                local sourceName = targetDefinition.source or definition.source
+                if sourceName == definition.source then
+                    local valid = definition.sourceType == 'bone' and
+                        source:getSkeletalBoneTransform(targetDefinition.sourceBone or definition.sourceBone, 'world') or
+                        definition.sourceType == 'socket' and
+                        source:getSkeletalSocketTransform(targetDefinition.sourceSocket or definition.sourceSocket, 'world') or
+                        source:getArticulatedPartTransform(targetDefinition.sourcePart or definition.sourcePart, 'world')
+                    if not valid then return end
+                end
+            end
         end
         previewRelations = {}
         for index, targetDefinition in ipairs(definition.targets or {}) do
@@ -2717,14 +2729,14 @@ function onLoop()
                 offset = targetDefinition.offset,
                 targetPivot = targetDefinition.targetPivot,
             }
-            if usesOriginalSource and definition.sourceBone and definition.sourceBone ~= '' then
-                specification.sourceBone = definition.sourceBone
+            if usesOriginalSource and targetDefinition.sourceBone and targetDefinition.sourceBone ~= '' then
+                specification.sourceBone = targetDefinition.sourceBone
             end
-            if usesOriginalSource and definition.sourceSocket and definition.sourceSocket ~= '' then
-                specification.sourceSocket = definition.sourceSocket
+            if usesOriginalSource and targetDefinition.sourceSocket and targetDefinition.sourceSocket ~= '' then
+                specification.sourceSocket = targetDefinition.sourceSocket
             end
-            if usesOriginalSource and definition.sourcePart and definition.sourcePart ~= '' then
-                specification.sourcePart = definition.sourcePart
+            if usesOriginalSource and targetDefinition.sourcePart and targetDefinition.sourcePart ~= '' then
+                specification.sourcePart = targetDefinition.sourcePart
             end
             local relation, errorMessage = attachments.attach(specification)
             assert(relation, errorMessage)
@@ -2919,6 +2931,9 @@ local function normalizeDefinition(value)
         local record = {
             name = tostring(raw.name or fallbackName or result.target),
             source = type(raw.source) == 'string' and raw.source ~= '' and raw.source or result.source,
+            sourceBone = type(raw.sourceBone) == 'string' and raw.sourceBone or result.sourceBone,
+            sourceSocket = type(raw.sourceSocket) == 'string' and raw.sourceSocket or result.sourceSocket,
+            sourcePart = type(raw.sourcePart) == 'string' and raw.sourcePart or result.sourcePart,
             inherit = {
                 position = result.inherit.position,
                 rotation = result.inherit.rotation,
@@ -3004,6 +3019,9 @@ local function normalizeDefinition(value)
     local firstTarget = result.targets[1]
     result.target = firstTarget.name
     result.targetSource = firstTarget.source or result.source
+    result.sourceBone = firstTarget.sourceBone or result.sourceBone
+    result.sourceSocket = firstTarget.sourceSocket or result.sourceSocket
+    result.sourcePart = firstTarget.sourcePart or result.sourcePart
     result.inherit = firstTarget.inherit
     result.aimAtSource = firstTarget.aimAtSource
     result.aimPoint = firstTarget.aimPoint
@@ -3080,6 +3098,29 @@ local function loadDefinition(path)
         end
         definition.sourcePart = firstPart
         repairedSource = true
+    end
+    if definition.sourceType == 'articulated_part' then
+        for _, targetDefinition in ipairs(definition.targets) do
+            if targetDefinition.sourcePart == '' then
+                targetDefinition.sourcePart = definition.sourcePart
+                repairedSource = true
+            end
+        end
+    end
+    if definition.sourceType == 'bone' then
+        for _, targetDefinition in ipairs(definition.targets) do
+            if targetDefinition.sourceBone == '' then
+                targetDefinition.sourceBone = definition.sourceBone
+                repairedSource = true
+            end
+        end
+    elseif definition.sourceType == 'socket' then
+        for _, targetDefinition in ipairs(definition.targets) do
+            if targetDefinition.sourceSocket == '' then
+                targetDefinition.sourceSocket = definition.sourceSocket
+                repairedSource = true
+            end
+        end
     end
     if definition.editor.sourceAnimation ~= '' then
         for index, name in ipairs(S.source.animationClips) do
@@ -3393,6 +3434,7 @@ local function showAttachment()
             {L('root_transform'), L('bone_transform'), L('socket_transform'),
              L('articulated_part_transform')})
         if sourceTypeChanged then
+            syncActiveTargetDefinition()
             stopSourceAnimation()
             S.definition.sourceType = nextSourceType == 2 and 'bone' or
                 (nextSourceType == 3 and 'socket' or
@@ -3410,11 +3452,21 @@ local function showAttachment()
                 S.definition.sourceBone = ''
                 S.definition.sourcePart = ''
                 S.definition.sourceSocket = S.source.socketCatalog[1] or ''
+                for _, targetDefinition in ipairs(S.definition.targets) do
+                    if targetDefinition.sourceSocket == '' then
+                        targetDefinition.sourceSocket = S.definition.sourceSocket
+                    end
+                end
                 setBoneSelectionMode(false)
             else
                 S.definition.sourceBone = ''
                 S.definition.sourceSocket = ''
                 S.definition.sourcePart = S.source.articulatedPartCatalog[1] or ''
+                for _, targetDefinition in ipairs(S.definition.targets) do
+                    if targetDefinition.sourcePart == '' then
+                        targetDefinition.sourcePart = S.definition.sourcePart
+                    end
+                end
                 setBoneSelectionMode(false)
             end
             refreshSourceAnimationCatalog()

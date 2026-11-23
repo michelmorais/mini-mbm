@@ -247,16 +247,17 @@ namespace mbm
         uint64_t partId = 0;
         MATRIX matrix;
         VEC3 position;
+        VEC3 pivotPosition;
         float rotation[4] = {};
         VEC3 angle;
         VEC3 scale;
         if (!mesh->getArticulatedPartTransform(partName, worldSpace, &partId, &matrix,
-                                               &position, rotation, &angle, &scale))
+                                               &position, &pivotPosition, rotation, &angle, &scale))
         {
             lua_pushnil(lua);
             return 1;
         }
-        lua_createtable(lua, 0, 7);
+        lua_createtable(lua, 0, 9);
         char id[17] = "";
         snprintf(id, sizeof(id), "%016llx", static_cast<unsigned long long>(partId));
         lua_pushstring(lua, id); lua_setfield(lua, -2, "partId");
@@ -267,6 +268,11 @@ namespace mbm
         lua_pushnumber(lua, position.y); lua_setfield(lua, -2, "y");
         lua_pushnumber(lua, position.z); lua_setfield(lua, -2, "z");
         lua_setfield(lua, -2, "position");
+        lua_createtable(lua, 0, 3);
+        lua_pushnumber(lua, pivotPosition.x); lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, pivotPosition.y); lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, pivotPosition.z); lua_setfield(lua, -2, "z");
+        lua_setfield(lua, -2, "pivotPosition");
         lua_createtable(lua, 0, 4);
         lua_pushnumber(lua, rotation[0]); lua_setfield(lua, -2, "x");
         lua_pushnumber(lua, rotation[1]); lua_setfield(lua, -2, "y");

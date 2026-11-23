@@ -293,7 +293,8 @@ namespace mbm
 
     bool MESH::getArticulatedPartTransform(const char *partName, const bool worldSpace,
                                            uint64_t *partId, MATRIX *matrix, VEC3 *position,
-                                           float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+                                           VEC3 *pivotPosition, float rotation[4], VEC3 *angle,
+                                           VEC3 *scale) const noexcept
     {
         if (!this->mesh) return false;
         MATRIX modelMatrix;
@@ -308,7 +309,7 @@ namespace mbm
         }
         return this->mesh->getArticulatedPartTransform(
             this->getArticulatedAnimationPlayer(), partName, modelMatrixPtr,
-            partId, matrix, position, rotation, angle, scale);
+            partId, matrix, position, pivotPosition, rotation, angle, scale);
     }
 
     uint32_t MESH::getTotalSkeletalAnimations() const noexcept

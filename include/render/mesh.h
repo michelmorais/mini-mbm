@@ -115,7 +115,7 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
                                          const char **name, uint64_t *parentPartId) const noexcept;
     API_IMPL bool getArticulatedPartTransform(const char *partName, bool worldSpace,
                                               uint64_t *partId, MATRIX *matrix,
-                                              VEC3 *position, float rotation[4],
+                                              VEC3 *position, VEC3 *pivotPosition, float rotation[4],
                                               VEC3 *angle, VEC3 *scale) const noexcept;
     API_IMPL uint32_t getTotalSkeletalAnimations() const noexcept;
     API_IMPL const char *getSkeletalAnimationName(uint32_t index) const noexcept;

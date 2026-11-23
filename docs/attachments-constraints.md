@@ -46,9 +46,10 @@ world rotation = offset rotationMatrix * source rotation
 world scale    = source scale * offset scale
 ```
 
-For a multi-target definition, the same source is evaluated once and the transform contract is
-applied independently to every entry in `targets`. Each target keeps its own local offset, pivot,
-inheritance mask, and optional look-at, spring, and blend settings.
+For a multi-target definition, the source mesh is evaluated for each target's selected bone,
+socket, or articulated part, and the transform contract is applied independently to every entry in
+`targets`. Each target keeps its own source anchor, local offset, pivot, inheritance mask, and
+optional look-at, spring, and blend settings.
 
 The source scale in the position expression is used only when `inherit.scale` is enabled. The
 source rotation orients the position offset whenever position inheritance is enabled, even when
@@ -89,7 +90,6 @@ local attachmentDefinition = {
     source = "character",
     sourceType = "socket", -- "root", "bone", "socket", or "articulated_part"; defaults to "root"
     sourceSocket = "RightHandGrip", -- required when sourceType is "socket"
-    -- sourcePart = "propeller_hub", -- required when sourceType is "articulated_part"
     influenceEnabled = true, -- optional; runtime may toggle this without recreating the attachment
     initialState = "equipped", -- optional; selects one entry from states
     states = {
@@ -99,6 +99,9 @@ local attachmentDefinition = {
     targets = {
         {
             name = "hat",
+            -- sourceBone = "Head", -- per-target when sourceType is "bone"
+            -- sourceSocket = "HatMount", -- per-target when sourceType is "socket"
+            -- sourcePart = "hat_mount", -- per-target when sourceType is "articulated_part"
             inherit = {position = true, rotation = true, scale = false},
             aimAtSource = false,
             aimPoint = {x = 0, y = 0, z = 0},
@@ -293,7 +296,8 @@ evaluated bone pose, and applies the configured inheritance mask and local offse
 
 Use a **bone source** when the attachment should follow the structural joint itself and the bone
 origin/orientation is already the desired anchor. Use a **socket source** when the attachment needs
-a named, art-directed point and orientation on or near a bone.
+a named, art-directed point and orientation on or near a bone. Each target may select a different
+bone or socket from the same source mesh.
 
 | Source | Advantages | Tradeoffs |
 |---|---|---|
@@ -316,9 +320,13 @@ of its moving parts:
 4. Select an articulated clip in the Timeline, then configure inheritance and capture the target
    offset as usual.
 
+The selected part belongs to the active target. Multiple targets in one attachment definition can
+therefore follow different articulated subsets of the same source mesh.
+
 The editor queries `getArticulatedPartInfo()` for the part list and
-`getArticulatedPartTransform(name, "world")` for the preview. The runtime plugin evaluates the
-same part hierarchy and clip every frame. The source part is not copied into the attachment file;
+`getArticulatedPartTransform(name, "world")` for the preview. The attachment anchor uses the
+returned `pivotPosition`, matching the pivot marker in the Articulated Animation Editor. The
+runtime plugin evaluates the same part hierarchy and clip every frame. The source part is not copied into the attachment file;
 the game must bind the same mesh asset, including the part name and its articulated animation data.
 
 ### Look-at constraint

@@ -777,13 +777,14 @@ bool readArticulatedPartPose(mbm::RENDERIZABLE *source, const std::string &partN
     uint64_t partId = 0;
     mbm::MATRIX matrix;
     mbm::VEC3 position;
+    mbm::VEC3 pivotPosition;
     mbm::VEC3 angle;
     mbm::VEC3 scale;
     float rotation[4] = {};
     if (!mesh->getArticulatedPartTransform(partName.c_str(), true, &partId, &matrix,
-                                           &position, rotation, &angle, &scale))
+                                           &position, &pivotPosition, rotation, &angle, &scale))
         return false;
-    pose.position = {position.x, position.y, position.z};
+    pose.position = {pivotPosition.x, pivotPosition.y, pivotPosition.z};
     pose.angle = {angle.x, angle.y, angle.z};
     pose.scale = {scale.x, scale.y, scale.z};
     if (std::abs(pose.scale.x) <= 0.000001 || std::abs(pose.scale.y) <= 0.000001 ||

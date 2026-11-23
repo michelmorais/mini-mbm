@@ -637,7 +637,7 @@ composition, authoring, playback lifecycle, and examples.
 | `obj:getArticulatedAnimationDuration` | `(name)` | number or nil | Duration in seconds for a named articulated clip |
 | `obj:getTotalArticulatedParts` | `()` | int | Number of named rigid articulated parts in the loaded mesh |
 | `obj:getArticulatedPartInfo` | `(index: int)` | table or nil | 1-based part metadata: `partId`, `frame`, `subset`, `name`, and `parentPartId` |
-| `obj:getArticulatedPartTransform` | `(name, space?)` | table or nil | Evaluated part pose with `position`, quaternion `rotation`, Euler `angle`, `scale`, and `matrix`; `space` is `world` or `model` (default `model`) |
+| `obj:getArticulatedPartTransform` | `(name, space?)` | table or nil | Evaluated part pose with `position`, `pivotPosition`, quaternion `rotation`, Euler `angle`, `scale`, and `matrix`; `space` is `world` or `model` (default `model`) |
 | `obj:pauseArticulatedAnimation` | `(name)` | bool | Freeze an active clip and its blend progress |
 | `obj:resumeArticulatedAnimation` | `(name)` | bool | Resume a paused active clip |
 | `obj:disableArticulatedAnimation` | `(name)` | bool | Remove an active clip from pose composition |
@@ -3051,7 +3051,8 @@ Loaded `mesh` objects also expose evaluated articulated-part inspection:
 local partCount = character:getTotalArticulatedParts()
 local part = character:getArticulatedPartInfo(1)
 local pose = character:getArticulatedPartTransform(part.name, "world")
--- pose.position, pose.rotation (quaternion), pose.angle (radians), pose.scale, pose.matrix
+-- pose.position is the transformed mesh origin; pivotPosition is the transformed part pivot.
+-- pose.rotation (quaternion), pose.angle (radians), pose.scale and pose.matrix are also returned.
 ```
 
 The Attachment Editor uses these methods to list articulated parts, preview their clips, and export

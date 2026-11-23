@@ -54,7 +54,8 @@ local function validateRotationMatrix(value)
     return true
 end
 
-local function validateTarget(target, sourceType)
+local function validateTarget(target, sourceType, rootSource,
+        legacySourceBone, legacySourceSocket, legacySourcePart)
     if type(target) ~= 'table' then return false, 'targets must contain tables' end
     if type(target.name) ~= 'string' or target.name == '' then
         return false, 'target binding name must not be empty'
@@ -105,6 +106,24 @@ local function validateTarget(target, sourceType)
         local weight = number(target.blend.weight, 1)
         if weight < 0 or weight > 1 then return false, 'target blend weight must be between 0 and 1' end
     end
+    if sourceType == 'articulated_part' and
+            (target.source == nil or target.source == rootSource) and
+            (type(target.sourcePart) ~= 'string' or target.sourcePart == '') and
+            (type(legacySourcePart) ~= 'string' or legacySourcePart == '') then
+        return false, 'sourcePart must not be empty for an articulated-part source'
+    end
+    if sourceType == 'bone' and
+            (target.source == nil or target.source == rootSource) and
+            (type(target.sourceBone) ~= 'string' or target.sourceBone == '') and
+            (type(legacySourceBone) ~= 'string' or legacySourceBone == '') then
+        return false, 'sourceBone must not be empty for a bone source'
+    end
+    if sourceType == 'socket' and
+            (target.source == nil or target.source == rootSource) and
+            (type(target.sourceSocket) ~= 'string' or target.sourceSocket == '') and
+            (type(legacySourceSocket) ~= 'string' or legacySourceSocket == '') then
+        return false, 'sourceSocket must not be empty for a socket source'
+    end
     return true
 end
 
@@ -117,24 +136,13 @@ function M.validate(definition)
             definition.sourceType ~= 'socket' and definition.sourceType ~= 'articulated_part' then
         return false, "sourceType must be 'root', 'bone', 'socket' or 'articulated_part'"
     end
-    if definition.sourceType == 'bone' and
-            (type(definition.sourceBone) ~= 'string' or definition.sourceBone == '') then
-        return false, "sourceBone must not be empty when sourceType is 'bone'"
-    end
-    if definition.sourceType == 'socket' and
-            (type(definition.sourceSocket) ~= 'string' or definition.sourceSocket == '') then
-        return false, "sourceSocket must not be empty when sourceType is 'socket'"
-    end
-    if definition.sourceType == 'articulated_part' and
-            (type(definition.sourcePart) ~= 'string' or definition.sourcePart == '') then
-        return false, "sourcePart must not be empty when sourceType is 'articulated_part'"
-    end
     if type(definition.targets) ~= 'table' or #definition.targets == 0 then
         return false, 'at least one target is required'
     end
     local names = {}
     for index, target in ipairs(definition.targets) do
-        local valid, errorMessage = validateTarget(target, definition.sourceType)
+        local valid, errorMessage = validateTarget(target, definition.sourceType, definition.source,
+            definition.sourceBone, definition.sourceSocket, definition.sourcePart)
         if not valid then return false, string.format('target %d: %s', index, errorMessage) end
         if target.name == definition.source then return false, 'source and target binding names must be different' end
         if names[target.name] then return false, 'target binding names must be unique' end
@@ -259,18 +267,25 @@ local function appendDefinition(output, definition)
         local targetPivot = target.targetPivot or {x = 0, y = 0, z = 0}
         output[#output + 1] = string.format('%stargetPivot = {x = %.17g, y = %.17g, z = %.17g},',
             prefix, number(targetPivot.x, 0), number(targetPivot.y, 0), number(targetPivot.z, 0))
+        if definition.sourceType == 'articulated_part' and
+                (target.source == nil or target.source == definition.source) then
+            output[#output + 1] = prefix .. 'sourcePart = ' ..
+                quote(target.sourcePart or definition.sourcePart) .. ','
+        end
+        if definition.sourceType == 'bone' and
+                (target.source == nil or target.source == definition.source) then
+            output[#output + 1] = prefix .. 'sourceBone = ' ..
+                quote(target.sourceBone or definition.sourceBone) .. ','
+        elseif definition.sourceType == 'socket' and
+                (target.source == nil or target.source == definition.source) then
+            output[#output + 1] = prefix .. 'sourceSocket = ' ..
+                quote(target.sourceSocket or definition.sourceSocket) .. ','
+        end
         output[#output + 1] = '        },'
     end
     output[#output + 1] = 'local definition = {'
     output[#output + 1] = '    source = ' .. quote(definition.source) .. ','
     output[#output + 1] = '    sourceType = ' .. quote(definition.sourceType) .. ','
-    if definition.sourceType == 'bone' then
-        output[#output + 1] = '    sourceBone = ' .. quote(definition.sourceBone) .. ','
-    elseif definition.sourceType == 'socket' then
-        output[#output + 1] = '    sourceSocket = ' .. quote(definition.sourceSocket) .. ','
-    elseif definition.sourceType == 'articulated_part' then
-        output[#output + 1] = '    sourcePart = ' .. quote(definition.sourcePart) .. ','
-    end
     output[#output + 1] = '    influenceEnabled = ' .. tostring(definition.influenceEnabled ~= false) .. ','
     if type(definition.initialState) == 'string' and definition.initialState ~= '' then
         output[#output + 1] = '    initialState = ' .. quote(definition.initialState) .. ','
@@ -331,9 +346,9 @@ function M.build(definition)
     output[#output + 1] = '            offset = targetDefinition.offset,'
     output[#output + 1] = '            targetPivot = targetDefinition.targetPivot,'
     output[#output + 1] = '        }'
-    output[#output + 1] = '        if sourceName == definition.source and definition.sourceBone then specification.sourceBone = definition.sourceBone end'
-    output[#output + 1] = '        if sourceName == definition.source and definition.sourceSocket then specification.sourceSocket = definition.sourceSocket end'
-    output[#output + 1] = '        if sourceName == definition.source and definition.sourcePart then specification.sourcePart = definition.sourcePart end'
+    output[#output + 1] = '        if sourceName == definition.source and targetDefinition.sourceBone then specification.sourceBone = targetDefinition.sourceBone end'
+    output[#output + 1] = '        if sourceName == definition.source and targetDefinition.sourceSocket then specification.sourceSocket = targetDefinition.sourceSocket end'
+    output[#output + 1] = '        if sourceName == definition.source and targetDefinition.sourcePart then specification.sourcePart = targetDefinition.sourcePart end'
     output[#output + 1] = '        local relation, errorMessage = attachments.attach(specification)'
     output[#output + 1] = '        if not relation then'
     output[#output + 1] = '            for _, created in ipairs(relations) do created:detach() end'

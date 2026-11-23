@@ -13106,10 +13106,10 @@ namespace mbm
     bool MESH_MBM::getArticulatedPartTransform(
         const ARTICULATED_ANIMATION_PLAYER &player, const char *partName,
         const MATRIX *modelMatrix, uint64_t *partId, MATRIX *matrix, VEC3 *position,
-        float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
+        VEC3 *pivotPosition, float rotation[4], VEC3 *angle, VEC3 *scale) const noexcept
     {
         if (!partName || !partName[0] || !partId || !matrix || !position || !rotation ||
-            !angle || !scale)
+            !pivotPosition || !angle || !scale)
             return false;
         const util::ARTICULATED_PART_V11 *part = nullptr;
         for (const auto &candidate : impl->articulatedParts)
@@ -13137,6 +13137,12 @@ namespace mbm
             return false;
         *partId = part->partId;
         *position = transform.translation;
+        pivotPosition->x = part->pivotX * matrix->_11 + part->pivotY * matrix->_21 +
+            part->pivotZ * matrix->_31 + matrix->_41;
+        pivotPosition->y = part->pivotX * matrix->_12 + part->pivotY * matrix->_22 +
+            part->pivotZ * matrix->_32 + matrix->_42;
+        pivotPosition->z = part->pivotX * matrix->_13 + part->pivotY * matrix->_23 +
+            part->pivotZ * matrix->_33 + matrix->_43;
         rotation[0] = transform.rotation.x;
         rotation[1] = transform.rotation.y;
         rotation[2] = transform.rotation.z;
