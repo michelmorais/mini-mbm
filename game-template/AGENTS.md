@@ -13,6 +13,7 @@ describe the engine checkout used when creating the project; use a matching engi
 build. When opening `game-template/` directly, the canonical docs are in `../docs/`
 instead. Projects that use synchronized mesh interactions can consult
 `docs/interaction-animation-runtime.md` when that profile document is present.
+Projects that use runtime attachments can consult `docs/attachments-constraints.md`.
 
 `CLAUDE.md` links to `AGENTS.md`. Keep this file and the Copilot instructions synchronized
 when changing game-specific guidance. Engine binaries and plugins remain external.
@@ -545,7 +546,31 @@ world:getWorldManifolds(body)  -- → contact manifold table
 -- The world is released with its Lua scene/userdata; no explicit destroy method is registered.
 ```
 
----
+## Plugin: attachments — Runtime Attachments
+
+Build the engine with `-DUSE_ATTACHMENTS=1` or `-DUSE_ALL=1`, then load the plugin:
+
+```lua
+local attachments = require "attachments"
+
+local relation, errorMessage = attachments.attach {
+    source = characterMesh,
+    target = hatMesh,
+    inherit = {position = true, rotation = true, scale = false},
+    offset = {
+        position = {x = 0, y = 1.8, z = 0},
+        rotation = {x = 0, y = 0, z = 0},
+        scale = {x = 1, y = 1, z = 1},
+    },
+}
+assert(relation, errorMessage)
+```
+
+The plugin updates attachments automatically during the engine loop. For bone,
+socket, articulated-part, and static-frame sources, see
+`docs/attachments-constraints.md`. Android and iOS use the engine's embedded
+plugin loader, so the Lua call remains `require "attachments"` when the mobile
+engine build includes `USE_ATTACHMENTS=1`.
 
 ## Plugin: ImGui — Immediate-Mode UI
 
