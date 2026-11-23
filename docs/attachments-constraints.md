@@ -85,6 +85,7 @@ local attachment, err = attachments.attach {
     aimAtSource = false, -- optional; target +Z points toward the source
     aimLimits = { -- optional; only used when aimAtSource is true
         enabled = false,
+        reference = "dynamic", -- "dynamic" or "captured"
         yawMin = -math.pi,
         yawMax = math.pi,
         pitchMin = -math.pi / 2,
@@ -261,9 +262,10 @@ Lua definition uses `aimAtSource = true`.
 When a constrained target should not turn freely, `aimLimits.enabled = true` clamps the look-at
 direction in the attachment frame. `yawMin` and `yawMax` limit the horizontal angle around the
 frame's local Y axis, while `pitchMin` and `pitchMax` limit the vertical angle. All four values
-are radians. The defaults are the unrestricted yaw and pitch ranges. The same calculation is used
-by the editor Timeline and by the runtime plugin, so the preview and exported execution keep the
-same orientation.
+are radians. With `reference = "dynamic"`, the frame follows the current source socket or bone;
+with `reference = "captured"`, the editor stores a frame at `captureOffset()` and keeps the
+angular reference fixed during playback. The same calculation is used by the editor Timeline and
+by the runtime plugin, so the preview and exported execution keep the same orientation.
 
 This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
 The next constraint stages can add an explicit aim point and blending without changing the basic

@@ -100,6 +100,13 @@ function M.validate(definition)
         if limits.enabled == true and definition.aimAtSource ~= true then
             return false, 'aimLimits requires aimAtSource=true'
         end
+        local reference = limits.reference or 'dynamic'
+        if reference ~= 'dynamic' and reference ~= 'captured' then
+            return false, "aimLimits.reference must be 'dynamic' or 'captured'"
+        end
+        if reference == 'captured' and not validateRotationMatrix(limits.referenceRotationMatrix) then
+            return false, 'aimLimits.referenceRotationMatrix must be a 3x3 matrix for captured frame mode'
+        end
         local values = {
             yawMin = number(limits.yawMin, -math.pi),
             yawMax = number(limits.yawMax, math.pi),
@@ -139,6 +146,16 @@ local function appendDefinition(output, definition)
     if type(aimLimits) == 'table' then
         output[#output + 1] = '    aimLimits = {'
         output[#output + 1] = '        enabled = ' .. tostring(aimLimits.enabled == true) .. ','
+        output[#output + 1] = '        reference = ' .. quote(aimLimits.reference or 'dynamic') .. ','
+        if aimLimits.reference == 'captured' and validateRotationMatrix(aimLimits.referenceRotationMatrix) then
+            output[#output + 1] = '        referenceRotationMatrix = {'
+            for row = 1, 3 do
+                output[#output + 1] = string.format('            {%.17g, %.17g, %.17g},',
+                    aimLimits.referenceRotationMatrix[row][1], aimLimits.referenceRotationMatrix[row][2],
+                    aimLimits.referenceRotationMatrix[row][3])
+            end
+            output[#output + 1] = '        },'
+        end
         output[#output + 1] = string.format('        yawMin = %.17g,', number(aimLimits.yawMin, -math.pi))
         output[#output + 1] = string.format('        yawMax = %.17g,', number(aimLimits.yawMax, math.pi))
         output[#output + 1] = string.format('        pitchMin = %.17g,', number(aimLimits.pitchMin, -math.pi * 0.5))

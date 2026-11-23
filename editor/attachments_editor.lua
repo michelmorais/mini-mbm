@@ -56,6 +56,8 @@ local function newDefinition()
         aimAtSource = false,
         aimLimits = {
             enabled = false,
+            reference = 'dynamic',
+            referenceRotationMatrix = nil,
             yawMin = -math.pi,
             yawMax = math.pi,
             pitchMin = -math.pi * 0.5,
@@ -114,6 +116,7 @@ local S = {
     xzPlaneZ = nil,
     showOrigins = true,
     showXZPlane = true,
+    showAimLimits = false,
     boneSelectionMode = false,
     boneSelectionCamera = nil,
     boneSelectionTargetVisible = nil,
@@ -325,6 +328,7 @@ local updateTargetPivotMarker
 local showTargetPivotFields
 local getPreviewSourcePose
 local captureOffset
+local captureAimReference
 
 local function roleName(role)
     return role == 'source' and S.definition.source or S.definition.target
@@ -1098,6 +1102,30 @@ getPreviewSourcePose = function()
     return getSourceBonePose(S.definition.sourceBone)
 end
 
+local function dynamicAimBaseRotation(source)
+    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
+    local offsetRotation = S.definition.offset.rotationMatrix or
+        eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
+            S.definition.offset.rotation.z)
+    return multiplyRotation(offsetRotation, sourceRotation)
+end
+
+local function aimBaseRotation(source)
+    local limits = S.definition.aimLimits
+    if limits and limits.reference == 'captured' then
+        if not limits.referenceRotationMatrix then captureAimReference(source) end
+        if limits.referenceRotationMatrix then return limits.referenceRotationMatrix end
+    end
+    return dynamicAimBaseRotation(source)
+end
+
+captureAimReference = function(sourceOverride)
+    local source = sourceOverride or getPreviewSourcePose() or S.source.pose
+    if not source then return false end
+    S.definition.aimLimits.referenceRotationMatrix = cloneRotation(dynamicAimBaseRotation(source))
+    return true
+end
+
 local function dot(ax, ay, az, bx, by, bz)
     return ax * bx + ay * by + az * bz
 end
@@ -1182,17 +1210,13 @@ end
 local function updateAimLimitsVisual()
     local visual = S.aimLimitsVisual
     local limits = S.definition.aimLimits
-    if S.boneSelectionMode or S.selectedRole ~= 'target' or not S.target.object or
+    if S.boneSelectionMode or not S.showAimLimits or not S.target.object or
             not S.definition.aimAtSource or not limits or not limits.enabled then
         hideAimLimitsVisual()
         return
     end
     local source = getPreviewSourcePose() or S.source.pose
-    local sourceRotation = source.rotation or eulerRotation(source.rx, source.ry, source.rz)
-    local offsetRotation = S.definition.offset.rotationMatrix or
-        eulerRotation(S.definition.offset.rotation.x, S.definition.offset.rotation.y,
-            S.definition.offset.rotation.z)
-    local baseRotation = multiplyRotation(offsetRotation, sourceRotation)
+    local baseRotation = aimBaseRotation(source)
     local origin = targetPivotWorldPosition(S.target.pose)
     local radius = math.max(S.target.previewSize * 1.8, 45)
     local signatureParts = {origin.x, origin.y, origin.z, radius,
@@ -1267,6 +1291,8 @@ local function updateAimLimitsVisual()
         pitch_min = corner(0, limits.pitchMin),
         pitch_max = corner(0, limits.pitchMax),
     }
+    local targetExtent = getTargetPivotMarkerRadius() / 0.012
+    local handleSize = math.max(targetExtent * 0.10, 0.01)
     visual.handles = visual.handles or {}
     for name, point in pairs(handlePoints) do
         local handle = visual.handles[name]
@@ -1284,8 +1310,7 @@ local function updateAimLimitsVisual()
         end
         if handle then
             handle.object:setPos(point.x, point.y, point.z)
-            local size = math.max(radius * 0.11, 3)
-            handle.object:setScale(size, size, size)
+            handle.object:setScale(handleSize, handleSize, handleSize)
             handle.object:setColor(name:find('yaw') and 0.15 or 1,
                 name:find('yaw') and 1 or 0.15, 0.2, 1)
             handle.object.visible = true
@@ -1296,7 +1321,8 @@ end
 
 local function pickAimLimitsHandle(screenX, screenY)
     local visual = S.aimLimitsVisual
-    if S.boneSelectionMode or S.selectedRole ~= 'target' or not S.definition.aimAtSource or
+    if S.boneSelectionMode or not S.showAimLimits or S.selectedRole ~= 'target' or
+            not S.definition.aimAtSource or
             not S.definition.aimLimits or not S.definition.aimLimits.enabled then
         return nil
     end
@@ -1685,8 +1711,12 @@ local function calculateTargetPose()
         result.z = source.z + worldPosition.z
     end
     if S.definition.aimAtSource then
-        targetRotation = limitedLookAtRotation(result, vector(source.x, source.y, source.z),
-            targetRotation, targetRotation, S.definition.aimLimits)
+        local limits = S.definition.aimLimits
+        local referenceRotation = limits and limits.enabled and aimBaseRotation(source) or targetRotation
+        targetRotation = limits and limits.enabled
+            and limitedLookAtRotation(result, vector(source.x, source.y, source.z), referenceRotation,
+                targetRotation, limits)
+            or lookAtRotation(result, vector(source.x, source.y, source.z), targetRotation)
     end
     if inherit.rotation or S.definition.aimAtSource then
         result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
@@ -1763,6 +1793,7 @@ captureOffset = function(targetPoseOverride)
     S.definition.offset.position = localPosition
     S.definition.offset.rotation = vector(rx, ry, rz)
     S.definition.offset.rotationMatrix = cloneRotation(relativeRotation)
+    captureAimReference(source)
     if inherit.scale then
         S.definition.offset.scale = vector(target.sx / source.sx, target.sy / source.sy, target.sz / source.sz)
     end
@@ -2020,6 +2051,11 @@ local function normalizeDefinition(value)
     result.aimAtSource = value.aimAtSource == true
     if type(value.aimLimits) == 'table' then
         result.aimLimits.enabled = result.aimAtSource and value.aimLimits.enabled == true
+        result.aimLimits.reference = value.aimLimits.reference == 'captured' and 'captured' or 'dynamic'
+        if type(value.aimLimits.referenceRotationMatrix) == 'table' then
+            result.aimLimits.referenceRotationMatrix = readRotation(
+                value.aimLimits.referenceRotationMatrix, identityRotation())
+        end
         for _, field in ipairs({'yawMin', 'yawMax', 'pitchMin', 'pitchMax'}) do
             local number = tonumber(value.aimLimits[field])
             if number and number == number and number ~= math.huge and number ~= -math.huge then
@@ -2458,6 +2494,17 @@ local function showAttachment()
             end
             showTooltip(L('aim_limits_help'))
             if limits.enabled then
+                local nextShowLimits = tImGui.Checkbox(L('show_aim_limits'), S.showAimLimits)
+                if nextShowLimits ~= S.showAimLimits then S.showAimLimits = nextShowLimits end
+                local referenceMode = limits.reference == 'captured' and 2 or 1
+                local nextReference = tImGui.RadioButton(L('aim_limits_dynamic_frame'), referenceMode, 1)
+                nextReference = tImGui.RadioButton(L('aim_limits_captured_frame'), nextReference, 2)
+                if nextReference ~= referenceMode then
+                    limits.reference = nextReference == 2 and 'captured' or 'dynamic'
+                    if limits.reference == 'captured' then captureAimReference() end
+                    S.target.manualOverride = false
+                    markModified()
+                end
                 tImGui.SetNextItemWidth(210)
                 local changed, value = tImGui.InputFloat(L('aim_yaw_min'), limits.yawMin)
                 if changed then

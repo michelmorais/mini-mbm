@@ -180,6 +180,8 @@ MATRIX3 lookAtRotation(const VEC3D &from, const VEC3D &to, const MATRIX3 &fallba
 struct AIM_LIMITS
 {
     bool enabled = false;
+    bool capturedFrame = false;
+    MATRIX3 referenceRotation;
     double yawMin = -PI;
     double yawMax = PI;
     double pitchMin = -PI * 0.5;
@@ -418,6 +420,34 @@ bool parseAimLimits(lua_State *lua, const int spec, AIM_LIMITS &limits, std::str
         return false;
     }
     limits.enabled = booleanField(lua, limitsTable, "enabled", false);
+    lua_getfield(lua, limitsTable, "reference");
+    if (lua_isnil(lua, -1))
+        limits.capturedFrame = false;
+    else if (lua_isstring(lua, -1))
+    {
+        const std::string reference = lua_tostring(lua, -1);
+        if (reference == "captured") limits.capturedFrame = true;
+        else if (reference != "dynamic")
+        {
+            lua_pop(lua, 2);
+            error = "aimLimits.reference must be 'dynamic' or 'captured'";
+            return false;
+        }
+    }
+    else
+    {
+        lua_pop(lua, 2);
+        error = "aimLimits.reference must be 'dynamic' or 'captured'";
+        return false;
+    }
+    lua_pop(lua, 1);
+    if (limits.capturedFrame && !matrix3Field(lua, limitsTable, "referenceRotationMatrix",
+                                               limits.referenceRotation))
+    {
+        lua_pop(lua, 1);
+        error = "aimLimits.referenceRotationMatrix must be a 3x3 matrix for captured frame mode";
+        return false;
+    }
     const char *fields[] = {"yawMin", "yawMax", "pitchMin", "pitchMax"};
     double *values[] = {&limits.yawMin, &limits.yawMax, &limits.pitchMin, &limits.pitchMax};
     const double defaults[] = {-PI, PI, -PI * 0.5, PI * 0.5};
@@ -603,8 +633,11 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     }
     if (attachment->aimAtSource)
     {
+        MATRIX3 referenceRotation = targetRotation;
+        if (attachment->aimLimits.enabled && attachment->aimLimits.capturedFrame)
+            referenceRotation = attachment->aimLimits.referenceRotation;
         targetRotation = attachment->aimLimits.enabled
-            ? limitedLookAtRotation(result.position, sourcePose.position, targetRotation,
+            ? limitedLookAtRotation(result.position, sourcePose.position, referenceRotation,
                                     targetRotation, attachment->aimLimits)
             : lookAtRotation(result.position, sourcePose.position, targetRotation);
     }
@@ -1205,6 +1238,9 @@ int onAttachmentCaptureOffset(lua_State *lua)
                 targetPose.scale.y / sourcePose.scale.y,
                 targetPose.scale.z / sourcePose.scale.z}
         : targetPose.scale;
+    if (attachment->aimLimits.capturedFrame)
+        attachment->aimLimits.referenceRotation =
+            multiply(poseRotation(attachment->offset), sourceRotation);
     lua_pushboolean(lua, 1);
     return 1;
 }
@@ -1245,6 +1281,13 @@ int onAttachmentGetState(lua_State *lua)
     lua_createtable(lua, 0, 5);
     lua_pushboolean(lua, attachment->aimLimits.enabled);
     lua_setfield(lua, -2, "enabled");
+    lua_pushstring(lua, attachment->aimLimits.capturedFrame ? "captured" : "dynamic");
+    lua_setfield(lua, -2, "reference");
+    if (attachment->aimLimits.capturedFrame)
+    {
+        pushMatrix3(lua, attachment->aimLimits.referenceRotation);
+        lua_setfield(lua, -2, "referenceRotationMatrix");
+    }
     lua_pushnumber(lua, attachment->aimLimits.yawMin);
     lua_setfield(lua, -2, "yawMin");
     lua_pushnumber(lua, attachment->aimLimits.yawMax);

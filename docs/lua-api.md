@@ -2142,8 +2142,10 @@ socket query also resolves to the canonical bind pose while playback is inactive
 requires rotation inheritance and makes the target's local +Z axis point toward the current source
 position, using world Y as the up reference. The optional `aimLimits` table enables angular limits
 for this constraint: `yawMin`, `yawMax`, `pitchMin`, and `pitchMax` are radians relative to the
-attachment frame. Its `enabled` field must be true together with `aimAtSource = true`; when it is
-false, the existing unrestricted look-at behavior is preserved.
+attachment frame. `reference = "dynamic"` follows the current source frame; `reference =
+"captured"` uses the persisted frame captured by the editor. Its `enabled` field must be true
+together with `aimAtSource = true`; when it is false, the existing unrestricted look-at behavior is
+preserved.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2155,6 +2157,7 @@ local relation, err = attachments.attach {
     aimAtSource = false,
     aimLimits = {
         enabled = false,
+        reference = "dynamic", -- or "captured"
         yawMin = -math.pi, yawMax = math.pi,
         pitchMin = -math.pi / 2, pitchMax = math.pi / 2,
     },
