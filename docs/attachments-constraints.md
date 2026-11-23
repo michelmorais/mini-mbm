@@ -1,7 +1,7 @@
 # Attachments and constraints
 
 Document version: **2.1**
-Status: **Phase 5 socket contract, runtime query, attachment source, editor selection, viewport gizmos, FBX round-trip, and Skeletal Animation Editor TRS authoring implemented**
+Status: **Phase 6 look-at source constraint implemented on top of the validated socket pipeline**
 Last updated: **2026-11-22**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -82,6 +82,7 @@ local attachment, err = attachments.attach {
         rotation = true,
         scale = false,
     },
+    aimAtSource = false, -- optional; target +Z points toward the source
     offset = {
         position = {x = 0, y = 1.8, z = 0},
         rotation = {x = 0, y = 0, z = 0}, -- radians
@@ -240,6 +241,19 @@ a named, art-directed point and orientation on or near a bone.
 Both choices are evaluated from the same animated source mesh and use the same attachment offset,
 inheritance flags, and target pivot. A socket is therefore not a replacement for a bone: it is a
 stable, editable attachment frame layered on top of the skeleton.
+
+### Look-at constraint
+
+The first additional constraint is `aimAtSource`. When enabled, the target's local +Z axis points
+from the target position toward the current source position. The target must inherit rotation;
+the constraint uses a world-up reference and falls back to the previous target rotation when the
+source and target positions coincide. Position, scale, socket selection, and target pivot keep
+their normal attachment semantics. The editor exposes this as **Look at source** and the runtime
+Lua definition uses `aimAtSource = true`.
+
+This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
+The next constraint stages can add an explicit aim point, angular limits, and blending without
+changing the basic attachment contract.
 
 ## Phase 2 lifecycle guarantees
 

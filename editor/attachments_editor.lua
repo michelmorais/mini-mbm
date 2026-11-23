@@ -53,6 +53,7 @@ local function newDefinition()
         sourceType = 'root',
         sourceBone = '',
         sourceSocket = '',
+        aimAtSource = false,
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -218,6 +219,21 @@ local function matrixToEuler(matrix)
         z = math.atan(-matrix[2][1], matrix[1][1])
     end
     return x, y, z
+end
+
+local function lookAtRotation(from, to, fallback)
+    local fx, fy, fz = to.x - from.x, to.y - from.y, to.z - from.z
+    local length = math.sqrt(fx * fx + fy * fy + fz * fz)
+    if length <= 1e-6 then return fallback end
+    fx, fy, fz = fx / length, fy / length, fz / length
+    local ux, uy, uz = 0, 1, 0
+    if math.abs(fy) > 0.999 then ux, uy, uz = 1, 0, 0 end
+    local rx, ry, rz = uy * fz - uz * fy, uz * fx - ux * fz, ux * fy - uy * fx
+    length = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if length <= 1e-6 then return fallback end
+    rx, ry, rz = rx / length, ry / length, rz / length
+    ux, uy, uz = fy * rz - fz * ry, fz * rx - fx * rz, fx * ry - fy * rx
+    return {{rx, ry, rz}, {ux, uy, uz}, {fx, fy, fz}}
 end
 
 local function unwrapAngle(value, reference)
@@ -1417,7 +1433,6 @@ local function calculateTargetPose()
             eulerRotation(offset.rotation.x, offset.rotation.y, offset.rotation.z)
         targetRotation = multiplyRotation(offsetRotation,
             sourceRotation)
-        result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
     end
     if inherit.scale then
         result.sx = source.sx * offset.scale.x
@@ -1435,6 +1450,14 @@ local function calculateTargetPose()
         result.x = source.x + worldPosition.x
         result.y = source.y + worldPosition.y
         result.z = source.z + worldPosition.z
+    end
+    if S.definition.aimAtSource then
+        targetRotation = lookAtRotation(result, vector(source.x, source.y, source.z), targetRotation)
+    end
+    if inherit.rotation or S.definition.aimAtSource then
+        result.rx, result.ry, result.rz = matrixToEuler(targetRotation)
+    end
+    if inherit.position then
         local pivot = vector(S.definition.targetPivot.x * result.sx,
             S.definition.targetPivot.y * result.sy, S.definition.targetPivot.z * result.sz)
         local worldPivot = rotateVector(targetRotation, pivot)
@@ -1758,6 +1781,7 @@ local function normalizeDefinition(value)
         (value.sourceType == 'socket' and 'socket' or 'root')
     result.sourceBone = type(value.sourceBone) == 'string' and value.sourceBone or ''
     result.sourceSocket = type(value.sourceSocket) == 'string' and value.sourceSocket or ''
+    result.aimAtSource = value.aimAtSource == true
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
         result.inherit.rotation = value.inherit.rotation ~= false
@@ -2152,11 +2176,24 @@ local function showAttachment()
             local previousValue = S.definition.inherit[key] == true
             local nextValue = tImGui.Checkbox(label, previousValue)
             if nextValue ~= previousValue then
-                S.definition.inherit[key] = nextValue
-                S.target.manualOverride = false
-                markModified()
+                if key == 'rotation' and S.definition.aimAtSource and not nextValue then
+                    setStatus(L('aim_requires_rotation'), true)
+                else
+                    S.definition.inherit[key] = nextValue
+                    S.target.manualOverride = false
+                    markModified()
+                end
             end
         end
+        local previousAim = S.definition.aimAtSource == true
+        local nextAim = tImGui.Checkbox(L('aim_at_source'), previousAim)
+        if nextAim ~= previousAim then
+            S.definition.aimAtSource = nextAim == true
+            if nextAim then S.definition.inherit.rotation = true end
+            S.target.manualOverride = false
+            markModified()
+        end
+        tImGui.TextWrapped(L('aim_at_source_help'))
         tImGui.Separator()
         showOffsetFields()
         tImGui.TextWrapped(L('offset_help'))

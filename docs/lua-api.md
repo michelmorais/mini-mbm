@@ -2138,7 +2138,9 @@ runtime derives it from `offset.rotation` for backward compatibility. The runtim
 source-local rotation before the evaluated source frame, following the engine's row-vector matrix
 convention. Bone sources require a mesh
 with an active evaluated skeletal pose. Socket sources require optional MSH V11 section 47; a
-socket query also resolves to the canonical bind pose while playback is inactive.
+socket query also resolves to the canonical bind pose while playback is inactive. `aimAtSource = true`
+requires rotation inheritance and makes the target's local +Z axis point toward the current source
+position, using world Y as the up reference.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2147,6 +2149,7 @@ local relation, err = attachments.attach {
     sourceType = "socket",
     sourceSocket = "RightHandGrip",
     inherit = {position = true, rotation = true, scale = false},
+    aimAtSource = false,
     offset = {
         position = {x = 0, y = 1.8, z = 0},
         rotation = {x = 0, y = 0, z = 0},

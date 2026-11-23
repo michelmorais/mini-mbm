@@ -130,6 +130,52 @@ VEC3D transformVector(const MATRIX3 &matrix, const VEC3D &vector)
     };
 }
 
+double dotProduct(const VEC3D &left, const VEC3D &right)
+{
+    return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
+VEC3D crossProduct(const VEC3D &left, const VEC3D &right)
+{
+    return {left.y * right.z - left.z * right.y,
+            left.z * right.x - left.x * right.z,
+            left.x * right.y - left.y * right.x};
+}
+
+bool normalizeVector(VEC3D &value)
+{
+    const double length = std::sqrt(dotProduct(value, value));
+    if (length <= 0.000001) return false;
+    value.x /= length;
+    value.y /= length;
+    value.z /= length;
+    return true;
+}
+
+MATRIX3 lookAtRotation(const VEC3D &from, const VEC3D &to, const MATRIX3 &fallback)
+{
+    VEC3D forward{to.x - from.x, to.y - from.y, to.z - from.z};
+    if (!normalizeVector(forward)) return fallback;
+    VEC3D up{0.0, 1.0, 0.0};
+    if (std::abs(dotProduct(forward, up)) > 0.999)
+        up = {1.0, 0.0, 0.0};
+    VEC3D right = crossProduct(up, forward);
+    if (!normalizeVector(right)) return fallback;
+    up = crossProduct(forward, right);
+    if (!normalizeVector(up)) return fallback;
+    MATRIX3 result;
+    result.value[0][0] = right.x;
+    result.value[0][1] = right.y;
+    result.value[0][2] = right.z;
+    result.value[1][0] = up.x;
+    result.value[1][1] = up.y;
+    result.value[1][2] = up.z;
+    result.value[2][0] = forward.x;
+    result.value[2][1] = forward.y;
+    result.value[2][2] = forward.z;
+    return result;
+}
+
 MATRIX3 axisRotation(const VEC3D &axis, const double angle)
 {
     const double cosine = std::cos(angle);
@@ -351,6 +397,7 @@ struct ATTACHMENT
     VEC3D targetPivot;
     POSE poseBeforeAttach;
     uint8_t inherit = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
+    bool aimAtSource = false;
     bool active = true;
     bool invalid = false;
 
@@ -440,7 +487,6 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
         // The engine uses row-vector matrices. Compose a source-local target
         // frame as offset * source, not source * offset.
         targetRotation = multiply(poseRotation(attachment->offset), sourceRotation);
-        result.angle = rotationToEuler(targetRotation);
     }
     if ((attachment->inherit & INHERIT_SCALE) != 0u)
     {
@@ -461,6 +507,13 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
         result.position = {sourcePose.position.x + rotated.x,
                            sourcePose.position.y + rotated.y,
                            sourcePose.position.z + rotated.z};
+    }
+    if (attachment->aimAtSource)
+        targetRotation = lookAtRotation(result.position, sourcePose.position, targetRotation);
+    if ((attachment->inherit & INHERIT_ROTATION) != 0u || attachment->aimAtSource)
+        result.angle = rotationToEuler(targetRotation);
+    if ((attachment->inherit & INHERIT_POSITION) != 0u)
+    {
         const VEC3D pivot = {attachment->targetPivot.x * result.scale.x,
                              attachment->targetPivot.y * result.scale.y,
                              attachment->targetPivot.z * result.scale.z};
@@ -516,6 +569,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   const VEC3D &targetPivot,
                                                   const POSE &before,
                                                   uint8_t inherit,
+                                                  bool aimAtSource,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -666,7 +720,8 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const std::string &id, const uint8_t sourceType, const std::string &sourceBone,
     const std::string &sourceSocket,
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
-    const uint8_t inherit, const int sourceReference, const int targetReference)
+    const uint8_t inherit, const bool aimAtSource, const int sourceReference,
+    const int targetReference)
 {
     std::shared_ptr<ATTACHMENT> attachment = std::make_shared<ATTACHMENT>();
     attachment->manager = this;
@@ -681,6 +736,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->targetPivot = targetPivot;
     attachment->poseBeforeAttach = before;
     attachment->inherit = inherit;
+    attachment->aimAtSource = aimAtSource;
     attachments.push_back(attachment);
     return attachment;
 }
@@ -698,6 +754,11 @@ bool ATTACHMENTS_PLUGIN::canReconfigure(ATTACHMENT *attachment, const uint8_t ne
     if (!resolve(attachment, &sourceObject, &targetObject))
     {
         error = "source or target is no longer valid";
+        return false;
+    }
+    if (attachment->aimAtSource && (newInherit & INHERIT_ROTATION) == 0u)
+    {
+        error = "aimAtSource requires rotation inheritance";
         return false;
     }
     if (hasConflict(targetObject, newInherit, attachment))
@@ -1078,6 +1139,8 @@ int onAttachmentGetState(lua_State *lua)
     lua_setfield(lua, -2, "inheritRotation");
     lua_pushboolean(lua, (attachment->inherit & INHERIT_SCALE) != 0u);
     lua_setfield(lua, -2, "inheritScale");
+    lua_pushboolean(lua, attachment->aimAtSource);
+    lua_setfield(lua, -2, "aimAtSource");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
                    (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
     lua_setfield(lua, -2, "sourceType");
@@ -1209,6 +1272,13 @@ int onAttach(lua_State *lua)
         }
     }
     const uint8_t inherit = parseInheritance(lua, 1);
+    const bool aimAtSource = booleanField(lua, 1, "aimAtSource", false);
+    if (aimAtSource && (inherit & INHERIT_ROTATION) == 0u)
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, "aimAtSource requires inherit.rotation=true");
+    }
     const POSE offset = parseOffset(lua, 1);
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
     if (!isFinite(offset.position) || !isFinite(offset.angle) || !isFinite(offset.scale) ||
@@ -1248,8 +1318,8 @@ int onAttach(lua_State *lua)
         return fail(lua, "attachment id is already active");
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
-        id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, sourceReference,
-        targetReference);
+        id, sourceType, sourceBone, sourceSocket, offset, targetPivot, before, inherit, aimAtSource,
+        sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");
