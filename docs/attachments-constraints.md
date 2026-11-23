@@ -1,7 +1,7 @@
 # Attachments and constraints
 
-Document version: **2.4**
-Status: **Phase 7 look-at limits, editable aim points, and spring smoothing implemented on top of the validated socket pipeline**
+Document version: **2.5**
+Status: **Phase 8 constraint blending implemented on top of the validated socket pipeline; look-at limits, editable aim points, and spring smoothing remain validated**
 Last updated: **2026-11-23**
 
 This document defines the runtime contract for root-transform and skeletal-bone attachments. It is independent
@@ -99,6 +99,13 @@ local attachment, err = attachments.attach {
         stiffness = 120,
         damping = 24,
     },
+    blend = { -- optional; disabled by default
+        enabled = false,
+        position = true,
+        rotation = true,
+        scale = true,
+        weight = 1,
+    },
     offset = {
         position = {x = 0, y = 1.8, z = 0},
         rotation = {x = 0, y = 0, z = 0}, -- radians
@@ -132,7 +139,8 @@ An attachment object provides:
 `{preserveWorldPose = false}` restores the target pose captured immediately before `attach`.
 `getEffectivePose()` and `getState().effectivePose` expose `position`, `rotation` (radians), and
 `scale` after applying the inheritance mask; components that are not inherited retain the target's
-current values. Destroying a source, target, or scene deactivates the relation and releases its Lua
+current values. `getState()` also exposes the configured `blend` and `spring` tables. Destroying a
+source, target, or scene deactivates the relation and releases its Lua
 references.
 
 ## Frame order and ownership
@@ -288,6 +296,11 @@ In the Attachment Editor, the point is shown as a pink cube with the same 10% me
 the yaw/pitch handles. Select **Move aim point** to activate the XYZ gizmo and edit the point in
 the viewport.
 
+The optional `blend` table interpolates the constrained pose with the target's current pose. It is
+disabled by default; `weight = 0` keeps the current pose and `weight = 1` applies the full
+constraint. Position, rotation, and scale can be blended independently. Rotation uses the shortest
+angular path, and the same calculation is used by the editor and runtime.
+
 This is intentionally a source-facing constraint, not a general third-actor look-at graph yet.
 The next constraint stages can add blending without changing the basic
 attachment contract.
@@ -303,7 +316,7 @@ pointer. Invalidated renderizables are detected during the next resolution pass.
 
 ## Future phases
 
-Socket authoring inside Mesh Debug, IK, blending, physics integration,
+Socket authoring inside Mesh Debug, IK, multi-source blending, physics integration,
 cross-scene attachments, and a general scene graph remain future work. Socket consumption already
 has the MSH/API/runtime contract described above, and socket authoring is implemented in the
 Skeletal Animation Editor.

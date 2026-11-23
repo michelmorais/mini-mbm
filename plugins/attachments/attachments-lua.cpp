@@ -197,6 +197,15 @@ struct SPRING_SETTINGS
     double damping = 24.0;
 };
 
+struct BLEND_SETTINGS
+{
+    bool enabled = false;
+    bool position = true;
+    bool rotation = true;
+    bool scale = true;
+    double weight = 1.0;
+};
+
 MATRIX3 limitedLookAtRotation(const VEC3D &from, const VEC3D &to,
                               const MATRIX3 &baseRotation, const MATRIX3 &fallback,
                               const AIM_LIMITS &limits)
@@ -512,6 +521,35 @@ bool parseSpring(lua_State *lua, const int spec, SPRING_SETTINGS &spring, std::s
     return true;
 }
 
+bool parseBlend(lua_State *lua, const int spec, BLEND_SETTINGS &blend, std::string &error)
+{
+    lua_getfield(lua, spec, "blend");
+    const int blendTable = lua_absindex(lua, -1);
+    if (lua_isnil(lua, blendTable))
+    {
+        lua_pop(lua, 1);
+        return true;
+    }
+    if (!lua_istable(lua, blendTable))
+    {
+        lua_pop(lua, 1);
+        error = "blend must be a table";
+        return false;
+    }
+    blend.enabled = booleanField(lua, blendTable, "enabled", false);
+    blend.position = booleanField(lua, blendTable, "position", true);
+    blend.rotation = booleanField(lua, blendTable, "rotation", true);
+    blend.scale = booleanField(lua, blendTable, "scale", true);
+    blend.weight = numberField(lua, blendTable, "weight", blend.weight);
+    lua_pop(lua, 1);
+    if (!std::isfinite(blend.weight) || blend.weight < 0.0 || blend.weight > 1.0)
+    {
+        error = "blend weight must be finite and between 0 and 1";
+        return false;
+    }
+    return true;
+}
+
 uint8_t parseInheritance(lua_State *lua, const int spec)
 {
     uint8_t result = INHERIT_POSITION | INHERIT_ROTATION | INHERIT_SCALE;
@@ -562,6 +600,7 @@ struct ATTACHMENT
     bool aimAtSource = false;
     AIM_LIMITS aimLimits;
     SPRING_SETTINGS spring;
+    BLEND_SETTINGS blend;
     bool springInitialized = false;
     VEC3D springPositionVelocity;
     VEC3D springRotationVelocity;
@@ -712,6 +751,43 @@ POSE composeEffectivePose(const ATTACHMENT *attachment, const POSE &sourcePose,
     return result;
 }
 
+double blendScalar(const double current, const double target, const double weight)
+{
+    return current + (target - current) * weight;
+}
+
+double blendAngle(const double current, const double target, const double weight)
+{
+    const double difference = std::atan2(std::sin(target - current),
+                                         std::cos(target - current));
+    return current + difference * weight;
+}
+
+void applyBlend(const ATTACHMENT *attachment, POSE &pose, const POSE &currentTargetPose)
+{
+    if (!attachment || !attachment->blend.enabled) return;
+    const double weight = std::max(0.0, std::min(1.0, attachment->blend.weight));
+    if (attachment->blend.position && (attachment->inherit & INHERIT_POSITION) != 0u)
+    {
+        pose.position.x = blendScalar(currentTargetPose.position.x, pose.position.x, weight);
+        pose.position.y = blendScalar(currentTargetPose.position.y, pose.position.y, weight);
+        pose.position.z = blendScalar(currentTargetPose.position.z, pose.position.z, weight);
+    }
+    if (attachment->blend.rotation &&
+        ((attachment->inherit & INHERIT_ROTATION) != 0u || attachment->aimAtSource))
+    {
+        pose.angle.x = blendAngle(currentTargetPose.angle.x, pose.angle.x, weight);
+        pose.angle.y = blendAngle(currentTargetPose.angle.y, pose.angle.y, weight);
+        pose.angle.z = blendAngle(currentTargetPose.angle.z, pose.angle.z, weight);
+    }
+    if (attachment->blend.scale && (attachment->inherit & INHERIT_SCALE) != 0u)
+    {
+        pose.scale.x = blendScalar(currentTargetPose.scale.x, pose.scale.x, weight);
+        pose.scale.y = blendScalar(currentTargetPose.scale.y, pose.scale.y, weight);
+        pose.scale.z = blendScalar(currentTargetPose.scale.z, pose.scale.z, weight);
+    }
+}
+
 double springScalar(const double current, double &velocity, const double target,
                     const SPRING_SETTINGS &spring, const double delta)
 {
@@ -817,6 +893,7 @@ class ATTACHMENTS_PLUGIN final : public PLUGIN
                                                   bool aimAtSource,
                                                   const AIM_LIMITS &aimLimits,
                                                   const SPRING_SETTINGS &spring,
+                                                  const BLEND_SETTINGS &blend,
                                                   int sourceReference,
                                                   int targetReference);
     bool canReconfigure(ATTACHMENT *attachment, uint8_t newInherit, std::string &error) const;
@@ -894,9 +971,9 @@ bool ATTACHMENTS_PLUGIN::getEffectivePose(ATTACHMENT *attachment, POSE &pose) co
     POSE sourcePose;
     if (!readSourcePose(attachment, source, sourcePose)) return false;
     const POSE currentTargetPose = readPose(target);
-    pose = attachment->spring.enabled
-        ? currentTargetPose
-        : composeEffectivePose(attachment, sourcePose, currentTargetPose);
+    pose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
+    applyBlend(attachment, pose, currentTargetPose);
+    if (attachment->spring.enabled) pose = currentTargetPose;
     return true;
 }
 
@@ -973,6 +1050,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     const POSE &offset, const VEC3D &targetPivot, const POSE &before,
     const uint8_t inherit, const bool aimAtSource, const AIM_LIMITS &aimLimits,
     const SPRING_SETTINGS &spring,
+    const BLEND_SETTINGS &blend,
     const int sourceReference,
     const int targetReference)
 {
@@ -993,6 +1071,7 @@ std::shared_ptr<ATTACHMENT> ATTACHMENTS_PLUGIN::createAttachment(
     attachment->aimAtSource = aimAtSource;
     attachment->aimLimits = aimLimits;
     attachment->spring = spring;
+    attachment->blend = blend;
     attachments.push_back(attachment);
     return attachment;
 }
@@ -1129,6 +1208,7 @@ void ATTACHMENTS_PLUGIN::onLoop(float delta)
         }
         const POSE currentTargetPose = readPose(resolvedAttachment.target);
         POSE effectivePose = composeEffectivePose(attachment, sourcePose, currentTargetPose);
+        applyBlend(attachment, effectivePose, currentTargetPose);
         applySpring(attachment, effectivePose, currentTargetPose, delta);
         if ((attachment->inherit & INHERIT_POSITION) != 0u) writePosition(resolvedAttachment.target,
                                                                             effectivePose.position);
@@ -1437,6 +1517,18 @@ int onAttachmentGetState(lua_State *lua)
     lua_pushnumber(lua, attachment->spring.damping);
     lua_setfield(lua, -2, "damping");
     lua_setfield(lua, -2, "spring");
+    lua_createtable(lua, 0, 5);
+    lua_pushboolean(lua, attachment->blend.enabled);
+    lua_setfield(lua, -2, "enabled");
+    lua_pushboolean(lua, attachment->blend.position);
+    lua_setfield(lua, -2, "position");
+    lua_pushboolean(lua, attachment->blend.rotation);
+    lua_setfield(lua, -2, "rotation");
+    lua_pushboolean(lua, attachment->blend.scale);
+    lua_setfield(lua, -2, "scale");
+    lua_pushnumber(lua, attachment->blend.weight);
+    lua_setfield(lua, -2, "weight");
+    lua_setfield(lua, -2, "blend");
     lua_pushstring(lua, attachment->sourceType == SOURCE_BONE ? "bone" :
                    (attachment->sourceType == SOURCE_SOCKET ? "socket" : "root"));
     lua_setfield(lua, -2, "sourceType");
@@ -1595,6 +1687,13 @@ int onAttach(lua_State *lua)
         luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
         return fail(lua, error.c_str());
     }
+    BLEND_SETTINGS blend;
+    if (!parseBlend(lua, 1, blend, error))
+    {
+        luaL_unref(lua, LUA_REGISTRYINDEX, sourceReference);
+        luaL_unref(lua, LUA_REGISTRYINDEX, targetReference);
+        return fail(lua, error.c_str());
+    }
     const POSE offset = parseOffset(lua, 1);
     const VEC3D aimPoint = vec3Field(lua, 1, "aimPoint", {});
     const VEC3D targetPivot = vec3Field(lua, 1, "targetPivot", {});
@@ -1636,7 +1735,7 @@ int onAttach(lua_State *lua)
     }
     const std::shared_ptr<ATTACHMENT> attachment = plugin->createAttachment(
         id, sourceType, sourceBone, sourceSocket, aimPoint, offset, targetPivot, before, inherit, aimAtSource,
-        aimLimits, spring, sourceReference, targetReference);
+        aimLimits, spring, blend, sourceReference, targetReference);
     lua_createtable(lua, 0, 8);
     lua_pushcfunction(lua, onAttachmentDetach); lua_setfield(lua, -2, "detach");
     lua_pushcfunction(lua, onAttachmentIsActive); lua_setfield(lua, -2, "isActive");

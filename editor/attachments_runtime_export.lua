@@ -129,6 +129,14 @@ function M.validate(definition)
             return false, 'spring stiffness and damping must be non-negative'
         end
     end
+    if definition.blend ~= nil then
+        if type(definition.blend) ~= 'table' then return false, 'blend must be a table' end
+        local blend = definition.blend
+        local weight = number(blend.weight, 1)
+        if weight < 0 or weight > 1 then
+            return false, 'blend weight must be between 0 and 1'
+        end
+    end
     return true
 end
 
@@ -187,6 +195,16 @@ local function appendDefinition(output, definition)
         output[#output + 1] = string.format('        damping = %.17g,', number(spring.damping, 24))
         output[#output + 1] = '    },'
     end
+    local blend = definition.blend
+    if type(blend) == 'table' then
+        output[#output + 1] = '    blend = {'
+        output[#output + 1] = '        enabled = ' .. tostring(blend.enabled == true) .. ','
+        output[#output + 1] = '        position = ' .. tostring(blend.position ~= false) .. ','
+        output[#output + 1] = '        rotation = ' .. tostring(blend.rotation ~= false) .. ','
+        output[#output + 1] = '        scale = ' .. tostring(blend.scale ~= false) .. ','
+        output[#output + 1] = string.format('        weight = %.17g,', number(blend.weight, 1))
+        output[#output + 1] = '    },'
+    end
     output[#output + 1] = '    offset = {'
     addVector('position', offset.position)
     addVector('rotation', offset.rotation)
@@ -234,6 +252,7 @@ function M.build(definition)
     output[#output + 1] = '        aimPoint = definition.aimPoint,'
     output[#output + 1] = '        aimLimits = definition.aimLimits,'
     output[#output + 1] = '        spring = definition.spring,'
+    output[#output + 1] = '        blend = definition.blend,'
     output[#output + 1] = '        offset = definition.offset,'
     output[#output + 1] = '        targetPivot = definition.targetPivot,'
     output[#output + 1] = '    }'

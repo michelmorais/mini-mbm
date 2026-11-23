@@ -71,6 +71,13 @@ local function newDefinition()
             stiffness = 120,
             damping = 24,
         },
+        blend = {
+            enabled = false,
+            position = true,
+            rotation = true,
+            scale = true,
+            weight = 1,
+        },
         inherit = {position = true, rotation = true, scale = false},
         offset = {
             position = vector(100, 0, 0),
@@ -375,6 +382,15 @@ local function springAngle(current, velocity, target, stiffness, damping, delta)
     local next, nextVelocity = springScalar(current, velocity, current + difference,
         stiffness, damping, delta)
     return next, nextVelocity
+end
+
+local function blendScalar(current, target, weight)
+    return current + (target - current) * weight
+end
+
+local function blendAngle(current, target, weight)
+    local difference = math.atan(math.sin(target - current), math.cos(target - current))
+    return current + difference * weight
 end
 
 local function cameraPosition()
@@ -1828,6 +1844,25 @@ local function calculateTargetPose(delta)
         result.y = result.y - worldPivot.y
         result.z = result.z - worldPivot.z
     end
+    local blend = S.definition.blend
+    if blend and blend.enabled then
+        local weight = math.min(math.max(tonumber(blend.weight) or 1, 0), 1)
+        if blend.position and inherit.position then
+            result.x = blendScalar(target.x, result.x, weight)
+            result.y = blendScalar(target.y, result.y, weight)
+            result.z = blendScalar(target.z, result.z, weight)
+        end
+        if blend.rotation and (inherit.rotation or S.definition.aimAtSource) then
+            result.rx = blendAngle(target.rx, result.rx, weight)
+            result.ry = blendAngle(target.ry, result.ry, weight)
+            result.rz = blendAngle(target.rz, result.rz, weight)
+        end
+        if blend.scale and inherit.scale then
+            result.sx = blendScalar(target.sx, result.sx, weight)
+            result.sy = blendScalar(target.sy, result.sy, weight)
+            result.sz = blendScalar(target.sz, result.sz, weight)
+        end
+    end
     local spring = S.definition.spring
     if spring and spring.enabled then
         local step = math.min(math.max(tonumber(delta) or 0, 0), 0.1)
@@ -2120,6 +2155,8 @@ function onLoop()
             aimAtSource = definition.aimAtSource == true,
             aimPoint = definition.aimPoint,
             aimLimits = definition.aimLimits,
+            spring = definition.spring,
+            blend = definition.blend,
             offset = definition.offset,
             targetPivot = definition.targetPivot,
         }
@@ -2237,6 +2274,13 @@ local function normalizeDefinition(value)
         result.spring.rotation = value.spring.rotation ~= false
         result.spring.stiffness = math.max(0, tonumber(value.spring.stiffness) or result.spring.stiffness)
         result.spring.damping = math.max(0, tonumber(value.spring.damping) or result.spring.damping)
+    end
+    if type(value.blend) == 'table' then
+        result.blend.enabled = value.blend.enabled == true
+        result.blend.position = value.blend.position ~= false
+        result.blend.rotation = value.blend.rotation ~= false
+        result.blend.scale = value.blend.scale ~= false
+        result.blend.weight = math.min(1, math.max(0, tonumber(value.blend.weight) or result.blend.weight))
     end
     if type(value.inherit) == 'table' then
         result.inherit.position = value.inherit.position ~= false
@@ -2768,6 +2812,40 @@ local function showAttachment()
                 markModified()
             end
             tImGui.TextWrapped(L('spring_help'))
+        end
+        tImGui.Separator()
+        tImGui.Text(L('blend'))
+        local blend = S.definition.blend
+        local previousBlendEnabled = blend.enabled == true
+        local nextBlendEnabled = tImGui.Checkbox(L('blend_enabled'), previousBlendEnabled)
+        if nextBlendEnabled ~= previousBlendEnabled then
+            blend.enabled = nextBlendEnabled == true
+            S.target.manualOverride = false
+            markModified()
+        end
+        if blend.enabled then
+            tImGui.SetNextItemWidth(210)
+            local changed, value = tImGui.InputFloat(L('blend_weight'), blend.weight)
+            if changed then
+                blend.weight = math.min(1, math.max(0, value))
+                S.target.manualOverride = false
+                markModified()
+            end
+            local blendComponents = {
+                {'position', L('blend_position')}, {'rotation', L('blend_rotation')},
+                {'scale', L('blend_scale')},
+            }
+            for _, component in ipairs(blendComponents) do
+                local key, label = component[1], component[2]
+                local previousValue = blend[key] == true
+                local nextValue = tImGui.Checkbox(label, previousValue)
+                if nextValue ~= previousValue then
+                    blend[key] = nextValue == true
+                    S.target.manualOverride = false
+                    markModified()
+                end
+            end
+            tImGui.TextWrapped(L('blend_help'))
         end
         tImGui.Separator()
         showOffsetFields()

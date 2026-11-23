@@ -2127,7 +2127,7 @@ Enable with `-DUSE_ATTACHMENTS=1` (also enabled by `USE_ALL=1`) and load with
 `attachments.attach(spec)` supports root transforms, evaluated skeletal-bone sources, and named
 skeletal sockets. The specification requires `source` and `target` renderizable objects and accepts
 `id`, `sourceType` (`"root"`, `"bone"`, or `"socket"`), `sourceBone` or `sourceSocket` when using
-the corresponding source, `inherit`, and `offset`. Position,
+the corresponding source, `inherit`, `offset`, `aimPoint`, `aimLimits`, `spring`, and `blend`. Position,
 rotation, and scale inheritance are independent. Angles and offset rotation use radians. The
 offset is in the selected source's local space, and source scale affects offset position when
 scale inheritance is enabled. The optional `targetPivot` is a point in the target mesh's local
@@ -2148,7 +2148,10 @@ attachment frame. `reference = "dynamic"` follows the current source frame; `ref
 together with `aimAtSource = true`; when it is false, the existing unrestricted look-at behavior is
 preserved. The optional `spring` table smooths inherited position and rotation. It is disabled by
 default; `stiffness` and `damping` are non-negative engine-time coefficients, and `position` and
-`rotation` select which inherited components are smoothed.
+`rotation` select which inherited components are smoothed. The optional `blend` table is disabled
+by default. Its `weight` is clamped to the range 0..1; zero keeps the target's current pose and one
+applies the full constraint. Position, rotation, and scale can be blended independently, with
+shortest-path interpolation for rotation.
 
 ```lua
 local relation, err = attachments.attach {
@@ -2169,6 +2172,11 @@ local relation, err = attachments.attach {
         enabled = false,
         position = true, rotation = true,
         stiffness = 120, damping = 24,
+    },
+    blend = {
+        enabled = false,
+        position = true, rotation = true, scale = true,
+        weight = 1,
     },
     offset = {
         position = {x = 0, y = 1.8, z = 0},
