@@ -1543,6 +1543,10 @@ end
 local function saveDefinition(path)
     if not path or path == '' then path = mbm.saveFile(S.projectPath or '', 'att.lua') end
     if not path then return end
+    if S.definition.sourceType == 'socket' and S.definition.sourceSocket == '' then
+        setStatus(L('no_sockets'), true)
+        return
+    end
     syncEditorDefinition()
     local output = {'attachmentDefinition = {}'}
     tUtil.save('attachmentDefinition', S.definition, output)
@@ -1797,7 +1801,6 @@ local function normalizeDefinition(value)
         result.editor.sourceAnimationPaused = editor.sourceAnimationPaused == true
     end
     if result.sourceType == 'bone' and result.sourceBone == '' then return nil end
-    if result.sourceType == 'socket' and result.sourceSocket == '' then return nil end
     return result
 end
 
@@ -1822,12 +1825,22 @@ local function loadDefinition(path)
     if not ok then return end
     local definition = normalizeDefinition(attachmentDefinition)
     if not definition then setStatus(L('invalid_definition'), true); return end
+    local repairedSocket = false
     if S.boneSelectionMode then setBoneSelectionMode(false) end
     S.definition = definition
     S.source.pose = clonePose(definition.editor.sourcePose)
     S.target.pose = clonePose(definition.editor.targetPose)
     restoreRoleAsset('source', definition.editor.sourceKind, definition.editor.sourceMesh)
     restoreRoleAsset('target', definition.editor.targetKind, definition.editor.targetMesh)
+    if definition.sourceType == 'socket' and definition.sourceSocket == '' then
+        local firstSocket = S.source.socketCatalog and S.source.socketCatalog[1] or nil
+        if not firstSocket then
+            setStatus(L('invalid_definition'), true)
+            return
+        end
+        definition.sourceSocket = firstSocket
+        repairedSocket = true
+    end
     if definition.editor.sourceAnimation ~= '' then
         for index, name in ipairs(S.source.animationClips) do
             if name == definition.editor.sourceAnimation then
@@ -1847,7 +1860,7 @@ local function loadDefinition(path)
         tLang.setLanguage(definition.editor.language)
         refreshWindowTitles()
     end
-    S.projectPath, S.modified = path, false
+    S.projectPath, S.modified = path, repairedSocket
     S.target.manualOverride = definition.editor.targetManualOverride == true
     S.dirtyPreview = true
     setStatus(string.format(L('loaded'), path))
@@ -2091,6 +2104,7 @@ local function showAttachment()
                 setBoneSelectionMode(true)
             else
                 S.definition.sourceBone = ''
+                S.definition.sourceSocket = S.source.socketCatalog[1] or ''
                 setBoneSelectionMode(false)
             end
             S.target.manualOverride = false
@@ -2108,6 +2122,10 @@ local function showAttachment()
         elseif S.definition.sourceType == 'socket' then
             local socketNames = S.source.socketCatalog or {}
             if #socketNames > 0 then
+                if S.definition.sourceSocket == '' then
+                    S.definition.sourceSocket = socketNames[1]
+                    markModified()
+                end
                 local selectedSocket = 1
                 for index, name in ipairs(socketNames) do
                     if name == S.definition.sourceSocket then selectedSocket = index; break end
@@ -2244,7 +2262,8 @@ function onInitScene()
 end
 
 function onLoop(delta)
-    if S.definition.sourceType == 'bone' and S.source.activeAnimation ~= '' and
+    if (S.definition.sourceType == 'bone' or S.definition.sourceType == 'socket') and
+            S.source.activeAnimation ~= '' and
             not S.source.animationPaused and not S.boneSelectionMode then
         S.dirtyPreview = true
     end
