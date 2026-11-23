@@ -213,7 +213,7 @@ the runtime plugin. The editor has its own state and does not require or modify
 `interaction_animation_editor.lua` or `interaction_animation_runtime`.
 
 The source and target strings are runtime binding labels, not mesh filenames. The editor does not
-discover actors from a runtime scene. Instead, its `Export runtime` action writes a self-contained
+discover actors from a runtime scene. Instead, its `Export require` action writes a self-contained
 Lua module that keeps these labels and resolves them against an explicit binding table supplied by
 the game.
 

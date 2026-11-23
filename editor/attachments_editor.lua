@@ -3058,10 +3058,6 @@ local function exportRuntimeDefinition()
     end
     local path = mbm.saveFile(runtimeExportDefaultPath(), 'lua')
     if not path then return end
-    if not ensureRuntimeModuleDirectory(path) then
-        setStatus(L('runtime_export_failed'), true)
-        return
-    end
     local ok, errorMessage = tRuntimeExport.write(path, S.definition)
     if not ok then
         setStatus(errorMessage or L('runtime_export_failed'), true)
@@ -4558,7 +4554,7 @@ local function showMainMenu()
         if tImGui.MenuItem(L('load')) then loadDefinition() end
         if tImGui.MenuItem(L('save')) then saveDefinition(S.projectPath) end
         if tImGui.MenuItem(L('save_as')) then saveDefinitionAs() end
-        if tImGui.MenuItem(L('export_runtime')) then exportRuntimeDefinition() end
+        if tImGui.MenuItem(L('export_require')) then exportRuntimeDefinition() end
         local showStatesPressed, showStatesValue =
             tImGui.MenuItem(L('show_states_in_attachment'), nil, S.showStates)
         if showStatesPressed then S.showStates = showStatesValue end
