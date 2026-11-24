@@ -72,6 +72,37 @@ cmake --build build -j$(sysctl -n hw.logicalcpu)
 
 ---
 
+## Missing Asset File Picker Policy
+
+When using the Makefile or Ninja workflow with `-DPLAT=MacOs`, CMake is treated
+as a development build of the engine. The missing-file picker is enabled by
+default and is useful for editor work and for projects whose assets moved
+between machines. It can be made explicit with:
+
+```sh
+cmake -B build/macos_debug \
+    -DPLAT=MacOs -DUSE_ALL=1 \
+    -DUSE_MISSING_DIALOG_FOR_FILES=1 \
+    -DCMAKE_BUILD_TYPE=Debug
+```
+
+For any macOS game that will be distributed, use the Xcode workflow and disable
+the picker at configure time. This applies to normal macOS Xcode projects as
+well as `MAS_DELIVERY=1` projects; the distributed application must not depend
+on a development file dialog:
+
+```sh
+cmake -G Xcode \
+    -DPLAT=MacOs \
+    -DUSE_MISSING_DIALOG_FOR_FILES=0 \
+    -DCMAKE_BUILD_TYPE=Release \
+    /path/to/mini-mbm
+```
+
+The same rule applies when the Xcode project is generated for a game that is
+not targeting iOS. Android and iOS always disable this feature regardless of
+the CMake value.
+
 ## Render Backend — Metal
 
 The **Metal** backend is selected automatically when `-DPLAT=MacOs` is set
@@ -487,6 +518,7 @@ mkdir -p ~/tower-defense-mas && cd ~/tower-defense-mas
 cmake ~/mini-mbm \
     -G Xcode \
     -DPLAT=MacOs \
+    -DUSE_MISSING_DIALOG_FOR_FILES=0 \
     -DUSE_LUA=1 \
     -DUSE_IMGUI=1 \
     -DUSE_LSQLITE3=1 \

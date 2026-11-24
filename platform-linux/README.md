@@ -67,6 +67,26 @@ cmake ../.. \
 make -j$(nproc)
 ```
 
+## Missing Asset File Picker Policy
+
+Desktop Linux CMake builds enable the missing-file picker by default, which is
+convenient while developing the engine or running the built-in editors. Use
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` explicitly when that behavior is desired.
+
+For a published game, AppImage, CI, or any unattended build, disable the
+development picker:
+
+```sh
+cmake ../.. \
+    -DPLAT=Linux \
+    -DUSE_ALL=1 \
+    -DUSE_MISSING_DIALOG_FOR_FILES=0 \
+    -DCMAKE_BUILD_TYPE=Release
+```
+
+With the flag disabled, missing assets follow the normal load-failure path;
+textures retain their historical solid-white fallback.
+
 ---
 
 ## Output Locations

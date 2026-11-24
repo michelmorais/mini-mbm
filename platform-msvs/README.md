@@ -173,6 +173,30 @@ describes the validated Windows DX9 SM3/DX11 Debug x86 configurations and the
 Linux/macOS coverage. Windows Release performance, actual device loss and broader
 fault injection are outside that validation scope.
 
+## Missing Asset File Picker Policy
+
+The Visual Studio engine/editor build enables the missing-file picker by default.
+This is useful when developing the engine or preparing an engine setup: a moved
+texture, mesh, sprite, shader, or other asset can be located interactively.
+
+For a game build intended for publication, disable it so the shipped game never
+opens a development-only file picker when an asset is missing:
+
+```cmd
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmMissingDialogForFiles=false /m /v:minimal
+```
+
+To explicitly enable it for an engine/editor build, use:
+
+```cmd
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmMissingDialogForFiles=true /m /v:minimal
+```
+
+The corresponding CMake/MinGW option is
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` or `=0`. The old
+`USE_TEXTURE_MISSING_DIALOG` name is accepted only by CMake as a deprecated
+migration alias.
+
 ---
 
 ## Build Configurations

@@ -23,6 +23,7 @@ The **Xcode generator** is required whenever you want to:
 mkdir -p build/ios_xcode && cd build/ios_xcode
 cmake ../.. \
     -DPLAT=iOS -DUSE_LUA=1 \
+    -DUSE_MISSING_DIALOG_FOR_FILES=0 \
     -DAUDIO=avfoundation \
     -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
     -DGAME_NAME="My Game" \
@@ -40,6 +41,14 @@ open "My Game.xcodeproj"   # name matches -DGAME_NAME; Signing & Capabilities â†
 
 You can keep **two separate build directories** â€” one `make` dir for fast checks, one
 `Xcode` dir for deployment.  They share the same source tree and CMake flags.
+
+## Missing Asset File Picker Policy
+
+iOS always disables the desktop missing-file picker. This is true for both the
+Makefile/CI build and the Xcode device or simulator project. Passing
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` does not enable a picker on iOS; use
+`-DUSE_MISSING_DIALOG_FOR_FILES=0` in shared build scripts to make the intended
+mobile policy explicit.
 
 ---
 
