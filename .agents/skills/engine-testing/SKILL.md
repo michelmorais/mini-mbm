@@ -121,7 +121,7 @@ something. This is not part of the render loop, so none of the timeout mechanism
 while the process is blocked inside that native dialog call.
 
 This is gated behind a preprocessor define, `USE_MISSING_DIALOG_FOR_FILES`, **enabled by default**
-(see the comment above `if(NOT DEFINED USE_TEXTURE_MISSING_DIALOG)` near the top of the root
+(see the comment above `if(NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)` near the top of the root
 `CMakeLists.txt`, or `MbmCoreFeatureDefines` in `platform-msvs/core_mbm/mbm-core-flags.props` for
 MSVS) because it's genuinely useful for interactive desktop/editor use — locating a moved texture
 via the picker. **For any headless/CI/agent-driven build dir (testLib, mini-mbm, Lua scripts),

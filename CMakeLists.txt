@@ -39,10 +39,6 @@ endif()
 # Lua scripts) - there is no human there to click the dialog. Disabling it preserves the normal
 # load failure behavior, with textures retaining their historical solid-white fallback.
 #-----------------------------------------------------------------------------------------------------------------------
-if(DEFINED USE_TEXTURE_MISSING_DIALOG AND NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)
-    message(WARNING "USE_TEXTURE_MISSING_DIALOG is deprecated; use USE_MISSING_DIALOG_FOR_FILES instead.")
-    set(USE_MISSING_DIALOG_FOR_FILES ${USE_TEXTURE_MISSING_DIALOG})
-endif()
 if(NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)
     set(USE_MISSING_DIALOG_FOR_FILES 1)
 endif()

@@ -193,9 +193,7 @@ msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:Mbm
 ```
 
 The corresponding CMake/MinGW option is
-`-DUSE_MISSING_DIALOG_FOR_FILES=1` or `=0`. The old
-`USE_TEXTURE_MISSING_DIALOG` name is accepted only by CMake as a deprecated
-migration alias.
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` or `=0`.
 
 ---
 
