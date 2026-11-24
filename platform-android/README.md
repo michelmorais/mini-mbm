@@ -79,6 +79,14 @@ cmake ~/mini-mbm \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
 ```
 
+## Missing Asset File Picker Policy
+
+Android never opens the desktop missing-file picker. The engine does not define
+`USE_MISSING_DIALOG_FOR_FILES` for Android, even if
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` is passed to CMake. Assets must be included
+in the generated APK or copied into the app's runtime asset storage and added
+through the normal Android asset-path setup.
+
 > **`GAME_ASSETS_DIR` must be an absolute path** — do not use `~` for this variable.
 
 CMake will print the generated project location at the end:

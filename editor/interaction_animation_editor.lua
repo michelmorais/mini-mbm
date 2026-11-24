@@ -2679,6 +2679,13 @@ local function captureTransformEvent()
     setStatus(string.format(L('captured'), actorName(id, entry), S.time))
 end
 
+local function transformCaptureNeedsAttention(event)
+    local id = event and event.action == 'transform' and event.target or
+        S.selectedActor or (event and event.target)
+    local entry = id and actor(id) or nil
+    return entry and entry.previewBase ~= nil or false
+end
+
 local function addEventAtTime(time, target)
     local event = {
         id = nextEventId(),
@@ -3297,7 +3304,14 @@ local function showEvents()
         end
         if not event or event.action == 'transform' then
             tImGui.Separator()
+            local needsCapture = transformCaptureNeedsAttention(event)
+            if needsCapture then
+                tImGui.PushStyleColor('ImGuiCol_Text', {r = 1, g = 1, b = 1, a = 1})
+                tImGui.PushStyleColor('ImGuiCol_Button', {r = 0.85, g = 0.45, b = 0.05, a = 1})
+                tImGui.PushStyleColor('ImGuiCol_ButtonHovered', {r = 1, g = 0.60, b = 0.10, a = 1})
+            end
             if tImGui.Button(L('capture_transform')) then captureTransformEvent() end
+            if needsCapture then tImGui.PopStyleColor(3) end
         end
     end
     tImGui.End()

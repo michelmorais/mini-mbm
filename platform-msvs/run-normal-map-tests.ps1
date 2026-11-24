@@ -65,7 +65,7 @@ $buildArgs = @(
     (Join-Path $PSScriptRoot 'mini-mbm.sln'), '/t:libTest;mini_mbm',
     "/p:Configuration=$Configuration", '/p:Platform=x86',
     "/p:MbmBackend=$nativeBackend", "/p:MbmUseNormalMapping3D=$Normal",
-    "/p:MbmSupportedMaxLights=$Lights", '/p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO',
+    "/p:MbmSupportedMaxLights=$Lights", '/p:MbmMissingDialogForFiles=false',
     "/p:OutDir=$bin\", "/p:ForceImportAfterCppProps=$isolationProps", '/m:4', '/v:minimal', '/nologo'
 )
 @{ backend=$Backend; normal=$Normal; lights=$Lights; configuration=$Configuration;

@@ -38,8 +38,8 @@ cmake --build . --target testLib -j$(nproc)
 ```
 
 If configuring a **fresh** build dir for agent-driven runs, also pass
-`-DUSE_TEXTURE_MISSING_DIALOG=0` at cmake-configure time — it's enabled by default (see "The
-missing-texture dialog" below) and, left on, a missing texture opens a blocking dialog no timeout
+`-DUSE_MISSING_DIALOG_FOR_FILES=0` at cmake-configure time — it's enabled by default (see "The
+missing-file dialog" below) and, left on, a missing asset opens a blocking dialog no timeout
 can interrupt.
 
 **Always pass `<seconds>`.** `testLib` is a real-time render loop (`while (device->isRunning())`
@@ -110,7 +110,7 @@ already been destroyed. Calling it mid-frame from inside
 segfaults on its next `device->` dereference in the same frame. This is exactly how the
 `<seconds>` timeout is implemented correctly — copy that pattern, don't call `quit()` early.
 
-### The missing-texture dialog — a hang that no timeout can catch
+### The missing-file dialog — a hang that no timeout can catch
 
 This applies to **both** testLib and mini-mbm, C++ and Lua. When a mesh/sprite/etc. references a
 texture the engine can't find on its known search paths, `TEXTURE_MANAGER::getFilePathTexture`
@@ -120,13 +120,13 @@ something. This is not part of the render loop, so none of the timeout mechanism
 `testTimeoutSeconds`, `mbm.getTimeRun()`, even `timeout -s KILL` from the shell, none of it fires
 while the process is blocked inside that native dialog call.
 
-This is gated behind a preprocessor define, `USE_TEXTURE_MISSING_DIALOG`, **enabled by default**
-(see the comment above `if(NOT DEFINED USE_TEXTURE_MISSING_DIALOG)` near the top of the root
+This is gated behind a preprocessor define, `USE_MISSING_DIALOG_FOR_FILES`, **enabled by default**
+(see the comment above `if(NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)` near the top of the root
 `CMakeLists.txt`, or `MbmCoreFeatureDefines` in `platform-msvs/core_mbm/mbm-core-flags.props` for
 MSVS) because it's genuinely useful for interactive desktop/editor use — locating a moved texture
 via the picker. **For any headless/CI/agent-driven build dir (testLib, mini-mbm, Lua scripts),
-configure with `-DUSE_TEXTURE_MISSING_DIALOG=0`** so a missing texture falls back to a solid white
-texture (`"#FFFFFFFF"`, recognized by `TEXTURE::load`/`loadSolidColor`) instead of hanging forever.
+configure with `-DUSE_MISSING_DIALOG_FOR_FILES=0`** so missing assets do not open a picker. Missing
+textures retain their solid-white fallback (`"#FFFFFFFF"`, recognized by `TEXTURE::load`/`loadSolidColor`).
 Check `CMakeCache.txt` in the build dir if unsure which mode it's configured with — if it's unset
 or `1`, the dialog is live.
 
@@ -140,7 +140,7 @@ render silently coming out solid white instead of erroring is easy to mistake fo
   (`assets`, `scenes`, `scenes/textures`, etc.) to add.
 
 If a test run seems to hang with no log output past a mesh/sprite/texture load line, first check
-whether the build dir has `USE_TEXTURE_MISSING_DIALOG` on — that dialog is almost certainly why.
+whether the build dir has `USE_MISSING_DIALOG_FOR_FILES` on — that dialog is almost certainly why.
 
 ---
 
@@ -366,7 +366,7 @@ timeout -s KILL 15 ./bin/debug/linux_x86/mini-mbm \
 | Calling `mbm::DEVICE::quit()` from C++ scene code to stop a loop | Call `device->setRun(false)` instead; `DEVICE::quit()` is a one-shot destructor-time teardown |
 | Writing a brand-new C++ test harness for a render feature | Extend `MY_SCENE` in `src/test-lib/my-scene-test.cpp` — it already has the menu/load/release scaffolding |
 | Assuming `timeout N` (SIGTERM) reliably stops the engine | These are GUI/render-loop processes; prefer the in-process timeout mechanisms above and treat `timeout -s KILL` as a backstop, not the primary mechanism |
-| Loading a mesh/sprite/texture without `util::addPath`/`mbm.addPath` for its directory first, or building a test/CI dir without `-DUSE_TEXTURE_MISSING_DIALOG=0` | By default, a missing texture opens a blocking native file-picker dialog that no timeout can interrupt. Configure headless/agent build dirs with `-DUSE_TEXTURE_MISSING_DIALOG=0` (falls back to a solid white texture instead), and always add the asset path first regardless |
+| Loading a mesh/sprite/texture without `util::addPath`/`mbm.addPath` for its directory first, or building a test/CI dir without `-DUSE_MISSING_DIALOG_FOR_FILES=0` | By default, a missing asset opens a blocking native file-picker dialog that no timeout can interrupt. Configure headless/agent build dirs with `-DUSE_MISSING_DIALOG_FOR_FILES=0` (textures retain a solid white fallback), and always add the asset path first regardless |
 | Trying to click through testLib's menu to load a specific mesh for an agent-driven check | Pass it as `testLib <seconds> <mesh_file> <world>` instead — no mouse interaction needed |
 | Trying to reach a new editor widget through the full editor tool (file dialogs, menu clicks) | Path C: isolate it in a throwaway scene under `editor/` that calls the function directly with mock data |
 | Assuming a Lua widget "looks right" from code review alone, or claiming interactive UI is verified when only rendering was checked | Screenshot it (Path C) when the logic involves geometry/drawing/depth — and say plainly if click/drag interaction wasn't actually exercised |

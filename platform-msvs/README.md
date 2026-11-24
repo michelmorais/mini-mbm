@@ -135,7 +135,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map
 
 The output directory must be new. The script builds `libTest` and `mini_mbm`
 with matching libraries and per-project intermediate directories, disables the
-missing-texture picker, then runs the Python regression suite. It defaults to
+missing-file picker, then runs the Python regression suite. It defaults to
 Debug x86 and requires DX11 debug-layer and post-teardown lifecycle markers.
 Use `-Backend dx9`, `-Normal 0`, and `-Lights 1..4` for the other entries;
 DX9 requires its existing SDK setup; the native resource suite explicitly checks
@@ -172,6 +172,28 @@ the chosen output directory. [Normal mapping](../docs/normal-mapping.md#validati
 describes the validated Windows DX9 SM3/DX11 Debug x86 configurations and the
 Linux/macOS coverage. Windows Release performance, actual device loss and broader
 fault injection are outside that validation scope.
+
+## Missing Asset File Picker Policy
+
+The Visual Studio engine/editor build enables the missing-file picker by default.
+This is useful when developing the engine or preparing an engine setup: a moved
+texture, mesh, sprite, shader, or other asset can be located interactively.
+
+For a game build intended for publication, disable it so the shipped game never
+opens a development-only file picker when an asset is missing:
+
+```cmd
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmMissingDialogForFiles=false /m /v:minimal
+```
+
+To explicitly enable it for an engine/editor build, use:
+
+```cmd
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /p:MbmMissingDialogForFiles=true /m /v:minimal
+```
+
+The corresponding CMake/MinGW option is
+`-DUSE_MISSING_DIALOG_FOR_FILES=1` or `=0`.
 
 ---
 
@@ -834,8 +856,8 @@ the `box2d` project's `UserMacros` property group.
 The current solution also maps its `x64` configuration to Win32 projects; those
 commands do not validate a native 64-bit build. The executable is
 `platform-msvs/Release/mini_mbm.exe` (or `Debug/mini_mbm.exe`). For unattended
-tests, pass `/p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO` to disable the
-missing-texture picker.
+tests, pass `/p:MbmMissingDialogForFiles=false` to disable the
+missing-file picker.
 
 Source-list checks can run without Windows:
 `python3 src/test-lib/physics-compat/check-msvs.py`. This checks manifests and

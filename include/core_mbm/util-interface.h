@@ -79,6 +79,10 @@ namespace util
     // search the registered lsPath list. Safe to call from any thread, unlike openFile/getFullPath.
     API_IMPL FILE* fopenApp(const char *fileName, const char *mode);
     API_IMPL const char * getFullPath(const char *fileName, bool *existPath );
+    // Resolves a file using the registered asset paths and, on supported interactive
+    // desktop builds, optionally opens a native picker when the file is missing.
+    // The picker is never shown from a worker thread or on Android/iOS.
+    API_IMPL const char * resolveFilePath(const char *fileName);
     API_IMPL void addPath(const char *newPathSource);
     API_IMPL bool getSizeFile(FILE *fp, size_t *sizeOut);
     API_IMPL const char * existFile(const char *fileName);

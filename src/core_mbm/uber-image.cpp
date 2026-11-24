@@ -117,6 +117,7 @@ namespace mbm
         if (fileName == nullptr)
             return onFail(fp, "file name is null!");
         this->release();
+        fileName = util::resolveFilePath(fileName);
         fp = util::openFile(fileName, "rb");
         if (!fp)
             return onFail(fp, "failed to open in file!");

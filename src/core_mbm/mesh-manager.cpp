@@ -1534,7 +1534,7 @@ namespace mbm
         {
             std::string            fileName;         // original, caller-given path - carried through to
                                                        // AsyncResult::fileName/finishLoadFromIntermediate
-            std::string            resolvedFileName;  // getFullPath(fileName) resolved on the main thread
+            std::string            resolvedFileName;  // resolveFilePath(fileName) resolved on the main thread
                                                        // before queuing - the only path the worker opens
             MeshAsyncLoadCallback  onComplete;
         };
@@ -1919,7 +1919,8 @@ namespace mbm
         if(!isMesh)
             return false;
 
-        FILE *fp = util::openFile(fileNamePath, "rb");
+        const char *resolvedFileNamePath = util::resolveFilePath(fileNamePath);
+        FILE *fp = util::openFile(resolvedFileNamePath, "rb");
         if (!fp)
             return log_util::onFailed(fp,__FILE__, __LINE__, "Failed to open file [%s]", fileNamePath);
 
@@ -2268,7 +2269,8 @@ namespace mbm
         if (strcasecmp(ext, "TILE") == 0)
             return util::TYPE_MESH_TILE_MAP;
         // Unrecognized extension - peek the v11 file header directly.
-        FILE *fp = util::openFile(fileNamePath, "rb");
+        const char *resolvedFileNamePath = util::resolveFilePath(fileNamePath);
+        FILE *fp = util::openFile(resolvedFileNamePath, "rb");
         if (!fp)
             return util::TYPE_MESH_UNKNOWN;
         util::FILE_HEADER_V11 fileHeader;
@@ -5302,7 +5304,8 @@ namespace mbm
     bool MESH_MBM_DEBUG::loadV11InPlace(const char *fileNamePath)
     {
         this->release();
-        FILE *fp = util::openFile(fileNamePath, "rb");
+        const char *resolvedFileNamePath = util::resolveFilePath(fileNamePath);
+        FILE *fp = util::openFile(resolvedFileNamePath, "rb");
         if (!fp)
             return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to open file [%s]", fileNamePath);
 
@@ -14232,7 +14235,7 @@ namespace mbm
         // shared with the worker-thread async path. fileNamePath itself (the caller's original,
         // possibly-relative string) still flows into finishLoadFromIntermediate below unchanged, so
         // MESH::getFileName()/onLoadMeshLua's same-file check keep seeing what the caller passed in.
-        const std::string resolvedPath = util::getFullPath(fileNamePath, nullptr);
+        const std::string resolvedPath = util::resolveFilePath(fileNamePath);
         if (!parse_v11_intermediate(resolvedPath.c_str(), intermediate, error))
             return log_util::onFailed(nullptr, __FILE__, __LINE__, "%s [%s]", error.c_str(), fileNamePath);
         return this->finishLoadFromIntermediate(intermediate, fileNamePath);
@@ -14375,7 +14378,9 @@ namespace mbm
         this->impl->ensureWorkersStarted();
         Impl::AsyncJob job;
         job.fileName         = fileName;
-        job.resolvedFileName = util::getFullPath(fileName, nullptr); // main thread only - safe here
+        // Resolve before queuing: the optional native picker is main-thread-only, while the
+        // worker receives an exact path and performs only non-interactive parsing.
+        job.resolvedFileName = util::resolveFilePath(fileName);
         job.onComplete       = std::move(onComplete);
         {
             std::lock_guard<std::mutex> lock(this->impl->jobMutex);

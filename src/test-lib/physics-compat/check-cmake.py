@@ -23,7 +23,7 @@ parser=argparse.ArgumentParser(description='Check Linux root CMake physics profi
 parser.add_argument('--build-root',type=Path,default=Path('build/physics-config-check'))
 args_cli=parser.parse_args()
 args_cli.build_root.mkdir(parents=True,exist_ok=True)
-base=['cmake','-G','Unix Makefiles','-S','.', '-DPLAT=Linux','-DAUDIO=none','-DCMAKE_BUILD_TYPE=Debug','-DUSE_TEXTURE_MISSING_DIALOG=0','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON']
+base=['cmake','-G','Unix Makefiles','-S','.', '-DPLAT=Linux','-DAUDIO=none','-DCMAKE_BUILD_TYPE=Debug','-DUSE_MISSING_DIALOG_FOR_FILES=0','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON']
 cases={'default':([],False,True),'all':(['-DUSE_ALL=1'],True,True),'all-off':(['-DUSE_ALL=1','-DUSE_BOX2D_PARTICLES=OFF'],False,True),'missing-box2d':(['-DUSE_LUA=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'missing-lua':(['-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=ON'],True,False),'legacy-only':(['-DUSE_LUA=1','-DUSE_BOX2D_LIQUID_FUN=1'],False,False)}
 cases.update({
  'unified-on': (['-DUSE_LUA=1','-DUSE_BOX2D=1','-DUSE_BOX2D_PARTICLES=ON'],True,True),

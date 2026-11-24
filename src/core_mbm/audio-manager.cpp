@@ -71,6 +71,7 @@ namespace mbm
         #else
         bool bFileExist = false;
         const std::string fileName = util::getBaseName(fileNameSound);
+        fileNameSound = util::resolveFilePath(fileNameSound);
         fileNameSound = util::getFullPath(fileNameSound,&bFileExist);
         if(bFileExist == false)
         {
