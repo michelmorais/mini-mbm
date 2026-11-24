@@ -175,7 +175,7 @@ timeout -s KILL 35 ./bin/debug/linux_x86/mini-mbm \
   --disable_select_monitor --nosplash -w 1180 -h 800
 ```
 
-O teste gráfico exige display e build com `USE_TEXTURE_MISSING_DIALOG=0`.
+O teste gráfico exige display e build com `USE_MISSING_DIALOG_FOR_FILES=0`.
 O teste de launcher usa `__onLoadScene` da engine e verifica a inicialização antes
 de desenhar os painéis. A cena usa callbacks globais e não retorna uma tabela:
 retornar uma tabela faria o launcher selecionar o contrato de cena por métodos.
@@ -218,11 +218,11 @@ $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.e
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 & "$vs/MSBuild/Current/Bin/MSBuild.exe" platform-msvs/mini-mbm.sln `
   /p:Configuration=Debug /p:Platform=x86 /p:MbmBackend=OpenGLES `
-  /p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO /m:4
+  /p:MbmMissingDialogForFiles=false /m:4
 ```
 
-O override de `MbmCoreFeatureDefines` desativa o diálogo de textura ausente apenas
-nesse build de testes. Use `DirectX11` ou `DirectX9` em `MbmBackend` para os outros
+`MbmMissingDialogForFiles=false` desativa o diálogo de arquivo ausente apenas nesse
+build de testes. Use `DirectX11` ou `DirectX9` em `MbmBackend` para os outros
 backends; ao alternar, reconstrua os projetos dependentes ou use saídas e objetos
 isolados. Não misture DLLs de backends diferentes.
 
@@ -269,7 +269,7 @@ Para reproduzir a partir da raiz:
 
 ```sh
 cmake -S . -B build/macos_debug -DPLAT=MacOs -DUSE_ALL=1 \
-  -DUSE_TEXTURE_MISSING_DIALOG=0 -DCMAKE_BUILD_TYPE=Debug
+  -DUSE_MISSING_DIALOG_FOR_FILES=0 -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/macos_debug -j 8
 ```
 

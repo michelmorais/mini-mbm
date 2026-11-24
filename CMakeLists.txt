@@ -30,22 +30,21 @@ if(USE_ASAN)
 endif()
 
 #-----------------------------------------------------------------------------------------------------------------------
-# -DUSE_TEXTURE_MISSING_DIALOG=0 : when a mesh/sprite/gif/font references a texture path the engine can't
-# resolve (src/core_mbm/texture-manager.cpp, TEXTURE_MANAGER::getFilePathTexture, Windows/Linux/macOS only,
-# not Android), it normally opens a blocking native "where is this file?" file-picker dialog so a human
-# can locate it. Default is ENABLED (matches the engine's long-standing behavior for interactive
-# desktop/editor use, where locating a moved texture via the picker is genuinely useful).
+# -DUSE_MISSING_DIALOG_FOR_FILES=0 : when an engine asset path (texture, mesh, sprite, font, tile,
+# particle, etc.) cannot be resolved, desktop builds normally open a blocking native "where is this
+# file?" picker so a human can locate it. Default is ENABLED for Windows/Linux/macOS interactive
+# editor use. Android and iOS always disable this behavior.
 #
-# Explicitly pass -DUSE_TEXTURE_MISSING_DIALOG=0 for headless/CI/test builds (testLib, mini-mbm, Lua
-# scripts) - there's no human there to click the dialog, so left enabled it hangs the process forever
-# with no timeout able to catch it (see .agents/skills/engine-testing/SKILL.md, "The missing-texture
-# dialog"). Disabling it falls back to a solid white texture ("#FFFFFFFF") instead of blocking.
+# Explicitly pass -DUSE_MISSING_DIALOG_FOR_FILES=0 for headless/CI/test builds (testLib, mini-mbm,
+# Lua scripts) - there is no human there to click the dialog. Disabling it preserves the normal
+# load failure behavior, with textures retaining their historical solid-white fallback.
 #-----------------------------------------------------------------------------------------------------------------------
-if(NOT DEFINED USE_TEXTURE_MISSING_DIALOG)
-    set(USE_TEXTURE_MISSING_DIALOG 1)
+if(DEFINED USE_TEXTURE_MISSING_DIALOG AND NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)
+    message(WARNING "USE_TEXTURE_MISSING_DIALOG is deprecated; use USE_MISSING_DIALOG_FOR_FILES instead.")
+    set(USE_MISSING_DIALOG_FOR_FILES ${USE_TEXTURE_MISSING_DIALOG})
 endif()
-if(USE_TEXTURE_MISSING_DIALOG)
-    add_definitions(-DUSE_TEXTURE_MISSING_DIALOG)
+if(NOT DEFINED USE_MISSING_DIALOG_FOR_FILES)
+    set(USE_MISSING_DIALOG_FOR_FILES 1)
 endif()
 set(CMAKE_VERSION_MAJOR "3.25.1")
 
@@ -203,10 +202,10 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_ASAN=0               : use -DUSE_ASAN=1 in a dedicated build dir to hunt memory-corruption/thread-safety bugs (see comment near the top of this file)")
     endif()
 
-    if(USE_TEXTURE_MISSING_DIALOG)
-        message("-DUSE_TEXTURE_MISSING_DIALOG=1 : Missing textures open a native file-picker dialog (Current is ENABLED, this is the default) - pass -DUSE_TEXTURE_MISSING_DIALOG=0 for headless/CI/test builds, it will hang with no human to click it")
+    if(USE_MISSING_DIALOG_FOR_FILES AND NOT (PLAT_LOWER STREQUAL "android" OR PLAT_LOWER STREQUAL "ios"))
+        message("-DUSE_MISSING_DIALOG_FOR_FILES=1 : Missing desktop files open a native file-picker dialog (Current is ENABLED, this is the default) - pass -DUSE_MISSING_DIALOG_FOR_FILES=0 for headless/CI/test builds")
     else()
-        message("-DUSE_TEXTURE_MISSING_DIALOG=0 : Missing textures fall back to a solid white texture instead of a blocking dialog (Current is DISABLED) - use for headless/CI/test builds")
+        message("-DUSE_MISSING_DIALOG_FOR_FILES=0 : Missing files do not open a picker (Current is DISABLED on this platform/configuration)")
     endif()
     message("******************************************************************************************************")
 endfunction()
@@ -520,6 +519,11 @@ else()
         message(SEND_ERROR " Platform unknown ${PLAT}")
         
     endif()
+endif()
+
+
+if(USE_MISSING_DIALOG_FOR_FILES AND NOT (PLAT_LOWER STREQUAL "android" OR PLAT_LOWER STREQUAL "ios"))
+    add_definitions(-DUSE_MISSING_DIALOG_FOR_FILES)
 endif()
 
 

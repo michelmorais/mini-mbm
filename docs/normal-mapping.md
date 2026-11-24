@@ -45,7 +45,7 @@ Example Linux build:
 
 ```sh
 cmake -S . -B build/normal-check -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release \
-  -DUSE_LUA=1 -DAUDIO=none -DUSE_TEXTURE_MISSING_DIALOG=0 \
+  -DUSE_LUA=1 -DAUDIO=none -DUSE_MISSING_DIALOG_FOR_FILES=0 \
   -DUSE_NORMAL_MAPPING_3D=ON -DSUPPORTED_MAX_LIGHTS=2
 cmake --build build/normal-check --target testLib mini-mbm -j8
 ```
@@ -174,7 +174,7 @@ Numerical skeletal parity is distinct from animated normal mapping.
 ## Run regression tests
 
 Build matching `testLib` (Visual Studio project `libTest`) and Lua-enabled
-`mini-mbm`, with the missing-texture dialog disabled. Use a graphical session
+`mini-mbm`, with the missing-file dialog disabled. Use a graphical session
 and a new output directory. The runner verifies identity, required success
 markers, exit codes, timeouts and recognized failure/driver diagnostics, and
 writes JSON, logs, fixtures and visual images. It does not build or switch flags.

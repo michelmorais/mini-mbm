@@ -61,9 +61,9 @@ Neither replaces compiling the engine or running it on the target platform.
 ## Lua and rendering contracts
 
 Build the engine and facade with particles ON and OFF into separate output roots.
-For unattended builds, pass `-DUSE_TEXTURE_MISSING_DIALOG=0` to avoid a blocking
+For unattended builds, pass `-DUSE_MISSING_DIALOG_FOR_FILES=0` to avoid a blocking
 asset picker. A working graphics session is required. For MSVC, use
-`/p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO` for this test configuration.
+`/p:MbmMissingDialogForFiles=false` for this test configuration.
 
 ```sh
 python3 src/test-lib/physics-compat/run-lua-contracts.py --engine /absolute/path/to/on/mini-mbm --profile on --output build/physics-contracts-on

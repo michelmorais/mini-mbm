@@ -227,13 +227,13 @@ Test unified Box2D with particles OFF and ON in separate output directories:
 cmake -S . -B build/macos_box2d_debug \
     -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
     -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=OFF \
-    -DUSE_TEXTURE_MISSING_DIALOG=0
+    -DUSE_MISSING_DIALOG_FOR_FILES=0
 
 # Box2D 2.4.1 with ported LiquidFun particles
 cmake -S . -B build/macos_liquidfun_debug \
     -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug \
     -DUSE_LUA=1 -DUSE_BOX2D=1 -DUSE_BOX2D_PARTICLES=ON \
-    -DUSE_TEXTURE_MISSING_DIALOG=0
+    -DUSE_MISSING_DIALOG_FOR_FILES=0
 ```
 
 Pass a distinct absolute `-DMBM_OUTPUT_ROOT=/path/to/profile-output` to each

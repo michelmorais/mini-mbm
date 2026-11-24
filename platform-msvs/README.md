@@ -135,7 +135,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File platform-msvs/run-normal-map
 
 The output directory must be new. The script builds `libTest` and `mini_mbm`
 with matching libraries and per-project intermediate directories, disables the
-missing-texture picker, then runs the Python regression suite. It defaults to
+missing-file picker, then runs the Python regression suite. It defaults to
 Debug x86 and requires DX11 debug-layer and post-teardown lifecycle markers.
 Use `-Backend dx9`, `-Normal 0`, and `-Lights 1..4` for the other entries;
 DX9 requires its existing SDK setup; the native resource suite explicitly checks
@@ -834,8 +834,8 @@ the `box2d` project's `UserMacros` property group.
 The current solution also maps its `x64` configuration to Win32 projects; those
 commands do not validate a native 64-bit build. The executable is
 `platform-msvs/Release/mini_mbm.exe` (or `Debug/mini_mbm.exe`). For unattended
-tests, pass `/p:MbmCoreFeatureDefines=AUDIO_ENGINE_PORT_AUDIO` to disable the
-missing-texture picker.
+tests, pass `/p:MbmMissingDialogForFiles=false` to disable the
+missing-file picker.
 
 Source-list checks can run without Windows:
 `python3 src/test-lib/physics-compat/check-msvs.py`. This checks manifests and

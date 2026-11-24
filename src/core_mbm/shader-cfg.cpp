@@ -1066,7 +1066,7 @@ namespace mbm
 
     bool SHADER_CFG_LOADER::readShaderFromFile(const char *fileName, std::string &code)
     {
-        std::ifstream      fp(util::getFullPath(fileName,nullptr));
+        std::ifstream      fp(util::resolveFilePath(fileName));
         std::string        line;
         if (!fp.is_open())
         {

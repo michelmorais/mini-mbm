@@ -60,6 +60,10 @@
 #include <thread>
 #include <mutex>
 
+#if defined(USE_MISSING_DIALOG_FOR_FILES) && !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+    #include <core_mbm/dialog-util.h>
+#endif
+
 std::vector<std::string> lsPath;
 thread_local std::string pathRet;   // was a shared global; returned as a raw pointer (.c_str()), so it must be per-thread to be safe now that getFullPath() can run on a worker thread too
 OnAddPathScript onAddPathScript = nullptr;
@@ -809,6 +813,36 @@ namespace util
         }
     }
 #endif
+
+    const char * resolveFilePath(const char *fileName)
+    {
+        if (fileName == nullptr)
+            return nullptr;
+
+        bool existsFile = false;
+        const char *resolvedFileName = getFullPath(fileName, &existsFile);
+        if (existsFile)
+            return resolvedFileName;
+
+#if defined(USE_MISSING_DIALOG_FOR_FILES) && !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+        // Native dialogs must stay on the thread that owns the application window.
+        // Async mesh parsing runs on worker threads and must remain non-interactive.
+        if (isOnMainThread())
+        {
+            std::string title("where:");
+            title += fileName;
+            const char *selectedFileName = dialog_util::openFileDialog(
+                title.c_str(), fileName, nullptr, 0, 0);
+            if (selectedFileName && selectedFileName[0])
+            {
+                addPath(selectedFileName);
+                pathRet = selectedFileName;
+                return pathRet.c_str();
+            }
+        }
+#endif
+        return resolvedFileName;
+    }
 
 	void setOnAddPathScript(OnAddPathScript onNewAddPathScript) noexcept
 	{

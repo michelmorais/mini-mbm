@@ -88,7 +88,7 @@ timeout -s KILL 20 bin/debug/linux_x86/mini-mbm \
 
 O teste `src/test-lib/mesh_to_sprite_depth_smoke.lua` usa ChompBot em 512 x 512 e compara a mesma pose com planos próximos 0.1 e 10, verificando oclusão e parada da prévia sem ciclo. Requer render target com profundidade de 24 bits; o fallback de 16 bits não atende esse teste de precisão.
 
-Para execução automatizada, configurar `-DUSE_TEXTURE_MISSING_DIALOG=0`. Conferir os logs e os marcadores de sucesso, além do exit code: `MESH TO SPRITE PROJECT TEST OK`, `M2S SMOKE OK`, `SPRITE IMPORT OK` e `M2S DEPTH OK`. Os testes gráficos também imprimem marcadores `FAIL` em caso de erro.
+Para execução automatizada, configurar `-DUSE_MISSING_DIALOG_FOR_FILES=0`. Conferir os logs e os marcadores de sucesso, além do exit code: `MESH TO SPRITE PROJECT TEST OK`, `M2S SMOKE OK`, `SPRITE IMPORT OK` e `M2S DEPTH OK`. Os testes gráficos também imprimem marcadores `FAIL` em caso de erro.
 
 Os artefatos finais do teste de captura ficam no diretório temporário para inspeção, com o caminho impresso em `M2S ARTIFACT`. Os testes usam `src/test-lib/test_temp_path.lua`: `MBM_TEST_TMPDIR` permite escolher um diretório existente e gravável. Sem esse override, o helper usa `TEMP`/`TMP` no Windows ou `TMPDIR` no Unix; na ausência dessas variáveis, usa o diretório corrente no Windows e o diretório de `os.tmpname()` no Unix.
 
