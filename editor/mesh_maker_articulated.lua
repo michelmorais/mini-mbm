@@ -29,7 +29,7 @@ local TimelineOps=require 'articulated_sprite_timeline_model'
 local IO=require 'articulated_mesh_io'
 local Pose=require 'articulated_mesh_pose'
 local View=require 'articulated_mesh_view'
-local E={project={frames={{parts={}}},clips={},options={autoKey=false}},frame=1,clip=1,selected=0,time=0,
+local E={project={frames={{parts={}}},clips={},options={autoKey=false,autoplayArticulated=nil,autoplayClear=false}},frame=1,clip=1,selected=0,time=0,
     mode='animate',playing=false,geometryRevision=0,poseController=Pose,poseRevision=0,
     clipResizeDuration=1,clipResizeSource=nil,
     showTimeline=true,showParts=true,showView=true,showLight=true,showPivot=true,showOutline=false,light3d=true,dirty=false,poseDirty=false,
@@ -286,11 +286,20 @@ local function clipProperties(clip)
     edit,value=tImGui.DragInt(A('priority'),d.priority,1,-1000,1000); if edit then d.priority=value end
     d.loop=tImGui.Checkbox(A('loop'),d.loop)
     local additive=tImGui.Checkbox(A('additive'),d.blend==1); d.blend=additive and 1 or 0
+    local autoplay=E.project.options.autoplayArticulated==clip.name
+    local newAutoplay=tImGui.Checkbox(tLang.L('autoplay_animation_on_load')..'##ameAutoplay',autoplay)
+    if newAutoplay~=autoplay then
+        E.project.options.autoplayArticulated=newAutoplay and clip.name or nil
+        E.project.options.autoplayClear=not newAutoplay
+        E.modified=true
+    end
     button('apply_clip',function() action(function()
+        local oldName=clip.name
         local name=d.name:match('^%s*(.-)%s*$'); assert(name~='',L('empty_name'))
         for _,c in ipairs(E.project.clips) do assert(c==clip or c.name~=name,A('clip_name_exists')) end
         for _,track in ipairs(clip.tracks) do for _,k in ipairs(track.keys) do assert(k.time<=d.duration,'tl_out_of_range') end end
         clip.name=name; clip.duration=d.duration; clip.speed=d.speed; clip.priority=d.priority; clip.loop=d.loop; clip.blend=d.blend
+        if E.project.options.autoplayArticulated==oldName then E.project.options.autoplayArticulated=name end
         E.time=math.min(E.time,d.duration)
     end) end)
 end
@@ -371,7 +380,14 @@ local function timelinePanel()
         selectClip(#E.project.clips)
     end) end
     tImGui.SameLine(); tImGui.BeginDisabled(not clip)
-    if tImGui.Button(A('delete_clip')) then action(function() table.remove(E.project.clips,E.clip); selectClip(1) end) end
+    if tImGui.Button(A('delete_clip')) then action(function()
+        local removed=E.project.clips[E.clip]
+        table.remove(E.project.clips,E.clip)
+        if removed and E.project.options.autoplayArticulated==removed.name then
+            E.project.options.autoplayArticulated=nil; E.project.options.autoplayClear=true
+        end
+        selectClip(1)
+    end) end
     tImGui.EndDisabled(); clip=E.project.clips[E.clip]
     if not clip then tImGui.TextWrapped(A('tl_no_clip')); return end
     tImGui.PushItemWidth(-1)

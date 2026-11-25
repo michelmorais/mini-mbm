@@ -23,7 +23,7 @@
 local Model=require 'articulated_sprite_model'
 local M={}
 function M.read(d)
-    local project={frames={},clips={},options={autoKey=false}}
+    local project={frames={},clips={},options={autoKey=false,autoplayArticulated=nil,autoplayClear=false}}
     for f=1,d:getTotalFrame() do project.frames[f]={parts={}} end
     for i=1,d:getTotalArticulatedParts() do
         local id,f,s,name,x,y,z,qx,qy,qz,qw,parent=d:getArticulatedPart(i)
@@ -42,6 +42,12 @@ function M.read(d)
                 t.keys[ki]={time=time,x=x,y=y,z=z,q={qx,qy,qz,qw},sx=sx,sy=sy,sz=sz,
                     easing=easing,bezier={bx,by,cx,cy},euler=has and {ex,ey,ez} or nil}
             end
+        end
+    end
+    for _,clip in ipairs(project.clips) do
+        if d:isAutoplayAnimation('articulated',clip.name) then
+            project.options.autoplayArticulated=clip.name
+            break
         end
     end
     return project
@@ -68,6 +74,13 @@ function M.apply(d,project)
                 if k.bezier then d:setArticulatedKeyBezier(ci,ti,ki,table.unpack(k.bezier)) end
             end
         end
+    end
+    local options=project.options or {}
+    if options.autoplayClear then
+        assert(d:setAutoplayAnimation('',''),'failed_to_clear_autoplay_animation')
+    elseif options.autoplayArticulated then
+        assert(d:setAutoplayAnimation('articulated',options.autoplayArticulated),
+            'failed_to_set_articulated_autoplay_animation')
     end
     return d
 end

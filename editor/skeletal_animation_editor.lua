@@ -9416,6 +9416,16 @@ local function showSkeletalAnimationInspection()
         local clip=clips[state.animationClipSelected]
         state.animationTimelineClip=clip
         state.authoringActiveClip=clip
+        local autoplay=state.meshD:isAutoplayAnimation('skeletal',clip.name)
+        local newAutoplay=tImGui.Checkbox(tLang.L('autoplay_animation_on_load')..
+            '##swlSkeletalAutoplay'..tostring(state.animationClipSelected),autoplay)
+        if newAutoplay~=autoplay then
+            local ok,changed=safeCall(function()
+                if newAutoplay then return state.meshD:setAutoplayAnimation('skeletal',clip.name) end
+                return state.meshD:setAutoplayAnimation('','')
+            end)
+            if ok and changed then state.modified=true end
+        end
         if state.animationEditClipId~=clip.clipId then
             state.animationEditClipId=clip.clipId
             state.animationClipName=clip.name or ''
